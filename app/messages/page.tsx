@@ -3,9 +3,10 @@
 import { useState } from "react"
 import { Navbar } from "@/components/navbar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { MessageCircle, Search } from "lucide-react"
+import { MessageCircle, Send, Search } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import Image from "next/image"
 
@@ -71,7 +72,7 @@ export default function MessagesPage() {
 
   const handleSendMessage = () => {
     if (!newMessage.trim()) return
-    
+
     // Here you would typically send the message to your backend
     console.log("Sending message:", newMessage)
     setNewMessage("")
@@ -80,7 +81,7 @@ export default function MessagesPage() {
   const filteredConversations = mockConversations.filter(
     (conv) =>
       conv.adTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      conv.otherUser.name.toLowerCase().includes(searchQuery.toLowerCase())
+      conv.otherUser.name.toLowerCase().includes(searchQuery.toLowerCase()),
   )
 
   if (!user) {
@@ -142,13 +143,9 @@ export default function MessagesPage() {
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-gray-900 truncate">
-                              {conversation.otherUser.name}
-                            </p>
+                            <p className="text-sm font-medium text-gray-900 truncate">{conversation.otherUser.name}</p>
                             {conversation.unreadCount > 0 && (
-                              <Badge className="bg-blue-500 text-white text-xs">
-                                {conversation.unreadCount}
-                              </Badge>
+                              <Badge className="bg-blue-500 text-white text-xs">{conversation.unreadCount}</Badge>
                             )}
                           </div>
                           <p className="text-xs text-gray-500 truncate">{conversation.adTitle}</p>
@@ -186,15 +183,41 @@ export default function MessagesPage() {
               <CardContent className="flex-1 overflow-y-auto p-4">
                 <div className="space-y-4">
                   {mockMessages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`flex ${message.isOwn ? "justify-end" : "justify-start"}`}
-                    >
+                    <div key={message.id} className={`flex ${message.isOwn ? "justify-end" : "justify-start"}`}>
                       <div
                         className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                          message.isOwn
-                            ? "bg-blue-500 text-white"
-                            : "bg-gray-200 text-gray-900"
+                          message.isOwn ? "bg-blue-500 text-white" : "bg-gray-200 text-gray-900"
                         }`}
                       >
-                        <p className="\
+                        <p className="text-sm">{message.content}</p>
+                        <p className={`text-xs mt-1 ${message.isOwn ? "text-blue-100" : "text-gray-500"}`}>
+                          {message.timestamp}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+
+              {/* Message Input */}
+              <div className="border-t p-4">
+                <div className="flex space-x-2">
+                  <Input
+                    placeholder="Type your message..."
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+                    className="flex-1"
+                  />
+                  <Button onClick={handleSendMessage} disabled={!newMessage.trim()}>
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
