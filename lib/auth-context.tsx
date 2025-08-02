@@ -2,7 +2,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback } from "react"
-import { signIn as supabaseSignIn, signUp as supabaseSignUp, signOut as supabaseSignOut } from "./Auth"
+import { signIn as supabaseSignIn, signUp as supabaseSignUp, signOut as supabaseSignOut } from "./auth"
 import { supabase } from "@/utils/supabaseClient";
 
 interface User {

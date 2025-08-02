@@ -11,7 +11,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { resetPasswordForEmail } from '@/lib/Auth';
+import { resetPasswordForEmail } from '@/lib/auth';
 
 export function AuthForm() {
   const { signIn, signUp, loading: authLoading } = useAuth();
