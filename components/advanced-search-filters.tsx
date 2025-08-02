@@ -1,6 +1,8 @@
+// components/advanced-search-filters.tsx
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { supabase } from "@/utils/supabaseClient"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -9,7 +11,12 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ChevronDown, ChevronUp, MapPin, Filter } from "lucide-react"
-import { mockCategories, indianStates, majorCities, brandsByCategory } from "@/lib/mock-data"
+import { useToast } from "@/components/ui/use-toast"
+
+interface Category {
+  id: string
+  name: string
+}
 
 interface FilterState {
   searchQuery: string
@@ -34,16 +41,36 @@ interface AdvancedSearchFiltersProps {
 }
 
 export function AdvancedSearchFilters({ filters, onFiltersChange, onClearFilters }: AdvancedSearchFiltersProps) {
+  const [categories, setCategories] = useState<Category[]>([])
+  const [loadingCategories, setLoadingCategories] = useState(true)
+  const { toast } = useToast()
+
   const [isLocationOpen, setIsLocationOpen] = useState(false)
   const [isPriceOpen, setIsPriceOpen] = useState(false)
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
 
+  // Fetch categories from Supabase
+  useEffect(() => {
+    const fetchCategories = async () => {
+      const { data, error } = await supabase.from("categories").select("id, name")
+      if (error) {
+        console.error("Error fetching categories:", error.message)
+        toast({
+          title: "Error",
+          description: "Failed to load categories. Please try again later.",
+          variant: "destructive"
+        })
+      } else {
+        setCategories(data || [])
+      }
+      setLoadingCategories(false)
+    }
+    fetchCategories()
+  }, [toast])
+
   const updateFilter = (key: keyof FilterState, value: any) => {
     onFiltersChange({ ...filters, [key]: value })
   }
-
-  const selectedCategoryBrands =
-    filters.category && filters.category !== "all" ? brandsByCategory[filters.category] || [] : []
 
   const hasActiveFilters = Object.entries(filters).some(([key, value]) => {
     if (key === "searchQuery" || key === "sortBy") return false
@@ -76,11 +103,17 @@ export function AdvancedSearchFilters({ filters, onFiltersChange, onClearFilters
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                {mockCategories.map((category) => (
-                  <SelectItem key={category.id} value={category.id}>
-                    {category.icon} {category.name}
+                {loadingCategories ? (
+                  <SelectItem value="loading" disabled>
+                    Loading...
                   </SelectItem>
-                ))}
+                ) : (
+                  categories.map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
+                      {category.name}
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -95,9 +128,7 @@ export function AdvancedSearchFilters({ filters, onFiltersChange, onClearFilters
                 <SelectItem value="any">Any Condition</SelectItem>
                 <SelectItem value="new">New</SelectItem>
                 <SelectItem value="like_new">Like New</SelectItem>
-                <SelectItem value="good">Good</SelectItem>
-                <SelectItem value="fair">Fair</SelectItem>
-                <SelectItem value="poor">Poor</SelectItem>
+                <SelectItem value="second_hand">Second Hand</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -113,7 +144,6 @@ export function AdvancedSearchFilters({ filters, onFiltersChange, onClearFilters
                 <SelectItem value="oldest">Oldest First</SelectItem>
                 <SelectItem value="price_low">Price: Low to High</SelectItem>
                 <SelectItem value="price_high">Price: High to Low</SelectItem>
-                <SelectItem value="title">Title A-Z</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -131,51 +161,13 @@ export function AdvancedSearchFilters({ filters, onFiltersChange, onClearFilters
             </Button>
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-4 mt-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="state">State</Label>
-                <Select value={filters.state} onValueChange={(value) => updateFilter("state", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All States" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="any">All States</SelectItem>
-                    {indianStates.map((state) => (
-                      <SelectItem key={state} value={state}>
-                        {state}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="city">City</Label>
-                <Select value={filters.city} onValueChange={(value) => updateFilter("city", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All Cities" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="any">All Cities</SelectItem>
-                    {majorCities.map((city) => (
-                      <SelectItem key={city} value={city}>
-                        {city}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="location">Area/Locality</Label>
-                <Input
-                  id="location"
-                  placeholder="e.g., Andheri, Koramangala"
-                  value={filters.location}
-                  onChange={(e) => updateFilter("location", e.target.value)}
-                />
-              </div>
-            </div>
+            <Label htmlFor="location">Area/Locality</Label>
+            <Input
+              id="location"
+              placeholder="e.g., Andheri, Koramangala"
+              value={filters.location}
+              onChange={(e) => updateFilter("location", e.target.value)}
+            />
           </CollapsibleContent>
         </Collapsible>
 
@@ -235,24 +227,15 @@ export function AdvancedSearchFilters({ filters, onFiltersChange, onClearFilters
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-4 mt-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {selectedCategoryBrands.length > 0 && (
-                <div>
-                  <Label htmlFor="brand">Brand</Label>
-                  <Select value={filters.brand} onValueChange={(value) => updateFilter("brand", value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Any Brand" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="any">Any Brand</SelectItem>
-                      {selectedCategoryBrands.map((brand) => (
-                        <SelectItem key={brand} value={brand}>
-                          {brand}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+              <div>
+                <Label htmlFor="brand">Brand</Label>
+                <Input
+                  id="brand"
+                  placeholder="e.g., Apple, Samsung"
+                  value={filters.brand}
+                  onChange={(e) => updateFilter("brand", e.target.value)}
+                />
+              </div>
 
               <div>
                 <Label htmlFor="yearMin">Year From</Label>

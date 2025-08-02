@@ -1,152 +1,169 @@
+// app/search/page.tsx
 "use client"
 
 import type React from "react"
-
-import { useState, useMemo, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
-import { Navbar } from "@/components/navbar"
-import { ImprovedAdCard } from "@/components/improved-ad-card"
+import { useState, useMemo, useEffect, useCallback } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
+import { supabase } from "@/utils/supabaseClient"
+import { AdCard } from "@/components/ad-card" // CORRECTED: import path is now all lowercase
 import { AdvancedSearchFilters } from "@/components/advanced-search-filters"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { getAllAds } from "@/lib/mock-data"
-import { Search, MapPin } from "lucide-react"
+import { Search, MapPin, SlidersHorizontal } from "lucide-react"
+import { Navbar } from "@/components/navbar"
+import { useToast } from "@/components/ui/use-toast"
+
+// Re-using the Ad type from AdCard, as it matches Supabase data structure
+interface Ad {
+  id: string;
+  title: string;
+  description: string;
+  price: number | null;
+  category_id: string | null;
+  user_id: string;
+  images: string[] | null;
+  location: string | null;
+  condition: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  negotiable?: boolean;
+  profiles: {
+    full_name: string | null;
+  } | null;
+}
 
 interface FilterState {
-  searchQuery: string
-  category: string
-  priceMin: string
-  priceMax: string
-  condition: string
-  location: string
-  city: string
-  state: string
-  brand: string
-  yearMin: string
-  yearMax: string
-  negotiable: boolean | null
-  sortBy: string
+  searchQuery: string;
+  category: string;
+  priceMin: string;
+  priceMax: string;
+  condition: string;
+  location: string;
+  city: string;
+  state: string;
+  brand: string;
+  yearMin: string;
+  yearMax: string;
+  negotiable: boolean | null;
+  sortBy: string;
 }
 
 export default function SearchPage() {
-  const searchParams = useSearchParams()
-  const initialQuery = searchParams.get("q") || ""
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { toast } = useToast();
 
-  const [filters, setFilters] = useState<FilterState>({
-    searchQuery: initialQuery,
-    category: "all",
-    priceMin: "",
-    priceMax: "",
-    condition: "any",
-    location: "",
-    city: "any",
-    state: "any",
-    brand: "any",
-    yearMin: "",
-    yearMax: "",
-    negotiable: null,
-    sortBy: "newest",
-  })
+  const [filters, setFilters] = useState<FilterState>(() => ({
+    searchQuery: searchParams.get("q") || "",
+    category: searchParams.get("category") || "all",
+    priceMin: searchParams.get("priceMin") || "",
+    priceMax: searchParams.get("priceMax") || "",
+    condition: searchParams.get("condition") || "any",
+    location: searchParams.get("location") || "",
+    city: searchParams.get("city") || "any",
+    state: searchParams.get("state") || "any",
+    brand: searchParams.get("brand") || "any",
+    yearMin: searchParams.get("yearMin") || "",
+    yearMax: searchParams.get("yearMax") || "",
+    negotiable: searchParams.get("negotiable") === "true",
+    sortBy: searchParams.get("sortBy") || "newest",
+  }));
 
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
-  const [ads, setAds] = useState<any[]>([])
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [ads, setAds] = useState<Ad[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const allAds = getAllAds()
-    setAds(allAds)
-  }, [])
+  const fetchAds = useCallback(async () => {
+    setLoading(true);
+    setError(null);
 
-  const filteredAndSortedAds = useMemo(() => {
-    let filtered = ads.filter((ad) => ad.status === "active")
+    let query = supabase
+      .from('ads')
+      .select(`*, profiles(full_name)`)
+      .eq('status', 'active');
 
-    // Search by title and description
+    // Apply search query
     if (filters.searchQuery) {
-      const query = filters.searchQuery.toLowerCase()
-      filtered = filtered.filter(
-        (ad) =>
-          ad.title.toLowerCase().includes(query) ||
-          ad.description.toLowerCase().includes(query) ||
-          ad.brand?.toLowerCase().includes(query) ||
-          ad.model?.toLowerCase().includes(query),
-      )
+      const searchTerm = `%${filters.searchQuery.toLowerCase()}%`;
+      query = query.or(`title.ilike.${searchTerm},description.ilike.${searchTerm}`);
     }
 
-    // Filter by category
+    // Apply category filter
     if (filters.category !== "all") {
-      filtered = filtered.filter((ad) => ad.category_id === filters.category)
+      query = query.eq('category_id', filters.category);
     }
 
-    // Filter by condition
+    // Apply condition filter
     if (filters.condition !== "any") {
-      filtered = filtered.filter((ad) => ad.condition === filters.condition)
+      query = query.eq('condition', filters.condition);
     }
 
-    // Filter by price range
+    // Apply price range filters
     if (filters.priceMin) {
-      const minPrice = Number.parseFloat(filters.priceMin)
-      filtered = filtered.filter((ad) => ad.price && ad.price >= minPrice)
+      query = query.gte('price', parseFloat(filters.priceMin));
     }
     if (filters.priceMax) {
-      const maxPrice = Number.parseFloat(filters.priceMax)
-      filtered = filtered.filter((ad) => ad.price && ad.price <= maxPrice)
+      query = query.lte('price', parseFloat(filters.priceMax));
     }
 
-    // Filter by negotiable
-    if (filters.negotiable === true) {
-      filtered = filtered.filter((ad) => ad.negotiable)
+    // Apply negotiable filter
+    if (filters.negotiable !== null) {
+      query = query.eq('negotiable', filters.negotiable);
     }
-
-    // Filter by location
-    if (filters.state !== "any") {
-      filtered = filtered.filter((ad) => ad.state === filters.state)
-    }
-    if (filters.city !== "any") {
-      filtered = filtered.filter((ad) => ad.city === filters.city)
-    }
+    
+    // Apply location filter (as your DB schema uses it)
     if (filters.location) {
-      const locationQuery = filters.location.toLowerCase()
-      filtered = filtered.filter((ad) => ad.location.toLowerCase().includes(locationQuery))
+        query = query.ilike('location', `%${filters.location}%`);
     }
 
-    // Filter by brand
-    if (filters.brand !== "any") {
-      filtered = filtered.filter((ad) => ad.brand === filters.brand)
+    // Apply sorting
+    switch (filters.sortBy) {
+      case "oldest":
+        query = query.order('created_at', { ascending: true });
+        break;
+      case "price_low":
+        query = query.order('price', { ascending: true });
+        break;
+      case "price_high":
+        query = query.order('price', { ascending: false });
+        break;
+      case "title":
+        query = query.order('title', { ascending: true });
+        break;
+      case "newest":
+      default:
+        query = query.order('created_at', { ascending: false });
+        break;
     }
 
-    // Filter by year range
-    if (filters.yearMin) {
-      const minYear = Number.parseInt(filters.yearMin)
-      filtered = filtered.filter((ad) => ad.year && ad.year >= minYear)
-    }
-    if (filters.yearMax) {
-      const maxYear = Number.parseInt(filters.yearMax)
-      filtered = filtered.filter((ad) => ad.year && ad.year <= maxYear)
-    }
+    const { data, error: fetchError } = await query;
 
-    // Sort results
-    filtered.sort((a, b) => {
-      switch (filters.sortBy) {
-        case "oldest":
-          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        case "price_low":
-          return (a.price || 0) - (b.price || 0)
-        case "price_high":
-          return (b.price || 0) - (a.price || 0)
-        case "title":
-          return a.title.localeCompare(b.title)
-        case "newest":
-        default:
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      }
-    })
+    if (fetchError) {
+      console.error("Error fetching ads:", fetchError.message);
+      setError("Failed to load ads. Please try again.");
+      toast({
+        title: "Error",
+        description: "Failed to load ads: " + fetchError.message,
+        variant: "destructive"
+      });
+    } else {
+      setAds(data as Ad[]);
+    }
+    setLoading(false);
+  }, [filters, toast]);
 
-    return filtered
-  }, [ads, filters])
+  useEffect(() => {
+    fetchAds();
+  }, [fetchAds]);
 
   const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    // Search is handled by the useMemo above
-  }
+    e.preventDefault();
+    const newSearchParams = new URLSearchParams(searchParams.toString());
+    newSearchParams.set("q", filters.searchQuery);
+    router.push(`/search?${newSearchParams.toString()}`);
+  };
 
   const clearAllFilters = () => {
     setFilters({
@@ -163,19 +180,19 @@ export default function SearchPage() {
       yearMax: "",
       negotiable: null,
       sortBy: "newest",
-    })
-  }
+    });
+    router.push('/search');
+  };
 
-  const getActiveFiltersCount = () => {
+  const getActiveFiltersCount = useMemo(() => {
     return Object.entries(filters).filter(([key, value]) => {
-      if (key === "searchQuery" || key === "sortBy") return false
-      if (key === "category") return value !== "all"
-      if (key === "negotiable") return value !== null
-      return value !== "" && value !== "any"
-    }).length
-  }
-
-  const activeFiltersCount = getActiveFiltersCount()
+      if (key === "searchQuery" && value !== "") return true;
+      if (key === "sortBy" && value !== "newest") return true;
+      if (key === "negotiable" && value !== null) return true;
+      if (["category", "condition", "location", "city", "state", "brand", "priceMin", "priceMax", "yearMin", "yearMax"].includes(key) && value !== "" && value !== "any") return true;
+      return false;
+    }).length;
+  }, [filters]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -201,7 +218,8 @@ export default function SearchPage() {
                 />
               </div>
               <Button type="button" variant="outline" onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}>
-                Advanced Filters {activeFiltersCount > 0 && `(${activeFiltersCount})`}
+                <SlidersHorizontal className="h-4 w-4 mr-2" />
+                Filters {getActiveFiltersCount > 0 && `(${getActiveFiltersCount})`}
               </Button>
             </form>
           </div>
@@ -214,29 +232,21 @@ export default function SearchPage() {
           {/* Results Summary */}
           <div className="flex items-center justify-between mb-6">
             <p className="text-gray-600">
-              {filteredAndSortedAds.length} {filteredAndSortedAds.length === 1 ? "result" : "results"} found
-              {activeFiltersCount > 0 &&
-                ` with ${activeFiltersCount} filter${activeFiltersCount === 1 ? "" : "s"} applied`}
+              {loading ? "Loading..." : `${ads.length} ${ads.length === 1 ? "result" : "results"} found`}
+              {getActiveFiltersCount > 0 && ` with ${getActiveFiltersCount} filter${getActiveFiltersCount === 1 ? "" : "s"} applied`}
             </p>
-
-            {/* Active Filters Summary */}
-            {activeFiltersCount > 0 && (
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <MapPin className="h-4 w-4" />
-                {filters.city !== "any" && <span>{filters.city}</span>}
-                {filters.state !== "any" && filters.city === "any" && <span>{filters.state}</span>}
-                {filters.priceMin && <span>₹{filters.priceMin}+</span>}
-                {filters.priceMax && <span>up to ₹{filters.priceMax}</span>}
-              </div>
-            )}
           </div>
         </div>
 
         {/* Results */}
-        {filteredAndSortedAds.length > 0 ? (
+        {loading ? (
+          <div className="text-center py-12 text-gray-500">Loading ads...</div>
+        ) : error ? (
+          <div className="text-center py-12 text-red-500">Error: {error}</div>
+        ) : ads.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredAndSortedAds.map((ad) => (
-              <ImprovedAdCard key={ad.id} ad={ad} />
+            {ads.map((ad) => (
+              <AdCard key={ad.id} ad={ad} />
             ))}
           </div>
         ) : (
@@ -244,7 +254,7 @@ export default function SearchPage() {
             <div className="max-w-md mx-auto">
               <p className="text-gray-500 text-lg mb-2">No ads found matching your criteria.</p>
               <p className="text-gray-400 mb-4">Try adjusting your search filters or search terms.</p>
-              {activeFiltersCount > 0 && (
+              {getActiveFiltersCount > 0 && (
                 <Button variant="outline" onClick={clearAllFilters}>
                   Clear All Filters
                 </Button>
@@ -254,5 +264,5 @@ export default function SearchPage() {
         )}
       </div>
     </div>
-  )
+  );
 }

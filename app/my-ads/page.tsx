@@ -1,127 +1,194 @@
-"use client"
+// app/my-ads/page.tsx
+"use client";
 
-import { useMemo, useEffect, useState } from "react"
-import { Navbar } from "@/components/navbar"
-import { AdManagementCard } from "@/components/ad-management-card"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { getAllAds, getAdsFromStorage, type Ad } from "@/lib/mock-data"
-import { useAuth } from "@/lib/auth-context"
-import { Plus } from "lucide-react"
-import Link from "next/link"
-import { toast } from "@/hooks/use-toast"
+import { useMemo, useEffect, useState } from "react";
+import { supabase } from "@/utils/supabaseClient";
+import { useAuth } from "@/lib/auth-context";
+import { AdManagementCard } from "@/components/ad-management-card"; // This component needs to be created
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus } from "lucide-react";
+import Link from "next/link";
+import { toast } from "@/components/ui/use-toast";
+
+// Ad type that matches your Supabase table and includes the joined profile
+interface Ad {
+  id: string;
+  title: string;
+  description: string;
+  price: number | null;
+  category_id: string | null;
+  user_id: string;
+  images: string[] | null;
+  location: string | null;
+  condition: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  negotiable?: boolean;
+  profiles: {
+    full_name: string | null;
+  } | null;
+}
 
 export default function MyAdsPage() {
-  const { user } = useAuth()
-  const [ads, setAds] = useState<Ad[]>([])
-  const [editingAd, setEditingAd] = useState<Ad | null>(null)
+  const { user, loading: authLoading } = useAuth();
+  const [ads, setAds] = useState<Ad[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingAd, setEditingAd] = useState<Ad | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [editFormData, setEditFormData] = useState({
     title: "",
     description: "",
     price: "",
     condition: "",
     negotiable: false,
-  })
+  });
+
+  const fetchUserAds = async () => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('ads')
+      .select(`*, profiles(full_name)`)
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error("Error fetching my ads:", error.message);
+      toast({
+        title: "Error",
+        description: "Failed to fetch your ads.",
+        variant: "destructive"
+      });
+    } else {
+      setAds(data as Ad[]);
+    }
+    setLoading(false);
+  };
 
   useEffect(() => {
-    const allAds = getAllAds()
-    setAds(allAds)
-  }, [])
-
-  const userAds = useMemo(() => {
-    if (!user) return []
-    return ads.filter((ad) => ad.user_id === user.id)
-  }, [user, ads])
+    if (!authLoading) {
+      fetchUserAds();
+    }
+  }, [user, authLoading]);
 
   const handleEditAd = (ad: Ad) => {
-    setEditingAd(ad)
+    setEditingAd(ad);
     setEditFormData({
       title: ad.title,
       description: ad.description,
       price: ad.price?.toString() || "",
-      condition: ad.condition,
-      negotiable: ad.negotiable,
-    })
-  }
+      condition: ad.condition || "",
+      negotiable: ad.negotiable || false,
+    });
+  };
 
-  const handleSaveEdit = () => {
-    if (!editingAd) return
+  const handleSaveEdit = async () => {
+    if (!editingAd) return;
+    setIsSaving(true);
 
-    const updatedAd: Ad = {
-      ...editingAd,
-      title: editFormData.title,
-      description: editFormData.description,
-      price: editFormData.price ? Number.parseFloat(editFormData.price) : null,
-      condition: editFormData.condition as "new" | "second_hand" | "like_new",
-      negotiable: editFormData.negotiable,
-      updated_at: new Date().toISOString(),
+    const { error } = await supabase
+      .from('ads')
+      .update({
+        title: editFormData.title,
+        description: editFormData.description,
+        price: editFormData.price ? parseFloat(editFormData.price) : null,
+        condition: editFormData.condition,
+        negotiable: editFormData.negotiable,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', editingAd.id);
+
+    setIsSaving(false);
+    setEditingAd(null);
+
+    if (error) {
+      console.error("Error saving ad:", error.message);
+      toast({
+        title: "Error",
+        description: "Failed to save changes. Please try again.",
+        variant: "destructive"
+      });
+    } else {
+      toast({
+        title: "Success",
+        description: "Ad updated successfully!",
+      });
+      fetchUserAds(); // Re-fetch ads to show the updated data
     }
+  };
 
-    // Update in localStorage
-    const allAds = getAdsFromStorage()
-    const updatedAds = allAds.map((ad) => (ad.id === editingAd.id ? updatedAd : ad))
-    localStorage.setItem("marketplace_ads", JSON.stringify(updatedAds))
+  const handleMarkAsSold = async (adId: string) => {
+    const { error } = await supabase
+      .from('ads')
+      .update({ status: "sold" as const, updated_at: new Date().toISOString() })
+      .eq('id', adId)
+      .eq('user_id', user?.id); // Double-check user ownership
 
-    // Update local state
-    setAds(updatedAds)
-    setEditingAd(null)
+    if (error) {
+      console.error("Error marking ad as sold:", error.message);
+      toast({
+        title: "Error",
+        description: "Failed to mark ad as sold.",
+        variant: "destructive"
+      });
+    } else {
+      toast({
+        title: "Success",
+        description: "Ad marked as sold!",
+      });
+      fetchUserAds(); // Re-fetch ads
+    }
+  };
 
-    toast({
-      title: "Success",
-      description: "Ad updated successfully!",
-    })
+  const handleDeleteAd = async (adId: string) => {
+    const { error } = await supabase
+      .from('ads')
+      .delete()
+      .eq('id', adId)
+      .eq('user_id', user?.id); // Double-check user ownership
+
+    if (error) {
+      console.error("Error deleting ad:", error.message);
+      toast({
+        title: "Error",
+        description: "Failed to delete ad.",
+        variant: "destructive"
+      });
+    } else {
+      toast({
+        title: "Success",
+        description: "Ad deleted successfully!",
+      });
+      fetchUserAds(); // Re-fetch ads
+    }
+  };
+
+  if (authLoading) {
+    return <div className="min-h-screen bg-gray-50 text-center py-10">Loading user session...</div>;
   }
-
-  const handleMarkAsSold = (adId: string) => {
-    const allAds = getAdsFromStorage()
-    const updatedAds = allAds.map((ad) =>
-      ad.id === adId ? { ...ad, status: "sold" as const, updated_at: new Date().toISOString() } : ad,
-    )
-    localStorage.setItem("marketplace_ads", JSON.stringify(updatedAds))
-    setAds(updatedAds)
-
-    toast({
-      title: "Success",
-      description: "Ad marked as sold!",
-    })
-  }
-
-  const handleDeleteAd = (adId: string) => {
-    const allAds = getAdsFromStorage()
-    const updatedAds = allAds.filter((ad) => ad.id !== adId)
-    localStorage.setItem("marketplace_ads", JSON.stringify(updatedAds))
-    setAds(updatedAds)
-
-    toast({
-      title: "Success",
-      description: "Ad deleted successfully!",
-    })
-  }
-
   if (!user) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <Navbar />
-        <div className="max-w-7xl mx-auto px-4 py-8 text-center">
-          <h1 className="text-2xl font-bold">Please sign in to view your ads</h1>
-        </div>
-      </div>
-    )
+    return <div className="min-h-screen bg-gray-50 text-center py-10">Please sign in to view your ads</div>;
   }
-
-  const activeAds = userAds.filter((ad) => ad.status === "active")
-  const soldAds = userAds.filter((ad) => ad.status === "sold")
+  if (loading) {
+    return <div className="min-h-screen bg-gray-50 text-center py-10">Loading your ads...</div>;
+  }
+  
+  const activeAds = ads.filter((ad) => ad.status === "active");
+  const soldAds = ads.filter((ad) => ad.status === "sold");
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar />
-
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -131,16 +198,15 @@ export default function MyAdsPage() {
             </p>
           </div>
           <Button asChild>
-            <Link href="/post-ad">
+            <Link href="/create-ad">
               <Plus className="h-4 w-4 mr-2" />
               Post New Ad
             </Link>
           </Button>
         </div>
 
-        {userAds.length > 0 ? (
+        {ads.length > 0 ? (
           <div className="space-y-8">
-            {/* Active Ads */}
             {activeAds.length > 0 && (
               <div>
                 <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
@@ -161,7 +227,6 @@ export default function MyAdsPage() {
               </div>
             )}
 
-            {/* Sold Ads */}
             {soldAds.length > 0 && (
               <div>
                 <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
@@ -192,7 +257,7 @@ export default function MyAdsPage() {
                 You haven't posted any ads yet. Start selling by posting your first ad!
               </p>
               <Button asChild>
-                <Link href="/post-ad">
+                <Link href="/create-ad">
                   <Plus className="h-4 w-4 mr-2" />
                   Post Your First Ad
                 </Link>
@@ -214,6 +279,7 @@ export default function MyAdsPage() {
                   id="edit-title"
                   value={editFormData.title}
                   onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+                  disabled={isSaving}
                 />
               </div>
               <div>
@@ -223,6 +289,7 @@ export default function MyAdsPage() {
                   value={editFormData.description}
                   onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
                   rows={3}
+                  disabled={isSaving}
                 />
               </div>
               <div>
@@ -232,6 +299,7 @@ export default function MyAdsPage() {
                   type="number"
                   value={editFormData.price}
                   onChange={(e) => setEditFormData({ ...editFormData, price: e.target.value })}
+                  disabled={isSaving}
                 />
               </div>
               <div>
@@ -239,6 +307,7 @@ export default function MyAdsPage() {
                 <Select
                   value={editFormData.condition}
                   onValueChange={(value) => setEditFormData({ ...editFormData, condition: value })}
+                  disabled={isSaving}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -256,15 +325,16 @@ export default function MyAdsPage() {
                   id="edit-negotiable"
                   checked={editFormData.negotiable}
                   onChange={(e) => setEditFormData({ ...editFormData, negotiable: e.target.checked })}
+                  disabled={isSaving}
                 />
                 <Label htmlFor="edit-negotiable">Price is negotiable</Label>
               </div>
               <div className="flex gap-2 pt-4">
-                <Button variant="outline" onClick={() => setEditingAd(null)} className="flex-1">
+                <Button variant="outline" onClick={() => setEditingAd(null)} className="flex-1" disabled={isSaving}>
                   Cancel
                 </Button>
-                <Button onClick={handleSaveEdit} className="flex-1">
-                  Save Changes
+                <Button onClick={handleSaveEdit} className="flex-1" disabled={isSaving}>
+                  {isSaving ? "Saving..." : "Save Changes"}
                 </Button>
               </div>
             </div>
@@ -272,5 +342,5 @@ export default function MyAdsPage() {
         </Dialog>
       </div>
     </div>
-  )
+  );
 }
