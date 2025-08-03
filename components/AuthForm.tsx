@@ -41,6 +41,10 @@ export function AuthForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [showForgotPasswordDialog, setShowForgotPasswordDialog] = useState(false)
   const [resetEmail, setResetEmail] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [passwordErrors, setPasswordErrors] = useState<Record<string, boolean>>({})
+
+  const [signInData, setSignInData] = useState({ email: "", password: "" })
 
   const [signUpData, setSignUpData] = useState({
     fullName: "",
@@ -48,8 +52,6 @@ export function AuthForm() {
     mobile: "",
     password: ""
   })
-  const [showPassword, setShowPassword] = useState(false)
-  const [passwordErrors, setPasswordErrors] = useState<Record<string, boolean>>({})
 
   const validatePassword = (password: string) => {
     const errors: Record<string, boolean> = {}
@@ -69,25 +71,31 @@ export function AuthForm() {
   const handleSignInSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    const { email, password } = signInData
 
-    const formData = new FormData(e.currentTarget as HTMLFormElement)
-    const email = formData.get("email") as string
-    const password = formData.get("password") as string
     console.log("SIGN IN VALUES:", { email, password })
 
-    const result = await signIn(email, password)
-
-    if (result.success) {
+    try {
+      const result = await signIn(email, password)
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: "Signed in successfully!",
+          variant: "default",
+        })
+        router.push("/")
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Invalid email or password",
+          variant: "destructive",
+        })
+      }
+    } catch (err) {
+      console.error("UNEXPECTED SIGNIN ERROR:", err)
       toast({
-        title: "Success",
-        description: "Signed in successfully!",
-        variant: "default",
-      })
-      router.push("/")
-    } else {
-      toast({
-        title: "Error",
-        description: result.error || "Invalid email or password",
+        title: "Unexpected error",
+        description: "Something went wrong during sign-in.",
         variant: "destructive",
       })
     }
@@ -142,7 +150,7 @@ export function AuthForm() {
           variant: "default",
         })
         setActiveTab("signin")
-        router.push("?type=signup") // optional: triggers confirmation toast
+        router.push("?type=signup")
       } else {
         toast({
           title: "Signup failed",
@@ -180,16 +188,15 @@ export function AuthForm() {
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
             </TabsList>
 
-            {/* Sign In Tab */}
             <TabsContent value="signin">
               <form onSubmit={handleSignInSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
-                  <Input id="email" name="email" type="email" required />
+                  <Input id="email" name="email" type="email" required value={signInData.email} onChange={(e) => setSignInData({ ...signInData, email: e.target.value })} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
-                  <Input id="password" name="password" type="password" required />
+                  <Input id="password" name="password" type="password" required value={signInData.password} onChange={(e) => setSignInData({ ...signInData, password: e.target.value })} />
                 </div>
                 <Button type="submit" className="w-full" disabled={displayLoading}>
                   {displayLoading ? "Signing in..." : "Sign In"}
@@ -202,7 +209,6 @@ export function AuthForm() {
               </form>
             </TabsContent>
 
-            {/* Sign Up Tab */}
             <TabsContent value="signup">
               <form onSubmit={handleSignUpSubmit} className="space-y-4">
                 <div className="space-y-2">
@@ -240,9 +246,6 @@ export function AuthForm() {
                         </li>
                       ))}
                     </ul>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Example: <span className="font-mono">SecurePass123!</span>
-                    </p>
                   </div>
                 </div>
                 <Button type="submit" className="w-full" disabled={displayLoading}>
@@ -254,7 +257,6 @@ export function AuthForm() {
         </CardContent>
       </Card>
 
-      {/* Forgot Password Dialog */}
       <Dialog open={showForgotPasswordDialog} onOpenChange={setShowForgotPasswordDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
