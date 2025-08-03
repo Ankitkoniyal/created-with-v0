@@ -1,29 +1,22 @@
-import type React from "react"
+// app/layout.tsx
 import "./globals.css"
-import { Inter } from "next/font/google"
-import { cn } from "@/lib/utils"
-import { ThemeProvider } from "@/components/theme-provider"
-import { WishlistProvider } from "@/components/wishlist-context"
 import { AuthProvider } from "@/lib/auth-context"
-import { Toaster } from "@/components/ui/toaster"
-
-const inter = Inter({ subsets: ["latin"] })
+import { WishlistProvider } from "@/components/wishlist-context"
 
 export const metadata = {
-  title: "Marketplace",
-    generator: 'v0.dev'
+  title: "My App",
+  description: "Next.js + Supabase Auth",
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={cn(inter.className, "min-h-screen bg-background antialiased")}>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-          <AuthProvider>
-            <WishlistProvider>{children}</WishlistProvider>
-            <Toaster />
-          </AuthProvider>
-        </ThemeProvider>
+    <html lang="en">
+      <body>
+        <AuthProvider>
+          <WishlistProvider>
+            {children}
+          </WishlistProvider>
+        </AuthProvider>
       </body>
     </html>
   )
