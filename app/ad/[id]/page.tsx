@@ -25,19 +25,16 @@ interface Ad {
     id: string
     full_name: string
     mobile: string | null
-    email: string | null
+    email: string | null // FIX: Changed from Email to email
   } | null
 }
 
 export default async function AdDetailPage({ params }: { params: { id: string } }) {
   // Create a new Supabase client for each request
   const supabase = createClient()
-  console.log("--- New code is running in page.tsx ---");
   const adId = await params.id
 
-  // If the adId is not a valid string, immediately show a 404 page.
   if (!adId || adId === "") {
-    console.error("Ad ID is invalid:", adId)
     notFound()
   }
 
@@ -58,9 +55,9 @@ export default async function AdDetailPage({ params }: { params: { id: string } 
         id,
         full_name,
         mobile,
-        email
+        email // FIX: Changed from Email to email
       )
-    `
+      `
     )
     .eq("id", adId)
     .single()

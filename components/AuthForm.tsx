@@ -1,4 +1,4 @@
-// components/AuthForm.tsx (Updated)
+// components/AuthForm.tsx
 "use client"
 
 import React, { useState } from 'react';
@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { resetPasswordForEmail } from '@/lib/auth';
-import { Eye, EyeOff } from 'lucide-react'; // Import Eye icons
+import { Eye, EyeOff } from 'lucide-react';
 
 export function AuthForm() {
   const { signIn, signUp, loading: authLoading } = useAuth();
@@ -31,7 +31,7 @@ export function AuthForm() {
     password: ""
   });
   const [passwordError, setPasswordError] = useState("");
-  const [showPassword, setShowPassword] = useState(false); // New state for password visibility
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSignUpChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -53,9 +53,15 @@ export function AuthForm() {
       });
       router.push("/");
     } else {
+      let errorMessage = "Failed to sign in. Please check your credentials.";
+      if (result.error) {
+        console.error("Sign-in error:", result.error);
+        errorMessage = result.error;
+      }
+
       toast({
         title: "Error",
-        description: result.error || "Failed to sign in. Please check your credentials.",
+        description: errorMessage,
         variant: "destructive",
       });
     }
@@ -63,9 +69,9 @@ export function AuthForm() {
   };
 
   const handleSignUpSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault(); // Prevent default form submission
+    e.preventDefault();
     setIsLoading(true);
-    setPasswordError(""); // Reset previous error
+    setPasswordError("");
 
     const { fullName, email, mobile, password } = signUpData;
 
@@ -79,7 +85,6 @@ export function AuthForm() {
       return;
     }
     
-    // Password Policy Validation
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
     if (!passwordRegex.test(password)) {
       setPasswordError("Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.");
