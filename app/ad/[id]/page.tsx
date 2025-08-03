@@ -25,7 +25,7 @@ interface Ad {
     id: string
     full_name: string
     mobile: string | null
-    Email: string | null
+    email: string | null
   } | null
 }
 
@@ -58,7 +58,7 @@ export default async function AdDetailPage({ params }: { params: { id: string } 
         id,
         full_name,
         mobile,
-        Email
+        email
       )
     `
     )
