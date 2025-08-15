@@ -1,0 +1,498 @@
+"use client"
+
+import type React from "react"
+
+import { useState } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
+import { X, Camera, MapPin, DollarSign, Package, FileText, ImageIcon } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
+import { useAuth } from "@/hooks/use-auth"
+
+interface ProductFormData {
+  title: string
+  description: string
+  price: string
+  category: string
+  condition: string
+  brand: string
+  model: string
+  location: string
+  images: File[]
+  features: string[]
+}
+
+const categories = [
+  "Electronics",
+  "Cars",
+  "Property",
+  "Fashion",
+  "Gaming",
+  "Books",
+  "Services",
+  "Home & Garden",
+  "Sports",
+  "Collectibles",
+]
+
+const conditions = ["New", "Like New", "Excellent", "Very Good", "Good", "Fair", "Poor"]
+
+export function PostProductForm() {
+  const router = useRouter()
+  const { user } = useAuth()
+  const [currentStep, setCurrentStep] = useState(1)
+  const [formData, setFormData] = useState<ProductFormData>({
+    title: "",
+    description: "",
+    price: "",
+    category: "",
+    condition: "",
+    brand: "",
+    model: "",
+    location: "",
+    images: [],
+    features: [],
+  })
+  const [newFeature, setNewFeature] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleInputChange = (field: keyof ProductFormData, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    if (formData.images.length + files.length <= 8) {
+      setFormData((prev) => ({ ...prev, images: [...prev.images, ...files] }))
+    }
+  }
+
+  const removeImage = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index),
+    }))
+  }
+
+  const addFeature = () => {
+    if (newFeature.trim() && !formData.features.includes(newFeature.trim())) {
+      setFormData((prev) => ({
+        ...prev,
+        features: [...prev.features, newFeature.trim()],
+      }))
+      setNewFeature("")
+    }
+  }
+
+  const removeFeature = (feature: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      features: prev.features.filter((f) => f !== feature),
+    }))
+  }
+
+  const handleSubmit = async () => {
+    if (!user) {
+      alert("Please log in to post an ad")
+      router.push("/auth/login")
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      const supabase = createClient()
+
+      const imageUrls: string[] = []
+      if (formData.images.length > 0) {
+        for (const image of formData.images) {
+          const fileName = `${Date.now()}-${image.name}`
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from("product-images")
+            .upload(fileName, image)
+
+          if (uploadError) {
+            console.error("Image upload error:", uploadError)
+          } else {
+            const {
+              data: { publicUrl },
+            } = supabase.storage.from("product-images").getPublicUrl(fileName)
+            imageUrls.push(publicUrl)
+          }
+        }
+      }
+
+      const { data, error } = await supabase
+        .from("products")
+        .insert({
+          title: formData.title,
+          description: formData.description,
+          price: Number.parseFloat(formData.price),
+          category: formData.category,
+          condition: formData.condition,
+          brand: formData.brand || null,
+          model: formData.model || null,
+          location: formData.location,
+          images: imageUrls,
+          features: formData.features,
+          user_id: user.id,
+          status: "active",
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error("Database error:", error)
+        alert("Failed to post your ad. Please try again.")
+        return
+      }
+
+      console.log("[v0] Product saved successfully:", data)
+
+      router.push(`/sell/success?id=${data.id}`)
+    } catch (error) {
+      console.error("Submission error:", error)
+      alert("Failed to post your ad. Please try again.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const isStep1Valid = formData.title && formData.category && formData.condition && formData.price
+  const isStep2Valid = formData.description && formData.location
+  const isStep3Valid = formData.images.length > 0
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-center space-x-4 mb-8">
+        {[1, 2, 3, 4].map((step) => (
+          <div key={step} className="flex items-center">
+            <div
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                currentStep >= step ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {step}
+            </div>
+            {step < 4 && <div className={`w-12 h-0.5 mx-2 ${currentStep > step ? "bg-primary" : "bg-muted"}`} />}
+          </div>
+        ))}
+      </div>
+
+      {currentStep === 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Package className="h-5 w-5 mr-2" />
+              Basic Information
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="title">Product Title *</Label>
+              <Input
+                id="title"
+                placeholder="e.g., iPhone 14 Pro Max - Excellent Condition"
+                value={formData.title}
+                onChange={(e) => handleInputChange("title", e.target.value)}
+                maxLength={100}
+              />
+              <p className="text-sm text-muted-foreground">{formData.title.length}/100 characters</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="category">Category *</Label>
+                <Select value={formData.category} onValueChange={(value) => handleInputChange("category", value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((category) => (
+                      <SelectItem key={category} value={category}>
+                        {category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="condition">Condition *</Label>
+                <Select value={formData.condition} onValueChange={(value) => handleInputChange("condition", value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select condition" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {conditions.map((condition) => (
+                      <SelectItem key={condition} value={condition}>
+                        {condition}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="brand">Brand</Label>
+                <Input
+                  id="brand"
+                  placeholder="e.g., Apple, Samsung, Honda"
+                  value={formData.brand}
+                  onChange={(e) => handleInputChange("brand", e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="model">Model</Label>
+                <Input
+                  id="model"
+                  placeholder="e.g., iPhone 14 Pro Max, Galaxy S23"
+                  value={formData.model}
+                  onChange={(e) => handleInputChange("model", e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="price">Price *</Label>
+              <div className="relative">
+                <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="price"
+                  type="number"
+                  placeholder="0.00"
+                  className="pl-10"
+                  value={formData.price}
+                  onChange={(e) => handleInputChange("price", e.target.value)}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {currentStep === 2 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <FileText className="h-5 w-5 mr-2" />
+              Description & Location
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="description">Description *</Label>
+              <Textarea
+                id="description"
+                placeholder="Describe your product in detail. Include any defects, usage history, and why you're selling."
+                rows={6}
+                value={formData.description}
+                onChange={(e) => handleInputChange("description", e.target.value)}
+                maxLength={1000}
+              />
+              <p className="text-sm text-muted-foreground">{formData.description.length}/1000 characters</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="location">Location *</Label>
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="location"
+                  placeholder="e.g., New York, NY"
+                  className="pl-10"
+                  value={formData.location}
+                  onChange={(e) => handleInputChange("location", e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <Label>Key Features (Optional)</Label>
+              <div className="flex space-x-2">
+                <Input
+                  placeholder="Add a feature"
+                  value={newFeature}
+                  onChange={(e) => setNewFeature(e.target.value)}
+                  onKeyPress={(e) => e.key === "Enter" && addFeature()}
+                />
+                <Button type="button" onClick={addFeature} variant="outline">
+                  Add
+                </Button>
+              </div>
+              {formData.features.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {formData.features.map((feature) => (
+                    <Badge key={feature} variant="secondary" className="flex items-center gap-1">
+                      {feature}
+                      <X className="h-3 w-3 cursor-pointer" onClick={() => removeFeature(feature)} />
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {currentStep === 3 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <ImageIcon className="h-5 w-5 mr-2" />
+              Photos
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-4">
+              <p className="text-muted-foreground">Add up to 8 photos. The first photo will be your main image.</p>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {formData.images.map((image, index) => (
+                  <div key={index} className="relative group">
+                    <img
+                      src={URL.createObjectURL(image) || "/placeholder.svg"}
+                      alt={`Product ${index + 1}`}
+                      className="w-full h-32 object-cover rounded-lg border"
+                    />
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => removeImage(index)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                    {index === 0 && <Badge className="absolute bottom-2 left-2 text-xs">Main</Badge>}
+                  </div>
+                ))}
+
+                {formData.images.length < 8 && (
+                  <label className="border-2 border-dashed border-muted-foreground/25 rounded-lg h-32 flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 transition-colors">
+                    <Camera className="h-8 w-8 text-muted-foreground mb-2" />
+                    <span className="text-sm text-muted-foreground">Add Photo</span>
+                    <input type="file" multiple accept="image/*" className="hidden" onChange={handleImageUpload} />
+                  </label>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {currentStep === 4 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Review Your Listing</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-semibold mb-2">Product Details</h3>
+                  <div className="space-y-1 text-sm">
+                    <p>
+                      <span className="text-muted-foreground">Title:</span> {formData.title}
+                    </p>
+                    <p>
+                      <span className="text-muted-foreground">Category:</span> {formData.category}
+                    </p>
+                    <p>
+                      <span className="text-muted-foreground">Condition:</span> {formData.condition}
+                    </p>
+                    <p>
+                      <span className="text-muted-foreground">Price:</span> ${formData.price}
+                    </p>
+                    {formData.brand && (
+                      <p>
+                        <span className="text-muted-foreground">Brand:</span> {formData.brand}
+                      </p>
+                    )}
+                    {formData.model && (
+                      <p>
+                        <span className="text-muted-foreground">Model:</span> {formData.model}
+                      </p>
+                    )}
+                    <p>
+                      <span className="text-muted-foreground">Location:</span> {formData.location}
+                    </p>
+                  </div>
+                </div>
+
+                {formData.features.length > 0 && (
+                  <div>
+                    <h3 className="font-semibold mb-2">Features</h3>
+                    <div className="flex flex-wrap gap-1">
+                      {formData.features.map((feature) => (
+                        <Badge key={feature} variant="outline" className="text-xs">
+                          {feature}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-semibold mb-2">Description</h3>
+                  <p className="text-sm text-muted-foreground">{formData.description}</p>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold mb-2">Photos ({formData.images.length})</h3>
+                  <div className="grid grid-cols-4 gap-2">
+                    {formData.images.slice(0, 4).map((image, index) => (
+                      <img
+                        key={index}
+                        src={URL.createObjectURL(image) || "/placeholder.svg"}
+                        alt={`Product ${index + 1}`}
+                        className="w-full h-16 object-cover rounded border"
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="flex justify-between">
+        <Button
+          variant="outline"
+          onClick={() => setCurrentStep((prev) => Math.max(1, prev - 1))}
+          disabled={currentStep === 1}
+        >
+          Previous
+        </Button>
+
+        {currentStep < 4 ? (
+          <Button
+            onClick={() => setCurrentStep((prev) => prev + 1)}
+            disabled={
+              (currentStep === 1 && !isStep1Valid) ||
+              (currentStep === 2 && !isStep2Valid) ||
+              (currentStep === 3 && !isStep3Valid)
+            }
+          >
+            Next
+          </Button>
+        ) : (
+          <Button onClick={handleSubmit} disabled={isSubmitting} className="bg-primary hover:bg-primary/90">
+            {isSubmitting ? "Publishing..." : "Publish Listing"}
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}

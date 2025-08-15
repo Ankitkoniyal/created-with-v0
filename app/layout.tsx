@@ -1,22 +1,38 @@
-// app/layout.tsx
+import type React from "react"
+import type { Metadata } from "next"
+import { DM_Sans } from "next/font/google"
 import "./globals.css"
-import { AuthProvider } from "@/lib/auth-context"
-import { WishlistProvider } from "@/components/wishlist-context"
+import { AuthProvider } from "@/hooks/use-auth"
 
-export const metadata = {
-  title: "My App",
-  description: "Next.js + Supabase Auth",
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-dm-sans",
+})
+
+export const metadata: Metadata = {
+  title: "MarketPlace - Buy & Sell Everything",
+  description: "Your trusted marketplace for buying and selling products locally",
+  generator: "v0.app",
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode
+}>) {
   return (
     <html lang="en">
-      <body>
-        <AuthProvider>
-          <WishlistProvider>
-            {children}
-          </WishlistProvider>
-        </AuthProvider>
+      <head>
+        <style>{`
+html {
+  font-family: ${dmSans.style.fontFamily};
+  --font-sans: ${dmSans.variable};
+}
+        `}</style>
+      </head>
+      <body className={dmSans.className}>
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   )
