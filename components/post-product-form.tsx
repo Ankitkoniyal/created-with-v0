@@ -242,7 +242,7 @@ export function PostProductForm() {
 
             if (uploadError) {
               console.error("Image upload error:", uploadError)
-              if (uploadError.message.includes("row-level security")) {
+              if (uploadError.message.includes("row-level security") || uploadError.message.includes("policy")) {
                 console.log("[v0] Skipping image upload due to RLS policy")
                 break
               } else {
@@ -264,52 +264,47 @@ export function PostProductForm() {
 
       const productData = {
         title: formData.title,
-        description: formData.description,
-        price: formData.priceType === "amount" ? Number.parseFloat(formData.price) : 0,
-        price_type: formData.priceType,
-        category_id: 1,
+        description: `${formData.description}${formData.location ? `\n\nLocation: ${formData.location}` : ""}${formData.postalCode ? ` ${formData.postalCode}` : ""}${formData.youtubeUrl ? `\n\nVideo: ${formData.youtubeUrl}` : ""}${formData.websiteUrl ? `\n\nWebsite: ${formData.websiteUrl}` : ""}${formData.tags.length > 0 ? `\n\nTags: ${formData.tags.join(", ")}` : ""}${formData.showMobileNumber ? "\n\n📱 Mobile number available - contact seller" : ""}`,
+        price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
+        category_id: Math.max(1, categories.indexOf(formData.category) + 1), // Map category name to ID
         condition: formData.condition,
         brand: formData.brand || null,
         model: formData.model || null,
-        location: formData.location,
-        postal_code: formData.postalCode,
-        youtube_url: formData.youtubeUrl || null,
-        website_url: formData.websiteUrl || null,
-        show_mobile_number: formData.showMobileNumber,
-        tags: formData.tags,
         images: imageUrls,
         user_id: user.id,
       }
+
+      console.log("[v0] Attempting to insert product data:", productData)
 
       const { data, error } = await supabase.from("products").insert(productData).select().single()
 
       if (error) {
         console.error("Database error:", error)
-        if (error.message.includes("row-level security")) {
+        if (error.message.includes("row-level security") || error.message.includes("policy")) {
           alert("Permission denied. Please make sure you're logged in and try again.")
         } else if (error.message.includes("column") && error.message.includes("does not exist")) {
-          alert(
-            "Database schema error. Some features may not be available. Your listing has been posted with basic information.",
-          )
-          const simpleData = {
+          alert("Some advanced features are not available. Your listing will be posted with basic information.")
+          const minimalData = {
             title: formData.title,
             description: formData.description,
-            price: formData.priceType === "amount" ? Number.parseFloat(formData.price) : 0,
+            price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
             user_id: user.id,
           }
-          const { data: simpleResult, error: simpleError } = await supabase
+
+          const { data: minimalResult, error: minimalError } = await supabase
             .from("products")
-            .insert(simpleData)
+            .insert(minimalData)
             .select()
             .single()
 
-          if (simpleError) {
-            console.error("Simple insert also failed:", simpleError)
-            alert("Failed to post your ad. Please try again.")
+          if (minimalError) {
+            console.error("Minimal insert also failed:", minimalError)
+            alert("Failed to post your ad. Please try again later.")
             return
           }
 
-          console.log("[v0] Product saved with basic info:", simpleResult)
+          console.log("[v0] Product saved with minimal info:", minimalResult)
+          alert("Your ad has been posted successfully!")
           router.push(`/dashboard/listings`)
           return
         } else {
@@ -319,6 +314,7 @@ export function PostProductForm() {
       }
 
       console.log("[v0] Product saved successfully:", data)
+      alert("Your ad has been posted successfully!")
       router.push(`/dashboard/listings`)
     } catch (error) {
       console.error("Submission error:", error)
