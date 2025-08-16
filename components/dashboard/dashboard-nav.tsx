@@ -65,14 +65,16 @@ export function DashboardNav() {
           <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
             <span className="text-primary font-semibold">
               {user?.name
-                .split(" ")
-                .map((n) => n[0])
-                .join("")}
+                ? user.name
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                : "U"}
             </span>
           </div>
           <div>
-            <h3 className="font-semibold text-foreground">{user?.name}</h3>
-            <p className="text-sm text-muted-foreground">Member since {user?.memberSince}</p>
+            <h3 className="font-semibold text-foreground">{user?.name || "User"}</h3>
+            <p className="text-sm text-muted-foreground">Member since {user?.memberSince || "Recently"}</p>
           </div>
         </div>
 
