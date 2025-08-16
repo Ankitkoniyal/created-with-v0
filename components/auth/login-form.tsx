@@ -3,7 +3,7 @@
 import React from "react"
 
 import { useState } from "react"
-import { useFormState } from "react-dom"
+import { useActionState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,7 +18,7 @@ export function LoginForm() {
   const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
-  const [state, formAction] = useFormState(signIn, { error: null })
+  const [state, formAction] = useActionState(signIn, { error: null })
 
   React.useEffect(() => {
     if (state?.success) {

@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { useFormState } from "react-dom"
+import { useActionState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -15,7 +15,7 @@ export function SignupForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [agreeToTerms, setAgreeToTerms] = useState(false)
-  const [state, formAction] = useFormState(signUp, { error: null })
+  const [state, formAction] = useActionState(signUp, { error: null })
   const router = useRouter()
 
   useEffect(() => {
