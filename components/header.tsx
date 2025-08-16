@@ -177,6 +177,11 @@ export function Header() {
 
           {/* Navigation */}
           <nav className="hidden md:flex items-center space-x-4 flex-shrink-0">
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/" className="text-green-800 hover:text-green-900 font-medium">
+                Home
+              </Link>
+            </Button>
             {user && (
               <>
                 <Button variant="ghost" size="sm" className="relative">
