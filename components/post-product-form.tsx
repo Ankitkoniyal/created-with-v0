@@ -252,6 +252,8 @@ export function PostProductForm() {
       const supabase = createClient()
 
       const imageUrls: string[] = []
+      let imageUploadFailed = false
+
       if (formData.images.length > 0) {
         for (const image of formData.images) {
           try {
@@ -262,14 +264,8 @@ export function PostProductForm() {
 
             if (uploadError) {
               console.error("Image upload error:", uploadError)
-              if (uploadError.message.includes("row-level security") || uploadError.message.includes("policy")) {
-                console.log("[v0] Skipping image upload due to RLS policy")
-                // Continue without images rather than failing completely
-                break
-              } else {
-                alert(`Failed to upload image ${image.name}. Please check your connection and try again.`)
-                return
-              }
+              imageUploadFailed = true
+              break // Stop trying to upload more images
             } else {
               const {
                 data: { publicUrl },
@@ -278,7 +274,8 @@ export function PostProductForm() {
             }
           } catch (uploadError) {
             console.error("Image upload failed:", uploadError)
-            continue
+            imageUploadFailed = true
+            break
           }
         }
       }
@@ -303,84 +300,120 @@ export function PostProductForm() {
         console.error("Database error:", error)
 
         if (error.message.includes("row-level security") || error.message.includes("policy")) {
-          const rlsMessage = `
-Permission denied due to database security policies. 
+          const shouldSetupPolicies = confirm(`🔒 Database Security Setup Required
 
-To fix this, please:
-1. Go to your Supabase dashboard
+Your Supabase database has security policies enabled but not configured for posting ads.
+
+To fix this permanently:
+1. Go to your Supabase Dashboard
 2. Navigate to Authentication → Policies
-3. Create a policy for the 'products' table that allows authenticated users to INSERT
-4. Also check Storage → Policies for the 'product-images' bucket
+3. Click "New Policy" for the 'products' table
+4. Select "Enable insert for authenticated users only"
+5. Also check Storage → Policies for 'product-images' bucket
 
-Would you like to try posting with basic information only?`
+Would you like detailed setup instructions instead?`)
 
-          if (confirm(rlsMessage)) {
-            // Try with absolute minimal data
-            const minimalData = {
-              title: formData.title,
-              description: formData.description,
-              price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
-              user_id: user.id,
-            }
+          if (shouldSetupPolicies) {
+            // Show detailed setup instructions
+            alert(`📋 Detailed Setup Instructions:
 
-            const { data: minimalResult, error: minimalError } = await supabase
-              .from("products")
-              .insert(minimalData)
-              .select()
-              .single()
+STEP 1 - Products Table Policy:
+• Go to Supabase Dashboard → Authentication → Policies
+• Find 'products' table, click "New Policy"
+• Choose "Enable insert for authenticated users only"
+• Policy name: "Users can insert their own products"
+• Target roles: authenticated
+• USING expression: true
+• WITH CHECK expression: auth.uid() = user_id
 
-            if (minimalError) {
-              console.error("Minimal insert also failed:", minimalError)
-              alert("Database access is restricted. Please contact support or check your Supabase policies.")
-              return
-            }
+STEP 2 - Storage Policy:
+• Go to Storage → Policies
+• Find 'product-images' bucket, click "New Policy"
+• Choose "Enable insert for authenticated users only"
+• Policy name: "Users can upload product images"
 
-            console.log("[v0] Product saved with minimal info:", minimalResult)
-            alert("Your ad has been posted successfully with basic information!")
-            router.push(`/dashboard/listings`)
-            return
-          } else {
+After setup, try posting your ad again!`)
             return
           }
-        } else if (error.message.includes("column") && error.message.includes("does not exist")) {
-          alert("Some advanced features are not available. Your listing will be posted with basic information.")
 
-          // Try with only existing columns
-          const basicData = {
+          // Try with absolute minimal data as fallback
+          const minimalData = {
             title: formData.title,
             description: formData.description,
             price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
             user_id: user.id,
           }
 
-          const { data: basicResult, error: basicError } = await supabase
+          const { data: minimalResult, error: minimalError } = await supabase
             .from("products")
-            .insert(basicData)
+            .insert(minimalData)
             .select()
             .single()
 
-          if (basicError) {
-            console.error("Basic insert also failed:", basicError)
-            alert("Failed to post your ad. Please try again later.")
+          if (minimalError) {
+            console.error("Minimal insert also failed:", minimalError)
+            alert(`❌ Unable to post your ad due to database security restrictions.
+
+Please contact your administrator or set up the required policies in your Supabase dashboard.
+
+Error: ${minimalError.message}`)
             return
           }
 
-          console.log("[v0] Product saved with basic info:", basicResult)
-          alert("Your ad has been posted successfully!")
+          console.log("[v0] Product saved with minimal info:", minimalResult)
+          alert(`✅ Your ad has been posted successfully!
+
+Note: Some features (images, location details) couldn't be saved due to security settings. Your basic listing is now live.`)
+          router.push(`/dashboard/listings`)
+          return
+        } else if (error.message.includes("column") && error.message.includes("does not exist")) {
+          // Try with only core columns that should exist
+          const coreData = {
+            title: formData.title,
+            description: formData.description,
+            price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
+            user_id: user.id,
+          }
+
+          const { data: coreResult, error: coreError } = await supabase
+            .from("products")
+            .insert(coreData)
+            .select()
+            .single()
+
+          if (coreError) {
+            console.error("Core insert also failed:", coreError)
+            alert(`❌ Database schema issue: ${coreError.message}
+
+Please run the database migration scripts or contact support.`)
+            return
+          }
+
+          console.log("[v0] Product saved with core info:", coreResult)
+          alert("✅ Your ad has been posted with basic information! Some advanced features weren't available.")
           router.push(`/dashboard/listings`)
           return
         } else {
-          alert("Failed to post your ad. Please try again.")
+          alert(`❌ Failed to post your ad: ${error.message}
+
+Please try again or contact support if the issue persists.`)
         }
         return
       }
 
       console.log("[v0] Product saved successfully:", data)
-      alert("Your ad has been posted successfully!")
+
+      const successMessage = imageUploadFailed
+        ? "✅ Your ad has been posted successfully! (Note: Some images couldn't be uploaded due to storage restrictions)"
+        : "✅ Your ad has been posted successfully!"
+
+      alert(successMessage)
       router.push(`/dashboard/listings`)
     } catch (error) {
       console.error("Submission error:", error)
-      alert("Failed to post your ad. Please try again.")
+      alert(`❌ An unexpected error occurred: ${error instanceof Error ? error.message : "Unknown error"}
+
+Please try again or contact support.`)
     } finally {
       setIsSubmitting(false)
     }
