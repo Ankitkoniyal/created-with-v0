@@ -1,6 +1,7 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useFormState } from "react-dom"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,6 +16,16 @@ export function SignupForm() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [agreeToTerms, setAgreeToTerms] = useState(false)
   const [state, formAction] = useFormState(signUp, { error: null })
+  const router = useRouter()
+
+  useEffect(() => {
+    if (state?.success) {
+      const timer = setTimeout(() => {
+        router.push("/")
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [state?.success, router])
 
   return (
     <Card>
@@ -31,9 +42,17 @@ export function SignupForm() {
           )}
 
           {state?.success && (
-            <Alert>
-              <CheckCircle className="h-4 w-4" />
-              <AlertDescription>{state.success}</AlertDescription>
+            <Alert className="border-green-200 bg-green-50 text-green-800">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <AlertDescription>
+                <div className="space-y-1">
+                  <p className="font-medium">Account created successfully!</p>
+                  <p className="text-sm">
+                    Please check your email and click the confirmation link to activate your account. You'll be
+                    redirected to the home page shortly.
+                  </p>
+                </div>
+              </AlertDescription>
             </Alert>
           )}
 
