@@ -2,7 +2,19 @@
 
 import type React from "react"
 import { useState } from "react"
-import { Search, Heart, User, Menu, LogOut, Settings, Package, Bell, MapPin, Grid3X3 } from "lucide-react"
+import {
+  Search,
+  Heart,
+  User,
+  Menu,
+  LogOut,
+  Settings,
+  Package,
+  Bell,
+  MapPin,
+  Grid3X3,
+  MessageCircle,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -155,7 +167,7 @@ export function Header() {
                 <Button
                   type="submit"
                   size="sm"
-                  className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-full px-6 py-2 mr-2 shadow-md hover:shadow-lg transition-all duration-200"
+                  className="bg-green-800 hover:bg-green-900 text-white rounded-full px-6 py-2 mr-2 shadow-md hover:shadow-lg transition-all duration-200"
                 >
                   Search
                 </Button>
@@ -168,13 +180,19 @@ export function Header() {
             {user && (
               <>
                 <Button variant="ghost" size="sm" className="relative">
-                  <Heart className="h-4 w-4" />
+                  <Heart className="h-4 w-4 text-green-800" />
                   <Badge variant="secondary" className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs">
                     3
                   </Badge>
                 </Button>
                 <Button variant="ghost" size="sm" className="relative">
-                  <Bell className="h-4 w-4" />
+                  <MessageCircle className="h-4 w-4 text-green-800" />
+                  <Badge variant="secondary" className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs">
+                    5
+                  </Badge>
+                </Button>
+                <Button variant="ghost" size="sm" className="relative">
+                  <Bell className="h-4 w-4 text-green-800" />
                   <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs">
                     2
                   </Badge>
@@ -226,7 +244,7 @@ export function Header() {
                 </DropdownMenu>
                 <Button
                   size="lg"
-                  className="bg-gradient-to-r from-emerald-400 via-green-500 to-teal-600 hover:from-emerald-500 hover:via-green-600 hover:to-teal-700 text-white font-bold px-8 py-3 rounded-full shadow-2xl hover:shadow-green-500/50 transition-all duration-500 transform hover:scale-105 hover:-translate-y-1 border-2 border-white/20 hover:border-white/40 relative overflow-hidden group"
+                  className="bg-green-800 hover:bg-green-900 text-white font-bold px-8 py-3 rounded-full shadow-2xl hover:shadow-green-800/50 transition-all duration-500 transform hover:scale-105 hover:-translate-y-1 border-2 border-white/20 hover:border-white/40 relative overflow-hidden group"
                   asChild
                 >
                   <Link href="/sell">
@@ -247,7 +265,7 @@ export function Header() {
                 </Button>
                 <Button
                   size="lg"
-                  className="bg-gradient-to-r from-emerald-400 via-green-500 to-teal-600 hover:from-emerald-500 hover:via-green-600 hover:to-teal-700 text-white font-bold px-8 py-3 rounded-full shadow-2xl hover:shadow-green-500/50 transition-all duration-500 transform hover:scale-105 hover:-translate-y-1 border-2 border-white/20 hover:border-white/40 relative overflow-hidden group"
+                  className="bg-green-800 hover:bg-green-900 text-white font-bold px-8 py-3 rounded-full shadow-2xl hover:shadow-green-800/50 transition-all duration-500 transform hover:scale-105 hover:-translate-y-1 border-2 border-white/20 hover:border-white/40 relative overflow-hidden group"
                   asChild
                 >
                   <Link href="/sell">
