@@ -332,7 +332,7 @@ export function PostProductForm() {
   const isStep3Valid = formData.description && formData.location && formData.postalCode
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 bg-green-50 p-6 rounded-lg">
       <div className="flex items-center justify-center space-x-4 mb-8">
         {[1, 2, 3, 4].map((step) => (
           <div key={step} className="flex items-center">
@@ -497,7 +497,8 @@ export function PostProductForm() {
                   className="border-2 border-gray-200 focus:border-primary"
                 />
               </div>
-              <div></div> {/* Empty div for consistent spacing */}
+
+              <div className="space-y-2">{/* Empty div for consistent spacing */}</div>
             </div>
 
             <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">

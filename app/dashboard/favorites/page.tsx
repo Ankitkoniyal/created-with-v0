@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Heart, Search, MapPin, Trash2 } from "lucide-react"
+import { Heart, Search, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
@@ -18,12 +18,9 @@ interface FavoriteProduct {
     id: string
     title: string
     price: number
-    location: string
     images: string[]
-    category: string
     condition: string
     created_at: string
-    status: string
   }
 }
 
@@ -49,12 +46,9 @@ export default function FavoritesPage() {
               id,
               title,
               price,
-              location,
               images,
-              category,
               condition,
-              created_at,
-              status
+              created_at
             )
           `)
           .eq("user_id", user.id)
@@ -97,7 +91,7 @@ export default function FavoritesPage() {
   const filteredFavorites = favorites.filter(
     (favorite) =>
       favorite.products?.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      favorite.products?.category.toLowerCase().includes(searchTerm.toLowerCase()),
+      favorite.products?.condition.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
   if (loading) {
@@ -156,7 +150,6 @@ export default function FavoritesPage() {
                   >
                     <Heart className="h-4 w-4 fill-red-500 text-red-500" />
                   </Button>
-                  {product.status === "sold" && <Badge className="absolute top-2 left-2 bg-gray-500">Sold</Badge>}
                 </div>
 
                 <div className="p-4">
@@ -169,12 +162,7 @@ export default function FavoritesPage() {
 
                   <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
                     <span>{product.condition}</span>
-                    <span>{product.category}</span>
-                  </div>
-
-                  <div className="flex items-center text-sm text-muted-foreground mb-3">
-                    <MapPin className="h-4 w-4 mr-1" />
-                    {product.location}
+                    <span>Listed {new Date(product.created_at).toLocaleDateString()}</span>
                   </div>
 
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
