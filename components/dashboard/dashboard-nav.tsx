@@ -3,7 +3,7 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { LayoutDashboard, Package, ShoppingBag, Heart, User, Settings, MessageSquare, TrendingUp } from "lucide-react"
+import { LayoutDashboard, Package, Heart, User, Settings, MessageSquare, TrendingUp } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
@@ -15,15 +15,10 @@ const navItems = [
     icon: LayoutDashboard,
   },
   {
-    title: "My Listings",
+    title: "My Ads", // Updated from "My Listings" to "My Ads"
     href: "/dashboard/listings",
     icon: Package,
     badge: "3",
-  },
-  {
-    title: "Purchases",
-    href: "/dashboard/purchases",
-    icon: ShoppingBag,
   },
   {
     title: "Favorites",
