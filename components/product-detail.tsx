@@ -43,6 +43,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
   const { user } = useAuth()
   const [selectedImage, setSelectedImage] = useState(0)
   const [isFavorited, setIsFavorited] = useState(false)
+  const [showReportDialog, setShowReportDialog] = useState(false)
 
   useEffect(() => {
     const checkFavoriteStatus = async () => {
@@ -111,6 +112,28 @@ export function ProductDetail({ product }: ProductDetailProps) {
     }
   }
 
+  const handleReportAd = () => {
+    if (!user) {
+      alert("Please log in to report this ad")
+      return
+    }
+
+    const confirmed = window.confirm(
+      "Are you sure you want to report this ad? This will notify our moderation team for review.",
+    )
+
+    if (confirmed) {
+      // Here you would typically send the report to your backend
+      console.log("[v0] Reporting ad:", product.id)
+      alert("Thank you for your report. Our team will review this ad shortly.")
+    }
+  }
+
+  const formatAdId = (id: string) => {
+    const numericId = Number.parseInt(id) || 0
+    return `AD${numericId.toString().padStart(3, "0")}`
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
       {/* Image Gallery */}
@@ -163,10 +186,35 @@ export function ProductDetail({ product }: ProductDetailProps) {
           </CardContent>
         </Card>
 
+        {/* Product Summary */}
+        <Card className="mt-6">
+          <CardContent className="p-6">
+            <h2 className="text-2xl font-bold text-foreground mb-4">Product Summary</h2>
+            <div className="grid grid-cols-2 gap-4 text-sm mb-6">
+              <div>
+                <span className="text-muted-foreground">Ad ID:</span>
+                <span className="ml-2 font-medium text-primary">{formatAdId(product.id)}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Price:</span>
+                <span className="ml-2 font-bold text-lg text-primary">{product.price}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Condition:</span>
+                <span className="ml-2 font-medium">{product.condition}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Category:</span>
+                <span className="ml-2 font-medium">{product.category}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Product Details */}
         <Card className="mt-6">
           <CardContent className="p-6">
-            <h2 className="text-2xl font-bold text-foreground mb-4">Product Details</h2>
+            <h2 className="text-2xl font-bold text-foreground mb-4">Detailed Specifications</h2>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground">Condition:</span>
@@ -232,9 +280,20 @@ export function ProductDetail({ product }: ProductDetailProps) {
                   </div>
                 </div>
               </div>
-              <Button size="sm" variant="ghost">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleReportAd}
+                title="Report this Ad"
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
                 <Flag className="h-4 w-4" />
               </Button>
+            </div>
+
+            <div className="mb-3">
+              <span className="text-sm text-muted-foreground">Ad ID: </span>
+              <span className="text-sm font-medium text-primary">{formatAdId(product.id)}</span>
             </div>
 
             <div className="flex items-center space-x-2 mb-4">
