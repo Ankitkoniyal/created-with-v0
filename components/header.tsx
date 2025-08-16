@@ -2,19 +2,7 @@
 
 import type React from "react"
 import { useState } from "react"
-import {
-  Search,
-  Heart,
-  User,
-  Menu,
-  LogOut,
-  Settings,
-  Package,
-  Bell,
-  MapPin,
-  Grid3X3,
-  MessageCircle,
-} from "lucide-react"
+import { Search, Heart, User, Menu, LogOut, Settings, Package, Bell, MapPin, MessageCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -31,6 +19,7 @@ import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
+import { MegaMenu } from "@/components/mega-menu"
 
 const CANADIAN_LOCATIONS = [
   { province: "Alberta", cities: ["Calgary", "Edmonton", "Red Deer", "Lethbridge"] },
@@ -69,7 +58,6 @@ export function Header() {
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedLocation, setSelectedLocation] = useState("All Canada")
-  const [selectedCategory, setSelectedCategory] = useState("All Categories")
 
   const handleLogout = () => {
     logout()
@@ -85,12 +73,21 @@ export function Header() {
     if (selectedLocation && selectedLocation !== "All Canada") {
       params.set("location", selectedLocation)
     }
-    if (selectedCategory && selectedCategory !== "All Categories") {
-      params.set("category", selectedCategory)
-    }
 
     const queryString = params.toString()
     router.push(`/search${queryString ? `?${queryString}` : ""}`)
+  }
+
+  const handleCategorySelect = (category: string, subcategory?: string) => {
+    const params = new URLSearchParams()
+    params.set("category", category)
+    if (subcategory) {
+      params.set("subcategory", subcategory)
+    }
+    if (selectedLocation && selectedLocation !== "All Canada") {
+      params.set("location", selectedLocation)
+    }
+    router.push(`/search?${params.toString()}`)
   }
 
   return (
@@ -136,19 +133,7 @@ export function Header() {
 
                 {/* Category Selector */}
                 <div className="flex items-center border-r border-gray-200 px-3 flex-1">
-                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                    <SelectTrigger className="border-0 bg-transparent shadow-none focus:ring-0 focus-visible:ring-0 text-sm placeholder:text-gray-500">
-                      <Grid3X3 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 text-green-600" />
-                      <SelectValue placeholder="Category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CATEGORIES.map((category) => (
-                        <SelectItem key={category} value={category}>
-                          {category}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <MegaMenu onCategorySelect={handleCategorySelect} />
                 </div>
 
                 {/* Search Input */}
