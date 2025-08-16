@@ -4,14 +4,10 @@ import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { Heart, Share2, Flag, MapPin, Eye, Calendar, Star, Shield, Clock, ChevronLeft, ChevronRight } from "lucide-react"
+import { Heart, Share2, Flag, MapPin, Eye, Calendar, Star, Shield, Clock } from "lucide-react"
 import { ContactSellerModal } from "@/components/messaging/contact-seller-modal"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
-import Image from "next/image"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Badge } from "@/components/ui/badge"
-import { useRouter } from "next/navigation"
 
 interface Product {
   id: string
@@ -28,343 +24,383 @@ interface Product {
   postedDate: string
   views: number
   seller: {
-    id: string
     name: string
     rating: number
     totalReviews: number
     memberSince: string
     verified: boolean
     responseTime: string
-    avatar?: string
   }
   features: string[]
-  specifications?: Record<string, string>
-  shippingOptions?: {
-    localPickup: boolean
-    shipping: boolean
-    cost?: string
-  }
   [key: string]: any
 }
 
-export function ProductListings() {
-  const router = useRouter()
+interface ProductDetailProps {
+  product: Product
+}
+
+export function ProductDetail({ product }: ProductDetailProps) {
   const { user } = useAuth()
-  const [products, setProducts] = useState<Product[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [favorites, setFavorites] = useState<Set<string>>(new Set())
-  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const [selectedImage, setSelectedImage] = useState(0)
+  const [isFavorited, setIsFavorited] = useState(false)
+  const [showReportDialog, setShowReportDialog] = useState(false)
 
   useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const supabase = createClient()
-        const { data, error } = await supabase
-          .from("products")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(12)
-
-        if (error) throw error
-
-        setProducts(data || [])
-        setLoading(false)
-      } catch (err) {
-        setError("Failed to load products")
-        setLoading(false)
-        console.error("Error fetching products:", err)
-      }
-    }
-
-    const fetchFavorites = async () => {
+    const checkFavoriteStatus = async () => {
       if (!user) return
-      
+
       try {
         const supabase = createClient()
         const { data, error } = await supabase
           .from("favorites")
-          .select("product_id")
+          .select("id")
           .eq("user_id", user.id)
+          .eq("product_id", product.id)
+          .single()
 
-        if (error) throw error
-
-        const favSet = new Set(data?.map(item => item.product_id))
-        setFavorites(favSet)
-      } catch (err) {
-        console.error("Error fetching favorites:", err)
+        if (error && error.code !== "PGRST116") {
+          console.error("Error checking favorite status:", error)
+        } else {
+          setIsFavorited(!!data)
+        }
+      } catch (error) {
+        console.error("Error:", error)
       }
     }
 
-    fetchProducts()
-    fetchFavorites()
-  }, [user])
+    checkFavoriteStatus()
+  }, [user, product.id])
 
-  const toggleFavorite = async (productId: string) => {
+  const toggleFavorite = async () => {
     if (!user) {
-      router.push("/login")
+      alert("Please log in to save favorites")
       return
     }
 
     try {
       const supabase = createClient()
-      const isFavorite = favorites.has(productId)
 
-      if (isFavorite) {
-        const { error } = await supabase
-          .from("favorites")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("product_id", productId)
+      if (isFavorited) {
+        // Remove from favorites
+        const { error } = await supabase.from("favorites").delete().eq("user_id", user.id).eq("product_id", product.id)
 
-        if (!error) {
-          setFavorites(prev => {
-            const newFavs = new Set(prev)
-            newFavs.delete(productId)
-            return newFavs
-          })
+        if (error) {
+          console.error("Error removing favorite:", error)
+          alert("Failed to remove from favorites")
+        } else {
+          console.log("[v0] Removed from favorites:", product.id)
+          setIsFavorited(false)
         }
       } else {
-        const { error } = await supabase
-          .from("favorites")
-          .insert({
-            user_id: user.id,
-            product_id: productId
-          })
+        // Add to favorites
+        const { error } = await supabase.from("favorites").insert({
+          user_id: user.id,
+          product_id: product.id,
+        })
 
-        if (!error) {
-          setFavorites(prev => new Set(prev).add(productId))
+        if (error) {
+          console.error("Error adding favorite:", error)
+          alert("Failed to add to favorites")
+        } else {
+          console.log("[v0] Added to favorites:", product.id)
+          setIsFavorited(true)
         }
       }
-    } catch (err) {
-      console.error("Error toggling favorite:", err)
+    } catch (error) {
+      console.error("Error:", error)
+      alert("Failed to update favorites")
     }
   }
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric"
-    })
-  }
+  const handleReportAd = () => {
+    if (!user) {
+      alert("Please log in to report this ad")
+      return
+    }
 
-  const formatPrice = (price: string) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD"
-    }).format(Number(price))
-  }
-
-  if (loading) {
-    return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Card key={i}>
-            <CardContent className="p-4">
-              <Skeleton className="h-48 w-full rounded-lg mb-3" />
-              <Skeleton className="h-5 w-3/4 mb-2" />
-              <Skeleton className="h-4 w-1/2 mb-3" />
-              <Skeleton className="h-4 w-1/3" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+    const confirmed = window.confirm(
+      "Are you sure you want to report this ad? This will notify our moderation team for review.",
     )
+
+    if (confirmed) {
+      // Here you would typically send the report to your backend
+      console.log("[v0] Reporting ad:", product.id)
+      alert("Thank you for your report. Our team will review this ad shortly.")
+    }
   }
 
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <div className="text-red-500 mb-4">
-          <Flag className="h-8 w-8" />
-        </div>
-        <h3 className="text-lg font-medium mb-2">Error loading products</h3>
-        <p className="text-muted-foreground text-sm mb-4">{error}</p>
-        <Button variant="outline" onClick={() => window.location.reload()}>
-          Try Again
-        </Button>
-      </div>
-    )
+  const handleShare = async () => {
+    const shareData = {
+      title: product.title,
+      text: `Check out this ${product.title} for ${product.price}`,
+      url: window.location.href,
+    }
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData)
+      } else {
+        // Fallback: copy to clipboard
+        await navigator.clipboard.writeText(window.location.href)
+        alert("Link copied to clipboard!")
+      }
+    } catch (error) {
+      console.error("Error sharing:", error)
+    }
+  }
+
+  const formatAdId = (id: string) => {
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = (now.getMonth() + 1).toString().padStart(2, "0")
+    const day = now.getDate().toString().padStart(2, "0")
+
+    // Generate 4 random alphabetical letters
+    const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    let randomLetters = ""
+    for (let i = 0; i < 4; i++) {
+      randomLetters += letters.charAt(Math.floor(Math.random() * letters.length))
+    }
+
+    return `AD${year}${month}${day}${randomLetters}`
   }
 
   return (
-    <div className="w-full">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Latest Ads</h2>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="sm">
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Image Gallery */}
+      <div className="lg:col-span-2">
+        <Card>
+          <CardContent className="p-0">
+            <div className="relative">
+              <img
+                src={product.images[selectedImage] || "/placeholder.svg"}
+                alt={product.title}
+                className="w-full h-80 object-cover rounded-t-lg"
+              />
+              <Button
+                size="sm"
+                variant="ghost"
+                className="absolute top-2 right-2 bg-background/80 hover:bg-background"
+                onClick={toggleFavorite}
+              >
+                <Heart className={`h-4 w-4 ${isFavorited ? "fill-red-500 text-red-500" : ""}`} />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="absolute top-2 right-14 bg-background/80 hover:bg-background"
+                onClick={handleShare}
+              >
+                <Share2 className="h-4 w-4" />
+              </Button>
+            </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {products.map((product) => (
-          <Card key={product.id} className="hover:shadow-md transition-shadow">
-            <CardContent className="p-0">
-              {/* Image Gallery */}
-              <div className="relative aspect-square">
-                {product.images?.length > 0 ? (
-                  <>
-                    <Image
-                      src={product.images[currentImageIndex]}
-                      alt={product.title}
-                      fill
-                      className="object-cover rounded-t-lg"
-                      priority
-                    />
-                    {product.images.length > 1 && (
-                      <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1">
-                        {product.images.map((_, index) => (
-                          <button
-                            key={index}
-                            onClick={() => setCurrentImageIndex(index)}
-                            className={`w-2 h-2 rounded-full ${
-                              currentImageIndex === index 
-                                ? "bg-primary" 
-                                : "bg-white/50"
-                            }`}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-                    <span className="text-gray-400">No Image</span>
-                  </div>
-                )}
-
-                <div className="absolute top-2 right-2 flex gap-1">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="w-8 h-8 bg-background/80 hover:bg-background"
-                    onClick={() => toggleFavorite(product.id)}
+            {/* Thumbnail Gallery */}
+            <div className="p-3">
+              <div className="flex space-x-2 overflow-x-auto">
+                {product.images.map((image, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setSelectedImage(index)}
+                    className={`flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden border-2 ${
+                      selectedImage === index ? "border-primary" : "border-border"
+                    }`}
                   >
-                    <Heart
-                      className={`h-4 w-4 ${
-                        favorites.has(product.id) 
-                          ? "fill-red-500 text-red-500" 
-                          : ""
-                      }`}
+                    <img
+                      src={image || "/placeholder.svg"}
+                      alt={`${product.title} ${index + 1}`}
+                      className="w-full h-full object-cover"
                     />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="w-8 h-8 bg-background/80 hover:bg-background"
-                  >
-                    <Share2 className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                {product.featured && (
-                  <Badge className="absolute top-2 left-2 bg-primary/90 hover:bg-primary">
-                    FEATURED
-                  </Badge>
-                )}
+                  </button>
+                ))}
               </div>
+            </div>
+          </CardContent>
+        </Card>
 
-              {/* Product Info */}
-              <div className="p-4 space-y-2">
-                <div className="flex justify-between items-start">
-                  <h3 className="font-semibold line-clamp-2">
-                    {product.title}
-                  </h3>
-                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <Eye className="h-3 w-3" />
-                    <span>{product.views}</span>
+        {/* Price & Basic Info */}
+        <Card className="mt-4">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h1 className="text-xl font-bold text-foreground mb-1">{product.title}</h1>
+                <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+                  <div className="flex items-center">
+                    <MapPin className="h-4 w-4 mr-1" />
+                    {product.location}
                   </div>
-                </div>
-
-                <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                  <MapPin className="h-3 w-3" />
-                  <span>{product.location}</span>
-                </div>
-
-                <div className="flex items-baseline gap-2">
-                  <span className="text-lg font-bold">
-                    {formatPrice(product.price)}
-                  </span>
-                  {product.originalPrice && (
-                    <span className="text-sm text-muted-foreground line-through">
-                      {formatPrice(product.originalPrice)}
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between pt-2">
-                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <Calendar className="h-3 w-3" />
-                    <span>{formatDate(product.postedDate)}</span>
+                  <div className="flex items-center">
+                    <Eye className="h-4 w-4 mr-1" />
+                    {product.views} views
                   </div>
-
-                  <div className="flex items-center gap-1">
-                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                    <span className="text-sm font-medium">
-                      {product.seller.rating.toFixed(1)}
-                    </span>
-                  </div>
-                </div>
-
-                <Separator className="my-2" />
-
-                <div className="flex gap-2">
-                  <ContactSellerModal
-                    product={{
-                      id: product.id,
-                      title: product.title,
-                      price: product.price,
-                      image: product.images[0],
-                    }}
-                    seller={{
-                      name: product.seller.name,
-                      verified: product.seller.verified,
-                      rating: product.seller.rating,
-                      totalReviews: product.seller.totalReviews,
-                    }}
-                  >
-                    <Button size="sm" className="flex-1">
-                      Contact
-                    </Button>
-                  </ContactSellerModal>
-                  <Button variant="outline" size="sm" className="flex-1">
-                    Details
-                  </Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        ))}
+              <div className="flex items-center space-x-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleShare}
+                  title="Share this Ad"
+                  className="text-primary hover:text-primary/80 hover:bg-primary/10"
+                >
+                  <Share2 className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleReportAd}
+                  title="Report this Ad"
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <Flag className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="mb-2">
+              <span className="text-sm text-muted-foreground">Ad ID: </span>
+              <span className="text-sm font-medium text-primary">{formatAdId(product.id)}</span>
+            </div>
+
+            <div className="flex items-center space-x-2 mb-3">
+              <span className="text-2xl font-bold text-primary">{product.price}</span>
+              {product.originalPrice && (
+                <span className="text-lg text-muted-foreground line-through">{product.originalPrice}</span>
+              )}
+            </div>
+
+            <div className="flex items-center text-sm text-muted-foreground mb-4">
+              <Calendar className="h-4 w-4 mr-1" />
+              Posted on {new Date(product.postedDate).toLocaleDateString()}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <ContactSellerModal
+                product={{
+                  id: product.id,
+                  title: product.title,
+                  price: product.price,
+                  image: product.images[0],
+                }}
+                seller={{
+                  name: product.seller.name,
+                  verified: product.seller.verified,
+                  rating: product.seller.rating,
+                  totalReviews: product.seller.totalReviews,
+                }}
+              >
+                <Button className="w-full bg-primary hover:bg-primary/90">Contact Seller</Button>
+              </ContactSellerModal>
+              <Button variant="outline" className="w-full bg-transparent">
+                Make an Offer
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Product Details */}
+        <Card className="mt-4">
+          <CardContent className="p-4">
+            <h2 className="text-lg font-bold text-foreground mb-3">Product Details</h2>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <span className="text-muted-foreground">Condition:</span>
+                <span className="ml-2 font-medium">{product.condition}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Brand:</span>
+                <span className="ml-2 font-medium">{product.brand}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Model:</span>
+                <span className="ml-2 font-medium">{product.model}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Category:</span>
+                <span className="ml-2 font-medium">{product.category}</span>
+              </div>
+              {product.storage && (
+                <div>
+                  <span className="text-muted-foreground">Storage:</span>
+                  <span className="ml-2 font-medium">{product.storage}</span>
+                </div>
+              )}
+              {product.color && (
+                <div>
+                  <span className="text-muted-foreground">Color:</span>
+                  <span className="ml-2 font-medium">{product.color}</span>
+                </div>
+              )}
+            </div>
+
+            <Separator className="my-4" />
+
+            <h3 className="font-semibold text-foreground mb-2">Key Features</h3>
+            <ul className="space-y-1">
+              {product.features.map((feature, index) => (
+                <li key={index} className="flex items-center text-sm">
+                  <div className="w-2 h-2 bg-primary rounded-full mr-3" />
+                  {feature}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Pagination */}
-      <div className="flex justify-center mt-8">
-        <div className="flex gap-1">
-          <Button variant="outline" size="sm">
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Previous
-          </Button>
-          <Button variant="outline" size="sm">
-            1
-          </Button>
-          <Button variant="outline" size="sm">
-            2
-          </Button>
-          <Button variant="outline" size="sm">
-            3
-          </Button>
-          <Button variant="outline" size="sm">
-            Next
-            <ChevronRight className="h-4 w-4 ml-1" />
-          </Button>
-        </div>
+      {/* Product Info & Seller */}
+      <div className="space-y-4">
+        {/* Seller Info */}
+        <Card>
+          <CardContent className="p-4">
+            <h3 className="font-semibold text-foreground mb-3">Seller Information</h3>
+
+            <div className="flex items-center space-x-3 mb-3">
+              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                <span className="text-primary font-semibold">
+                  {product.seller.name
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")}
+                </span>
+              </div>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <span className="font-medium">{product.seller.name}</span>
+                  {product.seller.verified && <Shield className="h-4 w-4 text-primary" />}
+                </div>
+                <div className="flex items-center space-x-1 text-sm text-muted-foreground">
+                  <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                  <span>{product.seller.rating}</span>
+                  <span>({product.seller.totalReviews} reviews)</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center">
+                <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
+                <span>Member since {product.seller.memberSince}</span>
+              </div>
+              <div className="flex items-center">
+                <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
+                <span>{product.seller.responseTime}</span>
+              </div>
+            </div>
+
+            <Button variant="outline" className="w-full mt-3 bg-transparent">
+              View Seller Profile
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Description */}
+        <Card>
+          <CardContent className="p-4">
+            <h3 className="font-semibold text-foreground mb-3">Description</h3>
+            <p className="text-muted-foreground leading-relaxed">{product.description}</p>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
