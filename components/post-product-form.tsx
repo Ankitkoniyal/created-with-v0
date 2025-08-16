@@ -152,6 +152,8 @@ export function PostProductForm() {
       ...prev,
       [field]: value,
       ...(field === "category" && { subcategory: "" }),
+      ...(field === "priceType" && value !== "amount" && { price: "" }),
+      ...(field === "price" && value && { priceType: "amount" }),
     }))
   }
 
@@ -416,7 +418,7 @@ export function PostProductForm() {
               <p className="text-sm text-muted-foreground">{formData.title.length}/100 characters</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="category">Category *</Label>
                 <Select value={formData.category} onValueChange={(value) => handleInputChange("category", value)}>
@@ -433,29 +435,29 @@ export function PostProductForm() {
                 </Select>
               </div>
 
-              {formData.category && subcategories[formData.category] && (
-                <div className="space-y-2">
-                  <Label htmlFor="subcategory">Subcategory</Label>
-                  <Select
-                    value={formData.subcategory}
-                    onValueChange={(value) => handleInputChange("subcategory", value)}
-                  >
-                    <SelectTrigger className="border-2 border-gray-200 focus:border-primary">
-                      <SelectValue placeholder="Select subcategory" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {subcategories[formData.category].map((subcategory) => (
+              <div className="space-y-2">
+                <Label htmlFor="subcategory">Subcategory</Label>
+                <Select
+                  value={formData.subcategory}
+                  onValueChange={(value) => handleInputChange("subcategory", value)}
+                  disabled={!formData.category || !subcategories[formData.category]}
+                >
+                  <SelectTrigger className="border-2 border-gray-200 focus:border-primary">
+                    <SelectValue placeholder="Select subcategory" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {formData.category &&
+                      subcategories[formData.category]?.map((subcategory) => (
                         <SelectItem key={subcategory} value={subcategory}>
                           {subcategory}
                         </SelectItem>
                       ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="condition">Condition *</Label>
                 <Select value={formData.condition} onValueChange={(value) => handleInputChange("condition", value)}>
@@ -473,43 +475,6 @@ export function PostProductForm() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="priceType">Price Type *</Label>
-                <Select
-                  value={formData.priceType}
-                  onValueChange={(value: any) => handleInputChange("priceType", value)}
-                >
-                  <SelectTrigger className="border-2 border-gray-200 focus:border-primary">
-                    <SelectValue placeholder="Select price type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="amount">Set Price</SelectItem>
-                    <SelectItem value="free">Free</SelectItem>
-                    <SelectItem value="contact">Contact Us</SelectItem>
-                    <SelectItem value="swap">Swap/Exchange</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {formData.priceType === "amount" && (
-              <div className="space-y-2">
-                <Label htmlFor="price">Price *</Label>
-                <div className="relative">
-                  <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="price"
-                    type="number"
-                    placeholder="0.00"
-                    className="pl-10 border-2 border-gray-200 focus:border-primary"
-                    value={formData.price}
-                    onChange={(e) => handleInputChange("price", e.target.value)}
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
                 <Label htmlFor="brand">Brand</Label>
                 <Input
                   id="brand"
@@ -519,7 +484,9 @@ export function PostProductForm() {
                   className="border-2 border-gray-200 focus:border-primary"
                 />
               </div>
+            </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="model">Model</Label>
                 <Input
@@ -530,6 +497,68 @@ export function PostProductForm() {
                   className="border-2 border-gray-200 focus:border-primary"
                 />
               </div>
+              <div></div> {/* Empty div for consistent spacing */}
+            </div>
+
+            <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
+              <Label className="flex items-center text-base font-semibold">
+                <DollarSign className="h-5 w-5 mr-2" />
+                Pricing *
+              </Label>
+
+              {/* Price type selection */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { value: "amount", label: "Set Price" },
+                  { value: "free", label: "Free" },
+                  { value: "contact", label: "Contact Us" },
+                  { value: "swap", label: "Swap/Exchange" },
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => handleInputChange("priceType", option.value)}
+                    className={`p-3 text-sm font-medium rounded-lg border-2 transition-colors ${
+                      formData.priceType === option.value
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-gray-200 hover:border-gray-300"
+                    }`}
+                    disabled={formData.price && option.value !== "amount"}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Price input - only show when "Set Price" is selected */}
+              {formData.priceType === "amount" && (
+                <div className="space-y-2">
+                  <Label htmlFor="price">Enter Amount</Label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="price"
+                      type="number"
+                      placeholder="0.00"
+                      className="pl-10 border-2 border-gray-200 focus:border-primary"
+                      value={formData.price}
+                      onChange={(e) => handleInputChange("price", e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Show selected option message */}
+              {formData.priceType !== "amount" && (
+                <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-lg">
+                  Selected:{" "}
+                  <span className="font-medium">
+                    {formData.priceType === "free" && "This item is free"}
+                    {formData.priceType === "contact" && "Buyers will contact you for pricing"}
+                    {formData.priceType === "swap" && "You're looking to swap/exchange this item"}
+                  </span>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -558,7 +587,7 @@ export function PostProductForm() {
               <p className="text-sm text-muted-foreground">{formData.description.length}/1000 characters</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="location">Location *</Label>
                 <div className="relative">
@@ -586,7 +615,7 @@ export function PostProductForm() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="youtubeUrl">YouTube Video (Optional)</Label>
                 <div className="relative">
@@ -616,25 +645,25 @@ export function PostProductForm() {
               </div>
             </div>
 
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-3 p-4 border-2 border-gray-200 rounded-lg">
               <Checkbox
                 id="showMobileNumber"
                 checked={formData.showMobileNumber}
                 onCheckedChange={(checked) => handleInputChange("showMobileNumber", checked as boolean)}
               />
-              <Label htmlFor="showMobileNumber" className="text-sm">
+              <Label htmlFor="showMobileNumber" className="text-sm font-medium">
                 Show my mobile number on this ad
               </Label>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
               <div>
-                <Label className="flex items-center">
-                  <Tag className="h-4 w-4 mr-2" />
+                <Label className="flex items-center text-base font-semibold">
+                  <Tag className="h-5 w-5 mr-2" />
                   Tags (Max 5 words)
                 </Label>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Add relevant keywords to improve your ad's search visibility
+                  Add relevant keywords to improve your ad's search visibility and help buyers find your item
                 </p>
               </div>
               <div className="flex space-x-2">
@@ -668,8 +697,8 @@ export function PostProductForm() {
               <p className="text-xs text-muted-foreground">{formData.tags.length}/5 tags used</p>
             </div>
 
-            <div className="space-y-4">
-              <Label>Key Features (Optional)</Label>
+            <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
+              <Label className="text-base font-semibold">Key Features (Optional)</Label>
               <div className="flex space-x-2">
                 <Input
                   placeholder="Add a feature"
