@@ -198,13 +198,15 @@ export function PostProductForm() {
       const imageUrls: string[] = []
       if (formData.images.length > 0) {
         for (const image of formData.images) {
-          const fileName = `${Date.now()}-${image.name}`
+          const fileName = `${user.id}/${Date.now()}-${image.name}`
           const { data: uploadData, error: uploadError } = await supabase.storage
             .from("product-images")
             .upload(fileName, image)
 
           if (uploadError) {
             console.error("Image upload error:", uploadError)
+            alert(`Failed to upload image ${image.name}. Please check your connection and try again.`)
+            return
           } else {
             const {
               data: { publicUrl },
@@ -236,7 +238,13 @@ export function PostProductForm() {
 
       if (error) {
         console.error("Database error:", error)
-        alert("Failed to post your ad. Please try again.")
+        if (error.message.includes("row-level security")) {
+          alert("Permission denied. Please make sure you're logged in and try again.")
+        } else if (error.message.includes("column") && error.message.includes("does not exist")) {
+          alert("Database schema error. Please contact support.")
+        } else {
+          alert("Failed to post your ad. Please try again.")
+        }
         return
       }
 
