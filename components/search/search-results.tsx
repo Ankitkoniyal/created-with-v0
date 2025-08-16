@@ -116,6 +116,7 @@ interface SearchResultsProps {
     condition: string
     location: string
     sortBy: string
+    [key: string]: string
   }
 }
 
@@ -154,6 +155,16 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
       results = results.filter((product) => product.location === filters.location)
     }
 
+    // Note: In a real application, you would have these fields in your product data
+    // For now, this demonstrates the filtering structure
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value && !["category", "minPrice", "maxPrice", "condition", "location", "sortBy"].includes(key)) {
+        // Apply category-specific filters
+        // This would filter based on actual product properties like brand, fuel_type, etc.
+        console.log(`Filtering by ${key}: ${value}`)
+      }
+    })
+
     // Sort results
     switch (filters.sortBy) {
       case "newest":
@@ -166,11 +177,9 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
         results.sort((a, b) => b.price - a.price)
         break
       case "distance":
-        // In a real app, you'd sort by actual distance
         results.sort((a, b) => a.location.localeCompare(b.location))
         break
       default:
-        // Relevance - featured items first, then by views
         results.sort((a, b) => {
           if (a.featured && !b.featured) return -1
           if (!a.featured && b.featured) return 1
@@ -190,7 +199,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
           <p className="text-muted-foreground mb-4">
             Try adjusting your search terms or filters to find what you're looking for.
           </p>
-          <Button asChild>
+          <Button asChild className="bg-green-800 hover:bg-green-900">
             <Link href="/search">Clear Search</Link>
           </Button>
         </CardContent>
@@ -208,10 +217,24 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
         </p>
 
         <div className="flex items-center space-x-2">
-          <Button variant={viewMode === "grid" ? "default" : "outline"} size="sm" onClick={() => setViewMode("grid")}>
+          <Button
+            variant={viewMode === "grid" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setViewMode("grid")}
+            className={
+              viewMode === "grid" ? "bg-green-800 hover:bg-green-900" : "hover:bg-green-100 hover:text-green-700"
+            }
+          >
             <Grid3X3 className="h-4 w-4" />
           </Button>
-          <Button variant={viewMode === "list" ? "default" : "outline"} size="sm" onClick={() => setViewMode("list")}>
+          <Button
+            variant={viewMode === "list" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setViewMode("list")}
+            className={
+              viewMode === "list" ? "bg-green-800 hover:bg-green-900" : "hover:bg-green-100 hover:text-green-700"
+            }
+          >
             <List className="h-4 w-4" />
           </Button>
         </div>
@@ -222,7 +245,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
         {filteredProducts.map((product) => (
           <Link key={product.id} href={`/product/${product.id}`}>
             <Card
-              className={`group cursor-pointer hover:shadow-lg transition-shadow ${
+              className={`group cursor-pointer hover:shadow-lg hover:bg-green-50 hover:border-green-200 transition-all duration-300 ${
                 viewMode === "list" ? "flex-row" : ""
               }`}
             >
@@ -238,7 +261,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="absolute top-2 right-2 bg-background/80 hover:bg-background"
+                    className="absolute top-2 right-2 bg-background/80 hover:bg-green-100 hover:text-green-700"
                     onClick={(e) => {
                       e.preventDefault()
                       e.stopPropagation()
@@ -246,11 +269,13 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
                   >
                     <Heart className="h-4 w-4" />
                   </Button>
-                  {product.featured && <Badge className="absolute top-2 left-2 bg-accent">Featured</Badge>}
+                  {product.featured && <Badge className="absolute top-2 left-2 bg-green-800">Featured</Badge>}
                 </div>
 
                 <div className={`p-4 ${viewMode === "list" ? "flex-1" : ""}`}>
-                  <h4 className="font-semibold text-foreground mb-2 line-clamp-2">{product.title}</h4>
+                  <h4 className="font-semibold text-foreground mb-2 line-clamp-2 group-hover:text-green-800">
+                    {product.title}
+                  </h4>
                   <p className="text-2xl font-bold text-primary mb-2">${product.price.toLocaleString()}</p>
 
                   <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">

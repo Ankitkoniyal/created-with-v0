@@ -14,8 +14,8 @@ import { useRouter, useSearchParams } from "next/navigation"
 
 const categories = [
   "Electronics",
-  "Cars",
-  "Property",
+  "Vehicles",
+  "Real Estate",
   "Fashion",
   "Gaming",
   "Books",
@@ -39,6 +39,63 @@ const locations = [
   "Dallas, TX",
   "San Jose, CA",
 ]
+
+const categorySpecificFilters = {
+  Vehicles: {
+    "Vehicle Type": ["Car", "Truck", "SUV", "Motorcycle", "Van", "Bus", "Trailer"],
+    "Fuel Type": ["Petrol", "Diesel", "Electric", "Hybrid", "CNG", "LPG"],
+    Transmission: ["Manual", "Automatic", "CVT"],
+    Ownership: ["First Owner", "Second Owner", "Third Owner", "Fourth+ Owner"],
+    "KM Driven": ["0-10,000", "10,000-25,000", "25,000-50,000", "50,000-75,000", "75,000-100,000", "100,000+"],
+    Year: ["2024", "2023", "2022", "2021", "2020", "2019", "2018", "2017", "2016", "2015", "Older"],
+  },
+  Electronics: {
+    Brand: ["Apple", "Samsung", "Sony", "LG", "Dell", "HP", "Lenovo", "Asus", "Canon", "Nikon"],
+    Type: ["Mobile", "Laptop", "Desktop", "TV", "Camera", "Gaming Console", "Headphones", "Speakers"],
+    "Screen Size": ['Under 5"', '5-6"', '6-7"', '13-15"', '15-17"', '17-20"', '20-24"', '24-27"', '27"+'],
+    Storage: ["16GB", "32GB", "64GB", "128GB", "256GB", "512GB", "1TB", "2TB+"],
+    RAM: ["2GB", "4GB", "6GB", "8GB", "12GB", "16GB", "32GB+"],
+  },
+  "Real Estate": {
+    "Property Type": ["Apartment", "House", "Villa", "Plot", "Commercial", "Office", "Shop", "Warehouse"],
+    Bedrooms: ["1 BHK", "2 BHK", "3 BHK", "4 BHK", "5+ BHK"],
+    Bathrooms: ["1", "2", "3", "4", "5+"],
+    Furnishing: ["Furnished", "Semi-Furnished", "Unfurnished"],
+    "Area (sq ft)": ["Under 500", "500-1000", "1000-1500", "1500-2000", "2000-3000", "3000+"],
+    Parking: ["No Parking", "1 Car", "2 Cars", "3+ Cars"],
+  },
+  Fashion: {
+    Gender: ["Men", "Women", "Kids", "Unisex"],
+    Category: ["Clothing", "Shoes", "Accessories", "Bags", "Watches", "Jewelry"],
+    Size: ["XS", "S", "M", "L", "XL", "XXL", "XXXL"],
+    Brand: ["Nike", "Adidas", "Zara", "H&M", "Gucci", "Prada", "Louis Vuitton", "Chanel"],
+    Color: ["Black", "White", "Red", "Blue", "Green", "Yellow", "Pink", "Brown", "Gray"],
+    Material: ["Cotton", "Polyester", "Leather", "Silk", "Wool", "Denim", "Linen"],
+  },
+  Gaming: {
+    Platform: ["PC", "PlayStation", "Xbox", "Nintendo", "Mobile"],
+    Genre: ["Action", "Adventure", "RPG", "Sports", "Racing", "Strategy", "Puzzle", "Simulation"],
+    "Age Rating": ["E (Everyone)", "T (Teen)", "M (Mature)", "A (Adults Only)"],
+    Type: ["Games", "Consoles", "Accessories", "Controllers", "Headsets"],
+  },
+  Books: {
+    Genre: ["Fiction", "Non-Fiction", "Mystery", "Romance", "Sci-Fi", "Fantasy", "Biography", "History"],
+    Language: ["English", "Spanish", "French", "German", "Italian", "Portuguese", "Other"],
+    Format: ["Paperback", "Hardcover", "E-book", "Audiobook"],
+    Author: ["Popular Authors", "Classic Authors", "Contemporary Authors"],
+  },
+  Sports: {
+    Sport: ["Cricket", "Football", "Basketball", "Tennis", "Badminton", "Swimming", "Cycling", "Gym"],
+    Type: ["Equipment", "Clothing", "Shoes", "Accessories", "Supplements"],
+    Brand: ["Nike", "Adidas", "Puma", "Reebok", "Under Armour", "Wilson", "Spalding"],
+  },
+  "Home & Garden": {
+    Category: ["Furniture", "Appliances", "Decor", "Kitchen", "Garden", "Tools", "Lighting"],
+    Room: ["Living Room", "Bedroom", "Kitchen", "Bathroom", "Dining Room", "Office", "Garden"],
+    Material: ["Wood", "Metal", "Plastic", "Glass", "Fabric", "Leather", "Stone"],
+    Brand: ["IKEA", "Ashley", "Wayfair", "West Elm", "Pottery Barn"],
+  },
+}
 
 interface SearchFiltersProps {
   currentFilters: {
@@ -68,6 +125,11 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
     currentFilters.condition ? [currentFilters.condition] : [],
   )
 
+  const [categoryFilters, setCategoryFilters] = useState<Record<string, string[]>>({})
+
+  const selectedCategory = selectedCategories[0] || ""
+  const categoryOptions = categorySpecificFilters[selectedCategory as keyof typeof categorySpecificFilters] || {}
+
   const applyFilters = () => {
     const params = new URLSearchParams()
 
@@ -79,6 +141,12 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
     if (filters.location) params.set("location", filters.location)
     if (filters.sortBy !== "relevance") params.set("sortBy", filters.sortBy)
 
+    Object.entries(categoryFilters).forEach(([filterType, values]) => {
+      if (values.length > 0) {
+        params.set(filterType.toLowerCase().replace(/\s+/g, "_"), values[0])
+      }
+    })
+
     router.push(`/search?${params.toString()}`)
   }
 
@@ -86,6 +154,7 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
     setSelectedCategories([])
     setSelectedConditions([])
     setPriceRange([0, 10000])
+    setCategoryFilters({}) // Clear category-specific filters
     setFilters({
       category: "",
       minPrice: "",
@@ -106,7 +175,8 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
     priceRange[0] > 0 ||
     priceRange[1] < 10000 ||
     filters.location ||
-    filters.sortBy !== "relevance"
+    filters.sortBy !== "relevance" ||
+    Object.keys(categoryFilters).length > 0 // Include category filters in active check
 
   return (
     <Card>
@@ -117,7 +187,12 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
             Filters
           </CardTitle>
           {hasActiveFilters && (
-            <Button variant="ghost" size="sm" onClick={clearFilters}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearFilters}
+              className="hover:bg-green-100 hover:text-green-700"
+            >
               <X className="h-4 w-4 mr-1" />
               Clear
             </Button>
@@ -129,7 +204,7 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
         <div className="space-y-3">
           <Label className="text-sm font-medium">Sort By</Label>
           <Select value={filters.sortBy} onValueChange={(value) => setFilters({ ...filters, sortBy: value })}>
-            <SelectTrigger>
+            <SelectTrigger className="hover:bg-green-50 hover:border-green-200">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -155,13 +230,15 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
                   checked={selectedCategories.includes(category)}
                   onCheckedChange={(checked) => {
                     if (checked) {
-                      setSelectedCategories([category]) // Single selection for now
+                      setSelectedCategories([category])
+                      setCategoryFilters({}) // Reset category filters when category changes
                     } else {
                       setSelectedCategories([])
+                      setCategoryFilters({}) // Reset category filters when category is cleared
                     }
                   }}
                 />
-                <Label htmlFor={category} className="text-sm font-normal">
+                <Label htmlFor={category} className="text-sm font-normal hover:text-green-700 cursor-pointer">
                   {category}
                 </Label>
               </div>
@@ -170,6 +247,49 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
         </div>
 
         <Separator />
+
+        {selectedCategory && Object.keys(categoryOptions).length > 0 && (
+          <>
+            <div className="space-y-4">
+              <Label className="text-sm font-medium text-green-700">{selectedCategory} Filters</Label>
+              {Object.entries(categoryOptions).map(([filterType, options]) => (
+                <div key={filterType} className="space-y-2">
+                  <Label className="text-xs font-medium text-gray-600">{filterType}</Label>
+                  <Select
+                    value={categoryFilters[filterType]?.[0] || "any"} // Set default value to "any"
+                    onValueChange={(value) => {
+                      if (value) {
+                        setCategoryFilters((prev) => ({
+                          ...prev,
+                          [filterType]: [value],
+                        }))
+                      } else {
+                        setCategoryFilters((prev) => {
+                          const newFilters = { ...prev }
+                          delete newFilters[filterType]
+                          return newFilters
+                        })
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="hover:bg-green-50 hover:border-green-200">
+                      <SelectValue placeholder={`Any ${filterType}`} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="any">Any {filterType}</SelectItem> // Set value to "any"
+                      {options.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ))}
+            </div>
+            <Separator />
+          </>
+        )}
 
         {/* Price Range */}
         <div className="space-y-3">
@@ -190,12 +310,14 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
               type="number"
               value={priceRange[0]}
               onChange={(e) => setPriceRange([Number.parseInt(e.target.value) || 0, priceRange[1]])}
+              className="hover:border-green-200 focus:border-green-500"
             />
             <Input
               placeholder="Max"
               type="number"
               value={priceRange[1]}
               onChange={(e) => setPriceRange([priceRange[0], Number.parseInt(e.target.value) || 10000])}
+              className="hover:border-green-200 focus:border-green-500"
             />
           </div>
         </div>
@@ -216,13 +338,13 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
                   checked={selectedConditions.includes(condition)}
                   onCheckedChange={(checked) => {
                     if (checked) {
-                      setSelectedConditions([condition]) // Single selection for now
+                      setSelectedConditions([condition])
                     } else {
                       setSelectedConditions([])
                     }
                   }}
                 />
-                <Label htmlFor={condition} className="text-sm font-normal">
+                <Label htmlFor={condition} className="text-sm font-normal hover:text-green-700 cursor-pointer">
                   {condition}
                 </Label>
               </div>
@@ -239,7 +361,7 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
             Location
           </Label>
           <Select value={filters.location} onValueChange={(value) => setFilters({ ...filters, location: value })}>
-            <SelectTrigger>
+            <SelectTrigger className="hover:bg-green-50 hover:border-green-200">
               <SelectValue placeholder="Any location" />
             </SelectTrigger>
             <SelectContent>
@@ -253,7 +375,7 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
           </Select>
         </div>
 
-        <Button onClick={applyFilters} className="w-full">
+        <Button onClick={applyFilters} className="w-full bg-green-800 hover:bg-green-900">
           Apply Filters
         </Button>
       </CardContent>
