@@ -125,7 +125,7 @@ export function Header() {
                 {/* Category Selector */}
                 <div className="flex items-center border-r border-gray-200 px-3 flex-1">
                   <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                    <SelectTrigger className="border-0 bg-transparent shadow-none focus:ring-0 w-full text-xs sm:text-sm">
+                    <SelectTrigger className="border-0 bg-transparent shadow-none focus:ring-0 focus-visible:ring-0 text-sm placeholder:text-gray-500">
                       <Grid3X3 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 text-green-600" />
                       <SelectValue placeholder="Category" />
                     </SelectTrigger>
@@ -202,7 +202,7 @@ export function Header() {
                   <DropdownMenuContent className="w-56" align="end" forceMount>
                     <DropdownMenuLabel className="font-normal">
                       <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none">{user.name}</p>
+                        <p className="text-sm font-medium leading-none">{user.name || "User"}</p>
                         <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
                       </div>
                     </DropdownMenuLabel>
