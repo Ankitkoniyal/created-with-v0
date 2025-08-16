@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
-import { X, Camera, MapPin, DollarSign, Package, FileText, ImageIcon, Youtube, Globe, Tag } from "lucide-react"
+import { X, Camera, MapPin, DollarSign, Package, FileText, ImageIcon, Tag } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
@@ -26,6 +26,7 @@ interface ProductFormData {
   condition: string
   brand: string
   model: string
+  address: string
   location: string
   postalCode: string
   youtubeUrl: string
@@ -118,7 +119,23 @@ const subcategories: Record<string, string[]> = {
   Other: ["Sports Equipment", "Musical Instruments", "Art & Crafts", "Collectibles", "Tools", "Garden", "Baby Items"],
 }
 
-const conditions = ["New", "Used-Like New", "Fair", "Old"]
+const CANADIAN_LOCATIONS = [
+  { province: "Alberta", cities: ["Calgary", "Edmonton", "Red Deer", "Lethbridge"] },
+  { province: "British Columbia", cities: ["Vancouver", "Victoria", "Surrey", "Burnaby", "Richmond"] },
+  { province: "Manitoba", cities: ["Winnipeg", "Brandon", "Steinbach"] },
+  { province: "New Brunswick", cities: ["Saint John", "Moncton", "Fredericton"] },
+  { province: "Newfoundland and Labrador", cities: ["St. John's", "Corner Brook", "Mount Pearl"] },
+  { province: "Northwest Territories", cities: ["Yellowknife", "Hay River"] },
+  { province: "Nova Scotia", cities: ["Halifax", "Sydney", "Dartmouth"] },
+  { province: "Nunavut", cities: ["Iqaluit", "Rankin Inlet"] },
+  { province: "Ontario", cities: ["Toronto", "Ottawa", "Mississauga", "Brampton", "Hamilton", "London", "Markham"] },
+  { province: "Prince Edward Island", cities: ["Charlottetown", "Summerside"] },
+  { province: "Quebec", cities: ["Montreal", "Quebec City", "Laval", "Gatineau", "Longueuil"] },
+  { province: "Saskatchewan", cities: ["Saskatoon", "Regina", "Prince Albert"] },
+  { province: "Yukon", cities: ["Whitehorse", "Dawson City"] },
+]
+
+const conditions = ["New", "Used", "Refurbished", "Damaged", "Other"]
 
 export function PostProductForm() {
   const router = useRouter()
@@ -134,11 +151,12 @@ export function PostProductForm() {
     condition: "",
     brand: "",
     model: "",
+    address: "",
     location: "",
     postalCode: "",
     youtubeUrl: "",
     websiteUrl: "",
-    showMobileNumber: false,
+    showMobileNumber: true,
     tags: [],
     images: [],
     features: [],
@@ -267,7 +285,7 @@ export function PostProductForm() {
 
       const productData = {
         title: formData.title,
-        description: `${formData.description}${formData.location ? `\n\nLocation: ${formData.location}` : ""}${formData.postalCode ? ` ${formData.postalCode}` : ""}${formData.youtubeUrl ? `\n\nVideo: ${formData.youtubeUrl}` : ""}${formData.websiteUrl ? `\n\nWebsite: ${formData.websiteUrl}` : ""}${formData.tags.length > 0 ? `\n\nTags: ${formData.tags.join(", ")}` : ""}${formData.showMobileNumber ? "\n\n📱 Mobile number available - contact seller" : ""}${formData.priceType !== "amount" ? `\n\nPrice: ${formData.priceType === "free" ? "Free" : formData.priceType === "contact" ? "Contact for price" : "Swap/Exchange"}` : ""}`,
+        description: `${formData.description}${formData.address ? `\n\nAddress: ${formData.address}` : ""}${formData.location ? `\nLocation: ${formData.location}` : ""}${formData.postalCode ? ` ${formData.postalCode}` : ""}${formData.youtubeUrl ? `\n\nVideo: ${formData.youtubeUrl}` : ""}${formData.websiteUrl ? `\n\nWebsite: ${formData.websiteUrl}` : ""}${formData.tags.length > 0 ? `\n\nTags: ${formData.tags.join(", ")}` : ""}${formData.showMobileNumber ? "\n\n📱 Mobile number available - contact seller" : ""}${formData.priceType !== "amount" ? `\n\nPrice: ${formData.priceType === "free" ? "Free" : formData.priceType === "contact" ? "Contact for price" : "Swap/Exchange"}` : ""}`,
         price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
         category_id: Math.max(1, categories.indexOf(formData.category) + 1),
         condition: formData.condition,
@@ -371,7 +389,7 @@ Would you like to try posting with basic information only?`
   const isStep1Valid = formData.images.length > 0
   const isStep2Valid =
     formData.title && formData.category && formData.condition && (formData.priceType !== "amount" || formData.price)
-  const isStep3Valid = formData.description && formData.location && formData.postalCode
+  const isStep3Valid = formData.description && formData.address && formData.location && formData.postalCode
 
   return (
     <div className="space-y-6 bg-green-50 p-6 rounded-lg">
@@ -630,73 +648,76 @@ Would you like to try posting with basic information only?`
               <p className="text-sm text-muted-foreground">{formData.description.length}/1000 characters</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="location">Location *</Label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="location"
-                    placeholder="e.g., Toronto, ON"
-                    className="pl-10 border-2 border-gray-200 focus:border-primary"
-                    value={formData.location}
-                    onChange={(e) => handleInputChange("location", e.target.value)}
-                  />
-                </div>
-              </div>
+            <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
+              <Label className="flex items-center text-base font-semibold">
+                <MapPin className="h-5 w-5 mr-2" />
+                Location Details *
+              </Label>
 
               <div className="space-y-2">
-                <Label htmlFor="postalCode">Postal Code *</Label>
+                <Label htmlFor="address">Street Address *</Label>
                 <Input
-                  id="postalCode"
-                  placeholder="e.g., M5V 3A8"
+                  id="address"
+                  placeholder="e.g., 123 Main Street"
                   className="border-2 border-gray-200 focus:border-primary"
-                  value={formData.postalCode}
-                  onChange={(e) => handleInputChange("postalCode", e.target.value.toUpperCase())}
-                  maxLength={7}
+                  value={formData.address}
+                  onChange={(e) => handleInputChange("address", e.target.value)}
                 />
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="youtubeUrl">YouTube Video (Optional)</Label>
-                <div className="relative">
-                  <Youtube className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="location">City/Province *</Label>
+                  <Select value={formData.location} onValueChange={(value) => handleInputChange("location", value)}>
+                    <SelectTrigger className="border-2 border-gray-200 focus:border-primary">
+                      <SelectValue placeholder="Select city/province" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CANADIAN_LOCATIONS.map((location) => (
+                        <div key={location.province}>
+                          <SelectItem value={location.province} className="font-semibold">
+                            {location.province}
+                          </SelectItem>
+                          {location.cities.map((city) => (
+                            <SelectItem key={city} value={`${city}, ${location.province}`} className="pl-6">
+                              {city}
+                            </SelectItem>
+                          ))}
+                        </div>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="postalCode">Postal Code *</Label>
                   <Input
-                    id="youtubeUrl"
-                    placeholder="https://youtube.com/watch?v=..."
-                    className="pl-10 border-2 border-gray-200 focus:border-primary"
-                    value={formData.youtubeUrl}
-                    onChange={(e) => handleInputChange("youtubeUrl", e.target.value)}
+                    id="postalCode"
+                    placeholder="e.g., M5V 3A8"
+                    className="border-2 border-gray-200 focus:border-primary"
+                    value={formData.postalCode}
+                    onChange={(e) => handleInputChange("postalCode", e.target.value.toUpperCase())}
+                    maxLength={7}
                   />
                 </div>
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="websiteUrl">Website URL (Optional)</Label>
-                <div className="relative">
-                  <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="websiteUrl"
-                    placeholder="https://example.com"
-                    className="pl-10 border-2 border-gray-200 focus:border-primary"
-                    value={formData.websiteUrl}
-                    onChange={(e) => handleInputChange("websiteUrl", e.target.value)}
-                  />
-                </div>
-              </div>
             </div>
 
-            <div className="flex items-center space-x-3 p-4 border-2 border-gray-200 rounded-lg">
+            <div className="flex items-center space-x-3 p-4 border-2 border-primary/20 bg-primary/5 rounded-lg">
               <Checkbox
                 id="showMobileNumber"
                 checked={formData.showMobileNumber}
                 onCheckedChange={(checked) => handleInputChange("showMobileNumber", checked as boolean)}
+                className="w-5 h-5 border-2 border-primary data-[state=checked]:bg-primary data-[state=checked]:border-primary"
               />
-              <Label htmlFor="showMobileNumber" className="text-sm font-medium">
-                Show my mobile number on this ad
-              </Label>
+              <div className="flex-1">
+                <Label htmlFor="showMobileNumber" className="text-sm font-medium cursor-pointer">
+                  Show my mobile number on this ad
+                </Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Your number will be partially hidden. Only logged-in users can view the full number.
+                </p>
+              </div>
             </div>
 
             <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
@@ -812,7 +833,9 @@ Would you like to try posting with basic information only?`
                       </p>
                     )}
                     <p>
-                      <span className="text-muted-foreground">Location:</span> {formData.location}
+                      <span className="text-muted-foreground">Location:</span>{" "}
+                      {formData.address && `${formData.address}, `}
+                      {formData.location}
                     </p>
                     <p>
                       <span className="text-muted-foreground">Postal Code:</span> {formData.postalCode}
