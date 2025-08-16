@@ -229,21 +229,21 @@ export function ProductDetail({ product }: ProductDetailProps) {
               <div className="flex items-center space-x-2">
                 <Button
                   size="sm"
-                  variant="ghost"
+                  variant="outline"
                   onClick={toggleFavorite}
-                  title="Add to Wishlist"
-                  className="text-primary hover:text-primary/80 hover:bg-primary/10"
+                  className="text-primary hover:bg-green-100 hover:text-green-700 border-primary/20 bg-transparent"
                 >
-                  <Heart className={`h-4 w-4 ${isFavorited ? "fill-red-500 text-red-500" : ""}`} />
+                  <Heart className={`h-4 w-4 mr-1 ${isFavorited ? "fill-red-500 text-red-500" : ""}`} />
+                  {isFavorited ? "Saved" : "Save"}
                 </Button>
                 <Button
                   size="sm"
-                  variant="ghost"
+                  variant="outline"
                   onClick={handleShare}
-                  title="Share this Ad"
-                  className="text-primary hover:text-primary/80 hover:bg-primary/10"
+                  className="text-primary hover:bg-green-100 hover:text-green-700 border-primary/20 bg-transparent"
                 >
-                  <Share2 className="h-4 w-4" />
+                  <Share2 className="h-4 w-4 mr-1" />
+                  Share
                 </Button>
               </div>
             </div>
@@ -280,11 +280,11 @@ export function ProductDetail({ product }: ProductDetailProps) {
                   totalReviews: product.seller.totalReviews,
                 }}
               >
-                <Button className="w-full bg-primary hover:bg-primary/90">Chat with Seller</Button>
+                <Button className="w-full bg-primary hover:bg-green-600">Chat with Seller</Button>
               </ContactSellerModal>
               <Button
                 variant="outline"
-                className="w-full bg-transparent flex items-center justify-center"
+                className="w-full bg-transparent hover:bg-green-100 hover:text-green-700 flex items-center justify-center"
                 onClick={handleShowMobile}
               >
                 <Phone className="h-4 w-4 mr-2" />
@@ -397,10 +397,14 @@ export function ProductDetail({ product }: ProductDetailProps) {
             </div>
 
             <div className="space-y-2 mt-3">
-              <Button variant="outline" className="w-full bg-transparent">
+              <Button variant="outline" className="w-full bg-transparent hover:bg-green-100 hover:text-green-700">
                 View Seller Profile
               </Button>
-              <Button variant="outline" className="w-full bg-transparent" onClick={handleViewAllAds}>
+              <Button
+                variant="outline"
+                className="w-full bg-transparent hover:bg-green-100 hover:text-green-700"
+                onClick={handleViewAllAds}
+              >
                 See All Ads
               </Button>
             </div>
