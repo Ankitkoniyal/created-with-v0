@@ -129,9 +129,40 @@ export function ProductDetail({ product }: ProductDetailProps) {
     }
   }
 
+  const handleShare = async () => {
+    const shareData = {
+      title: product.title,
+      text: `Check out this ${product.title} for ${product.price}`,
+      url: window.location.href,
+    }
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData)
+      } else {
+        // Fallback: copy to clipboard
+        await navigator.clipboard.writeText(window.location.href)
+        alert("Link copied to clipboard!")
+      }
+    } catch (error) {
+      console.error("Error sharing:", error)
+    }
+  }
+
   const formatAdId = (id: string) => {
-    const numericId = Number.parseInt(id) || 0
-    return `AD${numericId.toString().padStart(3, "0")}`
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = (now.getMonth() + 1).toString().padStart(2, "0")
+    const day = now.getDate().toString().padStart(2, "0")
+
+    // Generate 4 random alphabetical letters
+    const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    let randomLetters = ""
+    for (let i = 0; i < 4; i++) {
+      randomLetters += letters.charAt(Math.floor(Math.random() * letters.length))
+    }
+
+    return `AD${year}${month}${day}${randomLetters}`
   }
 
   return (
@@ -158,6 +189,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                 size="sm"
                 variant="ghost"
                 className="absolute top-4 right-16 bg-background/80 hover:bg-background"
+                onClick={handleShare}
               >
                 <Share2 className="h-4 w-4" />
               </Button>
@@ -182,6 +214,86 @@ export function ProductDetail({ product }: ProductDetailProps) {
                   </button>
                 ))}
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Price & Basic Info */}
+        <Card className="mt-6">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h1 className="text-2xl font-bold text-foreground mb-2">{product.title}</h1>
+                <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+                  <div className="flex items-center">
+                    <MapPin className="h-4 w-4 mr-1" />
+                    {product.location}
+                  </div>
+                  <div className="flex items-center">
+                    <Eye className="h-4 w-4 mr-1" />
+                    {product.views} views
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleShare}
+                  title="Share this Ad"
+                  className="text-primary hover:text-primary/80 hover:bg-primary/10"
+                >
+                  <Share2 className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleReportAd}
+                  title="Report this Ad"
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <Flag className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="mb-3">
+              <span className="text-sm text-muted-foreground">Ad ID: </span>
+              <span className="text-sm font-medium text-primary">{formatAdId(product.id)}</span>
+            </div>
+
+            <div className="flex items-center space-x-2 mb-4">
+              <span className="text-3xl font-bold text-primary">{product.price}</span>
+              {product.originalPrice && (
+                <span className="text-lg text-muted-foreground line-through">{product.originalPrice}</span>
+              )}
+            </div>
+
+            <div className="flex items-center text-sm text-muted-foreground mb-6">
+              <Calendar className="h-4 w-4 mr-1" />
+              Posted on {new Date(product.postedDate).toLocaleDateString()}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <ContactSellerModal
+                product={{
+                  id: product.id,
+                  title: product.title,
+                  price: product.price,
+                  image: product.images[0],
+                }}
+                seller={{
+                  name: product.seller.name,
+                  verified: product.seller.verified,
+                  rating: product.seller.rating,
+                  totalReviews: product.seller.totalReviews,
+                }}
+              >
+                <Button className="w-full bg-primary hover:bg-primary/90">Contact Seller</Button>
+              </ContactSellerModal>
+              <Button variant="outline" className="w-full bg-transparent">
+                Make an Offer
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -214,7 +326,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
         {/* Product Details */}
         <Card className="mt-6">
           <CardContent className="p-6">
-            <h2 className="text-2xl font-bold text-foreground mb-4">Detailed Specifications</h2>
+            <h2 className="text-2xl font-bold text-foreground mb-4">Product Details</h2>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground">Condition:</span>
@@ -263,75 +375,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
 
       {/* Product Info & Seller */}
       <div className="space-y-6">
-        {/* Price & Basic Info */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h1 className="text-2xl font-bold text-foreground mb-2">{product.title}</h1>
-                <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-                  <div className="flex items-center">
-                    <MapPin className="h-4 w-4 mr-1" />
-                    {product.location}
-                  </div>
-                  <div className="flex items-center">
-                    <Eye className="h-4 w-4 mr-1" />
-                    {product.views} views
-                  </div>
-                </div>
-              </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={handleReportAd}
-                title="Report this Ad"
-                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-              >
-                <Flag className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="mb-3">
-              <span className="text-sm text-muted-foreground">Ad ID: </span>
-              <span className="text-sm font-medium text-primary">{formatAdId(product.id)}</span>
-            </div>
-
-            <div className="flex items-center space-x-2 mb-4">
-              <span className="text-3xl font-bold text-primary">{product.price}</span>
-              {product.originalPrice && (
-                <span className="text-lg text-muted-foreground line-through">{product.originalPrice}</span>
-              )}
-            </div>
-
-            <div className="flex items-center text-sm text-muted-foreground mb-6">
-              <Calendar className="h-4 w-4 mr-1" />
-              Posted on {new Date(product.postedDate).toLocaleDateString()}
-            </div>
-
-            <div className="space-y-3">
-              <ContactSellerModal
-                product={{
-                  id: product.id,
-                  title: product.title,
-                  price: product.price,
-                  image: product.images[0],
-                }}
-                seller={{
-                  name: product.seller.name,
-                  verified: product.seller.verified,
-                  rating: product.seller.rating,
-                  totalReviews: product.seller.totalReviews,
-                }}
-              >
-                <Button className="w-full bg-primary hover:bg-primary/90">Contact Seller</Button>
-              </ContactSellerModal>
-              <Button variant="outline" className="w-full bg-transparent">
-                Make an Offer
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Seller Info */}
         <Card>
           <CardContent className="p-6">
