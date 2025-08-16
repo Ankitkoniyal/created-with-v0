@@ -345,6 +345,7 @@ export function PostProductForm() {
                 value={formData.title}
                 onChange={(e) => handleInputChange("title", e.target.value)}
                 maxLength={100}
+                className="border-2 border-gray-200 focus:border-primary"
               />
               <p className="text-sm text-muted-foreground">{formData.title.length}/100 characters</p>
             </div>
@@ -353,7 +354,7 @@ export function PostProductForm() {
               <div className="space-y-2">
                 <Label htmlFor="category">Category *</Label>
                 <Select value={formData.category} onValueChange={(value) => handleInputChange("category", value)}>
-                  <SelectTrigger>
+                  <SelectTrigger className="border-2 border-gray-200 focus:border-primary">
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
@@ -373,7 +374,7 @@ export function PostProductForm() {
                     value={formData.subcategory}
                     onValueChange={(value) => handleInputChange("subcategory", value)}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="border-2 border-gray-200 focus:border-primary">
                       <SelectValue placeholder="Select subcategory" />
                     </SelectTrigger>
                     <SelectContent>
@@ -392,7 +393,7 @@ export function PostProductForm() {
               <div className="space-y-2">
                 <Label htmlFor="condition">Condition *</Label>
                 <Select value={formData.condition} onValueChange={(value) => handleInputChange("condition", value)}>
-                  <SelectTrigger>
+                  <SelectTrigger className="border-2 border-gray-200 focus:border-primary">
                     <SelectValue placeholder="Select condition" />
                   </SelectTrigger>
                   <SelectContent>
@@ -413,7 +414,7 @@ export function PostProductForm() {
                     id="price"
                     type="number"
                     placeholder="0.00"
-                    className="pl-10"
+                    className="pl-10 border-2 border-gray-200 focus:border-primary"
                     value={formData.price}
                     onChange={(e) => handleInputChange("price", e.target.value)}
                   />
@@ -429,6 +430,7 @@ export function PostProductForm() {
                   placeholder="e.g., Apple, Samsung, Honda"
                   value={formData.brand}
                   onChange={(e) => handleInputChange("brand", e.target.value)}
+                  className="border-2 border-gray-200 focus:border-primary"
                 />
               </div>
 
@@ -439,6 +441,7 @@ export function PostProductForm() {
                   placeholder="e.g., iPhone 14 Pro Max, Galaxy S23"
                   value={formData.model}
                   onChange={(e) => handleInputChange("model", e.target.value)}
+                  className="border-2 border-gray-200 focus:border-primary"
                 />
               </div>
             </div>
@@ -464,6 +467,7 @@ export function PostProductForm() {
                 value={formData.description}
                 onChange={(e) => handleInputChange("description", e.target.value)}
                 maxLength={1000}
+                className="border-2 border-gray-200 focus:border-primary"
               />
               <p className="text-sm text-muted-foreground">{formData.description.length}/1000 characters</p>
             </div>
@@ -475,7 +479,7 @@ export function PostProductForm() {
                 <Input
                   id="location"
                   placeholder="e.g., Toronto, ON"
-                  className="pl-10"
+                  className="pl-10 border-2 border-gray-200 focus:border-primary"
                   value={formData.location}
                   onChange={(e) => handleInputChange("location", e.target.value)}
                 />
@@ -490,6 +494,7 @@ export function PostProductForm() {
                   value={newFeature}
                   onChange={(e) => setNewFeature(e.target.value)}
                   onKeyPress={(e) => e.key === "Enter" && addFeature()}
+                  className="border-2 border-gray-200 focus:border-primary"
                 />
                 <Button type="button" onClick={addFeature} variant="outline">
                   Add

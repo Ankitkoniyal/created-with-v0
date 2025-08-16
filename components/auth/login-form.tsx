@@ -44,7 +44,14 @@ export function LoginForm() {
             <Label htmlFor="email">Email</Label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input id="email" name="email" type="email" placeholder="Enter your email" className="pl-10" required />
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                placeholder="Enter your email"
+                className="pl-10 border-2 border-gray-200 focus:border-primary"
+                required
+              />
             </div>
           </div>
 
@@ -57,7 +64,7 @@ export function LoginForm() {
                 name="password"
                 type={showPassword ? "text" : "password"}
                 placeholder="Enter your password"
-                className="pl-10 pr-10"
+                className="pl-10 pr-10 border-2 border-gray-200 focus:border-primary"
                 required
               />
               <button

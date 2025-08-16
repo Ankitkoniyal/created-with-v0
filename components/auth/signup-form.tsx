@@ -65,7 +65,7 @@ export function SignupForm() {
                 name="fullName"
                 type="text"
                 placeholder="Enter your full name"
-                className="pl-10"
+                className="pl-10 border-2 border-gray-200 focus:border-primary"
                 required
               />
             </div>
@@ -75,7 +75,14 @@ export function SignupForm() {
             <Label htmlFor="email">Email</Label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input id="email" name="email" type="email" placeholder="Enter your email" className="pl-10" required />
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                placeholder="Enter your email"
+                className="pl-10 border-2 border-gray-200 focus:border-primary"
+                required
+              />
             </div>
           </div>
 
@@ -83,7 +90,13 @@ export function SignupForm() {
             <Label htmlFor="phone">Phone Number</Label>
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input id="phone" name="phone" type="tel" placeholder="Enter your phone number" className="pl-10" />
+              <Input
+                id="phone"
+                name="phone"
+                type="tel"
+                placeholder="Enter your phone number"
+                className="pl-10 border-2 border-gray-200 focus:border-primary"
+              />
             </div>
           </div>
 
@@ -96,7 +109,7 @@ export function SignupForm() {
                 name="password"
                 type={showPassword ? "text" : "password"}
                 placeholder="Create a password (min. 6 characters)"
-                className="pl-10 pr-10"
+                className="pl-10 pr-10 border-2 border-gray-200 focus:border-primary"
                 minLength={6}
                 required
               />
