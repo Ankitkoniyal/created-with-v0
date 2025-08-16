@@ -2,7 +2,19 @@
 
 import type React from "react"
 import { useState } from "react"
-import { Search, Heart, User, Menu, LogOut, Settings, Package, Bell, MapPin, MessageCircle } from "lucide-react"
+import {
+  Search,
+  Heart,
+  User,
+  Menu,
+  LogOut,
+  Settings,
+  Package,
+  Bell,
+  MapPin,
+  MessageCircle,
+  ChevronDown,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -58,6 +70,7 @@ export function Header() {
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedLocation, setSelectedLocation] = useState("All Canada")
+  const [showMegaMenu, setShowMegaMenu] = useState(false)
 
   const handleLogout = () => {
     logout()
@@ -88,6 +101,7 @@ export function Header() {
       params.set("location", selectedLocation)
     }
     router.push(`/search?${params.toString()}`)
+    setShowMegaMenu(false)
   }
 
   return (
@@ -129,11 +143,6 @@ export function Header() {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-
-                {/* Category Selector */}
-                <div className="flex items-center border-r border-gray-200 px-3 flex-1">
-                  <MegaMenu onCategorySelect={handleCategorySelect} />
                 </div>
 
                 {/* Search Input */}
@@ -274,6 +283,27 @@ export function Header() {
             <Menu className="h-4 w-4" />
           </Button>
         </div>
+
+        <div className="border-t border-gray-100 bg-gray-50">
+          <div className="flex items-center justify-center py-2">
+            <Button
+              variant="ghost"
+              className="flex items-center gap-2 text-green-800 hover:text-green-900 hover:bg-green-100 font-semibold px-6 py-2 rounded-lg transition-all duration-200"
+              onClick={() => setShowMegaMenu(!showMegaMenu)}
+            >
+              <span>Buy Now</span>
+              <ChevronDown
+                className={`h-4 w-4 transition-transform duration-200 ${showMegaMenu ? "rotate-180" : ""}`}
+              />
+            </Button>
+          </div>
+        </div>
+
+        {showMegaMenu && (
+          <div className="absolute left-0 right-0 top-full bg-white border-b border-gray-200 shadow-2xl z-50">
+            <MegaMenu onCategorySelect={handleCategorySelect} />
+          </div>
+        )}
       </div>
     </header>
   )

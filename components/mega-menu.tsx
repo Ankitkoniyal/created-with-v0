@@ -1,9 +1,5 @@
 "use client"
-
-import { useState } from "react"
 import Link from "next/link"
-import { ChevronDown, Grid3X3 } from "lucide-react"
-import { Button } from "@/components/ui/button"
 
 const MEGA_MENU_CATEGORIES = {
   Vehicles: {
@@ -74,90 +70,71 @@ interface MegaMenuProps {
 }
 
 export function MegaMenu({ onCategorySelect }: MegaMenuProps) {
-  const [isOpen, setIsOpen] = useState(false)
-
   const handleCategoryClick = (category: string, subcategory?: string) => {
-    setIsOpen(false)
     if (onCategorySelect) {
       onCategorySelect(category, subcategory)
     }
   }
 
   return (
-    <div className="relative">
-      <Button
-        variant="ghost"
-        className="flex items-center gap-2 text-green-800 hover:text-green-900 hover:bg-green-50"
-        onClick={() => setIsOpen(!isOpen)}
-        onMouseEnter={() => setIsOpen(true)}
-      >
-        <Grid3X3 className="h-4 w-4" />
-        <span className="font-medium">ALL CATEGORIES</span>
-        <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-      </Button>
-
-      {isOpen && (
-        <div
-          className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-2xl z-50 min-w-[1000px]"
-          onMouseLeave={() => setIsOpen(false)}
-        >
-          <div className="grid grid-cols-4 gap-6 p-6">
-            {Object.entries(MEGA_MENU_CATEGORIES).map(([category, subcategories]) => (
-              <div key={category} className="space-y-3">
-                <Link
-                  href={`/search?category=${encodeURIComponent(category)}`}
-                  className="block font-bold text-green-800 hover:text-green-900 text-sm border-b border-green-100 pb-2"
-                  onClick={() => handleCategoryClick(category)}
-                >
-                  {category}
-                </Link>
-                <div className="space-y-1">
-                  {Object.entries(subcategories).map(([subcat, items]) => (
-                    <div key={subcat} className="space-y-1">
-                      <Link
-                        href={`/search?category=${encodeURIComponent(category)}&subcategory=${encodeURIComponent(subcat)}`}
-                        className="block font-medium text-gray-700 hover:text-green-700 text-xs hover:bg-green-50 px-2 py-1 rounded transition-colors"
-                        onClick={() => handleCategoryClick(category, subcat)}
-                      >
-                        {subcat}
-                      </Link>
-                      <div className="ml-2 space-y-0.5">
-                        {items.slice(0, 4).map((item) => (
-                          <Link
-                            key={item}
-                            href={`/search?category=${encodeURIComponent(category)}&subcategory=${encodeURIComponent(subcat)}&item=${encodeURIComponent(item)}`}
-                            className="block text-gray-500 hover:text-green-600 text-xs hover:bg-green-50 px-2 py-0.5 rounded transition-colors"
-                            onClick={() => handleCategoryClick(category, item)}
-                          >
-                            {item}
-                          </Link>
-                        ))}
-                      </div>
+    <div className="w-full max-w-7xl mx-auto">
+      <div className="max-h-96 overflow-y-auto">
+        <div className="grid grid-cols-4 gap-6 p-6">
+          {Object.entries(MEGA_MENU_CATEGORIES).map(([category, subcategories]) => (
+            <div key={category} className="space-y-3">
+              <Link
+                href={`/search?category=${encodeURIComponent(category)}`}
+                className="block font-bold text-green-800 hover:text-green-900 text-sm border-b border-green-100 pb-2 hover:bg-green-50 px-2 py-1 rounded transition-colors"
+                onClick={() => handleCategoryClick(category)}
+              >
+                {category}
+              </Link>
+              <div className="space-y-1">
+                {Object.entries(subcategories).map(([subcat, items]) => (
+                  <div key={subcat} className="space-y-1">
+                    <Link
+                      href={`/search?category=${encodeURIComponent(category)}&subcategory=${encodeURIComponent(subcat)}`}
+                      className="block font-medium text-gray-700 hover:text-green-700 text-xs hover:bg-green-50 px-2 py-1 rounded transition-colors"
+                      onClick={() => handleCategoryClick(category, subcat)}
+                    >
+                      {subcat}
+                    </Link>
+                    <div className="ml-2 space-y-0.5">
+                      {items.slice(0, 4).map((item) => (
+                        <Link
+                          key={item}
+                          href={`/search?category=${encodeURIComponent(category)}&subcategory=${encodeURIComponent(subcat)}&item=${encodeURIComponent(item)}`}
+                          className="block text-gray-500 hover:text-green-600 text-xs hover:bg-green-50 px-2 py-0.5 rounded transition-colors"
+                          onClick={() => handleCategoryClick(category, item)}
+                        >
+                          {item}
+                        </Link>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-
-          {/* Popular Categories Footer */}
-          <div className="border-t border-gray-100 bg-gray-50 px-6 py-4">
-            <div className="flex flex-wrap gap-4">
-              <span className="text-sm font-medium text-gray-600">Popular:</span>
-              {["Cars", "Mobile Phones", "Apartments", "Jobs", "Electronics", "Fashion"].map((popular) => (
-                <Link
-                  key={popular}
-                  href={`/search?category=${encodeURIComponent(popular)}`}
-                  className="text-sm text-green-700 hover:text-green-800 hover:underline"
-                  onClick={() => handleCategoryClick(popular)}
-                >
-                  {popular}
-                </Link>
-              ))}
             </div>
-          </div>
+          ))}
         </div>
-      )}
+      </div>
+
+      {/* Popular Categories Footer */}
+      <div className="border-t border-gray-100 bg-gray-50 px-6 py-4">
+        <div className="flex flex-wrap gap-4">
+          <span className="text-sm font-medium text-gray-600">Popular:</span>
+          {["Cars", "Mobile Phones", "Apartments", "Jobs", "Electronics", "Fashion"].map((popular) => (
+            <Link
+              key={popular}
+              href={`/search?category=${encodeURIComponent(popular)}`}
+              className="text-sm text-green-700 hover:text-green-800 hover:underline"
+              onClick={() => handleCategoryClick(popular)}
+            >
+              {popular}
+            </Link>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
