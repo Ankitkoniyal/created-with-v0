@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { Heart, Share2, Flag, MapPin, Eye, Calendar, Star, Shield, Clock, Phone } from "lucide-react"
+import { Heart, Share2, Flag, MapPin, Eye, Calendar, Star, Shield, Clock, Phone, X, Copy, Check } from "lucide-react"
 import { ContactSellerModal } from "@/components/messaging/contact-seller-modal"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
@@ -47,6 +47,8 @@ export function ProductDetail({ product }: ProductDetailProps) {
   const [isFavorited, setIsFavorited] = useState(false)
   const [showReportDialog, setShowReportDialog] = useState(false)
   const [showMobileNumber, setShowMobileNumber] = useState(false)
+  const [showShareMenu, setShowShareMenu] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
 
   useEffect(() => {
     const checkFavoriteStatus = async () => {
@@ -129,35 +131,53 @@ export function ProductDetail({ product }: ProductDetailProps) {
     }
   }
 
-  const handleShare = async () => {
-    const shareData = {
-      title: product.title,
-      text: `Check out this ${product.title} for ${product.price}`,
-      url: window.location.href,
-    }
+  const shareToWhatsApp = () => {
+    const text = encodeURIComponent(`Check out this ${product.title} for ${product.price}`)
+    const url = encodeURIComponent(window.location.href)
+    window.open(`https://wa.me/?text=${text}%20${url}`, "_blank")
+    setShowShareMenu(false)
+  }
 
+  const shareToFacebook = () => {
+    const url = encodeURIComponent(window.location.href)
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, "_blank")
+    setShowShareMenu(false)
+  }
+
+  const shareToTikTok = () => {
+    const url = encodeURIComponent(window.location.href)
+    const text = encodeURIComponent(`Check out this ${product.title}`)
+    window.open(`https://www.tiktok.com/share?url=${url}&title=${text}`, "_blank")
+    setShowShareMenu(false)
+  }
+
+  const shareToEmail = () => {
+    const subject = encodeURIComponent(`Check out this ${product.title}`)
+    const body = encodeURIComponent(
+      `I found this ${product.title} for ${product.price}. Check it out: ${window.location.href}`,
+    )
+    window.open(`mailto:?subject=${subject}&body=${body}`)
+    setShowShareMenu(false)
+  }
+
+  const copyLink = async () => {
     try {
-      if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
-        await navigator.share(shareData)
-        console.log("[v0] Shared successfully via Web Share API")
-      } else {
-        // Fallback to clipboard
-        await navigator.clipboard.writeText(window.location.href)
-        alert("Link copied to clipboard!")
-        console.log("[v0] Shared via clipboard fallback")
-      }
+      await navigator.clipboard.writeText(window.location.href)
+      setLinkCopied(true)
+      setTimeout(() => {
+        setLinkCopied(false)
+        setShowShareMenu(false)
+      }, 2000)
     } catch (error) {
-      console.error("Error sharing:", error)
-      try {
-        await navigator.clipboard.writeText(window.location.href)
-        alert("Link copied to clipboard!")
-        console.log("[v0] Used clipboard fallback after share error")
-      } catch (clipboardError) {
-        console.error("Clipboard error:", clipboardError)
-        const url = window.location.href
-        prompt("Copy this link to share:", url)
-      }
+      console.error("Failed to copy link:", error)
+      const url = window.location.href
+      prompt("Copy this link:", url)
+      setShowShareMenu(false)
     }
+  }
+
+  const handleShare = () => {
+    setShowShareMenu(!showShareMenu)
   }
 
   const formatAdId = (id: string) => {
@@ -238,7 +258,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                   </div>
                 </div>
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 relative">
                 <Button
                   size="sm"
                   variant="outline"
@@ -257,6 +277,83 @@ export function ProductDetail({ product }: ProductDetailProps) {
                   <Share2 className="h-4 w-4 mr-1" />
                   Share
                 </Button>
+
+                {showShareMenu && (
+                  <div className="absolute top-full right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                    <div className="p-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-700">Share this ad</span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setShowShareMenu(false)}
+                          className="h-6 w-6 p-0"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="space-y-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={shareToWhatsApp}
+                          className="w-full justify-start text-left hover:bg-green-100 hover:text-green-700"
+                        >
+                          <div className="w-5 h-5 mr-3 bg-green-500 rounded-full flex items-center justify-center">
+                            <span className="text-white text-xs font-bold">W</span>
+                          </div>
+                          WhatsApp
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={shareToFacebook}
+                          className="w-full justify-start text-left hover:bg-green-100 hover:text-green-700"
+                        >
+                          <div className="w-5 h-5 mr-3 bg-blue-600 rounded-full flex items-center justify-center">
+                            <span className="text-white text-xs font-bold">f</span>
+                          </div>
+                          Facebook
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={shareToTikTok}
+                          className="w-full justify-start text-left hover:bg-green-100 hover:text-green-700"
+                        >
+                          <div className="w-5 h-5 mr-3 bg-black rounded-full flex items-center justify-center">
+                            <span className="text-white text-xs font-bold">T</span>
+                          </div>
+                          TikTok
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={shareToEmail}
+                          className="w-full justify-start text-left hover:bg-green-100 hover:text-green-700"
+                        >
+                          <div className="w-5 h-5 mr-3 bg-gray-600 rounded-full flex items-center justify-center">
+                            <span className="text-white text-xs font-bold">@</span>
+                          </div>
+                          Email
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={copyLink}
+                          className="w-full justify-start text-left hover:bg-green-100 hover:text-green-700"
+                        >
+                          {linkCopied ? (
+                            <Check className="w-5 h-5 mr-3 text-green-600" />
+                          ) : (
+                            <Copy className="w-5 h-5 mr-3" />
+                          )}
+                          {linkCopied ? "Link Copied!" : "Copy Link"}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
