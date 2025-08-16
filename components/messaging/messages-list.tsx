@@ -22,7 +22,7 @@ interface Conversation {
     title: string
     price: number
     images: string[]
-    is_sold: boolean
+    status: string
   }
   sender_profile: {
     id: string
@@ -70,7 +70,7 @@ export function MessagesList() {
               title,
               price,
               images,
-              is_sold
+              status
             ),
             sender:profiles!sender_id (
               id,
@@ -137,8 +137,8 @@ export function MessagesList() {
     const matchesFilter =
       filter === "all" ||
       (filter === "unread" && conversation.unread_count > 0) ||
-      (filter === "active" && !conversation.products?.is_sold) ||
-      (filter === "sold" && conversation.products?.is_sold)
+      (filter === "active" && conversation.products?.status === "active") ||
+      (filter === "sold" && conversation.products?.status === "sold")
 
     return matchesSearch && matchesFilter
   })
@@ -289,8 +289,8 @@ export function MessagesList() {
 
                     {/* Status Badge */}
                     <div className="flex-shrink-0">
-                      <Badge variant={!conversation.products?.is_sold ? "default" : "secondary"}>
-                        {conversation.products?.is_sold ? "sold" : "active"}
+                      <Badge variant={conversation.products?.status === "active" ? "default" : "secondary"}>
+                        {conversation.products?.status || "unknown"}
                       </Badge>
                     </div>
                   </div>
