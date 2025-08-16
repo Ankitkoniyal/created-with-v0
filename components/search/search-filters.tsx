@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -108,27 +108,28 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
     Number.parseInt(currentFilters.minPrice) || 0,
     Number.parseInt(currentFilters.maxPrice) || 10000,
   ])
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(
-    currentFilters.category ? [currentFilters.category] : [],
-  )
-
+  const [selectedCategory, setSelectedCategory] = useState<string>(currentFilters.category || "")
   const [categoryFilters, setCategoryFilters] = useState<Record<string, string[]>>({})
 
-  const selectedCategory = selectedCategories[0] || ""
+  useEffect(() => {
+    const categoryFromUrl = searchParams.get("category") || currentFilters.category || ""
+    setSelectedCategory(categoryFromUrl)
+  }, [searchParams, currentFilters.category])
+
   const categoryOptions = categorySpecificFilters[selectedCategory as keyof typeof categorySpecificFilters] || {}
 
   const applyFilters = () => {
     const params = new URLSearchParams()
 
     if (searchQuery) params.set("q", searchQuery)
-    if (selectedCategories.length > 0) params.set("category", selectedCategories[0])
+    if (selectedCategory) params.set("category", selectedCategory)
     if (priceRange[0] > 0) params.set("minPrice", priceRange[0].toString())
     if (priceRange[1] < 10000) params.set("maxPrice", priceRange[1].toString())
     if (filters.location) params.set("location", filters.location)
     if (filters.sortBy !== "relevance") params.set("sortBy", filters.sortBy)
 
     Object.entries(categoryFilters).forEach(([filterType, values]) => {
-      if (values.length > 0 && values[0] !== "any") {
+      if (values.length > 0) {
         params.set(filterType.toLowerCase().replace(/\s+/g, "_"), values[0])
       }
     })
@@ -137,7 +138,7 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
   }
 
   const clearFilters = () => {
-    setSelectedCategories([])
+    setSelectedCategory("")
     setPriceRange([0, 10000])
     setCategoryFilters({})
     setFilters({
@@ -155,12 +156,12 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
   }
 
   const hasActiveFilters =
-    selectedCategories.length > 0 ||
+    selectedCategory ||
     priceRange[0] > 0 ||
     priceRange[1] < 10000 ||
     filters.location ||
     filters.sortBy !== "relevance" ||
-    Object.values(categoryFilters).some((values) => values.length > 0 && values[0] !== "any")
+    Object.values(categoryFilters).some((values) => values.length > 0)
 
   return (
     <div className="bg-gradient-to-br from-green-50 to-white border border-green-200 rounded-xl shadow-lg">
@@ -194,7 +195,7 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
                   <button
                     key={category}
                     onClick={() => {
-                      setSelectedCategories([category])
+                      setSelectedCategory(category)
                       setCategoryFilters({})
                     }}
                     className="p-3 text-left border-2 border-gray-200 rounded-lg hover:border-green-400 hover:bg-green-50 transition-all duration-200 text-sm font-medium"
@@ -220,7 +221,7 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    setSelectedCategories([])
+                    setSelectedCategory("")
                     setCategoryFilters({})
                   }}
                   className="border-green-400 text-green-700 hover:bg-green-200"
@@ -230,53 +231,53 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
               </div>
             </div>
             <Separator className="bg-green-200" />
-          </>
-        )}
 
-        {selectedCategory && Object.keys(categoryOptions).length > 0 && (
-          <>
-            <div className="space-y-5">
-              <Label className="text-base font-semibold text-gray-800">{selectedCategory} Filters</Label>
-              <div className="grid gap-4">
-                {Object.entries(categoryOptions).map(([filterType, options]) => (
-                  <div key={filterType} className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">{filterType}</Label>
-                    <Select
-                      value={categoryFilters[filterType]?.[0] || "any"}
-                      onValueChange={(value) => {
-                        if (value === "any") {
-                          setCategoryFilters((prev) => {
-                            const newFilters = { ...prev }
-                            delete newFilters[filterType]
-                            return newFilters
-                          })
-                        } else {
-                          setCategoryFilters((prev) => ({
-                            ...prev,
-                            [filterType]: [value],
-                          }))
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="bg-white border-2 border-gray-200 hover:border-green-400 focus:border-green-500 transition-colors">
-                        <SelectValue placeholder={`Any ${filterType}`} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="any" className="font-medium text-gray-600">
-                          Any {filterType}
-                        </SelectItem>
-                        {options.map((option) => (
-                          <SelectItem key={option} value={option} className="hover:bg-green-50">
-                            {option}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+            {Object.keys(categoryOptions).length > 0 && (
+              <>
+                <div className="space-y-5">
+                  <Label className="text-base font-semibold text-gray-800">{selectedCategory} Filters</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {Object.entries(categoryOptions).map(([filterType, options]) => (
+                      <div key={filterType} className="space-y-2">
+                        <Label className="text-sm font-medium text-gray-700">{filterType}</Label>
+                        <Select
+                          value={categoryFilters[filterType]?.[0] || ""}
+                          onValueChange={(value) => {
+                            if (!value) {
+                              setCategoryFilters((prev) => {
+                                const newFilters = { ...prev }
+                                delete newFilters[filterType]
+                                return newFilters
+                              })
+                            } else {
+                              setCategoryFilters((prev) => ({
+                                ...prev,
+                                [filterType]: [value],
+                              }))
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="w-full bg-white border-2 border-gray-200 hover:border-green-400 focus:border-green-500 transition-colors">
+                            <SelectValue placeholder={`Any ${filterType}`} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="" className="font-medium text-gray-600">
+                              Any {filterType}
+                            </SelectItem>
+                            {options.map((option) => (
+                              <SelectItem key={option} value={option} className="hover:bg-green-50">
+                                {option}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
-            <Separator className="bg-green-200" />
+                </div>
+                <Separator className="bg-green-200" />
+              </>
+            )}
           </>
         )}
 
@@ -325,7 +326,7 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
             Sort By
           </Label>
           <Select value={filters.sortBy} onValueChange={(value) => setFilters({ ...filters, sortBy: value })}>
-            <SelectTrigger className="bg-white border-2 border-gray-200 hover:border-green-400 focus:border-green-500 transition-colors">
+            <SelectTrigger className="w-full bg-white border-2 border-gray-200 hover:border-green-400 focus:border-green-500 transition-colors">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
