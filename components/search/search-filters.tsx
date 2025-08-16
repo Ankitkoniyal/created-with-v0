@@ -211,34 +211,13 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
 
         {selectedCategory && (
           <>
-            <div className="bg-green-100 p-4 rounded-lg border border-green-300">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-sm text-green-700 font-medium">Selected Category</Label>
-                  <p className="text-lg font-semibold text-green-800">{selectedCategory}</p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setSelectedCategory("")
-                    setCategoryFilters({})
-                  }}
-                  className="border-green-400 text-green-700 hover:bg-green-200"
-                >
-                  Change
-                </Button>
-              </div>
-            </div>
-            <Separator className="bg-green-200" />
-
             {Object.keys(categoryOptions).length > 0 && (
               <>
                 <div className="space-y-5">
                   <Label className="text-base font-semibold text-gray-800">{selectedCategory} Filters</Label>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex flex-wrap gap-4">
                     {Object.entries(categoryOptions).map(([filterType, options]) => (
-                      <div key={filterType} className="space-y-2">
+                      <div key={filterType} className="flex-1 min-w-[200px] space-y-2">
                         <Label className="text-sm font-medium text-gray-700">{filterType}</Label>
                         <Select
                           value={categoryFilters[filterType]?.[0] || "all"}

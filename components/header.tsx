@@ -286,16 +286,21 @@ export function Header() {
 
         <div className="border-t border-gray-100 bg-gray-50">
           <div className="flex items-center justify-between py-2 px-4">
-            <Button
-              variant="ghost"
-              className="flex items-center gap-2 text-green-800 hover:text-green-900 hover:bg-green-100 font-semibold px-6 py-2 rounded-lg transition-all duration-200"
-              onClick={() => setShowMegaMenu(!showMegaMenu)}
+            <div
+              className="relative"
+              onMouseEnter={() => setShowMegaMenu(true)}
+              onMouseLeave={() => setShowMegaMenu(false)}
             >
-              <span>Buy Now</span>
-              <ChevronDown
-                className={`h-4 w-4 transition-transform duration-200 ${showMegaMenu ? "rotate-180" : ""}`}
-              />
-            </Button>
+              <Button
+                variant="ghost"
+                className="flex items-center gap-2 text-green-800 hover:text-green-900 hover:bg-green-100 font-semibold px-6 py-2 rounded-lg transition-all duration-200"
+              >
+                <span>Buy Now</span>
+                <ChevronDown
+                  className={`h-4 w-4 transition-transform duration-200 ${showMegaMenu ? "rotate-180" : ""}`}
+                />
+              </Button>
+            </div>
 
             <div className="flex items-center gap-4">
               <span className="text-sm font-medium text-gray-600">Popular Search:</span>
@@ -315,7 +320,11 @@ export function Header() {
         </div>
 
         {showMegaMenu && (
-          <div className="absolute left-0 right-0 top-full bg-white border-b border-gray-200 shadow-2xl z-50">
+          <div
+            className="absolute left-0 right-0 top-full bg-white border-b border-gray-200 shadow-2xl z-50"
+            onMouseEnter={() => setShowMegaMenu(true)}
+            onMouseLeave={() => setShowMegaMenu(false)}
+          >
             <MegaMenu onCategorySelect={handleCategorySelect} />
           </div>
         )}
