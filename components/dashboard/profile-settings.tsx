@@ -52,9 +52,11 @@ export function ProfileSettings() {
                 <AvatarImage src={user?.avatar || "/placeholder.svg"} alt={user?.name} />
                 <AvatarFallback className="text-2xl">
                   {user?.name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")}
+                    ? user.name
+                        .split(" ")
+                        .map((n) => n[0])
+                        .join("")
+                    : "U"}
                 </AvatarFallback>
               </Avatar>
               {isEditing && ( // Only show camera button when editing
