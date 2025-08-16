@@ -190,9 +190,11 @@ export function Header() {
                         <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
                         <AvatarFallback>
                           {user.name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")}
+                            ? user.name
+                                .split(" ")
+                                .map((n) => n[0])
+                                .join("")
+                            : "U"}
                         </AvatarFallback>
                       </Avatar>
                     </Button>
