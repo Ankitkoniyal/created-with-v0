@@ -241,9 +241,9 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
                       <div key={filterType} className="space-y-2">
                         <Label className="text-sm font-medium text-gray-700">{filterType}</Label>
                         <Select
-                          value={categoryFilters[filterType]?.[0] || ""}
+                          value={categoryFilters[filterType]?.[0] || "all"}
                           onValueChange={(value) => {
-                            if (!value) {
+                            if (value === "all") {
                               setCategoryFilters((prev) => {
                                 const newFilters = { ...prev }
                                 delete newFilters[filterType]
@@ -261,7 +261,7 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
                             <SelectValue placeholder={`Any ${filterType}`} />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="" className="font-medium text-gray-600">
+                            <SelectItem value="all" className="font-medium text-gray-600">
                               Any {filterType}
                             </SelectItem>
                             {options.map((option) => (
@@ -325,7 +325,10 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
             <ArrowUpDown className="h-5 w-5 mr-2 text-green-600" />
             Sort By
           </Label>
-          <Select value={filters.sortBy} onValueChange={(value) => setFilters({ ...filters, sortBy: value })}>
+          <Select
+            value={filters.sortBy || "relevance"}
+            onValueChange={(value) => setFilters({ ...filters, sortBy: value })}
+          >
             <SelectTrigger className="w-full bg-white border-2 border-gray-200 hover:border-green-400 focus:border-green-500 transition-colors">
               <SelectValue />
             </SelectTrigger>
