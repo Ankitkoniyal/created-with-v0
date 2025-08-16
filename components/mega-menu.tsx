@@ -138,10 +138,10 @@ export function MegaMenu({ onCategorySelect }: MegaMenuProps) {
 
         <div className="flex flex-wrap gap-2">
           <span className="text-sm font-medium text-gray-600">Quick Filters:</span>
-          {["Under $100", "Free Items", "New Arrivals", "Urgent Sale"].map((filter) => (
+          {["iPhone", "Tesla", "Lotto Max", "Urgent Sale"].map((filter) => (
             <Link
               key={filter}
-              href={`/search?filter=${encodeURIComponent(filter.toLowerCase().replace(" ", "_"))}`}
+              href={`/search?q=${encodeURIComponent(filter.toLowerCase())}`}
               className="px-3 py-1 text-xs bg-white border border-green-200 text-green-700 rounded-full hover:bg-green-50 hover:border-green-300 transition-colors"
             >
               {filter}

@@ -285,7 +285,7 @@ export function Header() {
         </div>
 
         <div className="border-t border-gray-100 bg-gray-50">
-          <div className="flex items-center justify-center py-2">
+          <div className="flex items-center justify-between py-2 px-4">
             <Button
               variant="ghost"
               className="flex items-center gap-2 text-green-800 hover:text-green-900 hover:bg-green-100 font-semibold px-6 py-2 rounded-lg transition-all duration-200"
@@ -296,6 +296,21 @@ export function Header() {
                 className={`h-4 w-4 transition-transform duration-200 ${showMegaMenu ? "rotate-180" : ""}`}
               />
             </Button>
+
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-medium text-gray-600">Popular Search:</span>
+              <div className="flex gap-2">
+                {["iPhone 15", "Honda Civic", "Apartment Toronto"].map((search) => (
+                  <Link
+                    key={search}
+                    href={`/search?q=${encodeURIComponent(search)}`}
+                    className="px-3 py-1 text-xs bg-white border border-green-200 text-green-700 rounded-full hover:bg-green-50 hover:border-green-300 transition-colors"
+                  >
+                    {search}
+                  </Link>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
