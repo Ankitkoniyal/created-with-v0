@@ -44,6 +44,7 @@ export async function signUp(prevState: any, formData: FormData) {
   const email = formData.get("email")
   const password = formData.get("password")
   const fullName = formData.get("fullName")
+  const phone = formData.get("phone")
 
   if (!email || !password) {
     return { error: "Email and password are required" }
@@ -61,6 +62,7 @@ export async function signUp(prevState: any, formData: FormData) {
           process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
         data: {
           full_name: fullName?.toString() || "",
+          phone: phone?.toString() || "",
         },
       },
     })
