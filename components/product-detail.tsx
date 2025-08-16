@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { Heart, Share2, Flag, MapPin, Eye, Calendar, Star, Shield, Clock } from "lucide-react"
+import { Heart, Share2, Flag, MapPin, Eye, Calendar, Star, Shield, Clock, Phone } from "lucide-react"
 import { ContactSellerModal } from "@/components/messaging/contact-seller-modal"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
@@ -32,6 +32,8 @@ interface Product {
     responseTime: string
   }
   features: string[]
+  storage?: string
+  color?: string
   [key: string]: any
 }
 
@@ -44,6 +46,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
   const [selectedImage, setSelectedImage] = useState(0)
   const [isFavorited, setIsFavorited] = useState(false)
   const [showReportDialog, setShowReportDialog] = useState(false)
+  const [showMobileNumber, setShowMobileNumber] = useState(false)
 
   useEffect(() => {
     const checkFavoriteStatus = async () => {
@@ -81,7 +84,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
       const supabase = createClient()
 
       if (isFavorited) {
-        // Remove from favorites
         const { error } = await supabase.from("favorites").delete().eq("user_id", user.id).eq("product_id", product.id)
 
         if (error) {
@@ -92,7 +94,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
           setIsFavorited(false)
         }
       } else {
-        // Add to favorites
         const { error } = await supabase.from("favorites").insert({
           user_id: user.id,
           product_id: product.id,
@@ -123,7 +124,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
     )
 
     if (confirmed) {
-      // Here you would typically send the report to your backend
       console.log("[v0] Reporting ad:", product.id)
       alert("Thank you for your report. Our team will review this ad shortly.")
     }
@@ -140,7 +140,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
       if (navigator.share) {
         await navigator.share(shareData)
       } else {
-        // Fallback: copy to clipboard
         await navigator.clipboard.writeText(window.location.href)
         alert("Link copied to clipboard!")
       }
@@ -155,7 +154,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
     const month = (now.getMonth() + 1).toString().padStart(2, "0")
     const day = now.getDate().toString().padStart(2, "0")
 
-    // Generate 4 random alphabetical letters
     const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     let randomLetters = ""
     for (let i = 0; i < 4; i++) {
@@ -165,9 +163,20 @@ export function ProductDetail({ product }: ProductDetailProps) {
     return `AD${year}${month}${day}${randomLetters}`
   }
 
+  const handleViewAllAds = () => {
+    window.location.href = `/seller/${product.seller.name.toLowerCase().replace(/\s+/g, "-")}/ads`
+  }
+
+  const handleShowMobile = () => {
+    if (!user) {
+      alert("Please log in to view seller's contact information")
+      return
+    }
+    setShowMobileNumber(true)
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Image Gallery */}
       <div className="lg:col-span-2">
         <Card>
           <CardContent className="p-0">
@@ -177,25 +186,8 @@ export function ProductDetail({ product }: ProductDetailProps) {
                 alt={product.title}
                 className="w-full h-80 object-cover rounded-t-lg"
               />
-              <Button
-                size="sm"
-                variant="ghost"
-                className="absolute top-2 right-2 bg-background/80 hover:bg-background"
-                onClick={toggleFavorite}
-              >
-                <Heart className={`h-4 w-4 ${isFavorited ? "fill-red-500 text-red-500" : ""}`} />
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="absolute top-2 right-14 bg-background/80 hover:bg-background"
-                onClick={handleShare}
-              >
-                <Share2 className="h-4 w-4" />
-              </Button>
             </div>
 
-            {/* Thumbnail Gallery */}
             <div className="p-3">
               <div className="flex space-x-2 overflow-x-auto">
                 {product.images.map((image, index) => (
@@ -218,7 +210,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
           </CardContent>
         </Card>
 
-        {/* Price & Basic Info */}
         <Card className="mt-4">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
@@ -239,20 +230,20 @@ export function ProductDetail({ product }: ProductDetailProps) {
                 <Button
                   size="sm"
                   variant="ghost"
+                  onClick={toggleFavorite}
+                  title="Add to Wishlist"
+                  className="text-primary hover:text-primary/80 hover:bg-primary/10"
+                >
+                  <Heart className={`h-4 w-4 ${isFavorited ? "fill-red-500 text-red-500" : ""}`} />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
                   onClick={handleShare}
                   title="Share this Ad"
                   className="text-primary hover:text-primary/80 hover:bg-primary/10"
                 >
                   <Share2 className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleReportAd}
-                  title="Report this Ad"
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                >
-                  <Flag className="h-4 w-4" />
                 </Button>
               </div>
             </div>
@@ -289,16 +280,20 @@ export function ProductDetail({ product }: ProductDetailProps) {
                   totalReviews: product.seller.totalReviews,
                 }}
               >
-                <Button className="w-full bg-primary hover:bg-primary/90">Contact Seller</Button>
+                <Button className="w-full bg-primary hover:bg-primary/90">Chat with Seller</Button>
               </ContactSellerModal>
-              <Button variant="outline" className="w-full bg-transparent">
-                Make an Offer
+              <Button
+                variant="outline"
+                className="w-full bg-transparent flex items-center justify-center"
+                onClick={handleShowMobile}
+              >
+                <Phone className="h-4 w-4 mr-2" />
+                {showMobileNumber ? "+1 (555) 123-****" : "Show Mobile"}
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* Product Details */}
         <Card className="mt-4">
           <CardContent className="p-4">
             <h2 className="text-lg font-bold text-foreground mb-3">Product Details</h2>
@@ -346,11 +341,24 @@ export function ProductDetail({ product }: ProductDetailProps) {
             </ul>
           </CardContent>
         </Card>
+
+        <Card className="mt-4">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-center">
+              <Button
+                variant="ghost"
+                onClick={handleReportAd}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50 flex items-center"
+              >
+                <Flag className="h-4 w-4 mr-2" />
+                Report this Ad
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Product Info & Seller */}
       <div className="space-y-4">
-        {/* Seller Info */}
         <Card>
           <CardContent className="p-4">
             <h3 className="font-semibold text-foreground mb-3">Seller Information</h3>
@@ -388,13 +396,17 @@ export function ProductDetail({ product }: ProductDetailProps) {
               </div>
             </div>
 
-            <Button variant="outline" className="w-full mt-3 bg-transparent">
-              View Seller Profile
-            </Button>
+            <div className="space-y-2 mt-3">
+              <Button variant="outline" className="w-full bg-transparent">
+                View Seller Profile
+              </Button>
+              <Button variant="outline" className="w-full bg-transparent" onClick={handleViewAllAds}>
+                See All Ads
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
-        {/* Description */}
         <Card>
           <CardContent className="p-4">
             <h3 className="font-semibold text-foreground mb-3">Description</h3>
