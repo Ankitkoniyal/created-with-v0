@@ -20,6 +20,7 @@ interface ProductFormData {
   description: string
   price: string
   category: string
+  subcategory: string
   condition: string
   brand: string
   model: string
@@ -29,19 +30,88 @@ interface ProductFormData {
 }
 
 const categories = [
+  "Vehicles",
   "Electronics",
-  "Cars",
-  "Property",
+  "Mobile",
+  "Real Estate",
   "Fashion",
+  "Pets",
+  "Furniture",
+  "Jobs",
   "Gaming",
   "Books",
   "Services",
-  "Home & Garden",
-  "Sports",
-  "Collectibles",
+  "Other",
 ]
 
-const conditions = ["New", "Like New", "Excellent", "Very Good", "Good", "Fair", "Poor"]
+const subcategories: Record<string, string[]> = {
+  Electronics: [
+    "TV",
+    "Fridge",
+    "Oven",
+    "AC",
+    "Cooler",
+    "Toaster",
+    "Fan",
+    "Washing Machine",
+    "Microwave",
+    "Computer",
+    "Laptop",
+    "Camera",
+    "Audio System",
+  ],
+  Vehicles: [
+    "Cars",
+    "Motorcycles",
+    "Trucks",
+    "Buses",
+    "Bicycles",
+    "Scooters",
+    "Boats",
+    "RVs",
+    "ATVs",
+    "Parts & Accessories",
+  ],
+  Mobile: [
+    "Smartphones",
+    "Tablets",
+    "Accessories",
+    "Cases & Covers",
+    "Chargers",
+    "Headphones",
+    "Smart Watches",
+    "Power Banks",
+  ],
+  "Real Estate": [
+    "Houses",
+    "Apartments",
+    "Commercial",
+    "Land",
+    "Rental",
+    "Vacation Rentals",
+    "Office Space",
+    "Warehouse",
+  ],
+  Fashion: [
+    "Men's Clothing",
+    "Women's Clothing",
+    "Kids Clothing",
+    "Shoes",
+    "Bags",
+    "Jewelry",
+    "Watches",
+    "Accessories",
+  ],
+  Pets: ["Dogs", "Cats", "Birds", "Fish", "Pet Food", "Pet Accessories", "Pet Care", "Pet Services"],
+  Furniture: ["Sofa", "Bed", "Table", "Chair", "Wardrobe", "Desk", "Cabinet", "Dining Set", "Home Decor"],
+  Jobs: ["Full Time", "Part Time", "Freelance", "Internship", "Remote Work", "Contract", "Temporary"],
+  Gaming: ["Video Games", "Consoles", "PC Gaming", "Mobile Games", "Gaming Accessories", "Board Games"],
+  Books: ["Fiction", "Non-Fiction", "Educational", "Comics", "Magazines", "E-books", "Audiobooks"],
+  Services: ["Home Services", "Repair", "Cleaning", "Tutoring", "Photography", "Event Planning", "Transportation"],
+  Other: ["Sports Equipment", "Musical Instruments", "Art & Crafts", "Collectibles", "Tools", "Garden", "Baby Items"],
+}
+
+const conditions = ["New", "Fair", "Old"]
 
 export function PostProductForm() {
   const router = useRouter()
@@ -52,6 +122,7 @@ export function PostProductForm() {
     description: "",
     price: "",
     category: "",
+    subcategory: "",
     condition: "",
     brand: "",
     model: "",
@@ -63,13 +134,28 @@ export function PostProductForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleInputChange = (field: keyof ProductFormData, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+      ...(field === "category" && { subcategory: "" }),
+    }))
   }
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
-    if (formData.images.length + files.length <= 8) {
-      setFormData((prev) => ({ ...prev, images: [...prev.images, ...files] }))
+
+    const validFiles = files.filter((file) => {
+      if (file.size > 2 * 1024 * 1024) {
+        alert(`${file.name} is too large. Maximum size is 2MB per image.`)
+        return false
+      }
+      return true
+    })
+
+    if (formData.images.length + validFiles.length <= 5) {
+      setFormData((prev) => ({ ...prev, images: [...prev.images, ...validFiles] }))
+    } else {
+      alert("You can upload maximum 5 images.")
     }
   }
 
@@ -135,6 +221,7 @@ export function PostProductForm() {
           description: formData.description,
           price: Number.parseFloat(formData.price),
           category: formData.category,
+          subcategory: formData.subcategory || null,
           condition: formData.condition,
           brand: formData.brand || null,
           model: formData.model || null,
@@ -164,9 +251,9 @@ export function PostProductForm() {
     }
   }
 
-  const isStep1Valid = formData.title && formData.category && formData.condition && formData.price
-  const isStep2Valid = formData.description && formData.location
-  const isStep3Valid = formData.images.length > 0
+  const isStep1Valid = formData.images.length > 0
+  const isStep2Valid = formData.title && formData.category && formData.condition && formData.price
+  const isStep3Valid = formData.description && formData.location
 
   return (
     <div className="space-y-6">
@@ -186,6 +273,54 @@ export function PostProductForm() {
       </div>
 
       {currentStep === 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <ImageIcon className="h-5 w-5 mr-2" />
+              Upload Photos
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-4">
+              <p className="text-muted-foreground">
+                Add up to 5 photos (max 2MB each). The first photo will be your main image.
+              </p>
+
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {formData.images.map((image, index) => (
+                  <div key={index} className="relative group">
+                    <img
+                      src={URL.createObjectURL(image) || "/placeholder.svg"}
+                      alt={`Product ${index + 1}`}
+                      className="w-full h-32 object-cover rounded-lg border"
+                    />
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => removeImage(index)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                    {index === 0 && <Badge className="absolute bottom-2 left-2 text-xs">Main</Badge>}
+                  </div>
+                ))}
+
+                {formData.images.length < 5 && (
+                  <label className="border-2 border-dashed border-muted-foreground/25 rounded-lg h-32 flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 transition-colors">
+                    <Camera className="h-8 w-8 text-muted-foreground mb-2" />
+                    <span className="text-sm text-muted-foreground">Add Photo</span>
+                    <span className="text-xs text-muted-foreground">Max 2MB</span>
+                    <input type="file" multiple accept="image/*" className="hidden" onChange={handleImageUpload} />
+                  </label>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {currentStep === 2 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -223,6 +358,29 @@ export function PostProductForm() {
                 </Select>
               </div>
 
+              {formData.category && subcategories[formData.category] && (
+                <div className="space-y-2">
+                  <Label htmlFor="subcategory">Subcategory</Label>
+                  <Select
+                    value={formData.subcategory}
+                    onValueChange={(value) => handleInputChange("subcategory", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select subcategory" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {subcategories[formData.category].map((subcategory) => (
+                        <SelectItem key={subcategory} value={subcategory}>
+                          {subcategory}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="condition">Condition *</Label>
                 <Select value={formData.condition} onValueChange={(value) => handleInputChange("condition", value)}>
@@ -237,6 +395,21 @@ export function PostProductForm() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="price">Price *</Label>
+                <div className="relative">
+                  <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="price"
+                    type="number"
+                    placeholder="0.00"
+                    className="pl-10"
+                    value={formData.price}
+                    onChange={(e) => handleInputChange("price", e.target.value)}
+                  />
+                </div>
               </div>
             </div>
 
@@ -261,26 +434,11 @@ export function PostProductForm() {
                 />
               </div>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="price">Price *</Label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="price"
-                  type="number"
-                  placeholder="0.00"
-                  className="pl-10"
-                  value={formData.price}
-                  onChange={(e) => handleInputChange("price", e.target.value)}
-                />
-              </div>
-            </div>
           </CardContent>
         </Card>
       )}
 
-      {currentStep === 2 && (
+      {currentStep === 3 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -308,7 +466,7 @@ export function PostProductForm() {
                 <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="location"
-                  placeholder="e.g., New York, NY"
+                  placeholder="e.g., Toronto, ON"
                   className="pl-10"
                   value={formData.location}
                   onChange={(e) => handleInputChange("location", e.target.value)}
@@ -344,51 +502,6 @@ export function PostProductForm() {
         </Card>
       )}
 
-      {currentStep === 3 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <ImageIcon className="h-5 w-5 mr-2" />
-              Photos
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-4">
-              <p className="text-muted-foreground">Add up to 8 photos. The first photo will be your main image.</p>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {formData.images.map((image, index) => (
-                  <div key={index} className="relative group">
-                    <img
-                      src={URL.createObjectURL(image) || "/placeholder.svg"}
-                      alt={`Product ${index + 1}`}
-                      className="w-full h-32 object-cover rounded-lg border"
-                    />
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => removeImage(index)}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                    {index === 0 && <Badge className="absolute bottom-2 left-2 text-xs">Main</Badge>}
-                  </div>
-                ))}
-
-                {formData.images.length < 8 && (
-                  <label className="border-2 border-dashed border-muted-foreground/25 rounded-lg h-32 flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 transition-colors">
-                    <Camera className="h-8 w-8 text-muted-foreground mb-2" />
-                    <span className="text-sm text-muted-foreground">Add Photo</span>
-                    <input type="file" multiple accept="image/*" className="hidden" onChange={handleImageUpload} />
-                  </label>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {currentStep === 4 && (
         <Card>
           <CardHeader>
@@ -406,6 +519,11 @@ export function PostProductForm() {
                     <p>
                       <span className="text-muted-foreground">Category:</span> {formData.category}
                     </p>
+                    {formData.subcategory && (
+                      <p>
+                        <span className="text-muted-foreground">Subcategory:</span> {formData.subcategory}
+                      </p>
+                    )}
                     <p>
                       <span className="text-muted-foreground">Condition:</span> {formData.condition}
                     </p>
