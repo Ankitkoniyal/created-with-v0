@@ -15,7 +15,9 @@ const allProducts = [
     price: 899,
     location: "New York, NY",
     image: "/iphone-14-pro-max.png",
-    category: "Electronics",
+    category: "Mobile",
+    subcategory: "Smartphones",
+    primary_category: "Smartphones", // This is the main identifier for filtering
     condition: "Excellent",
     featured: true,
     views: 156,
@@ -27,7 +29,9 @@ const allProducts = [
     price: 18500,
     location: "Los Angeles, CA",
     image: "/honda-civic.png",
-    category: "Cars",
+    category: "Vehicles",
+    subcategory: "Cars",
+    primary_category: "Cars",
     condition: "Very Good",
     featured: false,
     views: 89,
@@ -39,7 +43,9 @@ const allProducts = [
     price: 650,
     location: "Chicago, IL",
     image: "/modern-sofa.png",
-    category: "Home & Garden",
+    category: "Furniture",
+    subcategory: "Sofa",
+    primary_category: "Sofa",
     condition: "Like New",
     featured: true,
     views: 45,
@@ -52,6 +58,8 @@ const allProducts = [
     location: "Austin, TX",
     image: "/placeholder-mvtsk.png",
     category: "Electronics",
+    subcategory: "Laptop",
+    primary_category: "Laptop",
     condition: "Good",
     featured: false,
     views: 78,
@@ -64,6 +72,8 @@ const allProducts = [
     location: "Miami, FL",
     image: "/vintage-leather-jacket.png",
     category: "Fashion",
+    subcategory: "Men's Clothing",
+    primary_category: "Men's Clothing",
     condition: "Good",
     featured: false,
     views: 34,
@@ -75,7 +85,9 @@ const allProducts = [
     price: 450,
     location: "Denver, CO",
     image: "/trek-mountain-bike.png",
-    category: "Sports",
+    category: "Other",
+    subcategory: "Sports Equipment",
+    primary_category: "Sports Equipment",
     condition: "Very Good",
     featured: true,
     views: 67,
@@ -88,6 +100,8 @@ const allProducts = [
     location: "San Francisco, CA",
     image: "/placeholder.svg",
     category: "Electronics",
+    subcategory: "Laptop",
+    primary_category: "Laptop",
     condition: "Excellent",
     featured: false,
     views: 123,
@@ -100,6 +114,8 @@ const allProducts = [
     location: "New York, NY",
     image: "/placeholder.svg",
     category: "Fashion",
+    subcategory: "Bags",
+    primary_category: "Bags",
     condition: "Like New",
     featured: false,
     views: 56,
@@ -111,6 +127,7 @@ interface SearchResultsProps {
   searchQuery: string
   filters: {
     category: string
+    subcategory: string
     minPrice: string
     maxPrice: string
     condition: string
@@ -131,12 +148,16 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
       results = results.filter(
         (product) =>
           product.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          product.primary_category.toLowerCase().includes(searchQuery.toLowerCase()) ||
           product.category.toLowerCase().includes(searchQuery.toLowerCase()),
       )
     }
 
-    // Filter by category
-    if (filters.category) {
+    if (filters.subcategory) {
+      // Filter by specific subcategory
+      results = results.filter((product) => product.primary_category === filters.subcategory)
+    } else if (filters.category) {
+      // Filter by category only if no subcategory is specified
       results = results.filter((product) => product.category === filters.category)
     }
 
@@ -155,13 +176,13 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
       results = results.filter((product) => product.location === filters.location)
     }
 
-    // Note: In a real application, you would have these fields in your product data
-    // For now, this demonstrates the filtering structure
     Object.entries(filters).forEach(([key, value]) => {
-      if (value && !["category", "minPrice", "maxPrice", "condition", "location", "sortBy"].includes(key)) {
-        // Apply category-specific filters
-        // This would filter based on actual product properties like brand, fuel_type, etc.
-        console.log(`Filtering by ${key}: ${value}`)
+      if (
+        value &&
+        !["category", "subcategory", "minPrice", "maxPrice", "condition", "location", "sortBy"].includes(key)
+      ) {
+        // Apply category-specific filters based on the product's primary category
+        console.log(`Filtering by ${key}: ${value} for primary category: ${results[0]?.primary_category}`)
       }
     })
 
@@ -214,6 +235,8 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
         <p className="text-muted-foreground">
           {filteredProducts.length} result{filteredProducts.length !== 1 ? "s" : ""} found
           {searchQuery && ` for "${searchQuery}"`}
+          {filters.subcategory && ` in ${filters.subcategory}`}
+          {!filters.subcategory && filters.category && ` in ${filters.category}`}
         </p>
 
         <div className="flex items-center space-x-2">
@@ -280,7 +303,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
 
                   <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
                     <span>{product.condition}</span>
-                    <span>{product.category}</span>
+                    <span>{product.primary_category}</span>
                   </div>
 
                   <div className="flex items-center text-sm text-muted-foreground mb-2">
