@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { X, Camera, MapPin, DollarSign, Package, FileText, ImageIcon } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { X, Camera, MapPin, DollarSign, Package, FileText, ImageIcon, Youtube, Globe, Tag } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
@@ -19,12 +20,18 @@ interface ProductFormData {
   title: string
   description: string
   price: string
+  priceType: "amount" | "free" | "contact" | "swap"
   category: string
   subcategory: string
   condition: string
   brand: string
   model: string
   location: string
+  postalCode: string
+  youtubeUrl: string
+  websiteUrl: string
+  showMobileNumber: boolean
+  tags: string[]
   images: File[]
   features: string[]
 }
@@ -111,7 +118,7 @@ const subcategories: Record<string, string[]> = {
   Other: ["Sports Equipment", "Musical Instruments", "Art & Crafts", "Collectibles", "Tools", "Garden", "Baby Items"],
 }
 
-const conditions = ["New", "Fair", "Old"]
+const conditions = ["New", "Used-Like New", "Fair", "Old"]
 
 export function PostProductForm() {
   const router = useRouter()
@@ -121,19 +128,26 @@ export function PostProductForm() {
     title: "",
     description: "",
     price: "",
+    priceType: "amount",
     category: "",
     subcategory: "",
     condition: "",
     brand: "",
     model: "",
     location: "",
+    postalCode: "",
+    youtubeUrl: "",
+    websiteUrl: "",
+    showMobileNumber: false,
+    tags: [],
     images: [],
     features: [],
   })
   const [newFeature, setNewFeature] = useState("")
+  const [newTag, setNewTag] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleInputChange = (field: keyof ProductFormData, value: string) => {
+  const handleInputChange = (field: keyof ProductFormData, value: string | boolean) => {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
@@ -183,10 +197,32 @@ export function PostProductForm() {
     }))
   }
 
+  const addTag = () => {
+    if (newTag.trim() && !formData.tags.includes(newTag.trim()) && formData.tags.length < 5) {
+      setFormData((prev) => ({
+        ...prev,
+        tags: [...prev.tags, newTag.trim()],
+      }))
+      setNewTag("")
+    }
+  }
+
+  const removeTag = (tag: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      tags: prev.tags.filter((t) => t !== tag),
+    }))
+  }
+
   const handleSubmit = async () => {
     if (!user) {
       alert("Please log in to post an ad")
       router.push("/auth/login")
+      return
+    }
+
+    if (!formData.postalCode.trim()) {
+      alert("Postal code is required")
       return
     }
 
@@ -206,7 +242,6 @@ export function PostProductForm() {
 
             if (uploadError) {
               console.error("Image upload error:", uploadError)
-              // Continue without images if storage fails due to RLS
               if (uploadError.message.includes("row-level security")) {
                 console.log("[v0] Skipping image upload due to RLS policy")
                 break
@@ -222,7 +257,6 @@ export function PostProductForm() {
             }
           } catch (uploadError) {
             console.error("Image upload failed:", uploadError)
-            // Continue without this image
             continue
           }
         }
@@ -231,12 +265,18 @@ export function PostProductForm() {
       const productData = {
         title: formData.title,
         description: formData.description,
-        price: Number.parseFloat(formData.price),
-        category_id: 1, // Default category ID since we don't have category name column
+        price: formData.priceType === "amount" ? Number.parseFloat(formData.price) : 0,
+        price_type: formData.priceType,
+        category_id: 1,
         condition: formData.condition,
         brand: formData.brand || null,
         model: formData.model || null,
         location: formData.location,
+        postal_code: formData.postalCode,
+        youtube_url: formData.youtubeUrl || null,
+        website_url: formData.websiteUrl || null,
+        show_mobile_number: formData.showMobileNumber,
+        tags: formData.tags,
         images: imageUrls,
         user_id: user.id,
       }
@@ -251,11 +291,10 @@ export function PostProductForm() {
           alert(
             "Database schema error. Some features may not be available. Your listing has been posted with basic information.",
           )
-          // Try a simpler insert with just essential fields
           const simpleData = {
             title: formData.title,
             description: formData.description,
-            price: Number.parseFloat(formData.price),
+            price: formData.priceType === "amount" ? Number.parseFloat(formData.price) : 0,
             user_id: user.id,
           }
           const { data: simpleResult, error: simpleError } = await supabase
@@ -290,8 +329,9 @@ export function PostProductForm() {
   }
 
   const isStep1Valid = formData.images.length > 0
-  const isStep2Valid = formData.title && formData.category && formData.condition && formData.price
-  const isStep3Valid = formData.description && formData.location
+  const isStep2Valid =
+    formData.title && formData.category && formData.condition && (formData.priceType !== "amount" || formData.price)
+  const isStep3Valid = formData.description && formData.location && formData.postalCode
 
   return (
     <div className="space-y-6">
@@ -437,6 +477,26 @@ export function PostProductForm() {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="priceType">Price Type *</Label>
+                <Select
+                  value={formData.priceType}
+                  onValueChange={(value: any) => handleInputChange("priceType", value)}
+                >
+                  <SelectTrigger className="border-2 border-gray-200 focus:border-primary">
+                    <SelectValue placeholder="Select price type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="amount">Set Price</SelectItem>
+                    <SelectItem value="free">Free</SelectItem>
+                    <SelectItem value="contact">Contact Us</SelectItem>
+                    <SelectItem value="swap">Swap/Exchange</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {formData.priceType === "amount" && (
+              <div className="space-y-2">
                 <Label htmlFor="price">Price *</Label>
                 <div className="relative">
                   <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -450,7 +510,7 @@ export function PostProductForm() {
                   />
                 </div>
               </div>
-            </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -502,18 +562,114 @@ export function PostProductForm() {
               <p className="text-sm text-muted-foreground">{formData.description.length}/1000 characters</p>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="location">Location *</Label>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="location">Location *</Label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="location"
+                    placeholder="e.g., Toronto, ON"
+                    className="pl-10 border-2 border-gray-200 focus:border-primary"
+                    value={formData.location}
+                    onChange={(e) => handleInputChange("location", e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="postalCode">Postal Code *</Label>
                 <Input
-                  id="location"
-                  placeholder="e.g., Toronto, ON"
-                  className="pl-10 border-2 border-gray-200 focus:border-primary"
-                  value={formData.location}
-                  onChange={(e) => handleInputChange("location", e.target.value)}
+                  id="postalCode"
+                  placeholder="e.g., M5V 3A8"
+                  className="border-2 border-gray-200 focus:border-primary"
+                  value={formData.postalCode}
+                  onChange={(e) => handleInputChange("postalCode", e.target.value.toUpperCase())}
+                  maxLength={7}
                 />
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="youtubeUrl">YouTube Video (Optional)</Label>
+                <div className="relative">
+                  <Youtube className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="youtubeUrl"
+                    placeholder="https://youtube.com/watch?v=..."
+                    className="pl-10 border-2 border-gray-200 focus:border-primary"
+                    value={formData.youtubeUrl}
+                    onChange={(e) => handleInputChange("youtubeUrl", e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="websiteUrl">Website URL (Optional)</Label>
+                <div className="relative">
+                  <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="websiteUrl"
+                    placeholder="https://example.com"
+                    className="pl-10 border-2 border-gray-200 focus:border-primary"
+                    value={formData.websiteUrl}
+                    onChange={(e) => handleInputChange("websiteUrl", e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="showMobileNumber"
+                checked={formData.showMobileNumber}
+                onCheckedChange={(checked) => handleInputChange("showMobileNumber", checked as boolean)}
+              />
+              <Label htmlFor="showMobileNumber" className="text-sm">
+                Show my mobile number on this ad
+              </Label>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <Label className="flex items-center">
+                  <Tag className="h-4 w-4 mr-2" />
+                  Tags (Max 5 words)
+                </Label>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Add relevant keywords to improve your ad's search visibility
+                </p>
+              </div>
+              <div className="flex space-x-2">
+                <Input
+                  placeholder="Add a tag"
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  onKeyPress={(e) => e.key === "Enter" && addTag()}
+                  className="border-2 border-gray-200 focus:border-primary"
+                  disabled={formData.tags.length >= 5}
+                />
+                <Button
+                  type="button"
+                  onClick={addTag}
+                  variant="outline"
+                  disabled={formData.tags.length >= 5 || !newTag.trim()}
+                >
+                  Add
+                </Button>
+              </div>
+              {formData.tags.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {formData.tags.map((tag) => (
+                    <Badge key={tag} variant="secondary" className="flex items-center gap-1">
+                      {tag}
+                      <X className="h-3 w-3 cursor-pointer" onClick={() => removeTag(tag)} />
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">{formData.tags.length}/5 tags used</p>
             </div>
 
             <div className="space-y-4">
@@ -571,7 +727,11 @@ export function PostProductForm() {
                       <span className="text-muted-foreground">Condition:</span> {formData.condition}
                     </p>
                     <p>
-                      <span className="text-muted-foreground">Price:</span> ${formData.price}
+                      <span className="text-muted-foreground">Price:</span>{" "}
+                      {formData.priceType === "amount" && `$${formData.price}`}
+                      {formData.priceType === "free" && "Free"}
+                      {formData.priceType === "contact" && "Contact Us"}
+                      {formData.priceType === "swap" && "Swap/Exchange"}
                     </p>
                     {formData.brand && (
                       <p>
@@ -586,8 +746,38 @@ export function PostProductForm() {
                     <p>
                       <span className="text-muted-foreground">Location:</span> {formData.location}
                     </p>
+                    <p>
+                      <span className="text-muted-foreground">Postal Code:</span> {formData.postalCode}
+                    </p>
+                    {formData.youtubeUrl && (
+                      <p>
+                        <span className="text-muted-foreground">YouTube:</span> {formData.youtubeUrl}
+                      </p>
+                    )}
+                    {formData.websiteUrl && (
+                      <p>
+                        <span className="text-muted-foreground">Website:</span> {formData.websiteUrl}
+                      </p>
+                    )}
+                    <p>
+                      <span className="text-muted-foreground">Show Mobile:</span>{" "}
+                      {formData.showMobileNumber ? "Yes" : "No"}
+                    </p>
                   </div>
                 </div>
+
+                {formData.tags.length > 0 && (
+                  <div>
+                    <h3 className="font-semibold mb-2">Tags</h3>
+                    <div className="flex flex-wrap gap-1">
+                      {formData.tags.map((tag) => (
+                        <Badge key={tag} variant="outline" className="text-xs">
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {formData.features.length > 0 && (
                   <div>
