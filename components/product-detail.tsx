@@ -137,14 +137,26 @@ export function ProductDetail({ product }: ProductDetailProps) {
     }
 
     try {
-      if (navigator.share) {
+      if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
         await navigator.share(shareData)
+        console.log("[v0] Shared successfully via Web Share API")
       } else {
+        // Fallback to clipboard
         await navigator.clipboard.writeText(window.location.href)
         alert("Link copied to clipboard!")
+        console.log("[v0] Shared via clipboard fallback")
       }
     } catch (error) {
       console.error("Error sharing:", error)
+      try {
+        await navigator.clipboard.writeText(window.location.href)
+        alert("Link copied to clipboard!")
+        console.log("[v0] Used clipboard fallback after share error")
+      } catch (clipboardError) {
+        console.error("Clipboard error:", clipboardError)
+        const url = window.location.href
+        prompt("Copy this link to share:", url)
+      }
     }
   }
 
