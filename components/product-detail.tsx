@@ -166,7 +166,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Image Gallery */}
       <div className="lg:col-span-2">
         <Card>
@@ -175,12 +175,12 @@ export function ProductDetail({ product }: ProductDetailProps) {
               <img
                 src={product.images[selectedImage] || "/placeholder.svg"}
                 alt={product.title}
-                className="w-full h-96 object-cover rounded-t-lg"
+                className="w-full h-80 object-cover rounded-t-lg"
               />
               <Button
                 size="sm"
                 variant="ghost"
-                className="absolute top-4 right-4 bg-background/80 hover:bg-background"
+                className="absolute top-2 right-2 bg-background/80 hover:bg-background"
                 onClick={toggleFavorite}
               >
                 <Heart className={`h-4 w-4 ${isFavorited ? "fill-red-500 text-red-500" : ""}`} />
@@ -188,7 +188,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
               <Button
                 size="sm"
                 variant="ghost"
-                className="absolute top-4 right-16 bg-background/80 hover:bg-background"
+                className="absolute top-2 right-14 bg-background/80 hover:bg-background"
                 onClick={handleShare}
               >
                 <Share2 className="h-4 w-4" />
@@ -196,13 +196,13 @@ export function ProductDetail({ product }: ProductDetailProps) {
             </div>
 
             {/* Thumbnail Gallery */}
-            <div className="p-4">
+            <div className="p-3">
               <div className="flex space-x-2 overflow-x-auto">
                 {product.images.map((image, index) => (
                   <button
                     key={index}
                     onClick={() => setSelectedImage(index)}
-                    className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 ${
+                    className={`flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden border-2 ${
                       selectedImage === index ? "border-primary" : "border-border"
                     }`}
                   >
@@ -219,11 +219,11 @@ export function ProductDetail({ product }: ProductDetailProps) {
         </Card>
 
         {/* Price & Basic Info */}
-        <Card className="mt-6">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-4">
+        <Card className="mt-4">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
               <div>
-                <h1 className="text-2xl font-bold text-foreground mb-2">{product.title}</h1>
+                <h1 className="text-xl font-bold text-foreground mb-1">{product.title}</h1>
                 <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                   <div className="flex items-center">
                     <MapPin className="h-4 w-4 mr-1" />
@@ -257,24 +257,24 @@ export function ProductDetail({ product }: ProductDetailProps) {
               </div>
             </div>
 
-            <div className="mb-3">
+            <div className="mb-2">
               <span className="text-sm text-muted-foreground">Ad ID: </span>
               <span className="text-sm font-medium text-primary">{formatAdId(product.id)}</span>
             </div>
 
-            <div className="flex items-center space-x-2 mb-4">
-              <span className="text-3xl font-bold text-primary">{product.price}</span>
+            <div className="flex items-center space-x-2 mb-3">
+              <span className="text-2xl font-bold text-primary">{product.price}</span>
               {product.originalPrice && (
                 <span className="text-lg text-muted-foreground line-through">{product.originalPrice}</span>
               )}
             </div>
 
-            <div className="flex items-center text-sm text-muted-foreground mb-6">
+            <div className="flex items-center text-sm text-muted-foreground mb-4">
               <Calendar className="h-4 w-4 mr-1" />
               Posted on {new Date(product.postedDate).toLocaleDateString()}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               <ContactSellerModal
                 product={{
                   id: product.id,
@@ -298,36 +298,11 @@ export function ProductDetail({ product }: ProductDetailProps) {
           </CardContent>
         </Card>
 
-        {/* Product Summary */}
-        <Card className="mt-6">
-          <CardContent className="p-6">
-            <h2 className="text-2xl font-bold text-foreground mb-4">Product Summary</h2>
-            <div className="grid grid-cols-2 gap-4 text-sm mb-6">
-              <div>
-                <span className="text-muted-foreground">Ad ID:</span>
-                <span className="ml-2 font-medium text-primary">{formatAdId(product.id)}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Price:</span>
-                <span className="ml-2 font-bold text-lg text-primary">{product.price}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Condition:</span>
-                <span className="ml-2 font-medium">{product.condition}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Category:</span>
-                <span className="ml-2 font-medium">{product.category}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Product Details */}
-        <Card className="mt-6">
-          <CardContent className="p-6">
-            <h2 className="text-2xl font-bold text-foreground mb-4">Product Details</h2>
-            <div className="grid grid-cols-2 gap-4 text-sm">
+        <Card className="mt-4">
+          <CardContent className="p-4">
+            <h2 className="text-lg font-bold text-foreground mb-3">Product Details</h2>
+            <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
                 <span className="text-muted-foreground">Condition:</span>
                 <span className="ml-2 font-medium">{product.condition}</span>
@@ -358,10 +333,10 @@ export function ProductDetail({ product }: ProductDetailProps) {
               )}
             </div>
 
-            <Separator className="my-6" />
+            <Separator className="my-4" />
 
-            <h3 className="font-semibold text-foreground mb-3">Key Features</h3>
-            <ul className="space-y-2">
+            <h3 className="font-semibold text-foreground mb-2">Key Features</h3>
+            <ul className="space-y-1">
               {product.features.map((feature, index) => (
                 <li key={index} className="flex items-center text-sm">
                   <div className="w-2 h-2 bg-primary rounded-full mr-3" />
@@ -374,13 +349,13 @@ export function ProductDetail({ product }: ProductDetailProps) {
       </div>
 
       {/* Product Info & Seller */}
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Seller Info */}
         <Card>
-          <CardContent className="p-6">
-            <h3 className="font-semibold text-foreground mb-4">Seller Information</h3>
+          <CardContent className="p-4">
+            <h3 className="font-semibold text-foreground mb-3">Seller Information</h3>
 
-            <div className="flex items-center space-x-3 mb-4">
+            <div className="flex items-center space-x-3 mb-3">
               <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
                 <span className="text-primary font-semibold">
                   {product.seller.name
@@ -413,7 +388,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
               </div>
             </div>
 
-            <Button variant="outline" className="w-full mt-4 bg-transparent">
+            <Button variant="outline" className="w-full mt-3 bg-transparent">
               View Seller Profile
             </Button>
           </CardContent>
@@ -421,8 +396,8 @@ export function ProductDetail({ product }: ProductDetailProps) {
 
         {/* Description */}
         <Card>
-          <CardContent className="p-6">
-            <h3 className="font-semibold text-foreground mb-4">Description</h3>
+          <CardContent className="p-4">
+            <h3 className="font-semibold text-foreground mb-3">Description</h3>
             <p className="text-muted-foreground leading-relaxed">{product.description}</p>
           </CardContent>
         </Card>

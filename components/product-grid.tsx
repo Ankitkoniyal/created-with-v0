@@ -312,18 +312,18 @@ export function ProductGrid() {
   }
 
   return (
-    <section className="py-8">
+    <section className="py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-6">
           <h3 className="text-2xl font-bold text-foreground">Latest Ads</h3>
         </div>
 
-        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
           {visibleProducts.map((product) => (
             <Link key={product.id} href={`/product/${product.id}`}>
               <Card className="group cursor-pointer hover:shadow-lg transition-all duration-200 h-full flex flex-col overflow-hidden border border-gray-300 bg-white rounded-none">
                 <CardContent className="p-0 flex flex-col h-full">
-                  <div className="relative w-full aspect-square overflow-hidden bg-gray-50">
+                  <div className="relative w-full aspect-[3/2] overflow-hidden bg-gray-50">
                     <img
                       src={product.image || "/placeholder.svg"}
                       alt={product.title}
@@ -332,36 +332,36 @@ export function ProductGrid() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="absolute top-1 right-1 bg-white hover:bg-gray-50 shadow-sm p-0.5 h-5 w-5 z-10 rounded-none"
+                      className="absolute top-1.5 right-1.5 bg-white hover:bg-gray-50 shadow-sm p-1 h-6 w-6 z-10 rounded-none"
                       onClick={(e) => toggleFavorite(product.id, e)}
                     >
                       <Heart
-                        className={`h-2.5 w-2.5 ${favorites.has(product.id) ? "fill-red-500 text-red-500" : "text-gray-600"}`}
+                        className={`h-3 w-3 ${favorites.has(product.id) ? "fill-red-500 text-red-500" : "text-gray-600"}`}
                       />
                     </Button>
                     {product.featured && (
-                      <Badge className="absolute top-1 left-1 bg-yellow-500 text-black text-xs font-semibold px-1 py-0.5 uppercase tracking-wide rounded-none">
+                      <Badge className="absolute top-1.5 left-1.5 bg-yellow-500 text-black text-xs font-semibold px-1 py-0.5 uppercase tracking-wide rounded-none">
                         Featured
                       </Badge>
                     )}
                   </div>
 
-                  <div className="p-1.5 flex flex-col flex-1 bg-white">
-                    <div className="flex items-start justify-between mb-1">
+                  <div className="p-1 flex flex-col flex-1 bg-white">
+                    <div className="flex items-start justify-between mb-1 px-2">
                       <p className="text-sm font-bold text-black">{product.price}</p>
-                      <div className="flex items-center gap-0.5">
+                      <div className="flex items-center gap-1">
                         <span className="text-yellow-500 text-xs">★</span>
                         <span className="text-xs text-gray-700">{product.rating}</span>
                       </div>
                     </div>
 
-                    <h4 className="text-xs text-gray-700 leading-tight line-clamp-2 mb-1 min-h-[1.25rem]">
+                    <h4 className="text-xs text-gray-700 leading-tight line-clamp-2 mb-1 min-h-[1.5rem] px-2">
                       {product.title}
                     </h4>
 
-                    <div className="flex flex-col text-xs text-gray-500 uppercase tracking-wide mt-auto space-y-0.5">
+                    <div className="flex items-center justify-between text-xs text-gray-500 uppercase tracking-wide mt-auto px-2">
                       <span className="font-medium truncate">{product.location}</span>
-                      <span className="text-xs">{product.timePosted}</span>
+                      <span className="text-xs whitespace-nowrap ml-1">{product.timePosted}</span>
                     </div>
                   </div>
                 </CardContent>
