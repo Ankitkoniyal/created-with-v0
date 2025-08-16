@@ -246,6 +246,7 @@ export function PostProductForm() {
               console.error("Image upload error:", uploadError)
               if (uploadError.message.includes("row-level security") || uploadError.message.includes("policy")) {
                 console.log("[v0] Skipping image upload due to RLS policy")
+                // Continue without images rather than failing completely
                 break
               } else {
                 alert(`Failed to upload image ${image.name}. Please check your connection and try again.`)
@@ -266,9 +267,9 @@ export function PostProductForm() {
 
       const productData = {
         title: formData.title,
-        description: `${formData.description}${formData.location ? `\n\nLocation: ${formData.location}` : ""}${formData.postalCode ? ` ${formData.postalCode}` : ""}${formData.youtubeUrl ? `\n\nVideo: ${formData.youtubeUrl}` : ""}${formData.websiteUrl ? `\n\nWebsite: ${formData.websiteUrl}` : ""}${formData.tags.length > 0 ? `\n\nTags: ${formData.tags.join(", ")}` : ""}${formData.showMobileNumber ? "\n\n📱 Mobile number available - contact seller" : ""}`,
+        description: `${formData.description}${formData.location ? `\n\nLocation: ${formData.location}` : ""}${formData.postalCode ? ` ${formData.postalCode}` : ""}${formData.youtubeUrl ? `\n\nVideo: ${formData.youtubeUrl}` : ""}${formData.websiteUrl ? `\n\nWebsite: ${formData.websiteUrl}` : ""}${formData.tags.length > 0 ? `\n\nTags: ${formData.tags.join(", ")}` : ""}${formData.showMobileNumber ? "\n\n📱 Mobile number available - contact seller" : ""}${formData.priceType !== "amount" ? `\n\nPrice: ${formData.priceType === "free" ? "Free" : formData.priceType === "contact" ? "Contact for price" : "Swap/Exchange"}` : ""}`,
         price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
-        category_id: Math.max(1, categories.indexOf(formData.category) + 1), // Map category name to ID
+        category_id: Math.max(1, categories.indexOf(formData.category) + 1),
         condition: formData.condition,
         brand: formData.brand || null,
         model: formData.model || null,
@@ -282,30 +283,71 @@ export function PostProductForm() {
 
       if (error) {
         console.error("Database error:", error)
+
         if (error.message.includes("row-level security") || error.message.includes("policy")) {
-          alert("Permission denied. Please make sure you're logged in and try again.")
+          const rlsMessage = `
+Permission denied due to database security policies. 
+
+To fix this, please:
+1. Go to your Supabase dashboard
+2. Navigate to Authentication → Policies
+3. Create a policy for the 'products' table that allows authenticated users to INSERT
+4. Also check Storage → Policies for the 'product-images' bucket
+
+Would you like to try posting with basic information only?`
+
+          if (confirm(rlsMessage)) {
+            // Try with absolute minimal data
+            const minimalData = {
+              title: formData.title,
+              description: formData.description,
+              price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
+              user_id: user.id,
+            }
+
+            const { data: minimalResult, error: minimalError } = await supabase
+              .from("products")
+              .insert(minimalData)
+              .select()
+              .single()
+
+            if (minimalError) {
+              console.error("Minimal insert also failed:", minimalError)
+              alert("Database access is restricted. Please contact support or check your Supabase policies.")
+              return
+            }
+
+            console.log("[v0] Product saved with minimal info:", minimalResult)
+            alert("Your ad has been posted successfully with basic information!")
+            router.push(`/dashboard/listings`)
+            return
+          } else {
+            return
+          }
         } else if (error.message.includes("column") && error.message.includes("does not exist")) {
           alert("Some advanced features are not available. Your listing will be posted with basic information.")
-          const minimalData = {
+
+          // Try with only existing columns
+          const basicData = {
             title: formData.title,
             description: formData.description,
             price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
             user_id: user.id,
           }
 
-          const { data: minimalResult, error: minimalError } = await supabase
+          const { data: basicResult, error: basicError } = await supabase
             .from("products")
-            .insert(minimalData)
+            .insert(basicData)
             .select()
             .single()
 
-          if (minimalError) {
-            console.error("Minimal insert also failed:", minimalError)
+          if (basicError) {
+            console.error("Basic insert also failed:", basicError)
             alert("Failed to post your ad. Please try again later.")
             return
           }
 
-          console.log("[v0] Product saved with minimal info:", minimalResult)
+          console.log("[v0] Product saved with basic info:", basicResult)
           alert("Your ad has been posted successfully!")
           router.push(`/dashboard/listings`)
           return
