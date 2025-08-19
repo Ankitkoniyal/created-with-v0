@@ -1,6 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
-import { useActionState } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -13,43 +12,60 @@ import { signUp } from "@/lib/actions/auth"
 
 export function SignupForm() {
   const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [agreeToTerms, setAgreeToTerms] = useState(false)
-  const [state, formAction] = useActionState(signUp, { error: null })
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
   const router = useRouter()
 
-  useEffect(() => {
-    if (state?.success) {
-      const timer = setTimeout(() => {
-        router.push("/")
-      }, 3000)
-      return () => clearTimeout(timer)
+  const handleSubmit = async (formData: FormData) => {
+    setLoading(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const result = await signUp(null, formData)
+      
+      if (result && typeof result === 'object') {
+        if ('error' in result) {
+          setError(result.error)
+        } else if ('success' in result) {
+          setSuccess(typeof result.success === 'string' ? result.success : 'Account created successfully!')
+          setTimeout(() => {
+            router.push("/")
+          }, 3000)
+        }
+      }
+    } catch (err) {
+      setError('An unexpected error occurred')
+      console.error('Signup error:', err)
+    } finally {
+      setLoading(false)
     }
-  }, [state?.success, router])
+  }
 
   return (
-    <Card>
+    <Card className="w-full max-w-md mx-auto">
       <CardHeader>
-        <CardTitle>Create Account</CardTitle>
+        <CardTitle className="text-2xl font-bold text-center">Create Account</CardTitle>
       </CardHeader>
       <CardContent>
-        <form action={formAction} className="space-y-4">
-          {state?.error && (
+        <form action={handleSubmit} className="space-y-4">
+          {error && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{state.error}</AlertDescription>
+              <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
 
-          {state?.success && (
+          {success && (
             <Alert className="border-green-200 bg-green-50 text-green-800">
               <CheckCircle className="h-4 w-4 text-green-600" />
               <AlertDescription>
                 <div className="space-y-1">
                   <p className="font-medium">Account created successfully!</p>
                   <p className="text-sm">
-                    Please check your email and click the confirmation link to activate your account. You'll be
-                    redirected to the home page shortly.
+                    Please check your email and click the confirmation link to activate your account.
                   </p>
                 </div>
               </AlertDescription>
@@ -65,7 +81,7 @@ export function SignupForm() {
                 name="fullName"
                 type="text"
                 placeholder="Enter your full name"
-                className="pl-10 border-2 border-gray-200 focus:border-primary"
+                className="pl-10"
                 required
               />
             </div>
@@ -80,7 +96,7 @@ export function SignupForm() {
                 name="email"
                 type="email"
                 placeholder="Enter your email"
-                className="pl-10 border-2 border-gray-200 focus:border-primary"
+                className="pl-10"
                 required
               />
             </div>
@@ -95,7 +111,7 @@ export function SignupForm() {
                 name="phone"
                 type="tel"
                 placeholder="Enter your phone number"
-                className="pl-10 border-2 border-gray-200 focus:border-primary"
+                className="pl-10"
               />
             </div>
           </div>
@@ -109,45 +125,49 @@ export function SignupForm() {
                 name="password"
                 type={showPassword ? "text" : "password"}
                 placeholder="Create a password (min. 6 characters)"
-                className="pl-10 pr-10 border-2 border-gray-200 focus:border-primary"
+                className="pl-10 pr-10"
                 minLength={6}
                 required
               />
               <button
                 type="button"
-                className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 onClick={() => setShowPassword(!showPassword)}
               >
                 {showPassword ? (
-                  <EyeOff className="h-4 w-4 text-muted-foreground" />
+                  <EyeOff className="h-4 w-4" />
                 ) : (
-                  <Eye className="h-4 w-4 text-muted-foreground" />
+                  <Eye className="h-4 w-4" />
                 )}
               </button>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-start space-x-3">
             <Checkbox
               id="terms"
               checked={agreeToTerms}
               onCheckedChange={(checked) => setAgreeToTerms(checked as boolean)}
-              required
+              className="mt-1"
             />
-            <Label htmlFor="terms" className="text-sm">
+            <Label htmlFor="terms" className="text-sm leading-relaxed">
               I agree to the{" "}
-              <Button variant="link" className="p-0 h-auto text-sm">
+              <Button variant="link" className="p-0 h-auto text-sm font-normal">
                 Terms of Service
               </Button>{" "}
               and{" "}
-              <Button variant="link" className="p-0 h-auto text-sm">
+              <Button variant="link" className="p-0 h-auto text-sm font-normal">
                 Privacy Policy
               </Button>
             </Label>
           </div>
 
-          <Button type="submit" className="w-full" disabled={!agreeToTerms}>
-            Create Account
+          <Button 
+            type="submit" 
+            className="w-full" 
+            disabled={!agreeToTerms || loading}
+          >
+            {loading ? 'Creating Account...' : 'Create Account'}
           </Button>
         </form>
       </CardContent>
