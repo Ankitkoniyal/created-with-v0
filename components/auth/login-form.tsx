@@ -1,5 +1,6 @@
 "use client"
-import { useState } from "react"
+import { useFormState } from "react-dom"
+import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -9,35 +10,24 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react"
 import { signIn } from "@/lib/actions/auth"
+import { useState } from "react"
+
+const initialState = {
+  error: null,
+  success: false,
+}
 
 export function LoginForm() {
   const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [state, formAction] = useFormState(signIn, initialState)
 
-  const handleSubmit = async (formData: FormData) => {
-    setLoading(true)
-    setError(null)
-
-    try {
-      const result = await signIn(null, formData)
-      
-      if (result && typeof result === 'object') {
-        if ('error' in result) {
-          setError(result.error)
-        } else if ('success' in result) {
-          router.push("/dashboard")
-        }
-      }
-    } catch (err) {
-      setError('An unexpected error occurred')
-      console.error('Login error:', err)
-    } finally {
-      setLoading(false)
+  useEffect(() => {
+    if (state?.success) {
+      router.push("/dashboard")
     }
-  }
+  }, [state?.success, router])
 
   return (
     <Card className="w-full max-w-md mx-auto">
@@ -45,11 +35,11 @@ export function LoginForm() {
         <CardTitle className="text-2xl font-bold text-center">Sign In</CardTitle>
       </CardHeader>
       <CardContent>
-        <form action={handleSubmit} className="space-y-4">
-          {error && (
+        <form action={formAction} className="space-y-4">
+          {state?.error && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
+              <AlertDescription>{state.error}</AlertDescription>
             </Alert>
           )}
 
@@ -57,14 +47,7 @@ export function LoginForm() {
             <Label htmlFor="email">Email</Label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="Enter your email"
-                className="pl-10"
-                required
-              />
+              <Input id="email" name="email" type="email" placeholder="Enter your email" className="pl-10" required />
             </div>
           </div>
 
@@ -85,11 +68,7 @@ export function LoginForm() {
                 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 onClick={() => setShowPassword(!showPassword)}
               >
-                {showPassword ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
           </div>
@@ -110,12 +89,8 @@ export function LoginForm() {
             </Button>
           </div>
 
-          <Button 
-            type="submit" 
-            className="w-full"
-            disabled={loading}
-          >
-            {loading ? 'Signing In...' : 'Sign In'}
+          <Button type="submit" className="w-full">
+            Sign In
           </Button>
         </form>
       </CardContent>
