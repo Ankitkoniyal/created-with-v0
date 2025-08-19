@@ -2,7 +2,6 @@
 
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
-import { redirect } from "next/navigation"
 
 export async function signIn(prevState: any, formData: FormData) {
   if (!formData) {
@@ -33,7 +32,7 @@ export async function signIn(prevState: any, formData: FormData) {
           cookieStore.set({ name, value: "", ...options })
         },
       },
-    }
+    },
   )
 
   try {
@@ -48,8 +47,7 @@ export async function signIn(prevState: any, formData: FormData) {
     }
 
     console.log("[v0] Sign in successful")
-    redirect("/")
-    return { success: true }
+    return { success: true, redirect: "/" }
   } catch (error) {
     console.error("[v0] Login error:", error)
     return { error: "An unexpected error occurred. Please try again." }
@@ -87,7 +85,7 @@ export async function signUp(prevState: any, formData: FormData) {
           cookieStore.set({ name, value: "", ...options })
         },
       },
-    }
+    },
   )
 
   try {
@@ -95,7 +93,7 @@ export async function signUp(prevState: any, formData: FormData) {
       email: email.toString(),
       password: password.toString(),
       options: {
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/callback`,
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/auth/callback`,
         data: {
           full_name: fullName?.toString() || "",
           phone: phone?.toString() || "",
@@ -116,6 +114,8 @@ export async function signUp(prevState: any, formData: FormData) {
   }
 }
 
+import { redirect } from "next/navigation"
+
 export async function signOut() {
   const cookieStore = cookies()
 
@@ -134,7 +134,7 @@ export async function signOut() {
           cookieStore.set({ name, value: "", ...options })
         },
       },
-    }
+    },
   )
 
   await supabase.auth.signOut()

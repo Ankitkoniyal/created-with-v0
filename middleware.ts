@@ -1,9 +1,9 @@
 // middleware.ts
-import { createServerClient } from "@supabase/ssr"
-import { NextResponse, type NextRequest } from "next/server"
+import { createServerClient } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  const response = NextResponse.next({
+  let response = NextResponse.next({
     request: {
       headers: request.headers,
     },
@@ -27,51 +27,34 @@ export async function middleware(request: NextRequest) {
         remove(name: string, options: any) {
           response.cookies.set({
             name,
-            value: "",
+            value: '',
             ...options,
           })
         },
       },
-    },
+    }
   )
 
   // Refresh session if expired - required for Server Components
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  const { data: { session } } = await supabase.auth.getSession()
 
   // Optional: Protect routes
   const { pathname } = request.nextUrl
-  const protectedRoutes = ["/dashboard", "/sell", "/messages", "/favorites"]
-  const adminRoutes = ["/admin"]
-  const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route))
-  const isAdminRoute = adminRoutes.some((route) => pathname.startsWith(route))
+  const protectedRoutes = ['/dashboard', '/sell', '/messages', '/favorites']
+  const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route))
 
-  if ((isProtectedRoute || isAdminRoute) && !session) {
-    const redirectUrl = new URL("/auth/login", request.url)
-    redirectUrl.searchParams.set("redirectedFrom", pathname)
+  if (isProtectedRoute && !session) {
+    const redirectUrl = new URL('/auth/login', request.url)
+    redirectUrl.searchParams.set('redirectedFrom', pathname)
     return NextResponse.redirect(redirectUrl)
   }
 
-  if (isAdminRoute && session) {
-    try {
-      const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).single()
-
-      if (!profile || profile.role !== "super_admin") {
-        return NextResponse.redirect(new URL("/", request.url))
-      }
-    } catch (error) {
-      console.error("Error checking user role in middleware:", error)
-      return NextResponse.redirect(new URL("/", request.url))
-    }
-  }
-
   // If user is logged in and tries to access auth pages, redirect to home
-  const authRoutes = ["/auth/login", "/auth/signup"]
+  const authRoutes = ['/auth/login', '/auth/signup']
   const isAuthRoute = authRoutes.includes(pathname)
 
   if (isAuthRoute && session) {
-    return NextResponse.redirect(new URL("/", request.url))
+    return NextResponse.redirect(new URL('/', request.url))
   }
 
   return response
@@ -87,6 +70,6 @@ export const config = {
      * - public folder
      * - auth callback (handled by Supabase)
      */
-    "/((?!_next/static|_next/image|favicon.ico|auth/callback|.*\\.(?:svg|png|jpg|jpeg|gif|webp|css|js)$).*)",
+    '/((?!_next/static|_next/image|favicon.ico|auth/callback|.*\\.(?:svg|png|jpg|jpeg|gif|webp|css|js)$).*)',
   ],
 }

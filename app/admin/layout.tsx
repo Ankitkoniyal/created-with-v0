@@ -1,5 +1,5 @@
 import type React from "react"
-import { SuperAdminGuard } from "@/components/auth/super-admin-guard"
+import { AuthGuard } from "@/components/auth/auth-guard"
 
 export default function AdminLayout({
   children,
@@ -7,8 +7,8 @@ export default function AdminLayout({
   children: React.ReactNode
 }) {
   return (
-    <SuperAdminGuard>
+    <AuthGuard>
       <div className="min-h-screen bg-gray-50">{children}</div>
-    </SuperAdminGuard>
+    </AuthGuard>
   )
 }
