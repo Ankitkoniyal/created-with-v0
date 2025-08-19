@@ -1,17 +1,66 @@
-import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs"
+import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
 export async function middleware(request: NextRequest) {
   try {
-    const res = NextResponse.next()
-    const supabase = createMiddlewareClient({ req: request, res })
+    let response = NextResponse.next({
+      request: {
+        headers: request.headers,
+      },
+    })
+
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return request.cookies.get(name)?.value
+          },
+          set(name: string, value: string, options: any) {
+            request.cookies.set({
+              name,
+              value,
+              ...options,
+            })
+            response = NextResponse.next({
+              request: {
+                headers: request.headers,
+              },
+            })
+            response.cookies.set({
+              name,
+              value,
+              ...options,
+            })
+          },
+          remove(name: string, options: any) {
+            request.cookies.set({
+              name,
+              value: "",
+              ...options,
+            })
+            response = NextResponse.next({
+              request: {
+                headers: request.headers,
+              },
+            })
+            response.cookies.set({
+              name,
+              value: "",
+              ...options,
+            })
+          },
+        },
+      },
+    )
 
     const requestUrl = new URL(request.url)
     const code = requestUrl.searchParams.get("code")
 
     if (code && request.nextUrl.pathname === "/auth/callback") {
       // Let the callback route handle the code exchange
-      return res
+      return response
     }
 
     // Refresh session if expired
@@ -31,7 +80,7 @@ export async function middleware(request: NextRequest) {
       }
     }
 
-    return res
+    return response
   } catch (error) {
     console.error("[v0] Middleware error:", error)
     return NextResponse.next()
