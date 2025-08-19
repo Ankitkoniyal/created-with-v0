@@ -1,9 +1,6 @@
 "use client"
-
-import React from "react"
-
 import { useState } from "react"
-import { useActionState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,32 +8,48 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react"
-import { useRouter } from "next/navigation"
 import { signIn } from "@/lib/actions/auth"
 
 export function LoginForm() {
   const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
-  const [state, formAction] = useActionState(signIn, { error: null })
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
 
-  React.useEffect(() => {
-    if (state?.success) {
-      router.push("/dashboard")
+  const handleSubmit = async (formData: FormData) => {
+    setLoading(true)
+    setError(null)
+
+    try {
+      const result = await signIn(null, formData)
+      
+      if (result && typeof result === 'object') {
+        if ('error' in result) {
+          setError(result.error)
+        } else if ('success' in result) {
+          router.push("/dashboard")
+        }
+      }
+    } catch (err) {
+      setError('An unexpected error occurred')
+      console.error('Login error:', err)
+    } finally {
+      setLoading(false)
     }
-  }, [state?.success, router])
+  }
 
   return (
-    <Card>
+    <Card className="w-full max-w-md mx-auto">
       <CardHeader>
-        <CardTitle>Sign In</CardTitle>
+        <CardTitle className="text-2xl font-bold text-center">Sign In</CardTitle>
       </CardHeader>
       <CardContent>
-        <form action={formAction} className="space-y-4">
-          {state?.error && (
+        <form action={handleSubmit} className="space-y-4">
+          {error && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{state.error}</AlertDescription>
+              <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
 
@@ -49,7 +62,7 @@ export function LoginForm() {
                 name="email"
                 type="email"
                 placeholder="Enter your email"
-                className="pl-10 border-2 border-gray-200 focus:border-primary"
+                className="pl-10"
                 required
               />
             </div>
@@ -64,18 +77,18 @@ export function LoginForm() {
                 name="password"
                 type={showPassword ? "text" : "password"}
                 placeholder="Enter your password"
-                className="pl-10 pr-10 border-2 border-gray-200 focus:border-primary"
+                className="pl-10 pr-10"
                 required
               />
               <button
                 type="button"
-                className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 onClick={() => setShowPassword(!showPassword)}
               >
                 {showPassword ? (
-                  <EyeOff className="h-4 w-4 text-muted-foreground" />
+                  <EyeOff className="h-4 w-4" />
                 ) : (
-                  <Eye className="h-4 w-4 text-muted-foreground" />
+                  <Eye className="h-4 w-4" />
                 )}
               </button>
             </div>
@@ -88,7 +101,7 @@ export function LoginForm() {
                 checked={rememberMe}
                 onCheckedChange={(checked) => setRememberMe(checked as boolean)}
               />
-              <Label htmlFor="remember" className="text-sm">
+              <Label htmlFor="remember" className="text-sm cursor-pointer">
                 Remember me
               </Label>
             </div>
@@ -97,8 +110,12 @@ export function LoginForm() {
             </Button>
           </div>
 
-          <Button type="submit" className="w-full">
-            Sign In
+          <Button 
+            type="submit" 
+            className="w-full"
+            disabled={loading}
+          >
+            {loading ? 'Signing In...' : 'Sign In'}
           </Button>
         </form>
       </CardContent>
