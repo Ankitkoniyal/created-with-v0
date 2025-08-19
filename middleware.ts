@@ -38,6 +38,25 @@ export async function middleware(request: NextRequest) {
   // Refresh session if expired - required for Server Components
   const { data: { session } } = await supabase.auth.getSession()
 
+  // Optional: Protect routes
+  const { pathname } = request.nextUrl
+  const protectedRoutes = ['/dashboard', '/sell', '/messages', '/favorites']
+  const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route))
+
+  if (isProtectedRoute && !session) {
+    const redirectUrl = new URL('/auth/login', request.url)
+    redirectUrl.searchParams.set('redirectedFrom', pathname)
+    return NextResponse.redirect(redirectUrl)
+  }
+
+  // If user is logged in and tries to access auth pages, redirect to home
+  const authRoutes = ['/auth/login', '/auth/signup']
+  const isAuthRoute = authRoutes.includes(pathname)
+
+  if (isAuthRoute && session) {
+    return NextResponse.redirect(new URL('/', request.url))
+  }
+
   return response
 }
 
@@ -48,8 +67,9 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * Feel free to modify this pattern to include more paths.
+     * - public folder
+     * - auth callback (handled by Supabase)
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|auth/callback|.*\\.(?:svg|png|jpg|jpeg|gif|webp|css|js)$).*)',
   ],
 }
