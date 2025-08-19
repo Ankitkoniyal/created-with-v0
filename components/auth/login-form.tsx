@@ -1,5 +1,5 @@
 "use client"
-import { useFormState } from "react-dom"
+import { useActionState } from "react"
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,7 +21,7 @@ export function LoginForm() {
   const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
-  const [state, formAction] = useFormState(signIn, initialState)
+  const [state, formAction] = useActionState(signIn, initialState)
 
   useEffect(() => {
     if (state?.success) {
