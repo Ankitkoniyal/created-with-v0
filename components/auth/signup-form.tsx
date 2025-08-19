@@ -1,5 +1,5 @@
 "use client"
-import { useActionState } from "react"
+import { useFormState } from "react-dom"
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -18,7 +18,7 @@ const initialState = {
 export function SignupForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [agreeToTerms, setAgreeToTerms] = useState(false)
-  const [state, formAction] = useActionState(signUp, initialState)
+  const [state, formAction] = useFormState(signUp, initialState)
 
   return (
     <Card className="w-full max-w-md mx-auto">

@@ -9,9 +9,10 @@ import { useEffect } from "react"
 interface AuthGuardProps {
   children: React.ReactNode
   requireAuth?: boolean
+  requiredRole?: "user" | "admin" | "super_admin"
 }
 
-export function AuthGuard({ children, requireAuth = true }: AuthGuardProps) {
+export function AuthGuard({ children, requireAuth = true, requiredRole }: AuthGuardProps) {
   const { user, isLoading } = useAuth()
   const router = useRouter()
 
@@ -35,6 +36,8 @@ export function AuthGuard({ children, requireAuth = true }: AuthGuardProps) {
   if (requireAuth && !user) {
     return null
   }
+
+  // For role-based access control, use SuperAdminGuard or implement specific role guards
 
   return <>{children}</>
 }
