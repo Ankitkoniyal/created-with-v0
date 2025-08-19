@@ -1,6 +1,6 @@
 "use server"
 
-import { createServerActionClient } from "@supabase/auth-helpers-nextjs"
+import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
@@ -17,7 +17,27 @@ export async function signIn(prevState: any, formData: FormData) {
   }
 
   const cookieStore = cookies()
-  const supabase = createServerActionClient({ cookies: () => cookieStore })
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
+          } catch {
+            // The `setAll` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
+        },
+      },
+    },
+  )
 
   try {
     const { error } = await supabase.auth.signInWithPassword({
@@ -26,12 +46,14 @@ export async function signIn(prevState: any, formData: FormData) {
     })
 
     if (error) {
+      console.log("[v0] Sign in error:", error.message)
       return { error: error.message }
     }
 
+    console.log("[v0] Sign in successful")
     return { success: true }
   } catch (error) {
-    console.error("Login error:", error)
+    console.error("[v0] Login error:", error)
     return { error: "An unexpected error occurred. Please try again." }
   }
 }
@@ -51,7 +73,27 @@ export async function signUp(prevState: any, formData: FormData) {
   }
 
   const cookieStore = cookies()
-  const supabase = createServerActionClient({ cookies: () => cookieStore })
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
+          } catch {
+            // The `setAll` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
+        },
+      },
+    },
+  )
 
   try {
     const { error } = await supabase.auth.signUp({
@@ -68,19 +110,41 @@ export async function signUp(prevState: any, formData: FormData) {
     })
 
     if (error) {
+      console.log("[v0] Sign up error:", error.message)
       return { error: error.message }
     }
 
+    console.log("[v0] Sign up successful")
     return { success: "Check your email to confirm your account." }
   } catch (error) {
-    console.error("Sign up error:", error)
+    console.error("[v0] Sign up error:", error)
     return { error: "An unexpected error occurred. Please try again." }
   }
 }
 
 export async function signOut() {
   const cookieStore = cookies()
-  const supabase = createServerActionClient({ cookies: () => cookieStore })
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
+          } catch {
+            // The `setAll` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
+        },
+      },
+    },
+  )
 
   await supabase.auth.signOut()
   redirect("/auth/login")
