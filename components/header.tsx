@@ -178,17 +178,21 @@ export function Header() {
             </Button>
             {user && (
               <>
-                <Button variant="ghost" size="sm" className="relative">
-                  <Heart className="h-4 w-4 text-green-800" />
-                  <Badge variant="secondary" className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs">
-                    3
-                  </Badge>
+                <Button variant="ghost" size="sm" className="relative" asChild>
+                  <Link href="/dashboard/favorites">
+                    <Heart className="h-4 w-4 text-green-800" />
+                    <Badge variant="secondary" className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs">
+                      3
+                    </Badge>
+                  </Link>
                 </Button>
-                <Button variant="ghost" size="sm" className="relative">
-                  <MessageCircle className="h-4 w-4 text-green-800" />
-                  <Badge variant="secondary" className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs">
-                    5
-                  </Badge>
+                <Button variant="ghost" size="sm" className="relative" asChild>
+                  <Link href="/dashboard/messages">
+                    <MessageCircle className="h-4 w-4 text-green-800" />
+                    <Badge variant="secondary" className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs">
+                      5
+                    </Badge>
+                  </Link>
                 </Button>
                 <Button variant="ghost" size="sm" className="relative">
                   <Bell className="h-4 w-4 text-green-800" />
@@ -230,9 +234,11 @@ export function Header() {
                         <span>Dashboard</span>
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Settings className="mr-2 h-4 w-4" />
-                      <span>Settings</span>
+                    <DropdownMenuItem asChild>
+                      <Link href="/dashboard/settings">
+                        <Settings className="mr-2 h-4 w-4" />
+                        <span>Settings</span>
+                      </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={handleLogout}>
