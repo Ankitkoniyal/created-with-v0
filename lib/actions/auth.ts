@@ -2,6 +2,7 @@
 
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
+import { redirect } from "next/navigation"
 
 export async function signIn(prevState: any, formData: FormData) {
   if (!formData) {
@@ -48,8 +49,11 @@ export async function signIn(prevState: any, formData: FormData) {
 
     console.log("[v0] Sign in successful")
     return { success: true, redirect: "/" }
-  } catch (error) {
+  } catch (error: any) {
     console.error("[v0] Login error:", error)
+    if (error.message && error.message.includes("Unexpected token")) {
+      return { error: "Authentication service error. Please try again." }
+    }
     return { error: "An unexpected error occurred. Please try again." }
   }
 }
@@ -89,11 +93,17 @@ export async function signUp(prevState: any, formData: FormData) {
   )
 
   try {
+    const redirectUrl =
+      process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ||
+      `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/auth/callback`
+
+    console.log("[v0] Using redirect URL:", redirectUrl)
+
     const { error } = await supabase.auth.signUp({
       email: email.toString(),
       password: password.toString(),
       options: {
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/auth/callback`,
+        emailRedirectTo: redirectUrl,
         data: {
           full_name: fullName?.toString() || "",
           phone: phone?.toString() || "",
@@ -108,13 +118,14 @@ export async function signUp(prevState: any, formData: FormData) {
 
     console.log("[v0] Sign up successful")
     return { success: "Check your email to confirm your account." }
-  } catch (error) {
+  } catch (error: any) {
     console.error("[v0] Sign up error:", error)
+    if (error.message && error.message.includes("Unexpected token")) {
+      return { error: "Authentication service error. Please check your email format and try again." }
+    }
     return { error: "An unexpected error occurred. Please try again." }
   }
 }
-
-import { redirect } from "next/navigation"
 
 export async function signOut() {
   const cookieStore = cookies()
