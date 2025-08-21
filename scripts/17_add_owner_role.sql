@@ -1,3 +1,4 @@
+-- Updated script to only update existing users, not insert new ones
 -- Add owner role to profiles table for super admin access
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';
 
@@ -19,10 +20,20 @@ CREATE POLICY "Owners can access all profiles" ON profiles
         SELECT id FROM profiles WHERE role = 'owner'
     ));
 
--- Updated email to ankit.koniyal000@gmail.com for owner access
-INSERT INTO profiles (id, email, role) 
-VALUES (
-    (SELECT id FROM auth.users WHERE email = 'ankit.koniyal000@gmail.com' LIMIT 1),
-    'ankit.koniyal000@gmail.com',
-    'owner'
-) ON CONFLICT (id) DO UPDATE SET role = 'owner';
+-- Only update existing user to owner role (user must sign up first)
+-- NOTE: The user ankit.koniyal000@gmail.com must sign up through the website first
+-- before running this script to grant owner permissions
+UPDATE profiles 
+SET role = 'owner' 
+WHERE email = 'ankit.koniyal000@gmail.com' 
+AND id IS NOT NULL;
+
+-- Verify the update worked
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM profiles WHERE email = 'ankit.koniyal000@gmail.com' AND role = 'owner') THEN
+        RAISE NOTICE 'WARNING: User ankit.koniyal000@gmail.com not found or not updated. Please sign up first through the website.';
+    ELSE
+        RAISE NOTICE 'SUCCESS: User ankit.koniyal000@gmail.com has been granted owner permissions.';
+    END IF;
+END $$;
