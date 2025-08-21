@@ -19,10 +19,10 @@ CREATE POLICY "Owners can access all profiles" ON profiles
         SELECT id FROM profiles WHERE role = 'owner'
     ));
 
--- Update to use your actual email address
+-- Updated email to ankit.koniyal000@gmail.com for owner access
 INSERT INTO profiles (id, email, role) 
 VALUES (
-    (SELECT id FROM auth.users WHERE email = 'your-email@example.com' LIMIT 1),
-    'your-email@example.com',
+    (SELECT id FROM auth.users WHERE email = 'ankit.koniyal000@gmail.com' LIMIT 1),
+    'ankit.koniyal000@gmail.com',
     'owner'
 ) ON CONFLICT (id) DO UPDATE SET role = 'owner';
