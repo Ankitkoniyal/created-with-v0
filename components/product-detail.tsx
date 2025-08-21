@@ -50,9 +50,17 @@ export function ProductDetail({ product }: ProductDetailProps) {
   const [showShareMenu, setShowShareMenu] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
 
+  const isValidUUID = (str: string) => {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    return uuidRegex.test(str)
+  }
+
   useEffect(() => {
     const checkFavoriteStatus = async () => {
-      if (!user) return
+      if (!user || !isValidUUID(product.id)) {
+        console.log("[v0] Skipping favorite check - invalid UUID or no user:", product.id)
+        return
+      }
 
       try {
         const supabase = createClient()
@@ -69,7 +77,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
           setIsFavorited(!!data)
         }
       } catch (error) {
-        console.error("Error:", error)
+        console.error("Error checking favorite status:", error)
       }
     }
 
@@ -79,6 +87,11 @@ export function ProductDetail({ product }: ProductDetailProps) {
   const toggleFavorite = async () => {
     if (!user) {
       alert("Please log in to save favorites")
+      return
+    }
+
+    if (!isValidUUID(product.id)) {
+      alert("This is a demo product. Favorites are only available for real listings.")
       return
     }
 
@@ -110,7 +123,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
         }
       }
     } catch (error) {
-      console.error("Error:", error)
+      console.error("Error adding favorite:", error)
       alert("Failed to update favorites")
     }
   }
