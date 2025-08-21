@@ -111,7 +111,7 @@ export function Header() {
           {/* Logo */}
           <div className="flex items-center flex-shrink-0">
             <Link href="/">
-              <h1 className="text-2xl sm:text-3xl font-bold text-primary cursor-pointer">M</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-black cursor-pointer">M</h1>
             </Link>
           </div>
 
@@ -289,10 +289,10 @@ export function Header() {
             <div className="relative">
               <Button
                 variant="ghost"
-                className="flex items-center gap-2 text-green-800 hover:text-green-900 hover:bg-green-100 font-semibold px-6 py-2 rounded-lg transition-all duration-200"
+                className="flex items-center gap-2 text-black hover:text-gray-800 hover:bg-gray-100 font-semibold px-6 py-2 rounded-lg transition-all duration-200"
                 onClick={() => setShowMegaMenu(!showMegaMenu)}
               >
-                <span>Buy Now</span>
+                <span>All Categories</span>
                 <ChevronDown
                   className={`h-4 w-4 transition-transform duration-200 ${showMegaMenu ? "rotate-180" : ""}`}
                 />
