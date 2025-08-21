@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, Mail, Lock, User, AlertCircle, Phone, CheckCircle } from "lucide-react"
 import { signUp } from "@/lib/actions/auth"
+import { useRouter } from "next/navigation"
 
 const initialState = {
   error: null,
@@ -19,10 +20,16 @@ export function SignupForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [agreeToTerms, setAgreeToTerms] = useState(false)
   const [state, formAction] = useActionState(signUp, initialState)
+  const router = useRouter()
 
   useEffect(() => {
     console.log("[v0] Signup form state changed:", state)
-  }, [state])
+    if (state?.success) {
+      setTimeout(() => {
+        router.push("/")
+      }, 2000) // 2 second delay to show success message
+    }
+  }, [state, router])
 
   const handleFormAction = async (formData: FormData) => {
     console.log("[v0] Signup form submitted with data:", {
@@ -55,6 +62,7 @@ export function SignupForm() {
                 <div className="space-y-1">
                   <p className="font-medium">Account created successfully!</p>
                   <p className="text-sm">{state.success}</p>
+                  <p className="text-sm font-medium">Redirecting to homepage...</p>
                 </div>
               </AlertDescription>
             </Alert>
