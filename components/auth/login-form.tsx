@@ -25,10 +25,20 @@ export function LoginForm() {
   const [state, formAction] = useActionState(signIn, initialState)
 
   useEffect(() => {
+    console.log("[v0] Login form state changed:", state)
     if (state?.success && state?.redirect) {
+      console.log("[v0] Redirecting to:", state.redirect)
       router.push(state.redirect)
     }
-  }, [state?.success, state?.redirect, router])
+  }, [state]) // Updated to use the entire state object as a dependency
+
+  const handleFormAction = async (formData: FormData) => {
+    console.log("[v0] Form submitted with data:", {
+      email: formData.get("email"),
+      password: "***hidden***",
+    })
+    return formAction(formData)
+  }
 
   return (
     <Card className="w-full max-w-md mx-auto">
@@ -36,7 +46,7 @@ export function LoginForm() {
         <CardTitle className="text-2xl font-bold text-center">Sign In</CardTitle>
       </CardHeader>
       <CardContent>
-        <form action={formAction} className="space-y-4">
+        <form action={handleFormAction} className="space-y-4">
           {state?.error && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />

@@ -1,6 +1,6 @@
 "use client"
 import { useActionState } from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,13 +20,27 @@ export function SignupForm() {
   const [agreeToTerms, setAgreeToTerms] = useState(false)
   const [state, formAction] = useActionState(signUp, initialState)
 
+  useEffect(() => {
+    console.log("[v0] Signup form state changed:", state)
+  }, [state])
+
+  const handleFormAction = async (formData: FormData) => {
+    console.log("[v0] Signup form submitted with data:", {
+      fullName: formData.get("fullName"),
+      email: formData.get("email"),
+      phone: formData.get("phone"),
+      password: "***hidden***",
+    })
+    return formAction(formData)
+  }
+
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
         <CardTitle className="text-2xl font-bold text-center">Create Account</CardTitle>
       </CardHeader>
       <CardContent>
-        <form action={formAction} className="space-y-4">
+        <form action={handleFormAction} className="space-y-4">
           {state?.error && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
