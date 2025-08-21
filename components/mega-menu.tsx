@@ -122,7 +122,7 @@ export function MegaMenu({ onCategorySelect }: MegaMenuProps) {
 
   return (
     <div className="w-full max-w-7xl mx-auto bg-white shadow-lg rounded-lg border">
-      <div className="border-b border-gray-700 bg-black p-4">
+      <div className="border-b border-gray-200 bg-gradient-to-r from-green-50 to-green-100 p-4">
         <div className="flex items-center gap-4 mb-3">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -131,18 +131,18 @@ export function MegaMenu({ onCategorySelect }: MegaMenuProps) {
               placeholder="Search categories..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-600 bg-gray-800 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent placeholder:text-gray-400"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
             />
           </div>
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <span className="text-sm font-medium text-white">Quick Filters:</span>
+          <span className="text-sm font-medium text-gray-700">Quick Filters:</span>
           {["iPhone", "Tesla", "Lotto Max", "Urgent Sale"].map((filter) => (
             <Link
               key={filter}
               href={`/search?q=${encodeURIComponent(filter.toLowerCase())}`}
-              className="px-3 py-1 text-xs bg-gray-800 border border-gray-600 text-white rounded-full hover:bg-gray-700 hover:border-gray-500 transition-colors"
+              className="px-3 py-1 text-xs bg-white border border-gray-300 text-gray-700 rounded-full hover:bg-gray-50 hover:border-gray-400 transition-colors"
             >
               {filter}
             </Link>
@@ -217,17 +217,17 @@ export function MegaMenu({ onCategorySelect }: MegaMenuProps) {
         )}
       </div>
 
-      <div className="border-t border-gray-700 bg-black px-6 py-4">
+      <div className="border-t border-gray-200 bg-gradient-to-r from-green-50 to-green-100 px-6 py-4">
         <div className="flex flex-wrap gap-4 items-center">
           <div className="flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-green-600" />
-            <span className="text-sm font-medium text-white">Most Popular:</span>
+            <span className="text-sm font-medium text-gray-700">Most Popular:</span>
           </div>
           {["Cars", "Mobile Phones", "Apartments", "Jobs", "Electronics", "Fashion"].map((popular) => (
             <Link
               key={popular}
               href={`/search?category=${encodeURIComponent(popular)}`}
-              className="text-sm text-white hover:text-green-700 hover:underline bg-gray-800 px-2 py-1 rounded border border-gray-600 hover:border-gray-500 transition-colors"
+              className="text-sm text-gray-700 hover:text-green-700 hover:underline bg-white px-2 py-1 rounded border border-gray-300 hover:border-gray-400 transition-colors"
               onClick={() => handleCategoryClick(popular)}
             >
               {popular}
