@@ -8,10 +8,9 @@ EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
 
--- Update role column to use enum
+-- Fix column type conversion by dropping default first
+ALTER TABLE profiles ALTER COLUMN role DROP DEFAULT;
 ALTER TABLE profiles ALTER COLUMN role TYPE user_role USING role::user_role;
-
--- Set default role
 ALTER TABLE profiles ALTER COLUMN role SET DEFAULT 'user';
 
 -- Create policy for owner access
@@ -20,10 +19,10 @@ CREATE POLICY "Owners can access all profiles" ON profiles
         SELECT id FROM profiles WHERE role = 'owner'
     ));
 
--- Insert owner role for the website owner (replace email with actual owner email)
+-- Update to use your actual email address
 INSERT INTO profiles (id, email, role) 
 VALUES (
-    (SELECT id FROM auth.users WHERE email = 'owner@example.com' LIMIT 1),
-    'owner@example.com',
+    (SELECT id FROM auth.users WHERE email = 'your-email@example.com' LIMIT 1),
+    'your-email@example.com',
     'owner'
 ) ON CONFLICT (id) DO UPDATE SET role = 'owner';
