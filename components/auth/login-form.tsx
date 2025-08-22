@@ -34,13 +34,15 @@ export function LoginForm() {
 
       if (result.error) {
         setError(result.error)
+        setIsLoading(false)
       } else {
-        router.push("/dashboard")
+        setTimeout(() => {
+          router.push("/dashboard")
+        }, 1000)
       }
     } catch (err) {
       console.error("Login error:", err)
       setError("An unexpected error occurred. Please try again.")
-    } finally {
       setIsLoading(false)
     }
   }
