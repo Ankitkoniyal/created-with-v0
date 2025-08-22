@@ -33,13 +33,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const supabase = createClient()
 
-  const fetchProfile = async (userId: string, userData: User) => {
+  const fetchProfile = async (userId: string, userData: User): Promise<Profile> => {
     try {
       const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
 
       if (error) {
-        // Create fallback profile from user metadata
-        const fallbackProfile = {
+        // Return fallback profile instead of setting state directly
+        return {
           id: userId,
           name: userData?.user_metadata?.full_name || userData?.email?.split("@")[0] || "User",
           email: userData?.email || "",
@@ -50,12 +50,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           verified: false,
           created_at: new Date().toISOString(),
         }
-        setProfile(fallbackProfile)
-        return
       }
 
-      // Map database fields to profile interface
-      const profileData = {
+      // Return actual profile data
+      return {
         id: data.id,
         name: data.full_name || userData?.email?.split("@")[0] || "User",
         email: data.email || userData?.email || "",
@@ -66,10 +64,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         verified: data.verified || false,
         created_at: data.created_at,
       }
-      setProfile(profileData)
     } catch (error) {
-      // Create fallback profile on network error
-      const fallbackProfile = {
+      // Return fallback profile on error
+      return {
         id: userId,
         name: userData?.user_metadata?.full_name || userData?.email?.split("@")[0] || "User",
         email: userData?.email || "",
@@ -80,7 +77,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         verified: false,
         created_at: new Date().toISOString(),
       }
-      setProfile(fallbackProfile)
     }
   }
 
@@ -97,12 +93,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (session?.user) {
           setUser(session.user)
-          await fetchProfile(session.user.id, session.user)
+          const profileData = await fetchProfile(session.user.id, session.user)
+          if (mounted) {
+            setProfile(profileData)
+          }
         } else {
           setUser(null)
           setProfile(null)
         }
-        setIsLoading(false)
+        
+        if (mounted) {
+          setIsLoading(false)
+        }
       } catch (error) {
         if (mounted) {
           setIsLoading(false)
@@ -119,12 +121,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (session?.user) {
         setUser(session.user)
-        await fetchProfile(session.user.id, session.user)
+        const profileData = await fetchProfile(session.user.id, session.user)
+        if (mounted) {
+          setProfile(profileData)
+          setIsLoading(false)
+        }
       } else {
         setUser(null)
         setProfile(null)
+        setIsLoading(false)
       }
-      setIsLoading(false)
     })
 
     return () => {
@@ -135,23 +141,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
+      setIsLoading(true) // Set loading true during login
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
       if (error) {
+        setIsLoading(false)
         return { error: error.message }
       }
 
+      // Auth state change listener will handle the rest
       return {}
     } catch (error) {
+      setIsLoading(false)
       return { error: "An unexpected error occurred" }
     }
   }
 
   const signup = async (email: string, password: string, name: string, phone: string) => {
     try {
+      setIsLoading(true)
       const redirectUrl =
         process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ||
         (typeof window !== "undefined"
@@ -171,16 +182,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
 
       if (error) {
+        setIsLoading(false)
         return { error: error.message }
       }
 
       return {}
     } catch (error) {
+      setIsLoading(false)
       return { error: "An unexpected error occurred" }
     }
   }
 
   const logout = async () => {
+    setIsLoading(true)
     await supabase.auth.signOut()
     // State will be updated by the auth state change listener
   }
