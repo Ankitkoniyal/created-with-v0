@@ -66,7 +66,7 @@ const CATEGORIES = [
 ]
 
 export function Header() {
-  const { user, logout } = useAuth()
+  const { user, profile, logout, isLoading } = useAuth()
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedLocation, setSelectedLocation] = useState("All Canada")
@@ -103,6 +103,39 @@ export function Header() {
     router.push(`/search?${params.toString()}`)
     setShowMegaMenu(false)
   }
+
+  // Show loading state for header
+  if (isLoading) {
+    return (
+      <header className="sticky top-0 z-50 bg-background border-b border-border">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            {/* Logo */}
+            <div className="flex items-center flex-shrink-0">
+              <Link href="/">
+                <h1 className="text-2xl sm:text-3xl font-bold text-black cursor-pointer">M</h1>
+              </Link>
+            </div>
+
+            {/* Loading placeholder for search */}
+            <div className="flex-1 max-w-4xl mx-2 sm:mx-4 lg:mx-8">
+              <div className="flex items-center bg-white border-2 border-gray-200 rounded-full shadow-lg h-12">
+                <div className="flex-1 h-4 bg-gray-200 rounded mx-4 animate-pulse"></div>
+              </div>
+            </div>
+
+            {/* Loading placeholder for nav */}
+            <div className="hidden md:flex items-center space-x-4 flex-shrink-0">
+              <div className="h-8 w-8 rounded-full bg-gray-200 animate-pulse"></div>
+            </div>
+          </div>
+        </div>
+      </header>
+    )
+  }
+
+  // Check if user is authenticated (both Supabase user and profile exist)
+  const isAuthenticated = user && profile
 
   return (
     <header className="sticky top-0 z-50 bg-background border-b border-border">
@@ -176,7 +209,7 @@ export function Header() {
                 Home
               </Link>
             </Button>
-            {user && (
+            {isAuthenticated && (
               <>
                 <Button variant="ghost" size="sm" className="relative" asChild>
                   <Link href="/dashboard/favorites">
@@ -202,16 +235,16 @@ export function Header() {
                 </Button>
               </>
             )}
-            {user ? (
+            {isAuthenticated ? (
               <>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                       <Avatar className="h-8 w-8">
-                        <AvatarImage src={user.avatar_url || "/placeholder.svg"} alt={user.full_name || "User"} />
+                        <AvatarImage src={profile?.avatar_url || "/placeholder.svg"} alt={profile?.name || "User"} />
                         <AvatarFallback>
-                          {user.full_name
-                            ? user.full_name
+                          {profile?.name
+                            ? profile.name
                                 .split(" ")
                                 .map((n) => n[0])
                                 .join("")
@@ -223,13 +256,13 @@ export function Header() {
                   <DropdownMenuContent className="w-56" align="end" forceMount>
                     <DropdownMenuLabel className="font-normal">
                       <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none">{user.full_name || "User"}</p>
-                        <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+                        <p className="text-sm font-medium leading-none">{profile?.name || "User"}</p>
+                        <p className="text-xs leading-none text-muted-foreground">{profile?.email}</p>
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
-                      <Link href="/dashboard">
+                      <Link href="/dashboard/my-ads">
                         <Package className="mr-2 h-4 w-4" />
                         <span>My Ads</span>
                       </Link>
