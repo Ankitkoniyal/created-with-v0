@@ -261,14 +261,15 @@ export function Header() {
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
+                    {/* FIXED: Changed links to match your actual dashboard routes */}
                     <DropdownMenuItem asChild>
-                      <Link href="/dashboard/my-ads">
+                      <Link href="/dashboard/listings"> {/* Changed from /dashboard/my-ads */}
                         <Package className="mr-2 h-4 w-4" />
                         <span>My Ads</span>
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href="/dashboard/settings">
+                      <Link href="/dashboard/profile"> {/* Changed from /dashboard/settings */}
                         <Settings className="mr-2 h-4 w-4" />
                         <span>Settings</span>
                       </Link>
