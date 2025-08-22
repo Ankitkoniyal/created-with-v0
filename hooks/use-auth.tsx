@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { createClient } from "@/lib/supabase/client"
 import type { User } from "@supabase/supabase-js"
 
@@ -37,13 +37,90 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log("[v0] AuthProvider state changed - user:", !!user, "profile:", !!profile, "isLoading:", isLoading)
   }, [user, profile, isLoading])
 
+  const fetchProfile = useCallback(
+    async (userId: string, userData: User) => {
+      try {
+        console.log("[v0] Fetching profile for user:", userId)
+
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 10000)
+
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", userId)
+          .single()
+          .abortSignal(controller.signal)
+
+        clearTimeout(timeoutId)
+
+        if (error) {
+          console.error("[v0] Error fetching profile:", error)
+          console.log("[v0] Creating fallback profile from user metadata")
+          setProfile({
+            id: userId,
+            name:
+              userData?.user_metadata?.full_name ||
+              userData?.user_metadata?.name ||
+              userData?.email?.split("@")[0] ||
+              "User",
+            email: userData?.email || "",
+            phone: userData?.user_metadata?.phone || "",
+            avatar_url: userData?.user_metadata?.avatar_url || "",
+            bio: "",
+            location: "",
+            verified: false,
+            created_at: new Date().toISOString(),
+          })
+          return
+        }
+
+        console.log("[v0] Profile fetched successfully:", data)
+        setProfile({
+          id: data.id,
+          name: data.full_name || data.name || userData?.email?.split("@")[0] || "User",
+          email: data.email || userData?.email || "",
+          phone: data.phone || "",
+          avatar_url: data.avatar_url || "",
+          bio: data.bio || "",
+          location: data.location || "",
+          verified: data.verified || false,
+          created_at: data.created_at,
+        })
+      } catch (error) {
+        console.error("[v0] Network error fetching profile:", error)
+        console.log("[v0] Creating fallback profile due to network error")
+        setProfile({
+          id: userId,
+          name:
+            userData?.user_metadata?.full_name ||
+            userData?.user_metadata?.name ||
+            userData?.email?.split("@")[0] ||
+            "User",
+          email: userData?.email || "",
+          phone: userData?.user_metadata?.phone || "",
+          avatar_url: userData?.user_metadata?.avatar_url || "",
+          bio: "",
+          location: "",
+          verified: false,
+          created_at: new Date().toISOString(),
+        })
+      }
+    },
+    [supabase],
+  )
+
   useEffect(() => {
+    let mounted = true
+
     // Get initial session
     const getInitialSession = async () => {
       console.log("[v0] Getting initial session...")
       const {
         data: { session },
       } = await supabase.auth.getSession()
+
+      if (!mounted) return
 
       console.log("[v0] Initial session:", !!session?.user)
       setUser(session?.user ?? null)
@@ -61,6 +138,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return
+
       console.log("[v0] Auth state changed:", event, "user:", !!session?.user)
       setUser(session?.user ?? null)
 
@@ -73,78 +152,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false)
     })
 
-    return () => subscription.unsubscribe()
-  }, [])
-
-  const fetchProfile = async (userId: string, userData: User) => {
-    try {
-      console.log("[v0] Fetching profile for user:", userId)
-
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
-
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .single()
-        .abortSignal(controller.signal)
-
-      clearTimeout(timeoutId)
-
-      if (error) {
-        console.error("[v0] Error fetching profile:", error)
-        console.log("[v0] Creating fallback profile from user metadata")
-        setProfile({
-          id: userId,
-          name:
-            userData?.user_metadata?.full_name ||
-            userData?.user_metadata?.name ||
-            userData?.email?.split("@")[0] ||
-            "User",
-          email: userData?.email || "",
-          phone: userData?.user_metadata?.phone || "",
-          avatar_url: userData?.user_metadata?.avatar_url || "",
-          bio: "",
-          location: "",
-          verified: false,
-          created_at: new Date().toISOString(),
-        })
-        return
-      }
-
-      console.log("[v0] Profile fetched successfully:", data)
-      setProfile({
-        id: data.id,
-        name: data.full_name || data.name || userData?.email?.split("@")[0] || "User",
-        email: data.email || userData?.email || "",
-        phone: data.phone || "",
-        avatar_url: data.avatar_url || "",
-        bio: data.bio || "",
-        location: data.location || "",
-        verified: data.verified || false,
-        created_at: data.created_at,
-      })
-    } catch (error) {
-      console.error("[v0] Network error fetching profile:", error)
-      console.log("[v0] Creating fallback profile due to network error")
-      setProfile({
-        id: userId,
-        name:
-          userData?.user_metadata?.full_name ||
-          userData?.user_metadata?.name ||
-          userData?.email?.split("@")[0] ||
-          "User",
-        email: userData?.email || "",
-        phone: userData?.user_metadata?.phone || "",
-        avatar_url: userData?.user_metadata?.avatar_url || "",
-        bio: "",
-        location: "",
-        verified: false,
-        created_at: new Date().toISOString(),
-      })
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
     }
-  }
+  }, [supabase, fetchProfile])
 
   const login = async (email: string, password: string) => {
     try {
@@ -194,7 +206,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = async () => {
+    console.log("[v0] Logging out user")
+    setIsLoading(true)
     await supabase.auth.signOut()
+    setUser(null)
+    setProfile(null)
+    setIsLoading(false)
   }
 
   return (
