@@ -59,8 +59,8 @@ export function DashboardNav() {
         <div className="flex items-center space-x-3 mb-6">
           <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
             <span className="text-primary font-semibold">
-              {user?.name
-                ? user.name
+              {user?.full_name
+                ? user.full_name
                     .split(" ")
                     .map((n) => n[0])
                     .join("")
@@ -68,8 +68,10 @@ export function DashboardNav() {
             </span>
           </div>
           <div>
-            <h3 className="font-semibold text-foreground">{user?.name || "User"}</h3>
-            <p className="text-sm text-muted-foreground">Member since {user?.memberSince || "Recently"}</p>
+            <h3 className="font-semibold text-foreground">{user?.full_name || "User"}</h3>
+            <p className="text-sm text-muted-foreground">
+              Member since {user?.created_at ? new Date(user.created_at).getFullYear() : "Recently"}
+            </p>
           </div>
         </div>
 
