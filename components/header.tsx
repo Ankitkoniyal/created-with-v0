@@ -208,10 +208,10 @@ export function Header() {
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                       <Avatar className="h-8 w-8">
-                        <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
+                        <AvatarImage src={user.avatar_url || "/placeholder.svg"} alt={user.full_name || "User"} />
                         <AvatarFallback>
-                          {user.name
-                            ? user.name
+                          {user.full_name
+                            ? user.full_name
                                 .split(" ")
                                 .map((n) => n[0])
                                 .join("")
@@ -223,7 +223,7 @@ export function Header() {
                   <DropdownMenuContent className="w-56" align="end" forceMount>
                     <DropdownMenuLabel className="font-normal">
                       <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none">{user.name || "User"}</p>
+                        <p className="text-sm font-medium leading-none">{user.full_name || "User"}</p>
                         <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
                       </div>
                     </DropdownMenuLabel>
