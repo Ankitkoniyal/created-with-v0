@@ -1,8 +1,7 @@
 "use client"
 
-import type React from "react"
 import { useAuth } from "@/hooks/use-auth"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect } from "react"
 
 interface AuthGuardProps {
@@ -11,14 +10,21 @@ interface AuthGuardProps {
 }
 
 export function AuthGuard({ children, requireAuth = true }: AuthGuardProps) {
-  const { user, isLoading } = useAuth()
+  const { user, profile, isLoading } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   useEffect(() => {
-    if (!isLoading && requireAuth && !user) {
-      router.push("/auth/login")
+    // Only redirect if not loading, authentication required, and not authenticated
+    if (!isLoading && requireAuth && (!user || !profile)) {
+      const currentPath = window.location.pathname + window.location.search
+      
+      // Prevent redirect loop - don't redirect if already on login page
+      if (!currentPath.includes('/auth/login')) {
+        router.push(`/auth/login?redirectedFrom=${encodeURIComponent(currentPath)}`)
+      }
     }
-  }, [user, isLoading, requireAuth, router])
+  }, [user, profile, isLoading, requireAuth, router])
 
   if (isLoading) {
     return (
@@ -31,7 +37,7 @@ export function AuthGuard({ children, requireAuth = true }: AuthGuardProps) {
     )
   }
 
-  if (requireAuth && !user) {
+  if (requireAuth && (!user || !profile)) {
     return null
   }
 
