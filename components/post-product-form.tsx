@@ -247,6 +247,7 @@ export function PostProductForm() {
     }
 
     setIsSubmitting(true)
+    console.log("[v0] Starting ad submission process")
 
     try {
       const supabase = createClient()
@@ -255,6 +256,7 @@ export function PostProductForm() {
       let imageUploadFailed = false
 
       if (formData.images.length > 0) {
+        console.log("[v0] Uploading images:", formData.images.length)
         for (const image of formData.images) {
           try {
             const fileName = `${user.id}/${Date.now()}-${image.name}`
@@ -263,7 +265,7 @@ export function PostProductForm() {
               .upload(fileName, image)
 
             if (uploadError) {
-              console.error("Image upload error:", uploadError)
+              console.error("[v0] Image upload error:", uploadError)
               imageUploadFailed = true
               break // Stop trying to upload more images
             } else {
@@ -271,9 +273,10 @@ export function PostProductForm() {
                 data: { publicUrl },
               } = supabase.storage.from("product-images").getPublicUrl(fileName)
               imageUrls.push(publicUrl)
+              console.log("[v0] Image uploaded successfully:", publicUrl)
             }
           } catch (uploadError) {
-            console.error("Image upload failed:", uploadError)
+            console.error("[v0] Image upload failed:", uploadError)
             imageUploadFailed = true
             break
           }
@@ -312,108 +315,27 @@ export function PostProductForm() {
       const { data, error } = await supabase.from("products").insert(productData).select().single()
 
       if (error) {
-        console.error("Database error:", error)
+        console.error("[v0] Database error:", error)
 
         if (error.message.includes("row-level security") || error.message.includes("policy")) {
-          const shouldSetupPolicies = confirm(`🔒 Database Security Setup Required
-
-Your Supabase database has security policies enabled but not configured for posting ads.
-
-To fix this permanently:
-1. Go to your Supabase Dashboard
-2. Navigate to Authentication → Policies
-3. Click "New Policy" for the 'products' table
-4. Select "Enable insert for authenticated users only"
-5. Also check Storage → Policies for 'product-images' bucket
-
-Would you like detailed setup instructions instead?`)
-
-          if (shouldSetupPolicies) {
-            // Show detailed setup instructions
-            alert(`📋 Detailed Setup Instructions:
-
-STEP 1 - Products Table Policy:
-• Go to Supabase Dashboard → Authentication → Policies
-• Find 'products' table, click "New Policy"
-• Choose "Enable insert for authenticated users only"
-• Policy name: "Users can insert their own products"
-• Target roles: authenticated
-• USING expression: true
-• WITH CHECK expression: auth.uid() = user_id
-
-STEP 2 - Storage Policy:
-• Go to Storage → Policies
-• Find 'product-images' bucket, click "New Policy"
-• Choose "Enable insert for authenticated users only"
-• Policy name: "Users can upload product images"
-
-After setup, try posting your ad again!`)
-            return
-          }
-
-          // Try with absolute minimal data as fallback
-          const minimalData = {
-            title: formData.title,
-            description: formData.description,
-            price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
-            user_id: user.id,
-          }
-
-          const { data: minimalResult, error: minimalError } = await supabase
-            .from("products")
-            .insert(minimalData)
-            .select()
-            .single()
-
-          if (minimalError) {
-            console.error("Minimal insert also failed:", minimalError)
-            alert(`❌ Unable to post your ad due to database security restrictions.
-
-Please contact your administrator or set up the required policies in your Supabase dashboard.
-
-Error: ${minimalError.message}`)
-            return
-          }
-
-          console.log("[v0] Product saved with minimal info:", minimalResult)
-          alert(`✅ Your ad has been posted successfully!
-
-Note: Some features (images, location details) couldn't be saved due to security settings. Your basic listing is now live.`)
-          router.push(`/dashboard/listings`)
+          alert(
+            `🔒 Database Security Setup Required\n\nYour Supabase database has security policies enabled but not configured for posting ads.\n\nPlease contact your administrator to set up the required policies.`,
+          )
+          setIsSubmitting(false)
           return
         } else if (error.message.includes("column") && error.message.includes("does not exist")) {
-          // Try with only core columns that should exist
-          const coreData = {
-            title: formData.title,
-            description: formData.description,
-            price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
-            user_id: user.id,
-          }
-
-          const { data: coreResult, error: coreError } = await supabase
-            .from("products")
-            .insert(coreData)
-            .select()
-            .single()
-
-          if (coreError) {
-            console.error("Core insert also failed:", coreError)
-            alert(`❌ Database schema issue: ${coreError.message}
-
-Please run the database migration scripts or contact support.`)
-            return
-          }
-
-          console.log("[v0] Product saved with core info:", coreResult)
-          alert("✅ Your ad has been posted with basic information! Some advanced features weren't available.")
-          router.push(`/dashboard/listings`)
+          alert(
+            `❌ Database schema issue: ${error.message}\n\nPlease run the database migration scripts or contact support.`,
+          )
+          setIsSubmitting(false)
           return
         } else {
-          alert(`❌ Failed to post your ad: ${error.message}
-
-Please try again or contact support if the issue persists.`)
+          alert(
+            `❌ Failed to post your ad: ${error.message}\n\nPlease try again or contact support if the issue persists.`,
+          )
+          setIsSubmitting(false)
+          return
         }
-        return
       }
 
       console.log("[v0] Product saved successfully:", data)
@@ -423,14 +345,16 @@ Please try again or contact support if the issue persists.`)
         : "✅ Your ad has been posted successfully!"
 
       alert(successMessage)
+      console.log("[v0] Redirecting to dashboard listings")
       router.push(`/dashboard/listings`)
     } catch (error) {
-      console.error("Submission error:", error)
-      alert(`❌ An unexpected error occurred: ${error instanceof Error ? error.message : "Unknown error"}
-
-Please try again or contact support.`)
+      console.error("[v0] Submission error:", error)
+      alert(
+        `❌ An unexpected error occurred: ${error instanceof Error ? error.message : "Unknown error"}\n\nPlease try again or contact support.`,
+      )
     } finally {
       setIsSubmitting(false)
+      console.log("[v0] Ad submission process completed")
     }
   }
 
