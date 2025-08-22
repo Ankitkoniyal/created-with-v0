@@ -68,16 +68,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchProfile = async (userId: string) => {
     try {
+      console.log("[v0] Fetching profile for user:", userId)
       const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
 
       if (error) {
-        console.error("Error fetching profile:", error)
+        console.error("[v0] Error fetching profile:", error)
+        if (error.code === "PGRST301" || error.message.includes("infinite recursion")) {
+          console.log("[v0] RLS policy issue detected, creating basic profile")
+          // Create a basic profile object from user data
+          setProfile({
+            id: userId,
+            name: user?.user_metadata?.name || user?.email?.split("@")[0] || "User",
+            email: user?.email || "",
+            phone: user?.user_metadata?.phone || "",
+            avatar_url: user?.user_metadata?.avatar_url || "",
+            bio: "",
+            location: "",
+            verified: false,
+            created_at: new Date().toISOString(),
+          })
+        }
         return
       }
 
+      console.log("[v0] Profile fetched successfully:", data)
       setProfile(data)
     } catch (error) {
-      console.error("Error fetching profile:", error)
+      console.error("[v0] Unexpected error fetching profile:", error)
+      setProfile({
+        id: userId,
+        name: user?.user_metadata?.name || user?.email?.split("@")[0] || "User",
+        email: user?.email || "",
+        phone: user?.user_metadata?.phone || "",
+        avatar_url: user?.user_metadata?.avatar_url || "",
+        bio: "",
+        location: "",
+        verified: false,
+        created_at: new Date().toISOString(),
+      })
     }
   }
 
