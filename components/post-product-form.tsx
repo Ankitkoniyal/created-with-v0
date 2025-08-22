@@ -636,56 +636,33 @@ export function PostProductForm() {
             </div>
 
             <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
-              <Label className="flex items-center text-base font-semibold">
-                <MapPin className="h-5 w-5 mr-2" />
-                Location Details *
-              </Label>
-
-              <div className="space-y-2">
-                <Label htmlFor="address">Street Address *</Label>
-                <Input
-                  id="address"
-                  placeholder="e.g., 123 Main Street"
-                  className="border-2 border-gray-200 focus:border-primary"
-                  value={formData.address}
-                  onChange={(e) => handleInputChange("address", e.target.value)}
-                />
-              </div>
+              <Label className="text-base font-semibold">Media & Links (Optional)</Label>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="location">City/Province *</Label>
-                  <Select value={formData.location} onValueChange={(value) => handleInputChange("location", value)}>
-                    <SelectTrigger className="border-2 border-gray-200 focus:border-primary">
-                      <SelectValue placeholder="Select city/province" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CANADIAN_LOCATIONS.map((location) => (
-                        <div key={location.province}>
-                          <SelectItem value={location.province} className="font-semibold">
-                            {location.province}
-                          </SelectItem>
-                          {location.cities.map((city) => (
-                            <SelectItem key={city} value={`${city}, ${location.province}`} className="pl-6">
-                              {city}
-                            </SelectItem>
-                          ))}
-                        </div>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="youtubeUrl">YouTube Video</Label>
+                  <Input
+                    id="youtubeUrl"
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    value={formData.youtubeUrl}
+                    onChange={(e) => handleInputChange("youtubeUrl", e.target.value)}
+                    className="border-2 border-gray-200 focus:border-primary"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Add a YouTube video to showcase your product in action
+                  </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="postalCode">Postal Code *</Label>
+                  <Label htmlFor="websiteUrl">Website URL</Label>
                   <Input
-                    id="postalCode"
-                    placeholder="e.g., M5V 3A8"
+                    id="websiteUrl"
+                    placeholder="https://www.example.com"
+                    value={formData.websiteUrl}
+                    onChange={(e) => handleInputChange("websiteUrl", e.target.value)}
                     className="border-2 border-gray-200 focus:border-primary"
-                    value={formData.postalCode}
-                    onChange={(e) => handleInputChange("postalCode", e.target.value.toUpperCase())}
-                    maxLength={7}
                   />
+                  <p className="text-xs text-muted-foreground">Link to your website or product page for more details</p>
                 </div>
               </div>
             </div>
@@ -772,6 +749,63 @@ export function PostProductForm() {
                   ))}
                 </div>
               )}
+            </div>
+
+            <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
+              <Label className="flex items-center text-base font-semibold">
+                <MapPin className="h-5 w-5 mr-2" />
+                Location Details *
+              </Label>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="address">Street Address *</Label>
+                  <Input
+                    id="address"
+                    placeholder="e.g., 123 Main Street"
+                    className="border-2 border-gray-200 focus:border-primary"
+                    value={formData.address}
+                    onChange={(e) => handleInputChange("address", e.target.value)}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="location">City/Province *</Label>
+                    <Select value={formData.location} onValueChange={(value) => handleInputChange("location", value)}>
+                      <SelectTrigger className="border-2 border-gray-200 focus:border-primary">
+                        <SelectValue placeholder="Select city/province" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CANADIAN_LOCATIONS.map((location) => (
+                          <div key={location.province}>
+                            <SelectItem value={location.province} className="font-semibold">
+                              {location.province}
+                            </SelectItem>
+                            {location.cities.map((city) => (
+                              <SelectItem key={city} value={`${city}, ${location.province}`} className="pl-6">
+                                {city}
+                              </SelectItem>
+                            ))}
+                          </div>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="postalCode">Postal Code *</Label>
+                    <Input
+                      id="postalCode"
+                      placeholder="e.g., M5V 3A8"
+                      className="border-2 border-gray-200 focus:border-primary"
+                      value={formData.postalCode}
+                      onChange={(e) => handleInputChange("postalCode", e.target.value.toUpperCase())}
+                      maxLength={7}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
