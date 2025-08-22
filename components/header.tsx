@@ -246,7 +246,7 @@ export function Header() {
                           alt={profile?.full_name || "User"}
                         />
                         <AvatarFallback>
-                          {profile?.full_name
+                          {profile?.full_name && typeof profile.full_name === "string"
                             ? profile.full_name
                                 .split(" ")
                                 .map((n) => n[0])
