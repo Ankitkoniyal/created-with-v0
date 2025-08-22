@@ -231,7 +231,7 @@ export function Header() {
                     <DropdownMenuItem asChild>
                       <Link href="/dashboard">
                         <Package className="mr-2 h-4 w-4" />
-                        <span>Dashboard</span>
+                        <span>My Ads</span>
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
