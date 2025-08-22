@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import type React from "react"
 
 import { useRouter } from "next/navigation"
@@ -14,18 +14,11 @@ import { useAuth } from "@/hooks/use-auth"
 
 export function LoginForm() {
   const router = useRouter()
-  const { login, user } = useAuth()
+  const { login } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (user) {
-      console.log("[v0] User authenticated, redirecting to dashboard")
-      router.push("/dashboard")
-    }
-  }, [user, router])
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -36,20 +29,16 @@ export function LoginForm() {
     const email = formData.get("email") as string
     const password = formData.get("password") as string
 
-    console.log("[v0] Login attempt for email:", email)
-
     try {
       const result = await login(email, password)
 
       if (result.error) {
-        console.log("[v0] Login error:", result.error)
         setError(result.error)
       } else {
-        console.log("[v0] Login successful")
-        // Redirect will happen automatically via useEffect when user state updates
+        router.push("/dashboard")
       }
     } catch (err) {
-      console.error("[v0] Login error:", err)
+      console.error("Login error:", err)
       setError("An unexpected error occurred. Please try again.")
     } finally {
       setIsLoading(false)
