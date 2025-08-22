@@ -1,6 +1,7 @@
 "use client"
-import { useActionState } from "react"
-import { useEffect } from "react"
+import { useState, useEffect } from "react"
+import type React from "react"
+
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -9,35 +10,50 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react"
-import { signIn } from "@/lib/actions/auth"
-import { useState } from "react"
-
-const initialState = {
-  error: null,
-  success: false,
-  redirect: null,
-}
+import { useAuth } from "@/hooks/use-auth"
 
 export function LoginForm() {
   const router = useRouter()
+  const { login, user } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
-  const [state, formAction] = useActionState(signIn, initialState)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    console.log("[v0] Login form state changed:", state)
-    if (state?.success && state?.redirect) {
-      console.log("[v0] Redirecting to:", state.redirect)
-      router.push(state.redirect)
+    if (user) {
+      console.log("[v0] User authenticated, redirecting to dashboard")
+      router.push("/dashboard")
     }
-  }, [state]) // Updated to use the entire state object as a dependency
+  }, [user, router])
 
-  const handleFormAction = async (formData: FormData) => {
-    console.log("[v0] Form submitted with data:", {
-      email: formData.get("email"),
-      password: "***hidden***",
-    })
-    return formAction(formData)
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setIsLoading(true)
+    setError(null)
+
+    const formData = new FormData(e.currentTarget)
+    const email = formData.get("email") as string
+    const password = formData.get("password") as string
+
+    console.log("[v0] Login attempt for email:", email)
+
+    try {
+      const result = await login(email, password)
+
+      if (result.error) {
+        console.log("[v0] Login error:", result.error)
+        setError(result.error)
+      } else {
+        console.log("[v0] Login successful")
+        // Redirect will happen automatically via useEffect when user state updates
+      }
+    } catch (err) {
+      console.error("[v0] Login error:", err)
+      setError("An unexpected error occurred. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -46,11 +62,11 @@ export function LoginForm() {
         <CardTitle className="text-2xl font-bold text-center">Sign In</CardTitle>
       </CardHeader>
       <CardContent>
-        <form action={handleFormAction} className="space-y-4">
-          {state?.error && (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{state.error}</AlertDescription>
+              <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
 
@@ -100,8 +116,8 @@ export function LoginForm() {
             </Button>
           </div>
 
-          <Button type="submit" className="w-full">
-            Sign In
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? "Signing In..." : "Sign In"}
           </Button>
         </form>
       </CardContent>
