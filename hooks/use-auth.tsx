@@ -42,7 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null)
 
       if (session?.user) {
-        await fetchProfile(session.user.id)
+        await fetchProfile(session.user.id, session.user)
       }
       setIsLoading(false)
     }
@@ -56,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null)
 
       if (session?.user) {
-        await fetchProfile(session.user.id)
+        await fetchProfile(session.user.id, session.user)
       } else {
         setProfile(null)
       }
@@ -66,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe()
   }, [])
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = async (userId: string, userData: User) => {
     try {
       console.log("[v0] Fetching profile for user:", userId)
       const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
@@ -78,10 +78,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Create a basic profile object from user data
           setProfile({
             id: userId,
-            name: user?.user_metadata?.name || user?.email?.split("@")[0] || "User",
-            email: user?.email || "",
-            phone: user?.user_metadata?.phone || "",
-            avatar_url: user?.user_metadata?.avatar_url || "",
+            name: userData?.user_metadata?.name || userData?.email?.split("@")[0] || "User",
+            email: userData?.email || "",
+            phone: userData?.user_metadata?.phone || "",
+            avatar_url: userData?.user_metadata?.avatar_url || "",
             bio: "",
             location: "",
             verified: false,
@@ -92,15 +92,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       console.log("[v0] Profile fetched successfully:", data)
-      setProfile(data)
+      setProfile({
+        id: data.id,
+        name: data.full_name || data.name || userData?.email?.split("@")[0] || "User",
+        email: data.email || userData?.email || "",
+        phone: data.phone || "",
+        avatar_url: data.avatar_url || "",
+        bio: data.bio || "",
+        location: data.location || "",
+        verified: data.verified || false,
+        created_at: data.created_at,
+      })
     } catch (error) {
       console.error("[v0] Unexpected error fetching profile:", error)
       setProfile({
         id: userId,
-        name: user?.user_metadata?.name || user?.email?.split("@")[0] || "User",
-        email: user?.email || "",
-        phone: user?.user_metadata?.phone || "",
-        avatar_url: user?.user_metadata?.avatar_url || "",
+        name: userData?.user_metadata?.name || userData?.email?.split("@")[0] || "User",
+        email: userData?.email || "",
+        phone: userData?.user_metadata?.phone || "",
+        avatar_url: userData?.user_metadata?.avatar_url || "",
         bio: "",
         location: "",
         verified: false,
