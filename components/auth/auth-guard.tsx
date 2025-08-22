@@ -1,9 +1,8 @@
 "use client"
 
 import type React from "react"
-
 import { useAuth } from "@/hooks/use-auth"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect } from "react"
 
 interface AuthGuardProps {
@@ -14,19 +13,24 @@ interface AuthGuardProps {
 export function AuthGuard({ children, requireAuth = true }: AuthGuardProps) {
   const { user, isLoading } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
 
-  console.log("[v0] AuthGuard - user:", user, "isLoading:", isLoading, "requireAuth:", requireAuth)
+  console.log("[FIXED] AuthGuard - user:", user, "isLoading:", isLoading, "requireAuth:", requireAuth)
 
   useEffect(() => {
-    console.log("[v0] AuthGuard useEffect - checking redirect conditions")
+    console.log("[FIXED] AuthGuard useEffect - checking redirect conditions")
     if (!isLoading && requireAuth && !user) {
-      console.log("[v0] AuthGuard - redirecting to login")
-      router.push("/auth/login")
+      // Get the current path and preserve it for redirect after login
+      const currentPath = window.location.pathname + window.location.search
+      console.log("[FIXED] AuthGuard - redirecting to login with return url:", currentPath)
+      
+      // Redirect to login with the return URL
+      router.push(`/auth/login?redirectedFrom=${encodeURIComponent(currentPath)}`)
     }
   }, [user, isLoading, requireAuth, router])
 
   if (isLoading) {
-    console.log("[v0] AuthGuard - showing loading state")
+    console.log("[FIXED] AuthGuard - showing loading state")
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -38,10 +42,10 @@ export function AuthGuard({ children, requireAuth = true }: AuthGuardProps) {
   }
 
   if (requireAuth && !user) {
-    console.log("[v0] AuthGuard - user not authenticated, returning null")
+    console.log("[FIXED] AuthGuard - user not authenticated, returning null")
     return null
   }
 
-  console.log("[v0] AuthGuard - rendering children")
+  console.log("[FIXED] AuthGuard - rendering children")
   return <>{children}</>
 }
