@@ -15,13 +15,18 @@ export function AuthGuard({ children, requireAuth = true }: AuthGuardProps) {
   const { user, isLoading } = useAuth()
   const router = useRouter()
 
+  console.log("[v0] AuthGuard - user:", user, "isLoading:", isLoading, "requireAuth:", requireAuth)
+
   useEffect(() => {
+    console.log("[v0] AuthGuard useEffect - checking redirect conditions")
     if (!isLoading && requireAuth && !user) {
+      console.log("[v0] AuthGuard - redirecting to login")
       router.push("/auth/login")
     }
   }, [user, isLoading, requireAuth, router])
 
   if (isLoading) {
+    console.log("[v0] AuthGuard - showing loading state")
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -33,8 +38,10 @@ export function AuthGuard({ children, requireAuth = true }: AuthGuardProps) {
   }
 
   if (requireAuth && !user) {
+    console.log("[v0] AuthGuard - user not authenticated, returning null")
     return null
   }
 
+  console.log("[v0] AuthGuard - rendering children")
   return <>{children}</>
 }
