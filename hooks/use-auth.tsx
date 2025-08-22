@@ -69,25 +69,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchProfile = async (userId: string, userData: User) => {
     try {
       console.log("[v0] Fetching profile for user:", userId)
-      const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
+
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single()
+        .abortSignal(controller.signal)
+
+      clearTimeout(timeoutId)
 
       if (error) {
         console.error("[v0] Error fetching profile:", error)
-        if (error.code === "PGRST301" || error.message.includes("infinite recursion")) {
-          console.log("[v0] RLS policy issue detected, creating basic profile")
-          // Create a basic profile object from user data
-          setProfile({
-            id: userId,
-            name: userData?.user_metadata?.name || userData?.email?.split("@")[0] || "User",
-            email: userData?.email || "",
-            phone: userData?.user_metadata?.phone || "",
-            avatar_url: userData?.user_metadata?.avatar_url || "",
-            bio: "",
-            location: "",
-            verified: false,
-            created_at: new Date().toISOString(),
-          })
-        }
+        console.log("[v0] Creating fallback profile from user metadata")
+        setProfile({
+          id: userId,
+          name:
+            userData?.user_metadata?.full_name ||
+            userData?.user_metadata?.name ||
+            userData?.email?.split("@")[0] ||
+            "User",
+          email: userData?.email || "",
+          phone: userData?.user_metadata?.phone || "",
+          avatar_url: userData?.user_metadata?.avatar_url || "",
+          bio: "",
+          location: "",
+          verified: false,
+          created_at: new Date().toISOString(),
+        })
         return
       }
 
@@ -104,10 +116,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         created_at: data.created_at,
       })
     } catch (error) {
-      console.error("[v0] Unexpected error fetching profile:", error)
+      console.error("[v0] Network error fetching profile:", error)
+      console.log("[v0] Creating fallback profile due to network error")
       setProfile({
         id: userId,
-        name: userData?.user_metadata?.name || userData?.email?.split("@")[0] || "User",
+        name:
+          userData?.user_metadata?.full_name ||
+          userData?.user_metadata?.name ||
+          userData?.email?.split("@")[0] ||
+          "User",
         email: userData?.email || "",
         phone: userData?.user_metadata?.phone || "",
         avatar_url: userData?.user_metadata?.avatar_url || "",
