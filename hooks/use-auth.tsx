@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { createClient } from "@/lib/supabase/client"
 import type { User } from "@supabase/supabase-js"
 
@@ -33,19 +33,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const supabase = createClient()
 
-  const fetchProfile = async (userId: string, userData: User) => {
-    try {
-      const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
+  const fetchProfile = useCallback(
+    async (userId: string, userData: User) => {
+      try {
+        const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
 
-      if (error) {
-        // Create fallback profile from user metadata
-        setProfile({
+        if (error) {
+          // Create fallback profile from user metadata
+          const fallbackProfile = {
+            id: userId,
+            name: userData?.user_metadata?.full_name || userData?.email?.split("@")[0] || "User",
+            email: userData?.email || "",
+            phone: userData?.user_metadata?.phone || "",
+            avatar_url: userData?.user_metadata?.avatar_url || "",
+            bio: "",
+            location: "",
+            verified: false,
+            created_at: new Date().toISOString(),
+          }
+          setProfile(fallbackProfile)
+          return
+        }
+
+        // Map database fields to profile interface
+        const profileData = {
+          id: data.id,
+          name: data.full_name || userData?.email?.split("@")[0] || "User",
+          email: data.email || userData?.email || "",
+          phone: data.phone || "",
+          avatar_url: data.avatar_url || "",
+          bio: data.bio || "",
+          location: data.location || "",
+          verified: data.verified || false,
+          created_at: data.created_at,
+        }
+        setProfile(profileData)
+      } catch (error) {
+        // Create fallback profile on network error
+        const fallbackProfile = {
           id: userId,
-          name:
-            userData?.user_metadata?.full_name ||
-            userData?.user_metadata?.name ||
-            userData?.email?.split("@")[0] ||
-            "User",
+          name: userData?.user_metadata?.full_name || userData?.email?.split("@")[0] || "User",
           email: userData?.email || "",
           phone: userData?.user_metadata?.phone || "",
           avatar_url: userData?.user_metadata?.avatar_url || "",
@@ -53,74 +80,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           location: "",
           verified: false,
           created_at: new Date().toISOString(),
-        })
-        return
+        }
+        setProfile(fallbackProfile)
       }
-
-      // Map database fields to profile interface
-      setProfile({
-        id: data.id,
-        name: data.full_name || data.name || userData?.email?.split("@")[0] || "User",
-        email: data.email || userData?.email || "",
-        phone: data.phone || "",
-        avatar_url: data.avatar_url || "",
-        bio: data.bio || "",
-        location: data.location || "",
-        verified: data.verified || false,
-        created_at: data.created_at,
-      })
-    } catch (error) {
-      // Create fallback profile on network error
-      setProfile({
-        id: userId,
-        name:
-          userData?.user_metadata?.full_name ||
-          userData?.user_metadata?.name ||
-          userData?.email?.split("@")[0] ||
-          "User",
-        email: userData?.email || "",
-        phone: userData?.user_metadata?.phone || "",
-        avatar_url: userData?.user_metadata?.avatar_url || "",
-        bio: "",
-        location: "",
-        verified: false,
-        created_at: new Date().toISOString(),
-      })
-    }
-  }
+    },
+    [supabase],
+  )
 
   useEffect(() => {
     let mounted = true
 
-    // Get initial session
-    const getInitialSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
+    const initializeAuth = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
 
-      if (!mounted) return
+        if (!mounted) return
 
-      setUser(session?.user ?? null)
-
-      if (session?.user) {
-        await fetchProfile(session.user.id, session.user)
+        if (session?.user) {
+          setUser(session.user)
+          await fetchProfile(session.user.id, session.user)
+        } else {
+          setUser(null)
+          setProfile(null)
+        }
+        setIsLoading(false)
+      } catch (error) {
+        if (mounted) {
+          setIsLoading(false)
+        }
       }
-      setIsLoading(false)
     }
 
-    getInitialSession()
+    initializeAuth()
 
-    // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return
 
-      setUser(session?.user ?? null)
-
       if (session?.user) {
+        setUser(session.user)
         await fetchProfile(session.user.id, session.user)
       } else {
+        setUser(null)
         setProfile(null)
       }
       setIsLoading(false)
@@ -130,7 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mounted = false
       subscription.unsubscribe()
     }
-  }, []) // Removed fetchProfile from dependency array to prevent infinite loop
+  }, [fetchProfile])
 
   const login = async (email: string, password: string) => {
     try {
@@ -163,7 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         options: {
           emailRedirectTo: redirectUrl,
           data: {
-            name,
+            full_name: name,
             phone,
           },
         },
@@ -180,11 +184,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = async () => {
-    setIsLoading(true)
     await supabase.auth.signOut()
-    setUser(null)
-    setProfile(null)
-    setIsLoading(false)
+    // State will be updated by the auth state change listener
   }
 
   return (
