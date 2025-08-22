@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import type React from "react"
 
 import { useRouter } from "next/navigation"
@@ -14,17 +14,11 @@ import { useAuth } from "@/hooks/use-auth"
 
 export function LoginForm() {
   const router = useRouter()
-  const { login, user, isLoading } = useAuth()
+  const { login } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (user && !isLoading && !isSubmitting) {
-      router.push("/dashboard")
-    }
-  }, [user, isLoading, isSubmitting, router])
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -41,6 +35,8 @@ export function LoginForm() {
       if (result.error) {
         setError(result.error)
         setIsSubmitting(false)
+      } else {
+        router.push("/dashboard")
       }
     } catch (err) {
       console.error("Login error:", err)
@@ -109,7 +105,7 @@ export function LoginForm() {
             </Button>
           </div>
 
-          <Button type="submit" className="w-full" disabled={isSubmitting || isLoading}>
+          <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting ? "Signing In..." : "Sign In"}
           </Button>
         </form>

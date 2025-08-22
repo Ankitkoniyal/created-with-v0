@@ -1,9 +1,8 @@
-// middleware.ts
-import { createServerClient } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
+import { createServerClient } from "@supabase/ssr"
+import { NextResponse, type NextRequest } from "next/server"
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
+  const response = NextResponse.next({
     request: {
       headers: request.headers,
     },
@@ -27,49 +26,20 @@ export async function middleware(request: NextRequest) {
         remove(name: string, options: any) {
           response.cookies.set({
             name,
-            value: '',
+            value: "",
             ...options,
           })
         },
       },
-    }
+    },
   )
 
   // Refresh session if expired - required for Server Components
-  const { data: { session } } = await supabase.auth.getSession()
-
-  // Optional: Protect routes
-  const { pathname } = request.nextUrl
-  const protectedRoutes = ['/dashboard', '/sell', '/messages', '/favorites']
-  const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route))
-
-  if (isProtectedRoute && !session) {
-    const redirectUrl = new URL('/auth/login', request.url)
-    redirectUrl.searchParams.set('redirectedFrom', pathname)
-    return NextResponse.redirect(redirectUrl)
-  }
-
-  // If user is logged in and tries to access auth pages, redirect to home
-  const authRoutes = ['/auth/login', '/auth/signup']
-  const isAuthRoute = authRoutes.includes(pathname)
-
-  if (isAuthRoute && session) {
-    return NextResponse.redirect(new URL('/', request.url))
-  }
+  await supabase.auth.getSession()
 
   return response
 }
 
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     * - auth callback (handled by Supabase)
-     */
-    '/((?!_next/static|_next/image|favicon.ico|auth/callback|.*\\.(?:svg|png|jpg|jpeg|gif|webp|css|js)$).*)',
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|auth/callback|.*\\.(?:svg|png|jpg|jpeg|gif|webp|css|js)$).*)"],
 }
