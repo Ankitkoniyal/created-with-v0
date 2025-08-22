@@ -283,31 +283,46 @@ export function PostProductForm() {
         }
       }
 
-      const primaryCategory = formData.subcategory || formData.category
       const categoryIndex = formData.subcategory
         ? subcategories[formData.category]?.indexOf(formData.subcategory) + 1
         : Math.max(1, categories.indexOf(formData.category) + 1)
 
+      // Parse location to get city and province
+      const locationParts = formData.location.split(", ")
+      const city = locationParts[0] || formData.location
+      const province = locationParts[1] || "Unknown"
+
+      // Build enhanced description with all additional info
+      const enhancedDescription = [
+        formData.description,
+        formData.address ? `\n\nAddress: ${formData.address}` : "",
+        formData.location ? `\nLocation: ${formData.location}` : "",
+        formData.postalCode ? ` ${formData.postalCode}` : "",
+        formData.brand ? `\nBrand: ${formData.brand}` : "",
+        formData.model ? `\nModel: ${formData.model}` : "",
+        formData.youtubeUrl ? `\n\nVideo: ${formData.youtubeUrl}` : "",
+        formData.websiteUrl ? `\n\nWebsite: ${formData.websiteUrl}` : "",
+        formData.tags.length > 0 ? `\n\nTags: ${formData.tags.join(", ")}` : "",
+        formData.features.length > 0 ? `\n\nFeatures: ${formData.features.join(", ")}` : "",
+        formData.showMobileNumber ? "\n\n📱 Mobile number available - contact seller" : "",
+        formData.priceType !== "amount"
+          ? `\n\nPrice: ${formData.priceType === "free" ? "Free" : formData.priceType === "contact" ? "Contact for price" : "Swap/Exchange"}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("")
+
       const productData = {
-        title: formData.title,
-        description: `${formData.description}${formData.address ? `\n\nAddress: ${formData.address}` : ""}${formData.location ? `\nLocation: ${formData.location}` : ""}${formData.postalCode ? ` ${formData.postalCode}` : ""}${formData.youtubeUrl ? `\n\nVideo: ${formData.youtubeUrl}` : ""}${formData.websiteUrl ? `\n\nWebsite: ${formData.websiteUrl}` : ""}${formData.tags.length > 0 ? `\n\nTags: ${formData.tags.join(", ")}` : ""}${formData.showMobileNumber ? "\n\n📱 Mobile number available - contact seller" : ""}${formData.priceType !== "amount" ? `\n\nPrice: ${formData.priceType === "free" ? "Free" : formData.priceType === "contact" ? "Contact for price" : "Swap/Exchange"}` : ""}`,
-        price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
-        category_id: categoryIndex,
-        category: formData.category,
-        subcategory: formData.subcategory || null,
-        primary_category: primaryCategory, // This will be the main identifier for filtering
-        condition: formData.condition,
-        brand: formData.brand || null,
-        model: formData.model || null,
-        images: imageUrls,
         user_id: user.id,
-        postal_code: formData.postalCode,
-        location: formData.location,
-        price_type: formData.priceType,
-        youtube_url: formData.youtubeUrl || null,
-        website_url: formData.websiteUrl || null,
-        show_mobile_number: formData.showMobileNumber,
-        tags: formData.tags.join(","),
+        category_id: categoryIndex,
+        title: formData.title,
+        description: enhancedDescription,
+        price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
+        condition: formData.condition.toLowerCase(),
+        location: formData.address || city,
+        province: province,
+        city: city,
+        images: imageUrls,
       }
 
       console.log("[v0] Attempting to insert product data:", productData)
@@ -315,7 +330,7 @@ export function PostProductForm() {
       const { data, error } = await supabase.from("products").insert(productData).select().single()
 
       if (error) {
-        console.error("[v0] Database error:", error)
+        console.error("[v0] Database error:", error.message)
 
         if (error.message.includes("row-level security") || error.message.includes("policy")) {
           alert(
