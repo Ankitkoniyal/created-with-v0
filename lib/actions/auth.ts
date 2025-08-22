@@ -48,7 +48,7 @@ export async function signIn(prevState: any, formData: FormData) {
     }
 
     console.log("[v0] Sign in successful")
-    return { success: true, redirect: "/" }
+    return { success: true, redirect: "/dashboard" }
   } catch (error: any) {
     console.error("[v0] Login error:", error)
     if (error.message && error.message.includes("Unexpected token")) {
