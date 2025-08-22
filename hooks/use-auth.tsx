@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
+import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import { createClient } from "@/lib/supabase/client"
 import type { User } from "@supabase/supabase-js"
 
@@ -33,43 +33,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const supabase = createClient()
 
-  const fetchProfile = useCallback(
-    async (userId: string, userData: User) => {
-      try {
-        const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
+  const fetchProfile = async (userId: string, userData: User) => {
+    try {
+      const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
 
-        if (error) {
-          // Create fallback profile from user metadata
-          const fallbackProfile = {
-            id: userId,
-            name: userData?.user_metadata?.full_name || userData?.email?.split("@")[0] || "User",
-            email: userData?.email || "",
-            phone: userData?.user_metadata?.phone || "",
-            avatar_url: userData?.user_metadata?.avatar_url || "",
-            bio: "",
-            location: "",
-            verified: false,
-            created_at: new Date().toISOString(),
-          }
-          setProfile(fallbackProfile)
-          return
-        }
-
-        // Map database fields to profile interface
-        const profileData = {
-          id: data.id,
-          name: data.full_name || userData?.email?.split("@")[0] || "User",
-          email: data.email || userData?.email || "",
-          phone: data.phone || "",
-          avatar_url: data.avatar_url || "",
-          bio: data.bio || "",
-          location: data.location || "",
-          verified: data.verified || false,
-          created_at: data.created_at,
-        }
-        setProfile(profileData)
-      } catch (error) {
-        // Create fallback profile on network error
+      if (error) {
+        // Create fallback profile from user metadata
         const fallbackProfile = {
           id: userId,
           name: userData?.user_metadata?.full_name || userData?.email?.split("@")[0] || "User",
@@ -82,10 +51,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           created_at: new Date().toISOString(),
         }
         setProfile(fallbackProfile)
+        return
       }
-    },
-    [supabase],
-  )
+
+      // Map database fields to profile interface
+      const profileData = {
+        id: data.id,
+        name: data.full_name || userData?.email?.split("@")[0] || "User",
+        email: data.email || userData?.email || "",
+        phone: data.phone || "",
+        avatar_url: data.avatar_url || "",
+        bio: data.bio || "",
+        location: data.location || "",
+        verified: data.verified || false,
+        created_at: data.created_at,
+      }
+      setProfile(profileData)
+    } catch (error) {
+      // Create fallback profile on network error
+      const fallbackProfile = {
+        id: userId,
+        name: userData?.user_metadata?.full_name || userData?.email?.split("@")[0] || "User",
+        email: userData?.email || "",
+        phone: userData?.user_metadata?.phone || "",
+        avatar_url: userData?.user_metadata?.avatar_url || "",
+        bio: "",
+        location: "",
+        verified: false,
+        created_at: new Date().toISOString(),
+      }
+      setProfile(fallbackProfile)
+    }
+  }
 
   useEffect(() => {
     let mounted = true
@@ -134,7 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mounted = false
       subscription.unsubscribe()
     }
-  }, [fetchProfile])
+  }, [])
 
   const login = async (email: string, password: string) => {
     try {
