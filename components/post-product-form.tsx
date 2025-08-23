@@ -1,5 +1,7 @@
 "use client"
 
+import { Checkbox } from "@/components/ui/checkbox"
+
 import type React from "react"
 
 import { useState } from "react"
@@ -10,7 +12,6 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Checkbox } from "@/components/ui/checkbox"
 import { X, Camera, MapPin, DollarSign, Package, FileText, ImageIcon, Tag, AlertCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
@@ -295,6 +296,7 @@ export function PostProductForm() {
 
     try {
       const supabase = createClient()
+      console.log("[v0] Supabase client created successfully")
 
       const imageUrls: string[] = []
       let imageUploadFailed = false
@@ -337,7 +339,11 @@ export function PostProductForm() {
             break
           }
         }
+      } else {
+        console.log("[v0] No images to upload")
       }
+
+      console.log("[v0] Image upload phase completed. URLs:", imageUrls.length, "Failed:", imageUploadFailed)
 
       const primaryCategory = formData.subcategory || formData.category
       const categoryIndex = formData.subcategory
@@ -347,6 +353,11 @@ export function PostProductForm() {
       const locationParts = formData.location.split(", ")
       const city = locationParts[0] || formData.location
       const province = locationParts[1] || "Unknown"
+
+      console.log("[v0] Preparing product data...")
+      console.log("[v0] Primary category:", primaryCategory)
+      console.log("[v0] Category index:", categoryIndex)
+      console.log("[v0] Location parts:", { city, province })
 
       const enhancedDescription = [
         formData.description,
@@ -369,28 +380,29 @@ export function PostProductForm() {
 
       const productData = {
         user_id: user.id,
-        category_id: categoryIndex,
-        primary_category: primaryCategory,
         title: formData.title.trim(),
         description: enhancedDescription,
         price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
         condition: formData.condition.toLowerCase(),
-        location: formData.address || city,
-        province: province,
-        city: city,
-        postal_code: formData.postalCode.replace(/\s/g, "").toUpperCase(),
+        location: `${formData.address}, ${city}`.trim(),
         images: imageUrls,
         status: "active",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }
 
-      console.log("[v0] Attempting to insert product data:", productData)
+      console.log("[v0] Product data prepared:", JSON.stringify(productData, null, 2))
+      console.log("[v0] Attempting to insert product data...")
 
       const { data, error } = await supabase.from("products").insert(productData).select().single()
 
       if (error) {
-        console.error("[v0] Database error:", error.message)
+        console.error("[v0] Database error details:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        })
 
         if (error.message.includes("row-level security") || error.message.includes("policy")) {
           setSubmitError(
@@ -398,6 +410,7 @@ export function PostProductForm() {
           )
           return
         } else if (error.message.includes("column") && error.message.includes("does not exist")) {
+          console.error("[v0] Missing database column:", error.message)
           setSubmitError(`Database schema issue: ${error.message}. Please run the required database migrations.`)
           return
         } else if (error.message.includes("duplicate key") || error.message.includes("unique constraint")) {
@@ -415,11 +428,15 @@ export function PostProductForm() {
         ? "Your ad has been posted successfully! (Note: Some images couldn't be uploaded due to storage restrictions)"
         : "Your ad has been posted successfully!"
 
-      console.log("[v0] Redirecting to success page")
+      console.log("[v0] Redirecting to success page with ID:", data.id)
       sessionStorage.setItem("adPostSuccess", successMessage)
       router.push(`/sell/success?id=${data.id}`)
     } catch (error) {
-      console.error("[v0] Submission error:", error)
+      console.error("[v0] Submission error details:", {
+        error,
+        message: error instanceof Error ? error.message : "Unknown error",
+        stack: error instanceof Error ? error.stack : undefined,
+      })
       setSubmitError(
         `An unexpected error occurred: ${error instanceof Error ? error.message : "Unknown error"}. Please try again.`,
       )
