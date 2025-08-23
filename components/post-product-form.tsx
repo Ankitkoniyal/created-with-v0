@@ -377,8 +377,41 @@ export function PostProductForm() {
       console.log("[v0] Form subcategory:", formData.subcategory)
 
       const locationParts = formData.location.split(", ")
-      const city = locationParts[0] || formData.location
-      const province = locationParts[1] || "Unknown"
+      // The city is typically the last part before province, province comes from a separate field or parsing
+      const city =
+        locationParts.length >= 2
+          ? locationParts[locationParts.length - 1]
+          : formData.location.split(",")[0]?.trim() || "Unknown"
+
+      // For province, we need to extract it from the location or use a default
+      // Since location format is "address, city" we need to get province from postal code or other source
+      let province = "Unknown"
+
+      // Try to extract province from postal code pattern (Canadian postal codes)
+      if (formData.postalCode) {
+        const postalPrefix = formData.postalCode.charAt(0).toUpperCase()
+        const provinceMap: { [key: string]: string } = {
+          A: "Newfoundland and Labrador",
+          B: "Nova Scotia",
+          C: "Prince Edward Island",
+          E: "New Brunswick",
+          G: "Quebec",
+          H: "Quebec",
+          J: "Quebec",
+          K: "Ontario",
+          L: "Ontario",
+          M: "Ontario",
+          N: "Ontario",
+          P: "Ontario",
+          R: "Manitoba",
+          S: "Saskatchewan",
+          T: "Alberta",
+          V: "British Columbia",
+          X: "Northwest Territories",
+          Y: "Yukon",
+        }
+        province = provinceMap[postalPrefix] || "Unknown"
+      }
 
       console.log("[v0] Location parts:", { city, province })
 
@@ -408,8 +441,8 @@ export function PostProductForm() {
         price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
         condition: formData.condition.toLowerCase(),
         location: `${formData.address}, ${city}`.trim(),
-        city: city, // Added missing city field for database constraint
-        province: province, // Added missing province field
+        city: city, // Now correctly parsed city
+        province: province, // Now correctly parsed province from postal code
         images: imageUrls,
         category_id: categoryIndex,
         status: "active",
