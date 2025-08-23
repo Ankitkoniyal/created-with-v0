@@ -24,10 +24,13 @@ export function ProfileSettings() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [imageUpload, setImageUpload] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [profileData, setProfileData] = useState<any>(null)
   const [formData, setFormData] = useState({
     name: "",
     location: "",
     bio: "",
+    mobile: "",
     contactVisibility: {
       showPhone: true,
       showEmail: false,
@@ -40,26 +43,72 @@ export function ProfileSettings() {
   })
 
   useEffect(() => {
-    if (user) {
-      setFormData((prev) => ({
-        ...prev,
-        name: user.user_metadata?.full_name || user.email?.split("@")[0] || "",
-        location: user.user_metadata?.location || "Toronto, ON",
-        bio: user.user_metadata?.bio || "New to the marketplace. Looking forward to great deals!",
-      }))
+    const fetchProfileData = async () => {
+      if (!user) return
+
+      setIsLoading(true)
+      console.log("[v0] Fetching profile data for user:", user.id)
+
+      try {
+        const supabase = createClient()
+
+        const { data: profileData, error: profileError } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .single()
+
+        if (profileError && profileError.code !== "PGRST116") {
+          console.error("[v0] Profile fetch error:", profileError)
+        }
+
+        console.log("[v0] Profile data fetched:", profileData)
+        setProfileData(profileData)
+
+        setFormData({
+          name: profileData?.full_name || user.user_metadata?.full_name || user.email?.split("@")[0] || "",
+          location: profileData?.location || user.user_metadata?.location || "Toronto, ON",
+          bio: profileData?.bio || user.user_metadata?.bio || "New to the marketplace. Looking forward to great deals!",
+          mobile: profileData?.phone || user.phone || "",
+          contactVisibility: {
+            showPhone: profileData?.show_phone ?? true,
+            showEmail: profileData?.show_email ?? false,
+          },
+          notifications: {
+            email: profileData?.email_notifications ?? true,
+            sms: profileData?.sms_notifications ?? false,
+            push: profileData?.push_notifications ?? true,
+          },
+        })
+
+        console.log("[v0] Form data initialized:", {
+          name: profileData?.full_name || user.user_metadata?.full_name,
+          mobile: profileData?.phone || user.phone || "Not found",
+          email: user.email,
+        })
+      } catch (error) {
+        console.error("[v0] Error fetching profile data:", error)
+      } finally {
+        setIsLoading(false)
+      }
     }
+
+    fetchProfileData()
   }, [user])
 
   const handleSave = async () => {
     if (!user) return
 
     setIsSaving(true)
+    console.log("[v0] Starting profile save process...")
+
     try {
       const supabase = createClient()
 
-      let avatarUrl = user.user_metadata?.avatar_url
+      let avatarUrl = profileData?.avatar_url || user.user_metadata?.avatar_url
 
       if (imageUpload) {
+        console.log("[v0] Uploading profile image...")
         const fileExt = imageUpload.name.split(".").pop()
         const fileName = `${user.id}/avatar.${fileExt}`
 
@@ -72,37 +121,63 @@ export function ProfileSettings() {
             data: { publicUrl },
           } = supabase.storage.from("avatars").getPublicUrl(fileName)
           avatarUrl = publicUrl
+          console.log("[v0] Image uploaded successfully:", publicUrl)
         } else {
           console.error("[v0] Avatar upload error:", uploadError)
         }
       }
 
-      const { error: updateError } = await supabase.auth.updateUser({
+      console.log("[v0] Updating auth user metadata...")
+      const { error: authUpdateError } = await supabase.auth.updateUser({
         data: {
           full_name: formData.name,
           location: formData.location,
           bio: formData.bio,
           avatar_url: avatarUrl,
-          contact_visibility: formData.contactVisibility,
-          notifications: formData.notifications,
         },
       })
 
-      if (updateError) {
-        console.error("[v0] Profile update error:", updateError)
-        alert("Failed to update profile. Please try again.")
-      } else {
-        console.log("[v0] Profile updated successfully")
-        alert("Profile updated successfully!")
-        setIsEditing(false)
-        setImageUpload(null)
-        setPreviewUrl(null)
+      if (authUpdateError) {
+        console.error("[v0] Auth update error:", authUpdateError)
+        throw authUpdateError
       }
+
+      console.log("[v0] Updating profiles table...")
+      const profileUpdateData = {
+        id: user.id,
+        full_name: formData.name,
+        location: formData.location,
+        bio: formData.bio,
+        avatar_url: avatarUrl,
+        show_phone: formData.contactVisibility.showPhone,
+        show_email: formData.contactVisibility.showEmail,
+        email_notifications: formData.notifications.email,
+        sms_notifications: formData.notifications.sms,
+        push_notifications: formData.notifications.push,
+        updated_at: new Date().toISOString(),
+      }
+
+      const { error: profileUpdateError } = await supabase
+        .from("profiles")
+        .upsert(profileUpdateData, { onConflict: "id" })
+
+      if (profileUpdateError) {
+        console.error("[v0] Profile update error:", profileUpdateError)
+      }
+
+      console.log("[v0] Profile updated successfully")
+      alert("Profile updated successfully!")
+      setIsEditing(false)
+      setImageUpload(null)
+      setPreviewUrl(null)
+
+      setProfileData({ ...profileData, ...profileUpdateData })
     } catch (error) {
       console.error("[v0] Profile save error:", error)
-      alert("An error occurred while saving your profile.")
+      alert("Failed to update profile. Please try again.")
     } finally {
       setIsSaving(false)
+      console.log("[v0] Profile save process completed")
     }
   }
 
@@ -149,6 +224,15 @@ export function ProfileSettings() {
     }
   }
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <span className="ml-2">Loading profile...</span>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <Card>
@@ -157,7 +241,7 @@ export function ProfileSettings() {
             <div className="relative">
               <Avatar className="h-24 w-24">
                 <AvatarImage
-                  src={previewUrl || user?.user_metadata?.avatar_url || "/placeholder.svg"}
+                  src={previewUrl || profileData?.avatar_url || user?.user_metadata?.avatar_url || "/placeholder.svg"}
                   alt={formData.name}
                 />
                 <AvatarFallback className="text-2xl">
@@ -257,8 +341,10 @@ export function ProfileSettings() {
 
             <div className="space-y-2">
               <Label htmlFor="phone">Phone Number</Label>
-              <Input id="phone" value={user?.phone || "Not provided"} disabled={true} className="bg-muted" />
-              <p className="text-xs text-muted-foreground">Phone number managed through authentication</p>
+              <Input id="phone" value={formData.mobile || "Not provided"} disabled={true} className="bg-muted" />
+              <p className="text-xs text-muted-foreground">
+                {formData.mobile ? "Phone number from your profile" : "No phone number on file"}
+              </p>
             </div>
 
             <div className="space-y-2">
