@@ -131,6 +131,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (event === "SIGNED_IN" && session?.user) {
         setUser(session.user)
+        try {
+          const profileData = await fetchProfile(session.user.id, session.user)
+          if (mounted) {
+            setProfile(profileData)
+          }
+        } catch (profileError) {
+          if (mounted) {
+            setProfile(null)
+          }
+        }
         setIsLoading(false)
       } else if (event === "SIGNED_OUT") {
         setUser(null)
