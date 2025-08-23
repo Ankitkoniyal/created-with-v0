@@ -80,11 +80,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const testSupabaseConnection = async () => {
+    try {
+      console.log("[v0] Testing Supabase connection...")
+      console.log("[v0] Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL)
+
+      // Simple health check
+      const { data, error } = await supabase.from("profiles").select("count").limit(1)
+
+      if (error) {
+        console.log("[v0] Supabase connection test failed:", error.message)
+        return false
+      }
+
+      console.log("[v0] Supabase connection test successful")
+      return true
+    } catch (error) {
+      console.log("[v0] Supabase connection test error:", error)
+      return false
+    }
+  }
+
   useEffect(() => {
     let mounted = true
 
     const initializeAuth = async () => {
       try {
+        const connectionOk = await testSupabaseConnection()
+        if (!connectionOk) {
+          console.log("[v0] Supabase connection failed, skipping auth initialization")
+          if (mounted) {
+            setIsLoading(false)
+          }
+          return
+        }
+
         const {
           data: { session },
         } = await supabase.auth.getSession()
@@ -101,11 +131,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null)
           setProfile(null)
         }
-        
+
         if (mounted) {
           setIsLoading(false)
         }
       } catch (error) {
+        console.log("[v0] Auth initialization error:", error)
         if (mounted) {
           setIsLoading(false)
         }
@@ -141,22 +172,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      setIsLoading(true) // Set loading true during login
+      setIsLoading(true)
+
+      console.log("[v0] Testing connection before login...")
+      const connectionOk = await testSupabaseConnection()
+      if (!connectionOk) {
+        setIsLoading(false)
+        return {
+          error: "Unable to connect to authentication service. Please check your internet connection and try again.",
+        }
+      }
+
+      console.log("[v0] Attempting login for:", email)
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
       if (error) {
+        console.log("[v0] Login error:", error.message)
         setIsLoading(false)
         return { error: error.message }
       }
 
-      // Auth state change listener will handle the rest
+      console.log("[v0] Login successful")
       return {}
     } catch (error) {
+      console.log("[v0] Login catch error:", error)
       setIsLoading(false)
-      return { error: "An unexpected error occurred" }
+      return { error: "Network error: Unable to connect to authentication service" }
     }
   }
 
