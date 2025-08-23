@@ -346,17 +346,40 @@ export function PostProductForm() {
       console.log("[v0] Image upload phase completed. URLs:", imageUrls.length, "Failed:", imageUploadFailed)
 
       const primaryCategory = formData.subcategory || formData.category
-      const categoryIndex = formData.subcategory
-        ? subcategories[formData.category]?.indexOf(formData.subcategory) + 1
-        : Math.max(1, categories.indexOf(formData.category) + 1)
+
+      let categoryIndex = 1 // Default fallback value
+
+      if (formData.subcategory && formData.category) {
+        // If subcategory is selected, find its index
+        const subcategoryIndex = subcategories[formData.category]?.indexOf(formData.subcategory)
+        if (subcategoryIndex !== undefined && subcategoryIndex >= 0) {
+          categoryIndex = subcategoryIndex + 1
+        } else {
+          // Fallback to category index if subcategory not found
+          const categoryIndexFallback = categories.indexOf(formData.category)
+          categoryIndex = categoryIndexFallback >= 0 ? categoryIndexFallback + 1 : 1
+        }
+      } else if (formData.category) {
+        // If only category is selected
+        const categoryIndexValue = categories.indexOf(formData.category)
+        categoryIndex = categoryIndexValue >= 0 ? categoryIndexValue + 1 : 1
+      }
+
+      // Ensure categoryIndex is never 0 or null
+      if (!categoryIndex || categoryIndex <= 0) {
+        categoryIndex = 1
+      }
+
+      console.log("[v0] Preparing product data...")
+      console.log("[v0] Primary category:", primaryCategory)
+      console.log("[v0] Category index:", categoryIndex)
+      console.log("[v0] Form category:", formData.category)
+      console.log("[v0] Form subcategory:", formData.subcategory)
 
       const locationParts = formData.location.split(", ")
       const city = locationParts[0] || formData.location
       const province = locationParts[1] || "Unknown"
 
-      console.log("[v0] Preparing product data...")
-      console.log("[v0] Primary category:", primaryCategory)
-      console.log("[v0] Category index:", categoryIndex)
       console.log("[v0] Location parts:", { city, province })
 
       const enhancedDescription = [
