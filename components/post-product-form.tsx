@@ -386,6 +386,7 @@ export function PostProductForm() {
         condition: formData.condition.toLowerCase(),
         location: `${formData.address}, ${city}`.trim(),
         images: imageUrls,
+        category_id: categoryIndex,
         status: "active",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
