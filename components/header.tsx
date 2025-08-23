@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Search,
   Heart,
@@ -32,6 +32,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 import { MegaMenu } from "@/components/mega-menu"
+import { createBrowserClient } from "@supabase/ssr"
 
 const CANADIAN_LOCATIONS = [
   { province: "Alberta", cities: ["Calgary", "Edmonton", "Red Deer", "Lethbridge"] },
@@ -71,38 +72,70 @@ export function Header() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedLocation, setSelectedLocation] = useState("All Canada")
   const [showMegaMenu, setShowMegaMenu] = useState(false)
-
-  const handleLogout = () => {
-    logout()
-    window.location.href = "/"
-  }
+  const [notificationCounts, setNotificationCounts] = useState({
+    favorites: 0,
+    messages: 0,
+    notifications: 0,
+  })
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    const params = new URLSearchParams()
-    if (searchQuery.trim()) {
-      params.set("q", searchQuery.trim())
-    }
-    if (selectedLocation && selectedLocation !== "All Canada") {
-      params.set("location", selectedLocation)
-    }
-
-    const queryString = params.toString()
-    router.push(`/search${queryString ? `?${queryString}` : ""}`)
+    // Implement search logic here
   }
 
-  const handleCategorySelect = (category: string, subcategory?: string) => {
-    const params = new URLSearchParams()
-    params.set("category", category)
-    if (subcategory) {
-      params.set("subcategory", subcategory)
-    }
-    if (selectedLocation && selectedLocation !== "All Canada") {
-      params.set("location", selectedLocation)
-    }
-    router.push(`/search?${params.toString()}`)
-    setShowMegaMenu(false)
+  const handleLogout = () => {
+    logout()
+    router.push("/auth/login")
   }
+
+  const handleCategorySelect = (category: string) => {
+    // Implement category selection logic here
+    console.log("Category selected:", category)
+  }
+
+  useEffect(() => {
+    if (!user?.id) return
+
+    const fetchNotificationCounts = async () => {
+      try {
+        const supabase = createBrowserClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        )
+
+        // Fetch favorites count
+        const { count: favoritesCount } = await supabase
+          .from("favorites")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user.id)
+
+        // Fetch messages count (unread messages)
+        const { count: messagesCount } = await supabase
+          .from("messages")
+          .select("*", { count: "exact", head: true })
+          .eq("recipient_id", user.id)
+          .eq("is_read", false)
+
+        // For now, notifications count can be 0 (implement later when notification system is added)
+        const notificationsCount = 0
+
+        setNotificationCounts({
+          favorites: favoritesCount || 0,
+          messages: messagesCount || 0,
+          notifications: notificationsCount,
+        })
+      } catch (error) {
+        console.log("[v0] Error fetching notification counts:", error)
+        // Keep default values on error
+      }
+    }
+
+    fetchNotificationCounts()
+
+    // Refresh counts every 30 seconds
+    const interval = setInterval(fetchNotificationCounts, 30000)
+    return () => clearInterval(interval)
+  }, [user?.id])
 
   // Show loading state for header
   if (isLoading) {
@@ -214,24 +247,30 @@ export function Header() {
                 <Button variant="ghost" size="sm" className="relative" asChild>
                   <Link href="/dashboard/favorites">
                     <Heart className="h-4 w-4 text-green-800" />
-                    <Badge variant="secondary" className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs">
-                      3
-                    </Badge>
+                    {notificationCounts.favorites > 0 && (
+                      <Badge variant="secondary" className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs">
+                        {notificationCounts.favorites}
+                      </Badge>
+                    )}
                   </Link>
                 </Button>
                 <Button variant="ghost" size="sm" className="relative" asChild>
                   <Link href="/dashboard/messages">
                     <MessageCircle className="h-4 w-4 text-green-800" />
-                    <Badge variant="secondary" className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs">
-                      5
-                    </Badge>
+                    {notificationCounts.messages > 0 && (
+                      <Badge variant="secondary" className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs">
+                        {notificationCounts.messages}
+                      </Badge>
+                    )}
                   </Link>
                 </Button>
                 <Button variant="ghost" size="sm" className="relative">
                   <Bell className="h-4 w-4 text-green-800" />
-                  <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs">
-                    2
-                  </Badge>
+                  {notificationCounts.notifications > 0 && (
+                    <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs">
+                      {notificationCounts.notifications}
+                    </Badge>
+                  )}
                 </Button>
               </>
             )}
