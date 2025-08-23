@@ -6,281 +6,70 @@ import { Badge } from "@/components/ui/badge"
 import { Heart } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { createClient } from "@/lib/supabase/client"
 
-const allProducts = [
-  {
-    id: 1,
-    title: "iPhone 14 Pro Max - Excellent Condition",
-    price: "$899",
-    location: "TORONTO, ON",
-    timePosted: "4 DAYS AGO",
-    image: "/iphone-14-pro-max.png",
-    featured: true,
-    rating: 4.8,
-    reviewCount: 127,
-  },
-  {
-    id: 2,
-    title: "2019 Honda Civic - Low Mileage",
-    price: "$18,500",
-    location: "VANCOUVER, BC",
-    timePosted: "JUL 25",
-    image: "/honda-civic.png",
-    featured: true,
-    rating: 4.6,
-    reviewCount: 89,
-  },
-  {
-    id: 3,
-    title: "Modern Sofa Set - Like New",
-    price: "$650",
-    location: "MONTREAL, QC",
-    timePosted: "TODAY",
-    image: "/modern-sofa.png",
-    featured: false,
-    rating: 4.9,
-    reviewCount: 203,
-  },
-  {
-    id: 4,
-    title: "Gaming Laptop - RTX 3070",
-    price: "$1,200",
-    location: "CALGARY, AB",
-    timePosted: "TODAY",
-    image: "/gaming-laptop.png",
-    featured: false,
-    rating: 4.7,
-    reviewCount: 156,
-  },
-  {
-    id: 5,
-    title: "Vintage Leather Jacket",
-    price: "$85",
-    location: "OTTAWA, ON",
-    timePosted: "2 DAYS AGO",
-    image: "/vintage-leather-jacket.png",
-    featured: false,
-    rating: 4.5,
-    reviewCount: 67,
-  },
-  {
-    id: 6,
-    title: "Mountain Bike - Trek 2021",
-    price: "$450",
-    location: "EDMONTON, AB",
-    timePosted: "JUL 23",
-    image: "/trek-mountain-bike.png",
-    featured: true,
-    rating: 4.8,
-    reviewCount: 94,
-  },
-  {
-    id: 7,
-    title: "iPhone 13 - Good Condition",
-    price: "$599",
-    location: "WINNIPEG, MB",
-    timePosted: "TODAY",
-    image: "/iphone-13.png",
-    featured: false,
-    rating: 4.4,
-    reviewCount: 78,
-  },
-  {
-    id: 8,
-    title: "Dining Table Set - Oak Wood",
-    price: "$350",
-    location: "HALIFAX, NS",
-    timePosted: "JUL 24",
-    image: "/rustic-oak-table.png",
-    featured: false,
-    rating: 4.9,
-    reviewCount: 112,
-  },
-  {
-    id: 9,
-    title: "Samsung Galaxy S23 Ultra",
-    price: "$750",
-    location: "SASKATOON, SK",
-    timePosted: "3 HOURS AGO",
-    image: "/samsung-galaxy-phone.png",
-    featured: false,
-    rating: 4.6,
-    reviewCount: 145,
-  },
-  {
-    id: 10,
-    title: "MacBook Air M2 - Like New",
-    price: "$1,100",
-    location: "VICTORIA, BC",
-    timePosted: "1 DAY AGO",
-    image: "/sleek-macbook-air.png",
-    featured: true,
-    rating: 4.8,
-    reviewCount: 189,
-  },
-  {
-    id: 11,
-    title: "Sectional Couch - Grey",
-    price: "$800",
-    location: "REGINA, SK",
-    timePosted: "2 DAYS AGO",
-    image: "/grey-sectional-couch.png",
-    featured: false,
-    rating: 4.7,
-    reviewCount: 98,
-  },
-  {
-    id: 12,
-    title: "2020 Toyota Camry",
-    price: "$22,000",
-    location: "LONDON, ON",
-    timePosted: "JUL 22",
-    image: "/toyota-camry-sedan.png",
-    featured: false,
-    rating: 4.5,
-    reviewCount: 76,
-  },
-  {
-    id: 13,
-    title: "Electric Guitar - Fender",
-    price: "$650",
-    location: "QUEBEC CITY, QC",
-    timePosted: "5 HOURS AGO",
-    image: "/fender-electric-guitar.png",
-    featured: false,
-    rating: 4.9,
-    reviewCount: 134,
-  },
-  {
-    id: 14,
-    title: "Treadmill - NordicTrack",
-    price: "$400",
-    location: "KITCHENER, ON",
-    timePosted: "TODAY",
-    image: "/nordictrack-treadmill.png",
-    featured: false,
-    rating: 4.3,
-    reviewCount: 87,
-  },
-  {
-    id: 15,
-    title: "Wedding Dress - Size 8",
-    price: "$300",
-    location: "CHARLOTTETOWN, PE",
-    timePosted: "JUL 21",
-    image: "/white-wedding-dress.png",
-    featured: false,
-    rating: 4.8,
-    reviewCount: 45,
-  },
-  {
-    id: 16,
-    title: "PlayStation 5 Console",
-    price: "$550",
-    location: "THUNDER BAY, ON",
-    timePosted: "6 HOURS AGO",
-    image: "/playstation-5-console.png",
-    featured: true,
-    rating: 4.7,
-    reviewCount: 167,
-  },
-  {
-    id: 17,
-    title: "Dining Room Table - Marble",
-    price: "$900",
-    location: "BURNABY, BC",
-    timePosted: "1 DAY AGO",
-    image: "/placeholder-z5gxr.png",
-    featured: false,
-    rating: 4.6,
-    reviewCount: 92,
-  },
-  {
-    id: 18,
-    title: "Canon DSLR Camera",
-    price: "$450",
-    location: "MISSISSAUGA, ON",
-    timePosted: "JUL 20",
-    image: "/canon-dslr.png",
-    featured: false,
-    rating: 4.8,
-    reviewCount: 123,
-  },
-  {
-    id: 19,
-    title: "Baby Stroller - Chicco",
-    price: "$120",
-    location: "SURREY, BC",
-    timePosted: "TODAY",
-    image: "/stylish-baby-stroller.png",
-    featured: false,
-    rating: 4.5,
-    reviewCount: 68,
-  },
-  {
-    id: 20,
-    title: "Office Chair - Ergonomic",
-    price: "$180",
-    location: "BRAMPTON, ON",
-    timePosted: "2 HOURS AGO",
-    image: "/ergonomic-office-chair.png",
-    featured: false,
-    rating: 4.4,
-    reviewCount: 89,
-  },
-  {
-    id: 21,
-    title: "iPad Pro 12.9 inch",
-    price: "$800",
-    location: "LAVAL, QC",
-    timePosted: "JUL 19",
-    image: "/ipad-pro-tablet.png",
-    featured: false,
-    rating: 4.9,
-    reviewCount: 178,
-  },
-  {
-    id: 22,
-    title: "Bookshelf - Solid Wood",
-    price: "$150",
-    location: "HAMILTON, ON",
-    timePosted: "3 DAYS AGO",
-    image: "/wooden-bookshelf.png",
-    featured: false,
-    rating: 4.6,
-    reviewCount: 54,
-  },
-  {
-    id: 23,
-    title: "Nike Air Jordan Sneakers",
-    price: "$220",
-    location: "MARKHAM, ON",
-    timePosted: "TODAY",
-    image: "/classic-sneakers.png",
-    featured: false,
-    rating: 4.7,
-    reviewCount: 143,
-  },
-  {
-    id: 24,
-    title: "Washing Machine - LG",
-    price: "$400",
-    location: "GATINEAU, QC",
-    timePosted: "1 DAY AGO",
-    image: "/placeholder-4ma5g.png",
-    featured: false,
-    rating: 4.5,
-    reviewCount: 91,
-  },
-]
+interface Product {
+  id: string
+  title: string
+  price: number
+  price_type: string
+  location: string
+  city: string
+  province: string
+  condition: string
+  category: string
+  subcategory?: string
+  brand?: string
+  model?: string
+  description: string
+  images: string[]
+  created_at: string
+  user_id: string
+  featured?: boolean
+}
 
 export function ProductGrid() {
+  const [products, setProducts] = useState<Product[]>([])
   const [visibleCount, setVisibleCount] = useState(20)
-  const [isLoading, setIsLoading] = useState(false)
-  const [favorites, setFavorites] = useState<Set<number>>(new Set())
+  const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [favorites, setFavorites] = useState<Set<string>>(new Set())
+  const [error, setError] = useState<string | null>(null)
 
-  const toggleFavorite = (productId: number, e: React.MouseEvent) => {
+  const supabase = createClient()
+
+  const fetchProducts = async () => {
+    try {
+      console.log("[v0] Fetching products from database...")
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(visibleCount)
+
+      if (error) {
+        console.error("[v0] Error fetching products:", error)
+        setError("Failed to load ads")
+        return
+      }
+
+      console.log("[v0] Fetched products:", data?.length || 0)
+      setProducts(data || [])
+      setError(null)
+    } catch (err) {
+      console.error("[v0] Error fetching products:", err)
+      setError("Failed to load ads")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchProducts()
+  }, [visibleCount])
+
+  const toggleFavorite = (productId: string, e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setFavorites((prev) => {
@@ -290,34 +79,127 @@ export function ProductGrid() {
     })
   }
 
-  const visibleProducts = allProducts.slice(0, visibleCount)
-  const hasMore = visibleCount < allProducts.length
+  const loadMore = async () => {
+    setIsLoadingMore(true)
+    const newVisibleCount = visibleCount + 12
 
-  const loadMore = () => {
-    setIsLoading(true)
-    setTimeout(() => {
-      setVisibleCount((prev) => Math.min(prev + 12, allProducts.length))
-      setIsLoading(false)
-    }, 500)
+    try {
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(newVisibleCount)
+
+      if (error) {
+        console.error("[v0] Error loading more products:", error)
+        return
+      }
+
+      setProducts(data || [])
+      setVisibleCount(newVisibleCount)
+    } catch (err) {
+      console.error("[v0] Error loading more products:", err)
+    } finally {
+      setIsLoadingMore(false)
+    }
   }
+
+  const formatPrice = (price: number, priceType: string) => {
+    if (priceType === "free") return "Free"
+    if (priceType === "contact") return "Contact for Price"
+    return `$${price.toLocaleString()}`
+  }
+
+  const formatTimePosted = (createdAt: string) => {
+    const now = new Date()
+    const posted = new Date(createdAt)
+    const diffInHours = Math.floor((now.getTime() - posted.getTime()) / (1000 * 60 * 60))
+
+    if (diffInHours < 1) return "Just now"
+    if (diffInHours < 24) return `${diffInHours} hours ago`
+    if (diffInHours < 48) return "1 day ago"
+    if (diffInHours < 168) return `${Math.floor(diffInHours / 24)} days ago`
+    return posted.toLocaleDateString()
+  }
+
+  if (isLoading) {
+    return (
+      <section className="py-2">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xl font-bold text-foreground">Latest Ads</h3>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <Card
+                key={i}
+                className="h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-md animate-pulse"
+              >
+                <div className="w-full h-40 sm:h-48 lg:h-52 bg-gray-200"></div>
+                <div className="p-2 flex flex-col flex-1">
+                  <div className="h-4 bg-gray-200 rounded mb-2"></div>
+                  <div className="h-3 bg-gray-200 rounded mb-1"></div>
+                  <div className="h-3 bg-gray-200 rounded"></div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (error) {
+    return (
+      <section className="py-2">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center py-8">
+            <p className="text-red-600 mb-4">{error}</p>
+            <Button onClick={fetchProducts} className="bg-green-600 hover:bg-green-700">
+              Try Again
+            </Button>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (products.length === 0) {
+    return (
+      <section className="py-2">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xl font-bold text-foreground">Latest Ads</h3>
+          </div>
+          <div className="text-center py-8">
+            <p className="text-gray-600 mb-4">No ads posted yet. Be the first to post an ad!</p>
+            <Link href="/sell">
+              <Button className="bg-green-600 hover:bg-green-700">Post Your First Ad</Button>
+            </Link>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  const hasMore = products.length >= visibleCount
 
   return (
     <section className="py-2">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-xl font-bold text-foreground">Latest Ads</h3>
+          <p className="text-sm text-gray-600">{products.length} ads found</p>
         </div>
 
-        {/* Exactly 6 per row on large screens; comfortable spacing */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          {visibleProducts.map((product) => (
+          {products.map((product) => (
             <Link key={product.id} href={`/product/${product.id}`} className="block">
               <Card className="group h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-md hover:shadow-md transition-all duration-150">
                 <CardContent className="p-0 flex flex-col h-full">
-                  {/* ✅ Option 1: fixed heights + object-cover (no white bars) */}
                   <div className="relative w-full h-40 sm:h-48 lg:h-52 overflow-hidden bg-gray-50">
                     <img
-                      src={product.image || "/placeholder.svg"}
+                      src={product.images?.[0] || "/placeholder.svg?height=200&width=200&query=product"}
                       alt={product.title}
                       loading="lazy"
                       className="w-full h-full object-cover"
@@ -342,17 +224,18 @@ export function ProductGrid() {
                         Featured
                       </Badge>
                     )}
+
+                    <Badge className="absolute bottom-1 left-1 bg-black/70 text-white text-[9px] font-mono px-1 py-0.5 rounded">
+                      ID: {product.id.slice(-8)}
+                    </Badge>
                   </div>
 
                   <div className="p-2 flex flex-col flex-1">
                     <div className="flex items-start justify-between mb-1">
-                      <p className="text-sm font-bold text-black">{product.price}</p>
-                      <div className="flex items-center gap-0.5">
-                        <span className="text-yellow-500 text-xs" aria-hidden>
-                          ★
-                        </span>
-                        <span className="text-xs text-gray-700">{product.rating}</span>
-                      </div>
+                      <p className="text-sm font-bold text-black">{formatPrice(product.price, product.price_type)}</p>
+                      <Badge variant="outline" className="text-[9px] px-1 py-0">
+                        {product.condition}
+                      </Badge>
                     </div>
 
                     <h4 className="text-xs text-gray-700 leading-tight line-clamp-2 mb-1 min-h-[2rem]">
@@ -360,8 +243,10 @@ export function ProductGrid() {
                     </h4>
 
                     <div className="flex items-center justify-between text-[11px] text-gray-500 uppercase tracking-wide mt-auto">
-                      <span className="truncate">{product.location}</span>
-                      <span className="whitespace-nowrap">{product.timePosted}</span>
+                      <span className="truncate">
+                        {product.city}, {product.province}
+                      </span>
+                      <span className="whitespace-nowrap">{formatTimePosted(product.created_at)}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -374,10 +259,10 @@ export function ProductGrid() {
           <div className="text-center mt-6">
             <Button
               onClick={loadMore}
-              disabled={isLoading}
+              disabled={isLoadingMore}
               className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 text-sm font-medium rounded"
             >
-              {isLoading ? "Loading..." : "Show More"}
+              {isLoadingMore ? "Loading..." : "Show More"}
             </Button>
           </div>
         )}
