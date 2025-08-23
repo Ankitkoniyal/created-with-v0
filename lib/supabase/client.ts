@@ -20,18 +20,7 @@ if (isSupabaseConfigured) {
           autoRefreshToken: true,
           detectSessionInUrl: true,
         },
-        global: {
-          fetch: (url, options = {}) => {
-            return fetch(url, {
-              ...options,
-              // Add timeout to prevent hanging requests
-              signal: AbortSignal.timeout(10000),
-            }).catch((error) => {
-              console.error("[v0] Supabase fetch error:", error)
-              throw new Error("Network connection failed")
-            })
-          },
-        },
+        // Let Supabase handle networking internally for better compatibility
       },
     )
   } catch (error) {
