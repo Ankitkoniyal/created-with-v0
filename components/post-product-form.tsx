@@ -408,6 +408,7 @@ export function PostProductForm() {
         price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
         condition: formData.condition.toLowerCase(),
         location: `${formData.address}, ${city}`.trim(),
+        city: city, // Added missing city field for database constraint
         province: province, // Added missing province field
         images: imageUrls,
         category_id: categoryIndex,
