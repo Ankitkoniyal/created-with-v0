@@ -148,19 +148,6 @@ export default function SettingsPage() {
                         onCheckedChange={(checked) => setPrivacy({ ...privacy, showEmail: checked })}
                       />
                     </div>
-
-                    <Separator />
-
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="font-medium">Search Engine Indexing</h4>
-                        <p className="text-sm text-muted-foreground">Allow search engines to index your ads</p>
-                      </div>
-                      <Switch
-                        checked={privacy.allowSearchEngines}
-                        onCheckedChange={(checked) => setPrivacy({ ...privacy, allowSearchEngines: checked })}
-                      />
-                    </div>
                   </CardContent>
                 </Card>
 
@@ -214,12 +201,24 @@ export default function SettingsPage() {
                       <div>
                         <h4 className="font-medium">Delete Account</h4>
                         <p className="text-sm text-muted-foreground">
-                          Permanently delete your account and all associated data
+                          Deactivate your account (your information will be preserved for system integrity)
                         </p>
                       </div>
-                      <Button variant="destructive">
+                      <Button
+                        variant="destructive"
+                        onClick={() => {
+                          if (
+                            confirm("Are you sure you want to deactivate your account? This action cannot be undone.")
+                          ) {
+                            console.log(
+                              "[v0] Account deactivation requested - user data will be preserved for system integrity",
+                            )
+                            alert("Account has been deactivated. Your data is preserved for system integrity.")
+                          }
+                        }}
+                      >
                         <Trash2 className="h-4 w-4 mr-2" />
-                        Delete Account
+                        Deactivate Account
                       </Button>
                     </div>
                   </CardContent>

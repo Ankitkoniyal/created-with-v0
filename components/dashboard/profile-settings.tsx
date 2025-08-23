@@ -1,6 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import type React from "react"
+
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,13 +16,16 @@ import { Camera, Shield, Star, Calendar } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 
 export function ProfileSettings() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const [isEditing, setIsEditing] = useState(false)
-  const [showPasswordReset, setShowPasswordReset] = useState(false) // Added password reset state
+  const [showPasswordReset, setShowPasswordReset] = useState(false)
+  const [imageUpload, setImageUpload] = useState<File | null>(null)
   const [formData, setFormData] = useState({
-    name: user?.name || "",
-    location: "Toronto, ON", // Updated to Canadian location
-    bio: "Passionate about technology and vintage items. Selling quality products with honest descriptions.",
+    name: profile?.name || "",
+    location: profile?.location || "Toronto, ON",
+    bio:
+      profile?.bio ||
+      "Passionate about technology and vintage items. Selling quality products with honest descriptions.",
     notifications: {
       email: true,
       sms: false,
@@ -28,48 +33,77 @@ export function ProfileSettings() {
     },
   })
 
+  useEffect(() => {
+    if (profile) {
+      setFormData((prev) => ({
+        ...prev,
+        name: profile.name || "",
+        location: profile.location || "Toronto, ON",
+        bio:
+          profile.bio ||
+          "Passionate about technology and vintage items. Selling quality products with honest descriptions.",
+      }))
+    }
+  }, [profile])
+
   const handleSave = () => {
-    // In a real app, you would save to backend
-    console.log("Saving profile:", formData)
+    console.log("[v0] Saving profile:", formData)
+    console.log("[v0] Profile image:", imageUpload)
     setIsEditing(false)
   }
 
   const handlePasswordReset = () => {
-    // In a real app, you would trigger password reset
     console.log("Password reset requested")
     setShowPasswordReset(false)
-    // Show success message
+  }
+
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      setImageUpload(file)
+      console.log("[v0] Profile image selected:", file.name)
+    }
   }
 
   return (
     <div className="space-y-6">
-      {/* Profile Header */}
       <Card>
         <CardContent className="p-6">
           <div className="flex items-center space-x-6">
             <div className="relative">
               <Avatar className="h-24 w-24">
-                <AvatarImage src={user?.avatar || "/placeholder.svg"} alt={user?.name} />
+                <AvatarImage src={profile?.avatar_url || "/placeholder.svg"} alt={profile?.name} />
                 <AvatarFallback className="text-2xl">
-                  {user?.name
-                    ? user.name
+                  {profile?.name
+                    ? profile.name
                         .split(" ")
                         .map((n) => n[0])
                         .join("")
                     : "U"}
                 </AvatarFallback>
               </Avatar>
-              {isEditing && ( // Only show camera button when editing
-                <Button size="sm" className="absolute -bottom-2 -right-2 rounded-full h-8 w-8 p-0">
-                  <Camera className="h-4 w-4" />
-                </Button>
+              {isEditing && (
+                <label htmlFor="avatar-upload">
+                  <Button size="sm" className="absolute -bottom-2 -right-2 rounded-full h-8 w-8 p-0" asChild>
+                    <span>
+                      <Camera className="h-4 w-4" />
+                    </span>
+                  </Button>
+                  <input
+                    id="avatar-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageUpload}
+                  />
+                </label>
               )}
             </div>
 
             <div className="flex-1">
               <div className="flex items-center space-x-2 mb-2">
-                <h2 className="text-2xl font-bold text-foreground">{user?.name}</h2>
-                {user?.verified && (
+                <h2 className="text-2xl font-bold text-foreground">{profile?.name}</h2>
+                {profile?.verified && (
                   <Badge variant="secondary" className="flex items-center">
                     <Shield className="h-3 w-3 mr-1" />
                     Verified
@@ -84,7 +118,12 @@ export function ProfileSettings() {
                 </div>
                 <div className="flex items-center">
                   <Calendar className="h-4 w-4 mr-1" />
-                  <span>Member since {user?.memberSince}</span>
+                  <span>
+                    Member since{" "}
+                    {profile?.created_at
+                      ? new Date(profile.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" })
+                      : "Dec 2024"}
+                  </span>
                 </div>
               </div>
 
@@ -94,7 +133,6 @@ export function ProfileSettings() {
         </CardContent>
       </Card>
 
-      {/* Personal Information */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Personal Information</CardTitle>
@@ -119,13 +157,13 @@ export function ProfileSettings() {
 
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={user?.email || ""} disabled={true} className="bg-muted" />
+              <Input id="email" type="email" value={profile?.email || ""} disabled={true} className="bg-muted" />
               <p className="text-xs text-muted-foreground">Email cannot be changed</p>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="phone">Phone Number</Label>
-              <Input id="phone" value="+1 (555) 123-4567" disabled={true} className="bg-muted" />
+              <Input id="phone" value={profile?.phone || "+1 (555) 123-4567"} disabled={true} className="bg-muted" />
               <p className="text-xs text-muted-foreground">Phone number cannot be changed</p>
             </div>
 
@@ -186,7 +224,6 @@ export function ProfileSettings() {
         </CardContent>
       </Card>
 
-      {/* Notification Settings */}
       <Card>
         <CardHeader>
           <CardTitle>Notification Preferences</CardTitle>
