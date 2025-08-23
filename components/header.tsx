@@ -325,14 +325,18 @@ export function Header() {
                 <Button
                   size="sm"
                   className="bg-green-800 hover:bg-green-900 text-white font-medium px-4 py-2 rounded-full shadow-lg hover:shadow-green-800/30 transition-all duration-300 transform hover:scale-105 border border-white/10 hover:border-white/20 relative overflow-hidden group"
-                  asChild
+                  onClick={() => {
+                    if (!isAuthenticated) {
+                      router.push("/auth/login?redirectedFrom=" + encodeURIComponent("/sell"))
+                    } else {
+                      router.push("/sell")
+                    }
+                  }}
                 >
-                  <Link href="/sell">
-                    <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></span>
-                    <span className="relative z-10 flex items-center gap-2">
-                      <span className="font-semibold">SELL NOW</span>
-                    </span>
-                  </Link>
+                  <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></span>
+                  <span className="relative z-10 flex items-center gap-2">
+                    <span className="font-semibold">SELL NOW</span>
+                  </span>
                 </Button>
               </>
             ) : (
@@ -346,14 +350,18 @@ export function Header() {
                 <Button
                   size="sm"
                   className="bg-green-800 hover:bg-green-900 text-white font-medium px-4 py-2 rounded-full shadow-lg hover:shadow-green-800/30 transition-all duration-300 transform hover:scale-105 border border-white/10 hover:border-white/20 relative overflow-hidden group"
-                  asChild
+                  onClick={() => {
+                    if (!isAuthenticated) {
+                      router.push("/auth/login?redirectedFrom=" + encodeURIComponent("/sell"))
+                    } else {
+                      router.push("/sell")
+                    }
+                  }}
                 >
-                  <Link href="/sell">
-                    <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></span>
-                    <span className="relative z-10 flex items-center gap-2">
-                      <span className="font-semibold">SELL NOW</span>
-                    </span>
-                  </Link>
+                  <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></span>
+                  <span className="relative z-10 flex items-center gap-2">
+                    <span className="font-semibold">SELL NOW</span>
+                  </span>
                 </Button>
               </>
             )}

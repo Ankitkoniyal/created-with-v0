@@ -4,11 +4,11 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { LayoutDashboard, Package, Heart, User, Settings, MessageSquare, TrendingUp } from "lucide-react"
-import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 import { useState, useEffect } from "react"
 import { createBrowserClient } from "@supabase/ssr"
+import { useRouter } from "next/navigation"
 
 const navItems = [
   {
@@ -53,6 +53,7 @@ const navItems = [
 
 export function DashboardNav() {
   const pathname = usePathname()
+  const router = useRouter()
   const { user } = useAuth()
   const [dashboardCounts, setDashboardCounts] = useState({
     myAds: 0,
@@ -180,17 +181,18 @@ export function DashboardNav() {
                 key={item.href}
                 variant={isActive ? "secondary" : "ghost"}
                 className="w-full justify-start"
-                asChild
+                onClick={() => {
+                  console.log("[v0] Navigating to:", item.href)
+                  router.push(item.href)
+                }}
               >
-                <Link href={item.href}>
-                  <Icon className="h-4 w-4 mr-3" />
-                  {item.title}
-                  {item.badge && (
-                    <Badge variant="secondary" className="ml-auto">
-                      {item.badge}
-                    </Badge>
-                  )}
-                </Link>
+                <Icon className="h-4 w-4 mr-3" />
+                {item.title}
+                {item.badge && (
+                  <Badge variant="secondary" className="ml-auto">
+                    {item.badge}
+                  </Badge>
+                )}
               </Button>
             )
           })}
