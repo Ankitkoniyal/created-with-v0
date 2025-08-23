@@ -6,6 +6,7 @@ interface SearchPageProps {
   searchParams: {
     q?: string
     category?: string
+    subcategory?: string
     minPrice?: string
     maxPrice?: string
     condition?: string
@@ -18,6 +19,7 @@ export default function SearchPage({ searchParams }: SearchPageProps) {
   const query = searchParams.q || ""
   const filters = {
     category: searchParams.category || "",
+    subcategory: searchParams.subcategory || "",
     minPrice: searchParams.minPrice || "",
     maxPrice: searchParams.maxPrice || "",
     condition: searchParams.condition || "",

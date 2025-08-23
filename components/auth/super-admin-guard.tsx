@@ -34,8 +34,8 @@ export function SuperAdminGuard({ children }: SuperAdminGuardProps) {
 
       const { data: profile } = await supabase.from("profiles").select("role, email").eq("id", user.id).single()
 
-      // Only allow access if user has 'owner' role or is the specific owner email
-      const isOwner = profile?.role === "owner" || user.email === "owner@example.com" // Replace with actual owner email
+      const ownerEmail = process.env.NEXT_PUBLIC_OWNER_EMAIL || "ankit.koniyal000@gmail.com"
+      const isOwner = profile?.role === "owner" || user.email === ownerEmail
 
       if (isOwner) {
         setIsAuthorized(true)

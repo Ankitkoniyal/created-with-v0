@@ -11,10 +11,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
-import { X, Camera, MapPin, DollarSign, Package, FileText, ImageIcon, Tag } from "lucide-react"
+import { X, Camera, MapPin, DollarSign, Package, FileText, ImageIcon, Tag, AlertCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface ProductFormData {
   title: string
@@ -164,6 +165,7 @@ export function PostProductForm() {
   const [newFeature, setNewFeature] = useState("")
   const [newTag, setNewTag] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const handleInputChange = (field: keyof ProductFormData, value: string | boolean) => {
     setFormData((prev) => ({
@@ -241,12 +243,54 @@ export function PostProductForm() {
       return
     }
 
+    if (!formData.title.trim()) {
+      alert("Product title is required")
+      return
+    }
+
+    if (!formData.category) {
+      alert("Please select a category")
+      return
+    }
+
+    if (!formData.condition) {
+      alert("Please select the product condition")
+      return
+    }
+
+    if (formData.priceType === "amount" && (!formData.price || Number.parseFloat(formData.price) <= 0)) {
+      alert("Please enter a valid price")
+      return
+    }
+
+    if (!formData.description.trim()) {
+      alert("Product description is required")
+      return
+    }
+
+    if (!formData.address.trim()) {
+      alert("Address is required")
+      return
+    }
+
+    if (!formData.location) {
+      alert("Please select a city/province")
+      return
+    }
+
     if (!formData.postalCode.trim()) {
       alert("Postal code is required")
       return
     }
 
+    const postalCodeRegex = /^[A-Z]\d[A-Z]\s?\d[A-Z]\d$/
+    if (!postalCodeRegex.test(formData.postalCode.replace(/\s/g, ""))) {
+      alert("Please enter a valid Canadian postal code (e.g., M5V 3A8)")
+      return
+    }
+
     setIsSubmitting(true)
+    setSubmitError(null)
     console.log("[v0] Starting ad submission process")
 
     try {
@@ -257,17 +301,29 @@ export function PostProductForm() {
 
       if (formData.images.length > 0) {
         console.log("[v0] Uploading images:", formData.images.length)
-        for (const image of formData.images) {
+        for (let i = 0; i < formData.images.length; i++) {
+          const image = formData.images[i]
           try {
-            const fileName = `${user.id}/${Date.now()}-${image.name}`
+            const fileExtension = image.name.split(".").pop() || "jpg"
+            const fileName = `${user.id}/${Date.now()}-${i + 1}.${fileExtension}`
+
+            console.log("[v0] Uploading image:", fileName)
             const { data: uploadData, error: uploadError } = await supabase.storage
               .from("product-images")
-              .upload(fileName, image)
+              .upload(fileName, image, {
+                cacheControl: "3600",
+                upsert: false,
+              })
 
             if (uploadError) {
               console.error("[v0] Image upload error:", uploadError)
-              imageUploadFailed = true
-              break // Stop trying to upload more images
+              if (uploadError.message.includes("row-level security") || uploadError.message.includes("policy")) {
+                console.log("[v0] Skipping image upload due to RLS policy restrictions")
+                imageUploadFailed = true
+                break
+              } else {
+                throw uploadError
+              }
             } else {
               const {
                 data: { publicUrl },
@@ -283,30 +339,29 @@ export function PostProductForm() {
         }
       }
 
+      const primaryCategory = formData.subcategory || formData.category
       const categoryIndex = formData.subcategory
         ? subcategories[formData.category]?.indexOf(formData.subcategory) + 1
         : Math.max(1, categories.indexOf(formData.category) + 1)
 
-      // Parse location to get city and province
       const locationParts = formData.location.split(", ")
       const city = locationParts[0] || formData.location
       const province = locationParts[1] || "Unknown"
 
-      // Build enhanced description with all additional info
       const enhancedDescription = [
         formData.description,
-        formData.address ? `\n\nAddress: ${formData.address}` : "",
-        formData.location ? `\nLocation: ${formData.location}` : "",
+        formData.address ? `\n\n📍 Address: ${formData.address}` : "",
+        formData.location ? `\n🏙️ Location: ${formData.location}` : "",
         formData.postalCode ? ` ${formData.postalCode}` : "",
-        formData.brand ? `\nBrand: ${formData.brand}` : "",
-        formData.model ? `\nModel: ${formData.model}` : "",
-        formData.youtubeUrl ? `\n\nVideo: ${formData.youtubeUrl}` : "",
-        formData.websiteUrl ? `\n\nWebsite: ${formData.websiteUrl}` : "",
-        formData.tags.length > 0 ? `\n\nTags: ${formData.tags.join(", ")}` : "",
-        formData.features.length > 0 ? `\n\nFeatures: ${formData.features.join(", ")}` : "",
+        formData.brand ? `\n🏷️ Brand: ${formData.brand}` : "",
+        formData.model ? `\n📱 Model: ${formData.model}` : "",
+        formData.youtubeUrl ? `\n\n🎥 Video: ${formData.youtubeUrl}` : "",
+        formData.websiteUrl ? `\n🌐 Website: ${formData.websiteUrl}` : "",
+        formData.tags.length > 0 ? `\n\n🏷️ Tags: ${formData.tags.join(", ")}` : "",
+        formData.features.length > 0 ? `\n\n✨ Features: ${formData.features.join(", ")}` : "",
         formData.showMobileNumber ? "\n\n📱 Mobile number available - contact seller" : "",
         formData.priceType !== "amount"
-          ? `\n\nPrice: ${formData.priceType === "free" ? "Free" : formData.priceType === "contact" ? "Contact for price" : "Swap/Exchange"}`
+          ? `\n\n💰 Price: ${formData.priceType === "free" ? "Free" : formData.priceType === "contact" ? "Contact for price" : "Swap/Exchange"}`
           : "",
       ]
         .filter(Boolean)
@@ -315,14 +370,19 @@ export function PostProductForm() {
       const productData = {
         user_id: user.id,
         category_id: categoryIndex,
-        title: formData.title,
+        primary_category: primaryCategory,
+        title: formData.title.trim(),
         description: enhancedDescription,
         price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
         condition: formData.condition.toLowerCase(),
         location: formData.address || city,
         province: province,
         city: city,
+        postal_code: formData.postalCode.replace(/\s/g, "").toUpperCase(),
         images: imageUrls,
+        status: "active",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       }
 
       console.log("[v0] Attempting to insert product data:", productData)
@@ -333,22 +393,18 @@ export function PostProductForm() {
         console.error("[v0] Database error:", error.message)
 
         if (error.message.includes("row-level security") || error.message.includes("policy")) {
-          alert(
-            `🔒 Database Security Setup Required\n\nYour Supabase database has security policies enabled but not configured for posting ads.\n\nPlease contact your administrator to set up the required policies.`,
+          setSubmitError(
+            "Database security policies need to be configured. Please contact your administrator to enable ad posting.",
           )
-          setIsSubmitting(false)
           return
         } else if (error.message.includes("column") && error.message.includes("does not exist")) {
-          alert(
-            `❌ Database schema issue: ${error.message}\n\nPlease run the database migration scripts or contact support.`,
-          )
-          setIsSubmitting(false)
+          setSubmitError(`Database schema issue: ${error.message}. Please run the required database migrations.`)
+          return
+        } else if (error.message.includes("duplicate key") || error.message.includes("unique constraint")) {
+          setSubmitError("A similar ad already exists. Please modify your listing and try again.")
           return
         } else {
-          alert(
-            `❌ Failed to post your ad: ${error.message}\n\nPlease try again or contact support if the issue persists.`,
-          )
-          setIsSubmitting(false)
+          setSubmitError(`Failed to post your ad: ${error.message}. Please try again.`)
           return
         }
       }
@@ -356,16 +412,16 @@ export function PostProductForm() {
       console.log("[v0] Product saved successfully:", data)
 
       const successMessage = imageUploadFailed
-        ? "✅ Your ad has been posted successfully! (Note: Some images couldn't be uploaded due to storage restrictions)"
-        : "✅ Your ad has been posted successfully!"
+        ? "Your ad has been posted successfully! (Note: Some images couldn't be uploaded due to storage restrictions)"
+        : "Your ad has been posted successfully!"
 
-      alert(successMessage)
-      console.log("[v0] Redirecting to dashboard listings")
-      router.push(`/dashboard/listings`)
+      console.log("[v0] Redirecting to success page")
+      sessionStorage.setItem("adPostSuccess", successMessage)
+      router.push(`/sell/success?id=${data.id}`)
     } catch (error) {
       console.error("[v0] Submission error:", error)
-      alert(
-        `❌ An unexpected error occurred: ${error instanceof Error ? error.message : "Unknown error"}\n\nPlease try again or contact support.`,
+      setSubmitError(
+        `An unexpected error occurred: ${error instanceof Error ? error.message : "Unknown error"}. Please try again.`,
       )
     } finally {
       setIsSubmitting(false)
@@ -380,6 +436,13 @@ export function PostProductForm() {
 
   return (
     <div className="space-y-6 bg-green-50 p-6 rounded-lg">
+      {submitError && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{submitError}</AlertDescription>
+        </Alert>
+      )}
+
       <div className="flex items-center justify-center space-x-4 mb-8">
         {[1, 2, 3, 4].map((step) => (
           <div key={step} className="flex items-center">
@@ -554,7 +617,6 @@ export function PostProductForm() {
                 Pricing *
               </Label>
 
-              {/* Price type selection */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
                   { value: "amount", label: "Set Price" },
@@ -578,7 +640,6 @@ export function PostProductForm() {
                 ))}
               </div>
 
-              {/* Price input - only show when "Set Price" is selected */}
               {formData.priceType === "amount" && (
                 <div className="space-y-2">
                   <Label htmlFor="price">Enter Amount</Label>
@@ -596,7 +657,6 @@ export function PostProductForm() {
                 </div>
               )}
 
-              {/* Show selected option message */}
               {formData.priceType !== "amount" && (
                 <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-lg">
                   Selected:{" "}
@@ -635,39 +695,7 @@ export function PostProductForm() {
               <p className="text-sm text-muted-foreground">{formData.description.length}/1000 characters</p>
             </div>
 
-            <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
-              <Label className="text-base font-semibold">Media & Links (Optional)</Label>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="youtubeUrl">YouTube Video</Label>
-                  <Input
-                    id="youtubeUrl"
-                    placeholder="https://www.youtube.com/watch?v=..."
-                    value={formData.youtubeUrl}
-                    onChange={(e) => handleInputChange("youtubeUrl", e.target.value)}
-                    className="border-2 border-gray-200 focus:border-primary"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Add a YouTube video to showcase your product in action
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="websiteUrl">Website URL</Label>
-                  <Input
-                    id="websiteUrl"
-                    placeholder="https://www.example.com"
-                    value={formData.websiteUrl}
-                    onChange={(e) => handleInputChange("websiteUrl", e.target.value)}
-                    className="border-2 border-gray-200 focus:border-primary"
-                  />
-                  <p className="text-xs text-muted-foreground">Link to your website or product page for more details</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-3 p-4 border-2 border-primary/20 bg-primary/5 rounded-lg">
+            <div className="space-y-4 p-4 border-2 border-primary/20 bg-primary/5 rounded-lg">
               <Checkbox
                 id="showMobileNumber"
                 checked={formData.showMobileNumber}
@@ -934,7 +962,7 @@ export function PostProductForm() {
         <Button
           variant="outline"
           onClick={() => setCurrentStep((prev) => Math.max(1, prev - 1))}
-          disabled={currentStep === 1}
+          disabled={currentStep === 1 || isSubmitting}
         >
           Previous
         </Button>
@@ -945,7 +973,8 @@ export function PostProductForm() {
             disabled={
               (currentStep === 1 && !isStep1Valid) ||
               (currentStep === 2 && !isStep2Valid) ||
-              (currentStep === 3 && !isStep3Valid)
+              (currentStep === 3 && !isStep3Valid) ||
+              isSubmitting
             }
           >
             Next

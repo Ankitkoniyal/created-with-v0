@@ -1,45 +1,22 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Heart, MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { createClient } from "@/lib/supabase/client"
 
-// Mock related products data
-const relatedProducts = [
-  {
-    id: "3",
-    title: "iPhone 13 Pro - Great Condition",
-    price: "$699",
-    location: "Brooklyn, NY",
-    image: "/iphone-13-pro.png",
-    category: "Electronics",
-  },
-  {
-    id: "4",
-    title: "Samsung Galaxy S23 Ultra",
-    price: "$799",
-    location: "Manhattan, NY",
-    image: "/samsung-galaxy-s23-ultra.png",
-    category: "Electronics",
-  },
-  {
-    id: "5",
-    title: "iPad Air 5th Generation",
-    price: "$449",
-    location: "Queens, NY",
-    image: "/ipad-air-5th-gen.png",
-    category: "Electronics",
-  },
-  {
-    id: "6",
-    title: "2020 Toyota Camry - Excellent",
-    price: "$22,500",
-    location: "Pasadena, CA",
-    image: "/2020-toyota-camry.png",
-    category: "Cars",
-  },
-]
+interface Product {
+  id: string
+  title: string
+  price: number
+  city: string
+  province: string
+  location: string
+  images: string[]
+  primary_category: string
+}
 
 interface RelatedProductsProps {
   currentProductId: string
@@ -47,11 +24,62 @@ interface RelatedProductsProps {
 }
 
 export function RelatedProducts({ currentProductId, category }: RelatedProductsProps) {
-  const filteredProducts = relatedProducts
-    .filter((product) => product.id !== currentProductId && product.category === category)
-    .slice(0, 3)
+  const [relatedProducts, setRelatedProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
 
-  if (filteredProducts.length === 0) {
+  useEffect(() => {
+    const fetchRelatedProducts = async () => {
+      try {
+        const supabase = createClient()
+
+        const { data, error } = await supabase
+          .from("products")
+          .select("*")
+          .eq("status", "active")
+          .eq("primary_category", category)
+          .neq("id", currentProductId)
+          .limit(3)
+          .order("created_at", { ascending: false })
+
+        if (error) {
+          console.error("[v0] Error fetching related products:", error)
+        } else {
+          console.log("[v0] Fetched related products:", data?.length || 0)
+          setRelatedProducts(data || [])
+        }
+      } catch (error) {
+        console.error("[v0] Error fetching related products:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchRelatedProducts()
+  }, [currentProductId, category])
+
+  if (loading) {
+    return (
+      <section className="mt-12">
+        <h2 className="text-2xl font-bold text-foreground mb-6">Related Products</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3].map((i) => (
+            <Card key={i} className="animate-pulse">
+              <CardContent className="p-0">
+                <div className="w-full h-48 bg-gray-200 rounded-t-lg"></div>
+                <div className="p-4">
+                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                  <div className="h-6 bg-gray-200 rounded w-1/2 mb-2"></div>
+                  <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </section>
+    )
+  }
+
+  if (relatedProducts.length === 0) {
     return null
   }
 
@@ -59,13 +87,13 @@ export function RelatedProducts({ currentProductId, category }: RelatedProductsP
     <section className="mt-12">
       <h2 className="text-2xl font-bold text-foreground mb-6">Related Products</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredProducts.map((product) => (
+        {relatedProducts.map((product) => (
           <Link key={product.id} href={`/product/${product.id}`}>
             <Card className="group cursor-pointer hover:shadow-lg transition-shadow">
               <CardContent className="p-0">
                 <div className="relative">
                   <img
-                    src={product.image || "/placeholder.svg"}
+                    src={product.images?.[0] || "/placeholder.svg"}
                     alt={product.title}
                     className="w-full h-48 object-cover rounded-t-lg"
                   />
@@ -84,10 +112,10 @@ export function RelatedProducts({ currentProductId, category }: RelatedProductsP
 
                 <div className="p-4">
                   <h4 className="font-semibold text-foreground mb-2 line-clamp-2">{product.title}</h4>
-                  <p className="text-2xl font-bold text-primary mb-2">{product.price}</p>
+                  <p className="text-2xl font-bold text-primary mb-2">${product.price.toLocaleString()}</p>
                   <div className="flex items-center text-sm text-muted-foreground">
                     <MapPin className="h-4 w-4 mr-1" />
-                    {product.location}
+                    {product.city && product.province ? `${product.city}, ${product.province}` : product.location}
                   </div>
                 </div>
               </CardContent>

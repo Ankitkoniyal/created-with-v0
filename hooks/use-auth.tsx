@@ -38,7 +38,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
 
       if (error) {
-        // Return fallback profile instead of setting state directly
+        console.log("[v0] Profile not found, creating fallback profile:", error.message)
+
+        // Attempt to create profile in database
+        try {
+          const newProfile = {
+            id: userId,
+            full_name: userData?.user_metadata?.full_name || userData?.email?.split("@")[0] || "User",
+            email: userData?.email || "",
+            phone: userData?.user_metadata?.phone || "",
+            avatar_url: userData?.user_metadata?.avatar_url || "",
+            bio: "",
+            location: "",
+            verified: false,
+          }
+
+          const { error: insertError } = await supabase.from("profiles").insert([newProfile])
+
+          if (insertError) {
+            console.log("[v0] Failed to create profile in database:", insertError.message)
+          } else {
+            console.log("[v0] Successfully created profile in database")
+          }
+        } catch (insertError) {
+          console.log("[v0] Profile creation error:", insertError)
+        }
+
         return {
           id: userId,
           name: userData?.user_metadata?.full_name || userData?.email?.split("@")[0] || "User",
@@ -65,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         created_at: data.created_at,
       }
     } catch (error) {
+      console.log("[v0] Profile fetch error:", error)
       // Return fallback profile on error
       return {
         id: userId,
@@ -192,6 +218,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) {
         console.log("[v0] Login error:", error.message)
         setIsLoading(false)
+
+        if (error.message.includes("Invalid login credentials")) {
+          return { error: "Invalid email or password. Please check your credentials and try again." }
+        } else if (error.message.includes("Email not confirmed")) {
+          return { error: "Please check your email and click the confirmation link before signing in." }
+        } else if (error.message.includes("Too many requests")) {
+          return { error: "Too many login attempts. Please wait a few minutes before trying again." }
+        }
+
         return { error: error.message }
       }
 

@@ -12,21 +12,22 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
-import { Camera, Shield, Star, Calendar, AlertTriangle } from "lucide-react"
+import { Camera, Shield, Star, Calendar, AlertTriangle, Loader2 } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
+import { createClient } from "@/lib/supabase/client"
 
 export function ProfileSettings() {
   const { user, profile } = useAuth()
   const [isEditing, setIsEditing] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const [showPasswordReset, setShowPasswordReset] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [imageUpload, setImageUpload] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [formData, setFormData] = useState({
-    name: profile?.name || "",
-    location: profile?.location || "Toronto, ON",
-    bio:
-      profile?.bio ||
-      "Passionate about technology and vintage items. Selling quality products with honest descriptions.",
+    name: "",
+    location: "",
+    bio: "",
     contactVisibility: {
       showPhone: true,
       showEmail: false,
@@ -39,30 +40,95 @@ export function ProfileSettings() {
   })
 
   useEffect(() => {
-    if (profile) {
+    if (user) {
       setFormData((prev) => ({
         ...prev,
-        name: profile.name || "",
-        location: profile.location || "Toronto, ON",
-        bio:
-          profile.bio ||
-          "Passionate about technology and vintage items. Selling quality products with honest descriptions.",
+        name: user.user_metadata?.full_name || user.email?.split("@")[0] || "",
+        location: user.user_metadata?.location || "Toronto, ON",
+        bio: user.user_metadata?.bio || "New to the marketplace. Looking forward to great deals!",
       }))
     }
-  }, [profile])
+  }, [user])
 
-  const handleSave = () => {
-    console.log("[v0] Saving profile:", formData)
-    console.log("[v0] Profile image:", imageUpload)
-    setIsEditing(false)
+  const handleSave = async () => {
+    if (!user) return
+
+    setIsSaving(true)
+    try {
+      const supabase = createClient()
+
+      let avatarUrl = user.user_metadata?.avatar_url
+
+      if (imageUpload) {
+        const fileExt = imageUpload.name.split(".").pop()
+        const fileName = `${user.id}/avatar.${fileExt}`
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("avatars")
+          .upload(fileName, imageUpload, { upsert: true })
+
+        if (!uploadError) {
+          const {
+            data: { publicUrl },
+          } = supabase.storage.from("avatars").getPublicUrl(fileName)
+          avatarUrl = publicUrl
+        } else {
+          console.error("[v0] Avatar upload error:", uploadError)
+        }
+      }
+
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: {
+          full_name: formData.name,
+          location: formData.location,
+          bio: formData.bio,
+          avatar_url: avatarUrl,
+          contact_visibility: formData.contactVisibility,
+          notifications: formData.notifications,
+        },
+      })
+
+      if (updateError) {
+        console.error("[v0] Profile update error:", updateError)
+        alert("Failed to update profile. Please try again.")
+      } else {
+        console.log("[v0] Profile updated successfully")
+        alert("Profile updated successfully!")
+        setIsEditing(false)
+        setImageUpload(null)
+        setPreviewUrl(null)
+      }
+    } catch (error) {
+      console.error("[v0] Profile save error:", error)
+      alert("An error occurred while saving your profile.")
+    } finally {
+      setIsSaving(false)
+    }
   }
 
-  const handlePasswordReset = () => {
-    console.log("Password reset requested")
-    setShowPasswordReset(false)
+  const handlePasswordReset = async () => {
+    if (!user?.email) return
+
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+        redirectTo: `${window.location.origin}/auth/reset-password`,
+      })
+
+      if (error) {
+        console.error("[v0] Password reset error:", error)
+        alert("Failed to send password reset email. Please try again.")
+      } else {
+        alert("Password reset email sent! Check your inbox.")
+        setShowPasswordReset(false)
+      }
+    } catch (error) {
+      console.error("[v0] Password reset error:", error)
+      alert("An error occurred. Please try again.")
+    }
   }
 
-  const handleDeleteAccount = () => {
+  const handleDeleteAccount = async () => {
     console.log("[v0] Account deletion requested - user data will be preserved for system integrity")
     alert("Account has been deactivated. Your information is preserved for system integrity and legal compliance.")
     setShowDeleteConfirm(false)
@@ -71,7 +137,14 @@ export function ProfileSettings() {
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert("Image must be less than 2MB")
+        return
+      }
+
       setImageUpload(file)
+      const url = URL.createObjectURL(file)
+      setPreviewUrl(url)
       console.log("[v0] Profile image selected:", file.name)
     }
   }
@@ -83,13 +156,17 @@ export function ProfileSettings() {
           <div className="flex items-center space-x-6">
             <div className="relative">
               <Avatar className="h-24 w-24">
-                <AvatarImage src={profile?.avatar_url || "/placeholder.svg"} alt={profile?.name} />
+                <AvatarImage
+                  src={previewUrl || user?.user_metadata?.avatar_url || "/placeholder.svg"}
+                  alt={formData.name}
+                />
                 <AvatarFallback className="text-2xl">
-                  {profile?.name
-                    ? profile.name
+                  {formData.name
+                    ? formData.name
                         .split(" ")
                         .map((n) => n[0])
                         .join("")
+                        .toUpperCase()
                     : "U"}
                 </AvatarFallback>
               </Avatar>
@@ -109,8 +186,8 @@ export function ProfileSettings() {
 
             <div className="flex-1">
               <div className="flex items-center space-x-2 mb-2">
-                <h2 className="text-2xl font-bold text-foreground">{profile?.name || user?.email}</h2>
-                {profile?.verified && (
+                <h2 className="text-2xl font-bold text-foreground">{formData.name || user?.email}</h2>
+                {user?.email_verified && (
                   <Badge variant="secondary" className="flex items-center">
                     <Shield className="h-3 w-3 mr-1" />
                     Verified
@@ -121,7 +198,7 @@ export function ProfileSettings() {
               <div className="flex items-center space-x-4 text-sm text-muted-foreground mb-3">
                 <div className="flex items-center">
                   <Star className="h-4 w-4 mr-1 fill-yellow-400 text-yellow-400" />
-                  <span>4.8 (23 reviews)</span>
+                  <span>New Member</span>
                 </div>
                 <div className="flex items-center">
                   <Calendar className="h-4 w-4 mr-1" />
@@ -129,7 +206,7 @@ export function ProfileSettings() {
                     Member since{" "}
                     {user?.created_at
                       ? new Date(user.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" })
-                      : "Dec 2024"}
+                      : "Recently"}
                   </span>
                 </div>
               </div>
@@ -146,8 +223,18 @@ export function ProfileSettings() {
           <Button
             variant={isEditing ? "default" : "outline"}
             onClick={() => (isEditing ? handleSave() : setIsEditing(true))}
+            disabled={isSaving}
           >
-            {isEditing ? "Save Changes" : "Edit Profile"}
+            {isSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : isEditing ? (
+              "Save Changes"
+            ) : (
+              "Edit Profile"
+            )}
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -170,8 +257,8 @@ export function ProfileSettings() {
 
             <div className="space-y-2">
               <Label htmlFor="phone">Phone Number</Label>
-              <Input id="phone" value={user?.phone || "+1 (555) 123-4567"} disabled={true} className="bg-muted" />
-              <p className="text-xs text-muted-foreground">Phone number cannot be changed</p>
+              <Input id="phone" value={user?.phone || "Not provided"} disabled={true} className="bg-muted" />
+              <p className="text-xs text-muted-foreground">Phone number managed through authentication</p>
             </div>
 
             <div className="space-y-2">
@@ -193,7 +280,9 @@ export function ProfileSettings() {
               value={formData.bio}
               onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
               disabled={!isEditing}
+              maxLength={500}
             />
+            <p className="text-xs text-muted-foreground">{formData.bio.length}/500 characters</p>
           </div>
         </CardContent>
       </Card>

@@ -94,65 +94,25 @@ const subcategories: Record<string, string[]> = {
 
 const categorySpecificFilters = {
   Vehicles: {
-    "Vehicle Type": ["Car", "Truck", "SUV", "Motorcycle", "Van", "Bus", "Trailer"],
-    "Fuel Type": ["Petrol", "Diesel", "Electric", "Hybrid", "CNG", "LPG"],
-    Transmission: ["Manual", "Automatic", "CVT"],
-    Ownership: ["First Owner", "Second Owner", "Third Owner", "Fourth+ Owner"],
-    "KM Driven": ["0-10,000", "10,000-25,000", "25,000-50,000", "50,000-75,000", "75,000-100,000", "100,000+"],
-    Year: ["2024", "2023", "2022", "2021", "2020", "2019", "2018", "2017", "2016", "2015", "Older"],
-    Condition: ["New", "Used", "Refurbished", "Damaged", "Other"],
+    "Vehicle Type": ["Car", "Truck", "SUV", "Motorcycle", "Van", "Bus"],
+    "Fuel Type": ["Petrol", "Diesel", "Electric", "Hybrid"],
+    Transmission: ["Manual", "Automatic"],
+    Condition: ["New", "Used", "Refurbished"],
   },
   Electronics: {
-    Brand: ["Apple", "Samsung", "Sony", "LG", "Dell", "HP", "Lenovo", "Asus", "Canon", "Nikon"],
-    Type: ["Mobile", "Laptop", "Desktop", "TV", "Camera", "Gaming Console", "Headphones", "Speakers"],
-    "Screen Size": ['Under 5"', '5-6"', '6-7"', '13-15"', '15-17"', '17-20"', '20-24"', '24-27"', '27"+'],
-    Storage: ["16GB", "32GB", "64GB", "128GB", "256GB", "512GB", "1TB", "2TB+"],
-    RAM: ["2GB", "4GB", "6GB", "8GB", "12GB", "16GB", "32GB+"],
-    Condition: ["New", "Used", "Refurbished", "Damaged", "Other"],
+    Brand: ["Apple", "Samsung", "Sony", "LG", "Dell", "HP"],
+    Type: ["Mobile", "Laptop", "Desktop", "TV", "Camera"],
+    Condition: ["New", "Used", "Refurbished"],
   },
   "Real Estate": {
-    "Property Type": ["Apartment", "House", "Villa", "Plot", "Commercial", "Office", "Shop", "Warehouse"],
-    Bedrooms: ["1 BHK", "2 BHK", "3 BHK", "4 BHK", "5+ BHK"],
-    Bathrooms: ["1", "2", "3", "4", "5+"],
+    "Property Type": ["Apartment", "House", "Villa", "Commercial"],
+    Bedrooms: ["1 BHK", "2 BHK", "3 BHK", "4+ BHK"],
     Furnishing: ["Furnished", "Semi-Furnished", "Unfurnished"],
-    "Area (sq ft)": ["Under 500", "500-1000", "1000-1500", "1500-2000", "2000-3000", "3000+"],
-    Parking: ["No Parking", "1 Car", "2 Cars", "3+ Cars"],
   },
   Fashion: {
     Gender: ["Men", "Women", "Kids", "Unisex"],
-    Category: ["Clothing", "Shoes", "Accessories", "Bags", "Watches", "Jewelry"],
-    Size: ["XS", "S", "M", "L", "XL", "XXL", "XXXL"],
-    Brand: ["Nike", "Adidas", "Zara", "H&M", "Gucci", "Prada", "Louis Vuitton", "Chanel"],
-    Color: ["Black", "White", "Red", "Blue", "Green", "Yellow", "Pink", "Brown", "Gray"],
-    Material: ["Cotton", "Polyester", "Leather", "Silk", "Wool", "Denim", "Linen"],
-    Condition: ["New", "Used", "Refurbished", "Damaged", "Other"],
-  },
-  Gaming: {
-    Platform: ["PC", "PlayStation", "Xbox", "Nintendo", "Mobile"],
-    Genre: ["Action", "Adventure", "RPG", "Sports", "Racing", "Strategy", "Puzzle", "Simulation"],
-    "Age Rating": ["E (Everyone)", "T (Teen)", "M (Mature)", "A (Adults Only)"],
-    Type: ["Games", "Consoles", "Accessories", "Controllers", "Headsets"],
-    Condition: ["New", "Used", "Refurbished", "Damaged", "Other"],
-  },
-  Books: {
-    Genre: ["Fiction", "Non-Fiction", "Mystery", "Romance", "Sci-Fi", "Fantasy", "Biography", "History"],
-    Language: ["English", "Spanish", "French", "German", "Italian", "Portuguese", "Other"],
-    Format: ["Paperback", "Hardcover", "E-book", "Audiobook"],
-    Author: ["Popular Authors", "Classic Authors", "Contemporary Authors"],
-    Condition: ["New", "Used", "Refurbished", "Damaged", "Other"],
-  },
-  Other: {
-    Sport: ["Cricket", "Football", "Basketball", "Tennis", "Badminton", "Swimming", "Cycling", "Gym"],
-    Type: ["Equipment", "Clothing", "Shoes", "Accessories", "Supplements"],
-    Brand: ["Nike", "Adidas", "Puma", "Reebok", "Under Armour", "Wilson", "Spalding"],
-    Condition: ["New", "Used", "Refurbished", "Damaged", "Other"],
-  },
-  Furniture: {
-    Category: ["Furniture", "Appliances", "Decor", "Kitchen", "Garden", "Tools", "Lighting"],
-    Room: ["Living Room", "Bedroom", "Kitchen", "Bathroom", "Dining Room", "Office", "Garden"],
-    Material: ["Wood", "Metal", "Plastic", "Glass", "Fabric", "Leather", "Stone"],
-    Brand: ["IKEA", "Ashley", "Wayfair", "West Elm", "Pottery Barn"],
-    Condition: ["New", "Used", "Refurbished", "Damaged", "Other"],
+    Size: ["XS", "S", "M", "L", "XL", "XXL"],
+    Condition: ["New", "Used"],
   },
 }
 
@@ -183,11 +143,26 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
   const [categoryFilters, setCategoryFilters] = useState<Record<string, string[]>>({})
 
   useEffect(() => {
-    const categoryFromUrl = searchParams.get("category") || currentFilters.category || ""
-    const subcategoryFromUrl = searchParams.get("subcategory") || currentFilters.subcategory || ""
+    const categoryFromUrl = searchParams.get("category") || ""
+    const subcategoryFromUrl = searchParams.get("subcategory") || ""
+    const minPriceFromUrl = searchParams.get("minPrice") || "0"
+    const maxPriceFromUrl = searchParams.get("maxPrice") || "10000"
+    const sortByFromUrl = searchParams.get("sortBy") || "relevance"
+    const locationFromUrl = searchParams.get("location") || ""
+
     setSelectedCategory(categoryFromUrl)
     setSelectedSubcategory(subcategoryFromUrl)
-  }, [searchParams, currentFilters.category, currentFilters.subcategory])
+    setPriceRange([Number.parseInt(minPriceFromUrl), Number.parseInt(maxPriceFromUrl)])
+    setFilters((prev) => ({
+      ...prev,
+      category: categoryFromUrl,
+      subcategory: subcategoryFromUrl,
+      minPrice: minPriceFromUrl,
+      maxPrice: maxPriceFromUrl,
+      sortBy: sortByFromUrl,
+      location: locationFromUrl,
+    }))
+  }, [searchParams])
 
   const availableSubcategories = selectedCategory ? subcategories[selectedCategory] || [] : []
   const categoryOptions = categorySpecificFilters[selectedCategory as keyof typeof categorySpecificFilters] || {}
@@ -196,7 +171,7 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
     const params = new URLSearchParams()
 
     if (searchQuery) params.set("q", searchQuery)
-    if (selectedSubcategory) {
+    if (selectedSubcategory && selectedSubcategory !== "all") {
       params.set("subcategory", selectedSubcategory)
       params.set("category", selectedCategory)
     } else if (selectedCategory) {
@@ -213,6 +188,7 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
       }
     })
 
+    console.log("[v0] Applying filters:", params.toString())
     router.push(`/search?${params.toString()}`)
   }
 
@@ -233,6 +209,7 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
 
     const params = new URLSearchParams()
     if (searchQuery) params.set("q", searchQuery)
+    console.log("[v0] Clearing filters, redirecting to:", `/search?${params.toString()}`)
     router.push(`/search?${params.toString()}`)
   }
 
@@ -441,6 +418,18 @@ export function SearchFilters({ currentFilters, searchQuery }: SearchFiltersProp
               />
             </div>
           </div>
+        </div>
+
+        <Separator className="bg-green-200" />
+
+        <div className="space-y-3">
+          <Label className="text-base font-semibold text-gray-800">Location</Label>
+          <Input
+            placeholder="Enter city or province"
+            value={filters.location}
+            onChange={(e) => setFilters({ ...filters, location: e.target.value })}
+            className="border-2 border-gray-200 hover:border-green-400 focus:border-green-500"
+          />
         </div>
 
         <Separator className="bg-green-200" />

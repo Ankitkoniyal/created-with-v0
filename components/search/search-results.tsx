@@ -1,127 +1,29 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Heart, MapPin, Eye, Grid3X3, List, Package } from "lucide-react"
 import Link from "next/link"
+import { createClient } from "@/lib/supabase/client"
 
-// Mock products data - in a real app, this would come from an API
-const allProducts = [
-  {
-    id: "1",
-    title: "iPhone 14 Pro Max - Excellent Condition",
-    price: 899,
-    location: "New York, NY",
-    image: "/iphone-14-pro-max.png",
-    category: "Mobile",
-    subcategory: "Smartphones",
-    primary_category: "Smartphones", // This is the main identifier for filtering
-    condition: "Excellent",
-    featured: true,
-    views: 156,
-    postedDate: "2024-01-15",
-  },
-  {
-    id: "2",
-    title: "2019 Honda Civic - Low Mileage",
-    price: 18500,
-    location: "Los Angeles, CA",
-    image: "/honda-civic.png",
-    category: "Vehicles",
-    subcategory: "Cars",
-    primary_category: "Cars",
-    condition: "Very Good",
-    featured: false,
-    views: 89,
-    postedDate: "2024-01-10",
-  },
-  {
-    id: "3",
-    title: "Modern Sofa Set - Like New",
-    price: 650,
-    location: "Chicago, IL",
-    image: "/modern-sofa.png",
-    category: "Furniture",
-    subcategory: "Sofa",
-    primary_category: "Sofa",
-    condition: "Like New",
-    featured: true,
-    views: 45,
-    postedDate: "2024-01-12",
-  },
-  {
-    id: "4",
-    title: "Gaming Laptop - RTX 3070",
-    price: 1200,
-    location: "Austin, TX",
-    image: "/placeholder-mvtsk.png",
-    category: "Electronics",
-    subcategory: "Laptop",
-    primary_category: "Laptop",
-    condition: "Good",
-    featured: false,
-    views: 78,
-    postedDate: "2024-01-08",
-  },
-  {
-    id: "5",
-    title: "Vintage Leather Jacket",
-    price: 85,
-    location: "Miami, FL",
-    image: "/vintage-leather-jacket.png",
-    category: "Fashion",
-    subcategory: "Men's Clothing",
-    primary_category: "Men's Clothing",
-    condition: "Good",
-    featured: false,
-    views: 34,
-    postedDate: "2024-01-14",
-  },
-  {
-    id: "6",
-    title: "Mountain Bike - Trek 2021",
-    price: 450,
-    location: "Denver, CO",
-    image: "/trek-mountain-bike.png",
-    category: "Other",
-    subcategory: "Sports Equipment",
-    primary_category: "Sports Equipment",
-    condition: "Very Good",
-    featured: true,
-    views: 67,
-    postedDate: "2024-01-11",
-  },
-  {
-    id: "7",
-    title: "MacBook Air M2 - 2022",
-    price: 999,
-    location: "San Francisco, CA",
-    image: "/placeholder.svg",
-    category: "Electronics",
-    subcategory: "Laptop",
-    primary_category: "Laptop",
-    condition: "Excellent",
-    featured: false,
-    views: 123,
-    postedDate: "2024-01-13",
-  },
-  {
-    id: "8",
-    title: "Designer Handbag - Authentic",
-    price: 320,
-    location: "New York, NY",
-    image: "/placeholder.svg",
-    category: "Fashion",
-    subcategory: "Bags",
-    primary_category: "Bags",
-    condition: "Like New",
-    featured: false,
-    views: 56,
-    postedDate: "2024-01-09",
-  },
-]
+interface Product {
+  id: string
+  title: string
+  price: number
+  location: string
+  city: string
+  province: string
+  images: string[]
+  category_id: number
+  primary_category: string
+  condition: string
+  status: string
+  views?: number
+  created_at: string
+  user_id: string
+  description: string
+}
 
 interface SearchResultsProps {
   searchQuery: string
@@ -139,77 +41,216 @@ interface SearchResultsProps {
 
 export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      setLoading(true)
+      setError(null)
+
+      try {
+        const supabase = createClient()
+        let query = supabase
+          .from("products")
+          .select("*")
+          .eq("status", "active")
+          .order("created_at", { ascending: false })
+
+        // Apply search query filter
+        if (searchQuery) {
+          query = query.or(
+            `title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,primary_category.ilike.%${searchQuery}%`,
+          )
+        }
+
+        // Apply category filters
+        if (filters.subcategory && filters.subcategory !== "all") {
+          query = query.eq("primary_category", filters.subcategory)
+        } else if (filters.category) {
+          // For category filtering, we'll use a mapping approach
+          const categoryMapping: Record<string, string[]> = {
+            Vehicles: [
+              "Cars",
+              "Motorcycles",
+              "Trucks",
+              "Buses",
+              "Bicycles",
+              "Scooters",
+              "Boats",
+              "RVs",
+              "ATVs",
+              "Parts & Accessories",
+            ],
+            Electronics: [
+              "TV",
+              "Fridge",
+              "Oven",
+              "AC",
+              "Cooler",
+              "Toaster",
+              "Fan",
+              "Washing Machine",
+              "Microwave",
+              "Computer",
+              "Laptop",
+              "Camera",
+              "Audio System",
+            ],
+            Mobile: [
+              "Smartphones",
+              "Tablets",
+              "Accessories",
+              "Cases & Covers",
+              "Chargers",
+              "Headphones",
+              "Smart Watches",
+              "Power Banks",
+            ],
+            "Real Estate": [
+              "Houses",
+              "Apartments",
+              "Commercial",
+              "Land",
+              "Rental",
+              "Vacation Rentals",
+              "Office Space",
+              "Warehouse",
+            ],
+            Fashion: [
+              "Men's Clothing",
+              "Women's Clothing",
+              "Kids Clothing",
+              "Shoes",
+              "Bags",
+              "Jewelry",
+              "Watches",
+              "Accessories",
+            ],
+            Pets: ["Dogs", "Cats", "Birds", "Fish", "Pet Food", "Pet Accessories", "Pet Care", "Pet Services"],
+            Furniture: ["Sofa", "Bed", "Table", "Chair", "Wardrobe", "Desk", "Cabinet", "Dining Set", "Home Decor"],
+            Jobs: ["Full Time", "Part Time", "Freelance", "Internship", "Remote Work", "Contract", "Temporary"],
+            Gaming: ["Video Games", "Consoles", "PC Gaming", "Mobile Games", "Gaming Accessories", "Board Games"],
+            Books: ["Fiction", "Non-Fiction", "Educational", "Comics", "Magazines", "E-books", "Audiobooks"],
+            Services: [
+              "Home Services",
+              "Repair",
+              "Cleaning",
+              "Tutoring",
+              "Photography",
+              "Event Planning",
+              "Transportation",
+            ],
+            Other: [
+              "Sports Equipment",
+              "Musical Instruments",
+              "Art & Crafts",
+              "Collectibles",
+              "Tools",
+              "Garden",
+              "Baby Items",
+            ],
+          }
+
+          const subcategories = categoryMapping[filters.category] || []
+          if (subcategories.length > 0) {
+            query = query.in("primary_category", subcategories)
+          }
+        }
+
+        // Apply price range filters
+        const minPrice = Number.parseInt(filters.minPrice) || 0
+        const maxPrice = Number.parseInt(filters.maxPrice) || Number.MAX_SAFE_INTEGER
+
+        if (minPrice > 0) {
+          query = query.gte("price", minPrice)
+        }
+        if (maxPrice < Number.MAX_SAFE_INTEGER) {
+          query = query.lte("price", maxPrice)
+        }
+
+        // Apply condition filter
+        if (filters.condition) {
+          query = query.eq("condition", filters.condition.toLowerCase())
+        }
+
+        // Apply location filter
+        if (filters.location) {
+          query = query.or(
+            `city.ilike.%${filters.location}%,province.ilike.%${filters.location}%,location.ilike.%${filters.location}%`,
+          )
+        }
+
+        // Apply sorting
+        switch (filters.sortBy) {
+          case "newest":
+            query = query.order("created_at", { ascending: false })
+            break
+          case "price-low":
+            query = query.order("price", { ascending: true })
+            break
+          case "price-high":
+            query = query.order("price", { ascending: false })
+            break
+          case "distance":
+            query = query.order("city", { ascending: true })
+            break
+          default:
+            // Default relevance sorting - featured first, then by views/created_at
+            query = query.order("created_at", { ascending: false })
+        }
+
+        const { data, error: fetchError } = await query.limit(50)
+
+        if (fetchError) {
+          console.error("[v0] Error fetching products:", fetchError)
+          setError("Failed to load products. Please try again.")
+        } else {
+          console.log("[v0] Fetched products:", data?.length || 0)
+          setProducts(data || [])
+        }
+      } catch (err) {
+        console.error("[v0] Search error:", err)
+        setError("An error occurred while searching. Please try again.")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchProducts()
+  }, [searchQuery, filters])
 
   const filteredProducts = useMemo(() => {
-    let results = allProducts
+    return products // Products are already filtered by the database query
+  }, [products])
 
-    // Filter by search query
-    if (searchQuery) {
-      results = results.filter(
-        (product) =>
-          product.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          product.primary_category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          product.category.toLowerCase().includes(searchQuery.toLowerCase()),
-      )
-    }
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="p-12 text-center">
+          <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4 animate-pulse" />
+          <h3 className="text-lg font-semibold text-foreground mb-2">Searching...</h3>
+          <p className="text-muted-foreground">Finding the best products for you</p>
+        </CardContent>
+      </Card>
+    )
+  }
 
-    if (filters.subcategory) {
-      // Filter by specific subcategory
-      results = results.filter((product) => product.primary_category === filters.subcategory)
-    } else if (filters.category) {
-      // Filter by category only if no subcategory is specified
-      results = results.filter((product) => product.category === filters.category)
-    }
-
-    // Filter by price range
-    const minPrice = Number.parseInt(filters.minPrice) || 0
-    const maxPrice = Number.parseInt(filters.maxPrice) || Number.POSITIVE_INFINITY
-    results = results.filter((product) => product.price >= minPrice && product.price <= maxPrice)
-
-    // Filter by condition
-    if (filters.condition) {
-      results = results.filter((product) => product.condition === filters.condition)
-    }
-
-    // Filter by location
-    if (filters.location) {
-      results = results.filter((product) => product.location === filters.location)
-    }
-
-    Object.entries(filters).forEach(([key, value]) => {
-      if (
-        value &&
-        !["category", "subcategory", "minPrice", "maxPrice", "condition", "location", "sortBy"].includes(key)
-      ) {
-        // Apply category-specific filters based on the product's primary category
-        console.log(`Filtering by ${key}: ${value} for primary category: ${results[0]?.primary_category}`)
-      }
-    })
-
-    // Sort results
-    switch (filters.sortBy) {
-      case "newest":
-        results.sort((a, b) => new Date(b.postedDate).getTime() - new Date(a.postedDate).getTime())
-        break
-      case "price-low":
-        results.sort((a, b) => a.price - b.price)
-        break
-      case "price-high":
-        results.sort((a, b) => b.price - a.price)
-        break
-      case "distance":
-        results.sort((a, b) => a.location.localeCompare(b.location))
-        break
-      default:
-        results.sort((a, b) => {
-          if (a.featured && !b.featured) return -1
-          if (!a.featured && b.featured) return 1
-          return b.views - a.views
-        })
-    }
-
-    return results
-  }, [searchQuery, filters])
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="p-12 text-center">
+          <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-foreground mb-2">Search Error</h3>
+          <p className="text-muted-foreground mb-4">{error}</p>
+          <Button onClick={() => window.location.reload()} className="bg-green-800 hover:bg-green-900">
+            Try Again
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
 
   if (filteredProducts.length === 0) {
     return (
@@ -235,7 +276,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
         <p className="text-muted-foreground">
           {filteredProducts.length} result{filteredProducts.length !== 1 ? "s" : ""} found
           {searchQuery && ` for "${searchQuery}"`}
-          {filters.subcategory && ` in ${filters.subcategory}`}
+          {filters.subcategory && filters.subcategory !== "all" && ` in ${filters.subcategory}`}
           {!filters.subcategory && filters.category && ` in ${filters.category}`}
         </p>
 
@@ -275,7 +316,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
               <CardContent className={`p-0 ${viewMode === "list" ? "flex" : ""}`}>
                 <div className={`relative ${viewMode === "list" ? "w-48 flex-shrink-0" : ""}`}>
                   <img
-                    src={product.image || "/placeholder.svg"}
+                    src={product.images?.[0] || "/placeholder.svg"}
                     alt={product.title}
                     className={`object-cover ${
                       viewMode === "list" ? "w-full h-32" : "w-full h-48"
@@ -292,7 +333,6 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
                   >
                     <Heart className="h-4 w-4" />
                   </Button>
-                  {product.featured && <Badge className="absolute top-2 left-2 bg-green-800">Featured</Badge>}
                 </div>
 
                 <div className={`p-4 ${viewMode === "list" ? "flex-1" : ""}`}>
@@ -302,21 +342,21 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
                   <p className="text-2xl font-bold text-primary mb-2">${product.price.toLocaleString()}</p>
 
                   <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
-                    <span>{product.condition}</span>
+                    <span className="capitalize">{product.condition}</span>
                     <span>{product.primary_category}</span>
                   </div>
 
                   <div className="flex items-center text-sm text-muted-foreground mb-2">
                     <MapPin className="h-4 w-4 mr-1" />
-                    {product.location}
+                    {product.city && product.province ? `${product.city}, ${product.province}` : product.location}
                   </div>
 
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <div className="flex items-center">
                       <Eye className="h-3 w-3 mr-1" />
-                      {product.views} views
+                      {product.views || 0} views
                     </div>
-                    <span>{new Date(product.postedDate).toLocaleDateString()}</span>
+                    <span>{new Date(product.created_at).toLocaleDateString()}</span>
                   </div>
                 </div>
               </CardContent>
