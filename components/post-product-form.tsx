@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { X, Camera, MapPin, DollarSign, Package, FileText, ImageIcon, Tag, AlertCircle } from "lucide-react"
+import { X, Camera, MapPin, Package, FileText, ImageIcon, Tag, AlertCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
@@ -569,6 +569,20 @@ export function PostProductForm() {
               <p className="text-sm text-muted-foreground">{formData.title.length}/100 characters</p>
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="description">Description *</Label>
+              <Textarea
+                id="description"
+                placeholder="Describe your product in detail. Include any defects, usage history, and why you're selling."
+                rows={6}
+                value={formData.description}
+                onChange={(e) => handleInputChange("description", e.target.value)}
+                maxLength={1000}
+                className="border-2 border-gray-200 focus:border-primary"
+              />
+              <p className="text-sm text-muted-foreground">{formData.description.length}/1000 characters</p>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="category">Category *</Label>
@@ -606,9 +620,7 @@ export function PostProductForm() {
                   </SelectContent>
                 </Select>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="condition">Condition *</Label>
                 <Select value={formData.condition} onValueChange={(value) => handleInputChange("condition", value)}>
@@ -651,64 +663,6 @@ export function PostProductForm() {
 
               <div className="space-y-2">{/* Empty div for consistent spacing */}</div>
             </div>
-
-            <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
-              <Label className="flex items-center text-base font-semibold">
-                <DollarSign className="h-5 w-5 mr-2" />
-                Pricing *
-              </Label>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {[
-                  { value: "amount", label: "Set Price" },
-                  { value: "free", label: "Free" },
-                  { value: "contact", label: "Contact Us" },
-                  { value: "swap", label: "Swap/Exchange" },
-                ].map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => handleInputChange("priceType", option.value)}
-                    className={`p-3 text-sm font-medium rounded-lg border-2 transition-colors ${
-                      formData.priceType === option.value
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-gray-200 hover:border-gray-300"
-                    }`}
-                    disabled={formData.price && option.value !== "amount"}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-
-              {formData.priceType === "amount" && (
-                <div className="space-y-2">
-                  <Label htmlFor="price">Enter Amount</Label>
-                  <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="price"
-                      type="number"
-                      placeholder="0.00"
-                      className="pl-10 border-2 border-gray-200 focus:border-primary"
-                      value={formData.price}
-                      onChange={(e) => handleInputChange("price", e.target.value)}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {formData.priceType !== "amount" && (
-                <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-lg">
-                  Selected:{" "}
-                  <span className="font-medium">
-                    {formData.priceType === "free" && "This item is free"}
-                    {formData.priceType === "contact" && "Buyers will contact you for pricing"}
-                    {formData.priceType === "swap" && "You're looking to swap/exchange this item"}
-                  </span>
-                </div>
-              )}
-            </div>
           </CardContent>
         </Card>
       )}
@@ -718,22 +672,37 @@ export function PostProductForm() {
           <CardHeader>
             <CardTitle className="flex items-center">
               <FileText className="h-5 w-5 mr-2" />
-              Description & Location
+              Additional Details & Location
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="description">Description *</Label>
-              <Textarea
-                id="description"
-                placeholder="Describe your product in detail. Include any defects, usage history, and why you're selling."
-                rows={6}
-                value={formData.description}
-                onChange={(e) => handleInputChange("description", e.target.value)}
-                maxLength={1000}
-                className="border-2 border-gray-200 focus:border-primary"
-              />
-              <p className="text-sm text-muted-foreground">{formData.description.length}/1000 characters</p>
+            <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
+              <Label className="text-base font-semibold">Additional Links (Optional)</Label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="youtubeUrl">YouTube Video Link</Label>
+                  <Input
+                    id="youtubeUrl"
+                    placeholder="https://youtube.com/watch?v=..."
+                    value={formData.youtubeUrl}
+                    onChange={(e) => handleInputChange("youtubeUrl", e.target.value)}
+                    className="border-2 border-gray-200 focus:border-primary"
+                  />
+                  <p className="text-xs text-muted-foreground">Add a YouTube video showcasing your product</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="websiteUrl">Website Link</Label>
+                  <Input
+                    id="websiteUrl"
+                    placeholder="https://example.com"
+                    value={formData.websiteUrl}
+                    onChange={(e) => handleInputChange("websiteUrl", e.target.value)}
+                    className="border-2 border-gray-200 focus:border-primary"
+                  />
+                  <p className="text-xs text-muted-foreground">Link to your website or product page</p>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-4 p-4 border-2 border-primary/20 bg-primary/5 rounded-lg">
@@ -754,44 +723,13 @@ export function PostProductForm() {
             </div>
 
             <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
-              <div>
-                <Label className="flex items-center text-base font-semibold">
-                  <Tag className="h-5 w-5 mr-2" />
-                  Tags (Max 5 words)
-                </Label>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Add relevant keywords to improve your ad's search visibility and help buyers find your item
-                </p>
-              </div>
-              <div className="flex space-x-2">
-                <Input
-                  placeholder="Add a tag"
-                  value={newTag}
-                  onChange={(e) => setNewTag(e.target.value)}
-                  onKeyPress={(e) => e.key === "Enter" && addTag()}
-                  className="border-2 border-gray-200 focus:border-primary"
-                  disabled={formData.tags.length >= 5}
-                />
-                <Button
-                  type="button"
-                  onClick={addTag}
-                  variant="outline"
-                  disabled={formData.tags.length >= 5 || !newTag.trim()}
-                >
-                  Add
-                </Button>
-              </div>
-              {formData.tags.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {formData.tags.map((tag) => (
-                    <Badge key={tag} variant="secondary" className="flex items-center gap-1">
-                      {tag}
-                      <X className="h-3 w-3 cursor-pointer" onClick={() => removeTag(tag)} />
-                    </Badge>
-                  ))}
-                </div>
-              )}
-              <p className="text-xs text-muted-foreground">{formData.tags.length}/5 tags used</p>
+              <Label className="flex items-center text-base font-semibold">
+                <Tag className="h-5 w-5 mr-2" />
+                Tags (Max 5 words)
+              </Label>
+              <p className="text-sm text-muted-foreground mt-1">
+                Add relevant keywords to improve your ad's search visibility and help buyers find your item
+              </p>
             </div>
 
             <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
