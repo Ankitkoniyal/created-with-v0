@@ -35,36 +35,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchProfile = async (userId: string, userData: User): Promise<Profile> => {
     try {
+      console.log("[v0] Fetching profile for user:", userId)
       const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
 
       if (error) {
         console.log("[v0] Profile not found, creating fallback profile:", error.message)
 
-        // Attempt to create profile in database
-        try {
-          const newProfile = {
-            id: userId,
-            full_name: userData?.user_metadata?.full_name || userData?.email?.split("@")[0] || "User",
-            email: userData?.email || "",
-            phone: userData?.user_metadata?.phone || "",
-            avatar_url: userData?.user_metadata?.avatar_url || "",
-            bio: "",
-            location: "",
-            verified: false,
-          }
-
-          const { error: insertError } = await supabase.from("profiles").insert([newProfile])
-
-          if (insertError) {
-            console.log("[v0] Failed to create profile in database:", insertError.message)
-          } else {
-            console.log("[v0] Successfully created profile in database")
-          }
-        } catch (insertError) {
-          console.log("[v0] Profile creation error:", insertError)
-        }
-
-        return {
+        // Return fallback profile immediately instead of trying to insert
+        const fallbackProfile = {
           id: userId,
           name: userData?.user_metadata?.full_name || userData?.email?.split("@")[0] || "User",
           email: userData?.email || "",
@@ -75,10 +53,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           verified: false,
           created_at: new Date().toISOString(),
         }
+
+        console.log("[v0] Using fallback profile:", fallbackProfile)
+        return fallbackProfile
       }
 
       // Return actual profile data
-      return {
+      const profileData = {
         id: data.id,
         name: data.full_name || userData?.email?.split("@")[0] || "User",
         email: data.email || userData?.email || "",
@@ -89,10 +70,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         verified: data.verified || false,
         created_at: data.created_at,
       }
+
+      console.log("[v0] Successfully fetched profile:", profileData)
+      return profileData
     } catch (error) {
       console.log("[v0] Profile fetch error:", error)
       // Return fallback profile on error
-      return {
+      const fallbackProfile = {
         id: userId,
         name: userData?.user_metadata?.full_name || userData?.email?.split("@")[0] || "User",
         email: userData?.email || "",
@@ -103,6 +87,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         verified: false,
         created_at: new Date().toISOString(),
       }
+
+      console.log("[v0] Using fallback profile after error:", fallbackProfile)
+      return fallbackProfile
     }
   }
 
@@ -132,6 +119,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const initializeAuth = async () => {
       try {
+        console.log("[v0] Starting auth initialization...")
+
         const connectionOk = await testSupabaseConnection()
         if (!connectionOk) {
           console.log("[v0] Supabase connection failed, skipping auth initialization")
@@ -141,6 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return
         }
 
+        console.log("[v0] Getting session...")
         const {
           data: { session },
         } = await supabase.auth.getSession()
@@ -148,17 +138,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!mounted) return
 
         if (session?.user) {
+          console.log("[v0] Session found, setting user and fetching profile...")
           setUser(session.user)
-          const profileData = await fetchProfile(session.user.id, session.user)
-          if (mounted) {
-            setProfile(profileData)
+
+          const profilePromise = fetchProfile(session.user.id, session.user)
+          const timeoutPromise = new Promise<Profile>((_, reject) =>
+            setTimeout(() => reject(new Error("Profile fetch timeout")), 10000),
+          )
+
+          try {
+            const profileData = await Promise.race([profilePromise, timeoutPromise])
+            if (mounted) {
+              setProfile(profileData)
+              console.log("[v0] Profile set successfully")
+            }
+          } catch (profileError) {
+            console.log("[v0] Profile fetch failed or timed out:", profileError)
+            // Continue with null profile instead of hanging
+            if (mounted) {
+              setProfile(null)
+            }
           }
         } else {
+          console.log("[v0] No session found")
           setUser(null)
           setProfile(null)
         }
 
         if (mounted) {
+          console.log("[v0] Auth initialization complete, setting loading to false")
           setIsLoading(false)
         }
       } catch (error) {
@@ -174,16 +182,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("[v0] Auth state change:", event)
       if (!mounted) return
 
       if (session?.user) {
+        console.log("[v0] Auth state change: user logged in")
         setUser(session.user)
-        const profileData = await fetchProfile(session.user.id, session.user)
-        if (mounted) {
-          setProfile(profileData)
-          setIsLoading(false)
+
+        try {
+          const profilePromise = fetchProfile(session.user.id, session.user)
+          const timeoutPromise = new Promise<Profile>((_, reject) =>
+            setTimeout(() => reject(new Error("Profile fetch timeout")), 10000),
+          )
+
+          const profileData = await Promise.race([profilePromise, timeoutPromise])
+          if (mounted) {
+            setProfile(profileData)
+            setIsLoading(false)
+          }
+        } catch (profileError) {
+          console.log("[v0] Profile fetch failed in auth state change:", profileError)
+          if (mounted) {
+            setProfile(null)
+            setIsLoading(false)
+          }
         }
       } else {
+        console.log("[v0] Auth state change: user logged out")
         setUser(null)
         setProfile(null)
         setIsLoading(false)
