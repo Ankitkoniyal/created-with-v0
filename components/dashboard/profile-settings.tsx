@@ -112,18 +112,25 @@ export function ProfileSettings() {
         const fileExt = imageUpload.name.split(".").pop()
         const fileName = `${user.id}/avatar.${fileExt}`
 
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from("avatars")
-          .upload(fileName, imageUpload, { upsert: true })
+        try {
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from("avatars")
+            .upload(fileName, imageUpload, { upsert: true })
 
-        if (!uploadError) {
-          const {
-            data: { publicUrl },
-          } = supabase.storage.from("avatars").getPublicUrl(fileName)
-          avatarUrl = publicUrl
-          console.log("[v0] Image uploaded successfully:", publicUrl)
-        } else {
-          console.error("[v0] Avatar upload error:", uploadError)
+          if (!uploadError) {
+            const {
+              data: { publicUrl },
+            } = supabase.storage.from("avatars").getPublicUrl(fileName)
+            avatarUrl = publicUrl
+            console.log("[v0] Image uploaded successfully:", publicUrl)
+          } else {
+            console.error("[v0] Avatar upload error:", uploadError)
+            // Continue with profile update even if image upload fails
+            alert("Profile updated but image upload failed. Please try uploading the image again.")
+          }
+        } catch (imageError) {
+          console.error("[v0] Image upload exception:", imageError)
+          alert("Profile updated but image upload failed. Please check your connection and try again.")
         }
       }
 

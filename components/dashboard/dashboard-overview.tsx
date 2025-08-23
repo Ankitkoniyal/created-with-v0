@@ -144,6 +144,10 @@ export function DashboardOverview() {
             ? `You have ${stats.activeAds} active ad${stats.activeAds !== 1 ? "s" : ""} with ${stats.totalViews} total views.`
             : "Ready to start selling? Post your first ad and reach millions of buyers."}
         </p>
+        <div className="flex items-center space-x-2 mb-4">
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+          <span className="text-xs text-muted-foreground">Live data • Updated in real-time</span>
+        </div>
         <Button asChild>
           <Link href="/sell">
             <Plus className="h-4 w-4 mr-2" />
