@@ -583,7 +583,7 @@ export function PostProductForm() {
               <p className="text-sm text-muted-foreground">{formData.description.length}/1000 characters</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="category">Category *</Label>
                 <Select value={formData.category} onValueChange={(value) => handleInputChange("category", value)}>
@@ -649,7 +649,7 @@ export function PostProductForm() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="model">Model</Label>
                 <Input
@@ -660,6 +660,37 @@ export function PostProductForm() {
                   className="border-2 border-gray-200 focus:border-primary"
                 />
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="priceType">Price Type *</Label>
+                <Select value={formData.priceType} onValueChange={(value) => handleInputChange("priceType", value)}>
+                  <SelectTrigger className="border-2 border-gray-200 focus:border-primary">
+                    <SelectValue placeholder="Select price type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="amount">Set Price</SelectItem>
+                    <SelectItem value="free">Free</SelectItem>
+                    <SelectItem value="contact">Contact for Price</SelectItem>
+                    <SelectItem value="swap">Swap/Exchange</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {formData.priceType === "amount" && (
+                <div className="space-y-2">
+                  <Label htmlFor="price">Price (CAD) *</Label>
+                  <Input
+                    id="price"
+                    type="number"
+                    placeholder="0.00"
+                    value={formData.price}
+                    onChange={(e) => handleInputChange("price", e.target.value)}
+                    className="border-2 border-gray-200 focus:border-primary"
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">{/* Empty div for consistent spacing */}</div>
             </div>
