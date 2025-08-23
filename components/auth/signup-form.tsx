@@ -122,20 +122,20 @@ export function SignupForm() {
             </div>
           </div>
 
-          <div className="flex items-start space-x-3">
+          <div className="flex items-start space-x-3 p-3 border rounded-lg bg-gray-50">
             <Checkbox
               id="terms"
               checked={agreeToTerms}
               onCheckedChange={(checked) => setAgreeToTerms(checked as boolean)}
-              className="mt-1"
+              className="mt-1 border-2 border-gray-300 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
             />
-            <Label htmlFor="terms" className="text-sm leading-relaxed">
+            <Label htmlFor="terms" className="text-sm leading-relaxed cursor-pointer">
               I agree to the{" "}
-              <Button variant="link" className="p-0 h-auto text-sm font-normal">
+              <Button variant="link" className="p-0 h-auto text-sm font-normal text-green-600 hover:text-green-700">
                 Terms of Service
               </Button>{" "}
               and{" "}
-              <Button variant="link" className="p-0 h-auto text-sm font-normal">
+              <Button variant="link" className="p-0 h-auto text-sm font-normal text-green-600 hover:text-green-700">
                 Privacy Policy
               </Button>
             </Label>

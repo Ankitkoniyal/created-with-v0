@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import type React from "react"
 
 import { useRouter } from "next/navigation"
@@ -19,6 +19,24 @@ export function LoginForm() {
   const [rememberMe, setRememberMe] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+
+  useEffect(() => {
+    const savedCredentials = localStorage.getItem("rememberedCredentials")
+    if (savedCredentials) {
+      try {
+        const { email: savedEmail, password: savedPassword, rememberMe: savedRememberMe } = JSON.parse(savedCredentials)
+        if (savedRememberMe) {
+          setEmail(savedEmail || "")
+          setPassword(savedPassword || "")
+          setRememberMe(true)
+        }
+      } catch (error) {
+        console.error("Error loading saved credentials:", error)
+      }
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -26,11 +44,24 @@ export function LoginForm() {
     setError(null)
 
     const formData = new FormData(e.currentTarget)
-    const email = formData.get("email") as string
-    const password = formData.get("password") as string
+    const emailValue = formData.get("email") as string
+    const passwordValue = formData.get("password") as string
 
     try {
-      const result = await login(email, password)
+      if (rememberMe) {
+        localStorage.setItem(
+          "rememberedCredentials",
+          JSON.stringify({
+            email: emailValue,
+            password: passwordValue,
+            rememberMe: true,
+          }),
+        )
+      } else {
+        localStorage.removeItem("rememberedCredentials")
+      }
+
+      const result = await login(emailValue, passwordValue)
 
       if (result.error) {
         setError(result.error)
@@ -63,7 +94,16 @@ export function LoginForm() {
             <Label htmlFor="email">Email</Label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input id="email" name="email" type="email" placeholder="Enter your email" className="pl-10" required />
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                placeholder="Enter your email"
+                className="pl-10"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
             </div>
           </div>
 
@@ -77,6 +117,8 @@ export function LoginForm() {
                 type={showPassword ? "text" : "password"}
                 placeholder="Enter your password"
                 className="pl-10 pr-10"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 required
               />
               <button
@@ -95,8 +137,9 @@ export function LoginForm() {
                 id="remember"
                 checked={rememberMe}
                 onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                className="border-2 border-gray-300 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
               />
-              <Label htmlFor="remember" className="text-sm cursor-pointer">
+              <Label htmlFor="remember" className="text-sm cursor-pointer font-medium">
                 Remember me
               </Label>
             </div>
