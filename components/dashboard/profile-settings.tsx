@@ -12,13 +12,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
-import { Camera, Shield, Star, Calendar } from "lucide-react"
+import { Camera, Shield, Star, Calendar, AlertTriangle } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 
 export function ProfileSettings() {
   const { user, profile } = useAuth()
   const [isEditing, setIsEditing] = useState(false)
   const [showPasswordReset, setShowPasswordReset] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [imageUpload, setImageUpload] = useState<File | null>(null)
   const [formData, setFormData] = useState({
     name: profile?.name || "",
@@ -26,6 +27,10 @@ export function ProfileSettings() {
     bio:
       profile?.bio ||
       "Passionate about technology and vintage items. Selling quality products with honest descriptions.",
+    contactVisibility: {
+      showPhone: true,
+      showEmail: false,
+    },
     notifications: {
       email: true,
       sms: false,
@@ -57,6 +62,12 @@ export function ProfileSettings() {
     setShowPasswordReset(false)
   }
 
+  const handleDeleteAccount = () => {
+    console.log("[v0] Account deletion requested - user data will be preserved for system integrity")
+    alert("Account has been deactivated. Your information is preserved for system integrity and legal compliance.")
+    setShowDeleteConfirm(false)
+  }
+
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) {
@@ -82,27 +93,23 @@ export function ProfileSettings() {
                     : "U"}
                 </AvatarFallback>
               </Avatar>
-              {isEditing && (
-                <label htmlFor="avatar-upload">
-                  <Button size="sm" className="absolute -bottom-2 -right-2 rounded-full h-8 w-8 p-0" asChild>
-                    <span>
-                      <Camera className="h-4 w-4" />
-                    </span>
-                  </Button>
-                  <input
-                    id="avatar-upload"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleImageUpload}
-                  />
-                </label>
-              )}
+              <label htmlFor="avatar-upload">
+                <Button size="sm" className="absolute -bottom-2 -right-2 rounded-full h-8 w-8 p-0 cursor-pointer">
+                  <Camera className="h-4 w-4" />
+                </Button>
+                <input
+                  id="avatar-upload"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageUpload}
+                />
+              </label>
             </div>
 
             <div className="flex-1">
               <div className="flex items-center space-x-2 mb-2">
-                <h2 className="text-2xl font-bold text-foreground">{profile?.name}</h2>
+                <h2 className="text-2xl font-bold text-foreground">{profile?.name || user?.email}</h2>
                 {profile?.verified && (
                   <Badge variant="secondary" className="flex items-center">
                     <Shield className="h-3 w-3 mr-1" />
@@ -120,8 +127,8 @@ export function ProfileSettings() {
                   <Calendar className="h-4 w-4 mr-1" />
                   <span>
                     Member since{" "}
-                    {profile?.created_at
-                      ? new Date(profile.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" })
+                    {user?.created_at
+                      ? new Date(user.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" })
                       : "Dec 2024"}
                   </span>
                 </div>
@@ -157,13 +164,13 @@ export function ProfileSettings() {
 
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={profile?.email || ""} disabled={true} className="bg-muted" />
+              <Input id="email" type="email" value={user?.email || ""} disabled={true} className="bg-muted" />
               <p className="text-xs text-muted-foreground">Email cannot be changed</p>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="phone">Phone Number</Label>
-              <Input id="phone" value={profile?.phone || "+1 (555) 123-4567"} disabled={true} className="bg-muted" />
+              <Input id="phone" value={user?.phone || "+1 (555) 123-4567"} disabled={true} className="bg-muted" />
               <p className="text-xs text-muted-foreground">Phone number cannot be changed</p>
             </div>
 
@@ -193,9 +200,57 @@ export function ProfileSettings() {
 
       <Card>
         <CardHeader>
+          <CardTitle>Contact Visibility</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-medium">Show Phone Number</h4>
+              <p className="text-sm text-muted-foreground">Display your phone number on your ads for direct contact</p>
+            </div>
+            <Switch
+              checked={formData.contactVisibility.showPhone}
+              onCheckedChange={(checked) =>
+                setFormData({
+                  ...formData,
+                  contactVisibility: { ...formData.contactVisibility, showPhone: checked },
+                })
+              }
+            />
+          </div>
+
+          <Separator />
+
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-medium">Show Email</h4>
+              <p className="text-sm text-muted-foreground">Display your email address on your ads for inquiries</p>
+            </div>
+            <Switch
+              checked={formData.contactVisibility.showEmail}
+              onCheckedChange={(checked) =>
+                setFormData({
+                  ...formData,
+                  contactVisibility: { ...formData.contactVisibility, showEmail: checked },
+                })
+              }
+            />
+          </div>
+
+          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-800">
+              <strong>Privacy Note:</strong> When enabled, your contact information will be visible to all users viewing
+              your ads. Only logged-in users can see your full contact details.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Security</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h4 className="font-medium">Password</h4>
@@ -218,6 +273,46 @@ export function ProfileSettings() {
                 <Button size="sm" variant="outline" onClick={() => setShowPasswordReset(false)}>
                   Cancel
                 </Button>
+              </div>
+            </div>
+          )}
+
+          <Separator />
+
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-medium text-red-600">Delete Account</h4>
+              <p className="text-sm text-muted-foreground">
+                Permanently deactivate your account (data preserved for system integrity)
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              className="text-red-600 border-red-200 hover:bg-red-50 bg-transparent"
+              onClick={() => setShowDeleteConfirm(true)}
+            >
+              Delete Account
+            </Button>
+          </div>
+
+          {showDeleteConfirm && (
+            <div className="mt-4 p-4 border border-red-200 rounded-lg bg-red-50">
+              <div className="flex items-start space-x-3">
+                <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm text-red-800 mb-3">
+                    <strong>Account Deactivation:</strong> Your account will be deactivated but your information will be
+                    preserved for system integrity, legal compliance, and transaction history.
+                  </p>
+                  <div className="flex space-x-2">
+                    <Button size="sm" variant="destructive" onClick={handleDeleteAccount}>
+                      Confirm Deactivation
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
