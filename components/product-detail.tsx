@@ -198,7 +198,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
   }
 
   const formatAdId = (adId: string) => {
-    return adId
+    return adId.slice(-8)
   }
 
   const handleViewAllAds = () => {

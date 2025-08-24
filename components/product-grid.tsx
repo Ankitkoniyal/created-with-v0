@@ -226,7 +226,7 @@ export function ProductGrid() {
                     )}
 
                     <Badge className="absolute bottom-1 left-1 bg-black/70 text-white text-[9px] font-mono px-1 py-0.5 rounded">
-                      ID: {product.id.slice(-8)}
+                      Ad ID: {product.id.slice(-8)}
                     </Badge>
                   </div>
 
