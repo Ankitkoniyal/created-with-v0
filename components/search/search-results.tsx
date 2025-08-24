@@ -1,13 +1,11 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Heart, MapPin, Eye, Grid3X3, List, Package, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
-import { useDebounce } from "@/hooks/use-debounce"
-import { useDeepCompareEffect } from "@/hooks/use-deep-compare-effect"
 
 interface Product {
   id: string
@@ -46,169 +44,182 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const filtersRef = useRef(filters)
+  const searchQueryRef = useRef(searchQuery)
 
-  const debouncedSearchQuery = useDebounce(searchQuery, 300)
+  useEffect(() => {
+    const fetchProducts = async () => {
+      console.log("[v0] Fetching products from database...")
+      setLoading(true)
+      setError(null)
 
-  const fetchProducts = async () => {
-    setLoading(true)
-    setError(null)
+      try {
+        const supabase = createClient()
+        let query = supabase.from("products").select("*")
 
-    try {
-      const supabase = createClient()
-      let query = supabase.from("products").select("*").order("created_at", { ascending: false })
-
-      if (debouncedSearchQuery) {
-        query = query.or(
-          `title.ilike.%${debouncedSearchQuery}%,description.ilike.%${debouncedSearchQuery}%,category.ilike.%${debouncedSearchQuery}%`,
-        )
-      }
-
-      const categoryMapping: Record<string, string[]> = {
-        Vehicles: [
-          "Cars",
-          "Motorcycles",
-          "Trucks",
-          "Buses",
-          "Bicycles",
-          "Scooters",
-          "Boats",
-          "RVs",
-          "ATVs",
-          "Parts & Accessories",
-        ],
-        Electronics: [
-          "TV",
-          "Fridge",
-          "Oven",
-          "AC",
-          "Cooler",
-          "Toaster",
-          "Fan",
-          "Washing Machine",
-          "Microwave",
-          "Computer",
-          "Laptop",
-          "Camera",
-          "Audio System",
-        ],
-        Mobile: [
-          "Smartphones",
-          "Tablets",
-          "Accessories",
-          "Cases & Covers",
-          "Chargers",
-          "Headphones",
-          "Smart Watches",
-          "Power Banks",
-        ],
-        "Real Estate": [
-          "Houses",
-          "Apartments",
-          "Commercial",
-          "Land",
-          "Rental",
-          "Vacation Rentals",
-          "Office Space",
-          "Warehouse",
-        ],
-        Fashion: [
-          "Men's Clothing",
-          "Women's Clothing",
-          "Kids Clothing",
-          "Shoes",
-          "Bags",
-          "Jewelry",
-          "Watches",
-          "Accessories",
-        ],
-        Pets: ["Dogs", "Cats", "Birds", "Fish", "Pet Food", "Pet Accessories", "Pet Care", "Pet Services"],
-        Furniture: ["Sofa", "Bed", "Table", "Chair", "Wardrobe", "Desk", "Cabinet", "Dining Set", "Home Decor"],
-        Jobs: ["Full Time", "Part Time", "Freelance", "Internship", "Remote Work", "Contract", "Temporary"],
-        Gaming: ["Video Games", "Consoles", "PC Gaming", "Mobile Games", "Gaming Accessories", "Board Games"],
-        Books: ["Fiction", "Non-Fiction", "Educational", "Comics", "Magazines", "E-books", "Audiobooks"],
-        Services: [
-          "Home Services",
-          "Repair",
-          "Cleaning",
-          "Tutoring",
-          "Photography",
-          "Event Planning",
-          "Transportation",
-        ],
-        Other: [
-          "Sports Equipment",
-          "Musical Instruments",
-          "Art & Crafts",
-          "Collectibles",
-          "Tools",
-          "Garden",
-          "Baby Items",
-        ],
-      }
-
-      if (filters.subcategory && filters.subcategory !== "all") {
-        query = query.eq("category", filters.subcategory)
-      } else if (filters.category) {
-        const subcategories = categoryMapping[filters.category] || []
-        if (subcategories.length > 0) {
-          query = query.in("category", subcategories)
+        if (searchQueryRef.current) {
+          query = query.or(
+            `title.ilike.%${searchQueryRef.current}%,description.ilike.%${searchQueryRef.current}%,category.ilike.%${searchQueryRef.current}%`,
+          )
         }
-      }
 
-      const minPriceNum = Number.parseInt(filters.minPrice) || 0
-      const maxPriceNum = Number.parseInt(filters.maxPrice) || Number.MAX_SAFE_INTEGER
+        if (filtersRef.current.subcategory && filtersRef.current.subcategory !== "all") {
+          query = query.eq("category", filtersRef.current.subcategory)
+        } else if (filtersRef.current.category) {
+          const categoryMapping: Record<string, string[]> = {
+            Vehicles: [
+              "Cars",
+              "Motorcycles",
+              "Trucks",
+              "Buses",
+              "Bicycles",
+              "Scooters",
+              "Boats",
+              "RVs",
+              "ATVs",
+              "Parts & Accessories",
+            ],
+            Electronics: [
+              "TV",
+              "Fridge",
+              "Oven",
+              "AC",
+              "Cooler",
+              "Toaster",
+              "Fan",
+              "Washing Machine",
+              "Microwave",
+              "Computer",
+              "Laptop",
+              "Camera",
+              "Audio System",
+            ],
+            Mobile: [
+              "Smartphones",
+              "Tablets",
+              "Accessories",
+              "Cases & Covers",
+              "Chargers",
+              "Headphones",
+              "Smart Watches",
+              "Power Banks",
+            ],
+            "Real Estate": [
+              "Houses",
+              "Apartments",
+              "Commercial",
+              "Land",
+              "Rental",
+              "Vacation Rentals",
+              "Office Space",
+              "Warehouse",
+            ],
+            Fashion: [
+              "Men's Clothing",
+              "Women's Clothing",
+              "Kids Clothing",
+              "Shoes",
+              "Bags",
+              "Jewelry",
+              "Watches",
+              "Accessories",
+            ],
+            Pets: ["Dogs", "Cats", "Birds", "Fish", "Pet Food", "Pet Accessories", "Pet Care", "Pet Services"],
+            Furniture: ["Sofa", "Bed", "Table", "Chair", "Wardrobe", "Desk", "Cabinet", "Dining Set", "Home Decor"],
+            Jobs: ["Full Time", "Part Time", "Freelance", "Internship", "Remote Work", "Contract", "Temporary"],
+            Gaming: ["Video Games", "Consoles", "PC Gaming", "Mobile Games", "Gaming Accessories", "Board Games"],
+            Books: ["Fiction", "Non-Fiction", "Educational", "Comics", "Magazines", "E-books", "Audiobooks"],
+            Services: [
+              "Home Services",
+              "Repair",
+              "Cleaning",
+              "Tutoring",
+              "Photography",
+              "Event Planning",
+              "Transportation",
+            ],
+            Other: [
+              "Sports Equipment",
+              "Musical Instruments",
+              "Art & Crafts",
+              "Collectibles",
+              "Tools",
+              "Garden",
+              "Baby Items",
+            ],
+          }
 
-      if (minPriceNum > 0) {
-        query = query.gte("price", minPriceNum)
-      }
-      if (maxPriceNum < Number.MAX_SAFE_INTEGER) {
-        query = query.lte("price", maxPriceNum)
-      }
+          const subcategories = categoryMapping[filtersRef.current.category] || []
+          if (subcategories.length > 0) {
+            query = query.in("category", subcategories)
+          }
+        }
 
-      if (filters.condition) {
-        query = query.eq("condition", filters.condition.toLowerCase())
-      }
+        const minPrice = Number.parseInt(filtersRef.current.minPrice) || 0
+        const maxPrice = Number.parseInt(filtersRef.current.maxPrice) || Number.MAX_SAFE_INTEGER
 
-      if (filters.location) {
-        query = query.or(
-          `city.ilike.%${filters.location}%,province.ilike.%${filters.location}%,location.ilike.%${filters.location}%`,
-        )
-      }
+        if (minPrice > 0) {
+          query = query.gte("price", minPrice)
+        }
+        if (maxPrice < Number.MAX_SAFE_INTEGER) {
+          query = query.lte("price", maxPrice)
+        }
 
-      switch (filters.sortBy) {
-        case "newest":
-          query = query.order("created_at", { ascending: false })
-          break
-        case "price-low":
-          query = query.order("price", { ascending: true })
-          break
-        case "price-high":
-          query = query.order("price", { ascending: false })
-          break
-        case "distance":
-          query = query.order("city", { ascending: true })
-          break
-        default:
-          query = query.order("created_at", { ascending: false })
-      }
+        if (filtersRef.current.condition && filtersRef.current.condition !== "all") {
+          query = query.eq("condition", filtersRef.current.condition.toLowerCase())
+        }
 
-      const { data, error: fetchError } = await query.limit(50)
+        if (filtersRef.current.location) {
+          query = query.or(
+            `city.ilike.%${filtersRef.current.location}%,province.ilike.%${filtersRef.current.location}%,location.ilike.%${filtersRef.current.location}%`,
+          )
+        }
 
-      if (fetchError) {
-        setError("Failed to load products. Please try again.")
-      } else {
-        setProducts(data || [])
+        switch (filtersRef.current.sortBy) {
+          case "newest":
+            query = query.order("created_at", { ascending: false })
+            break
+          case "price-low":
+            query = query.order("price", { ascending: true })
+            break
+          case "price-high":
+            query = query.order("price", { ascending: false })
+            break
+          case "distance":
+            query = query.order("city", { ascending: true })
+            break
+          default:
+            query = query.order("created_at", { ascending: false })
+        }
+
+        const { data, error: fetchError } = await query.limit(50)
+
+        if (fetchError) {
+          console.error("[v0] Error fetching products:", fetchError)
+          setError("Failed to load products. Please try again.")
+        } else {
+          console.log("[v0] Fetched products:", data?.length || 0)
+          setProducts(data || [])
+        }
+      } catch (err) {
+        console.error("[v0] Search error:", err)
+        setError("An error occurred while searching. Please try again.")
+      } finally {
+        setLoading(false)
       }
-    } catch (err) {
-      setError("An error occurred while searching. Please try again.")
-    } finally {
-      setLoading(false)
     }
-  }
 
-  useDeepCompareEffect(() => {
-    fetchProducts()
-  }, [debouncedSearchQuery, filters])
+    // Update refs with current values
+    filtersRef.current = filters
+    searchQueryRef.current = searchQuery
+
+    // Debounce the search
+    const timeoutId = setTimeout(() => {
+      fetchProducts()
+    }, 300)
+
+    return () => clearTimeout(timeoutId)
+  }, [searchQuery, filters]) // Dependencies that trigger re-fetch
 
   const filteredProducts = useMemo(() => {
     return products
@@ -233,7 +244,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
           <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-foreground mb-2">Search Error</h3>
           <p className="text-muted-foreground mb-4">{error}</p>
-          <Button onClick={fetchProducts} className="bg-green-800 hover:bg-green-900">
+          <Button onClick={() => window.location.reload()} className="bg-green-800 hover:bg-green-900">
             Try Again
           </Button>
         </CardContent>
@@ -263,7 +274,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
       <div className="flex items-center justify-between">
         <p className="text-muted-foreground">
           {filteredProducts.length} result{filteredProducts.length !== 1 ? "s" : ""} found
-          {debouncedSearchQuery && ` for "${debouncedSearchQuery}"`}
+          {searchQuery && ` for "${searchQuery}"`}
           {filters.subcategory && filters.subcategory !== "all" && ` in ${filters.subcategory}`}
           {!filters.subcategory && filters.category && ` in ${filters.category}`}
         </p>
