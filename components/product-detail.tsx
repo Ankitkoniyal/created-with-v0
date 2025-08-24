@@ -197,10 +197,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
     setShowShareMenu(!showShareMenu)
   }
 
-  const formatAdId = (adId: string) => {
-    return adId.slice(-8)
-  }
-
   const handleViewAllAds = () => {
     window.location.href = `/seller/${product.seller.name.toLowerCase().replace(/\s+/g, "-")}/ads`
   }
@@ -365,7 +361,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
 
             <div className="mb-2">
               <span className="text-sm text-muted-foreground">Ad ID: </span>
-              <span className="text-sm font-medium text-primary">{formatAdId(product.adId)}</span>
+              <span className="text-sm font-medium text-primary">{product.id.slice(-8)}</span>
             </div>
 
             <div className="flex items-center space-x-2 mb-3">
