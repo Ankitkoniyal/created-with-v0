@@ -19,6 +19,7 @@ interface Message {
   message: string
   created_at: string
   sender_id: string
+  is_read: boolean
   sender: {
     id: string
     full_name: string
@@ -52,6 +53,9 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
   const [newMessage, setNewMessage] = useState("")
   const [conversationData, setConversationData] = useState<ConversationData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [isBlocking, setIsBlocking] = useState(false)
+  const [isReporting, setIsReporting] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = () => {
@@ -62,6 +66,30 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
     scrollToBottom()
   }, [conversationData?.messages])
 
+  const markMessagesAsRead = async (productId: string, participantId: string) => {
+    if (!user) return
+
+    try {
+      const supabase = createClient()
+
+      const { error } = await supabase
+        .from("messages")
+        .update({ is_read: true })
+        .eq("product_id", productId)
+        .eq("sender_id", participantId)
+        .eq("receiver_id", user.id)
+        .eq("is_read", false)
+
+      if (error) {
+        console.error("Error marking messages as read:", error)
+      } else {
+        console.log("[v0] Messages marked as read")
+      }
+    } catch (error) {
+      console.error("Error:", error)
+    }
+  }
+
   useEffect(() => {
     const fetchConversation = async () => {
       if (!user) return
@@ -69,8 +97,9 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
       try {
         const supabase = createClient()
 
-        // Parse conversation ID (format: productId-participantId)
         const [productId, participantId] = conversationId.split("-")
+
+        await markMessagesAsRead(productId, participantId)
 
         const { data: messages, error: messagesError } = await supabase
           .from("messages")
@@ -79,6 +108,7 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
             message,
             created_at,
             sender_id,
+            is_read,
             sender:profiles!sender_id (
               id,
               full_name,
@@ -112,6 +142,60 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
             participant,
             messages: messages || [],
           })
+
+          const subscription = supabase
+            .channel(`messages:${productId}`)
+            .on(
+              "postgres_changes",
+              {
+                event: "INSERT",
+                schema: "public",
+                table: "messages",
+                filter: `product_id=eq.${productId}`,
+              },
+              async (payload) => {
+                console.log("[v0] New message received:", payload)
+
+                const { data: newMessage, error } = await supabase
+                  .from("messages")
+                  .select(`
+                    id,
+                    message,
+                    created_at,
+                    sender_id,
+                    is_read,
+                    sender:profiles!sender_id (
+                      id,
+                      full_name,
+                      avatar_url
+                    )
+                  `)
+                  .eq("id", payload.new.id)
+                  .single()
+
+                if (!error && newMessage) {
+                  const isRelevantMessage =
+                    (newMessage.sender_id === user.id && payload.new.receiver_id === participantId) ||
+                    (newMessage.sender_id === participantId && payload.new.receiver_id === user.id)
+
+                  if (isRelevantMessage) {
+                    setConversationData((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            messages: [...prev.messages, newMessage],
+                          }
+                        : null,
+                    )
+                  }
+                }
+              },
+            )
+            .subscribe()
+
+          return () => {
+            subscription.unsubscribe()
+          }
         }
       } catch (error) {
         console.error("Error:", error)
@@ -122,6 +206,112 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
 
     fetchConversation()
   }, [conversationId, user])
+
+  const handleDeleteConversation = async () => {
+    if (!user || !conversationData) return
+
+    const confirmed = window.confirm("Are you sure you want to delete this conversation? This action cannot be undone.")
+    if (!confirmed) return
+
+    setIsDeleting(true)
+
+    try {
+      const supabase = createClient()
+      const [productId, participantId] = conversationId.split("-")
+
+      const { error } = await supabase
+        .from("messages")
+        .delete()
+        .eq("product_id", productId)
+        .or(
+          `and(sender_id.eq.${user.id},receiver_id.eq.${participantId}),and(sender_id.eq.${participantId},receiver_id.eq.${user.id})`,
+        )
+
+      if (error) {
+        console.error("Error deleting conversation:", error)
+        alert("Failed to delete conversation")
+      } else {
+        console.log("[v0] Conversation deleted")
+        window.location.href = "/dashboard/messages"
+      }
+    } catch (error) {
+      console.error("Error:", error)
+      alert("Failed to delete conversation")
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const handleBlockUser = async () => {
+    if (!user || !conversationData) return
+
+    const confirmed = window.confirm(
+      `Are you sure you want to block ${conversationData.participant.full_name}? They won't be able to message you anymore.`,
+    )
+    if (!confirmed) return
+
+    setIsBlocking(true)
+
+    try {
+      const supabase = createClient()
+      const [productId, participantId] = conversationId.split("-")
+
+      const { error } = await supabase.from("blocked_users").insert({
+        blocker_id: user.id,
+        blocked_id: participantId,
+        reason: "Blocked from conversation",
+      })
+
+      if (error) {
+        console.error("Error blocking user:", error)
+        alert("Failed to block user")
+      } else {
+        console.log("[v0] User blocked")
+        alert(`${conversationData.participant.full_name} has been blocked`)
+        window.location.href = "/dashboard/messages"
+      }
+    } catch (error) {
+      console.error("Error:", error)
+      alert("Failed to block user")
+    } finally {
+      setIsBlocking(false)
+    }
+  }
+
+  const handleReportConversation = async () => {
+    if (!user || !conversationData) return
+
+    const reason = window.prompt("Please provide a reason for reporting this conversation:")
+    if (!reason) return
+
+    setIsReporting(true)
+
+    try {
+      const supabase = createClient()
+      const [productId, participantId] = conversationId.split("-")
+
+      const { error } = await supabase.from("reports").insert({
+        reporter_id: user.id,
+        reported_user_id: participantId,
+        product_id: productId,
+        reason: reason,
+        type: "conversation",
+      })
+
+      if (error) {
+        console.error("Error reporting conversation:", error)
+        alert("Failed to report conversation")
+      } else {
+        console.log("[v0] Conversation reported")
+        alert("Thank you for your report. We'll review it shortly.")
+      }
+    } catch (error) {
+      console.error("Error:", error)
+      alert("Failed to report conversation")
+    } finally {
+      setIsReporting(false)
+    }
+  }
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -138,12 +328,14 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
           sender_id: user.id,
           receiver_id: participantId,
           message: newMessage.trim(),
+          is_read: false,
         })
         .select(`
           id,
           message,
           created_at,
           sender_id,
+          is_read,
           sender:profiles!sender_id (
             id,
             full_name,
@@ -219,7 +411,6 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
 
   return (
     <div className="space-y-6">
-      {/* Back Button */}
       <Button variant="ghost" asChild>
         <Link href="/dashboard/messages">
           <ArrowLeft className="h-4 w-4 mr-2" />
@@ -228,10 +419,8 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
       </Button>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Chat Area */}
         <div className="lg:col-span-2">
           <Card className="h-[600px] flex flex-col">
-            {/* Chat Header */}
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
               <div className="flex items-center space-x-3">
                 <Avatar>
@@ -259,9 +448,19 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem>Block User</DropdownMenuItem>
-                    <DropdownMenuItem>Report Conversation</DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive">Delete Conversation</DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleBlockUser} disabled={isBlocking}>
+                      {isBlocking ? "Blocking..." : "Block User"}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleReportConversation} disabled={isReporting}>
+                      {isReporting ? "Reporting..." : "Report Conversation"}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-destructive"
+                      onClick={handleDeleteConversation}
+                      disabled={isDeleting}
+                    >
+                      {isDeleting ? "Deleting..." : "Delete Conversation"}
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -269,7 +468,6 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
 
             <Separator />
 
-            {/* Messages */}
             <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
               {conversationData.messages.map((message, index) => {
                 const showDate =
@@ -293,9 +491,12 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
                         >
                           <p className="text-sm">{message.message}</p>
                         </div>
-                        <p className={`text-xs text-muted-foreground mt-1 ${isFromMe ? "text-right" : "text-left"}`}>
-                          {formatTime(message.created_at)}
-                        </p>
+                        <div className={`flex items-center gap-1 mt-1 ${isFromMe ? "justify-end" : "justify-start"}`}>
+                          <p className={`text-xs text-muted-foreground`}>{formatTime(message.created_at)}</p>
+                          {isFromMe && (
+                            <span className="text-xs text-muted-foreground">{message.is_read ? "✓✓" : "✓"}</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -306,7 +507,6 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
 
             <Separator />
 
-            {/* Message Input */}
             <div className="p-4">
               <form onSubmit={handleSendMessage} className="flex space-x-2">
                 <Input
@@ -323,9 +523,7 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
           </Card>
         </div>
 
-        {/* Product Info & Seller Details */}
         <div className="space-y-6">
-          {/* Product Card */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center">
@@ -350,7 +548,6 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
             </CardContent>
           </Card>
 
-          {/* Seller Info */}
           <Card>
             <CardHeader>
               <CardTitle>User Information</CardTitle>
@@ -379,7 +576,6 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
             </CardContent>
           </Card>
 
-          {/* Safety Tips */}
           <Card>
             <CardHeader>
               <CardTitle className="text-sm">Safety Tips</CardTitle>
