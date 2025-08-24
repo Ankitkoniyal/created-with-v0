@@ -53,30 +53,76 @@ async function getProduct(id: string) {
       console.log("[v0] Profile found:", profileData?.full_name || "No profile")
     }
 
+    const extractUrls = (description: string) => {
+      const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/g
+      const websiteRegex = /(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:\/[^\s]*)?/g
+
+      const youtubeMatches = description.match(youtubeRegex) || []
+      const websiteMatches = description.match(websiteRegex) || []
+
+      // Filter out YouTube URLs from website matches
+      const filteredWebsiteMatches = websiteMatches.filter(
+        (url) => !url.includes("youtube.com") && !url.includes("youtu.be"),
+      )
+
+      // Remove URLs from description
+      let cleanDescription = description
+      youtubeMatches.forEach((url) => {
+        cleanDescription = cleanDescription.replace(url, "").trim()
+      })
+      filteredWebsiteMatches.forEach((url) => {
+        cleanDescription = cleanDescription.replace(url, "").trim()
+      })
+
+      return {
+        youtubeUrl: youtubeMatches[0] || null,
+        websiteUrl: filteredWebsiteMatches[0] || null,
+        cleanDescription: cleanDescription.replace(/\s+/g, " ").trim(),
+      }
+    }
+
+    const { youtubeUrl, websiteUrl, cleanDescription } = extractUrls(product.description || "")
+
+    const generateAdId = (productId: string, createdAt: string) => {
+      const date = new Date(createdAt)
+      const year = date.getFullYear()
+      const month = (date.getMonth() + 1).toString().padStart(2, "0")
+      const day = date.getDate().toString().padStart(2, "0")
+
+      // Use first 4 characters of product ID for consistency
+      const idSuffix = productId.replace(/-/g, "").substring(0, 4).toUpperCase()
+
+      return `AD${year}${month}${day}${idSuffix}`
+    }
+
     return {
       id: product.id,
       title: product.title,
       price: `$${product.price.toLocaleString()}`,
       location: product.city && product.province ? `${product.city}, ${product.province}` : product.location,
-      images: product.images || ["/placeholder.svg"],
-      description: product.description,
-      category: product.primary_category || "Other",
+      images: product.image_urls || ["/placeholder.svg"],
+      description: cleanDescription,
+      youtubeUrl,
+      websiteUrl,
+      category: product.category || "Other",
+      subcategory: product.subcategory || null,
       condition: product.condition || "Used",
-      brand: "N/A", // TODO: Extract from description or add to database
-      model: "N/A", // TODO: Extract from description or add to database
+      brand: product.brand || "Not specified",
+      model: product.model || "Not specified",
       postedDate: product.created_at,
       views: product.views || 0,
+      adId: generateAdId(product.id, product.created_at),
       seller: {
         name: profileData?.full_name || "Anonymous Seller",
-        rating: 4.5, // TODO: Implement rating system
-        totalReviews: 0, // TODO: Implement review system
+        rating: 4.5,
+        totalReviews: 0,
         memberSince: profileData?.created_at ? new Date(profileData.created_at).getFullYear().toString() : "2024",
-        verified: true, // TODO: Implement verification system
+        verified: true,
         responseTime: "Usually responds within 2 hours",
       },
-      features: [], // TODO: Extract from description or add to database
-      storage: "N/A",
-      color: "N/A",
+      features: [],
+      storage: product.storage || null,
+      color: product.color || null,
       featured: false,
     }
   } catch (error) {

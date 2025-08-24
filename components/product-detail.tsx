@@ -17,12 +17,16 @@ interface Product {
   location: string
   images: string[]
   description: string
+  youtubeUrl?: string | null
+  websiteUrl?: string | null
   category: string
+  subcategory?: string | null
   condition: string
   brand: string
   model: string
   postedDate: string
   views: number
+  adId: string
   seller: {
     name: string
     rating: number
@@ -32,8 +36,8 @@ interface Product {
     responseTime: string
   }
   features: string[]
-  storage?: string
-  color?: string
+  storage?: string | null
+  color?: string | null
   [key: string]: any
 }
 
@@ -193,19 +197,8 @@ export function ProductDetail({ product }: ProductDetailProps) {
     setShowShareMenu(!showShareMenu)
   }
 
-  const formatAdId = (id: string) => {
-    const now = new Date()
-    const year = now.getFullYear()
-    const month = (now.getMonth() + 1).toString().padStart(2, "0")
-    const day = now.getDate().toString().padStart(2, "0")
-
-    const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    let randomLetters = ""
-    for (let i = 0; i < 4; i++) {
-      randomLetters += letters.charAt(Math.floor(Math.random() * letters.length))
-    }
-
-    return `AD${year}${month}${day}${randomLetters}`
+  const formatAdId = (adId: string) => {
+    return adId
   }
 
   const handleViewAllAds = () => {
@@ -372,7 +365,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
 
             <div className="mb-2">
               <span className="text-sm text-muted-foreground">Ad ID: </span>
-              <span className="text-sm font-medium text-primary">{formatAdId(product.id)}</span>
+              <span className="text-sm font-medium text-primary">{formatAdId(product.adId)}</span>
             </div>
 
             <div className="flex items-center space-x-2 mb-3">
@@ -436,6 +429,12 @@ export function ProductDetail({ product }: ProductDetailProps) {
                 <span className="text-muted-foreground">Category:</span>
                 <span className="ml-2 font-medium">{product.category}</span>
               </div>
+              {product.subcategory && (
+                <div>
+                  <span className="text-muted-foreground">Subcategory:</span>
+                  <span className="ml-2 font-medium">{product.subcategory}</span>
+                </div>
+              )}
               {product.storage && (
                 <div>
                   <span className="text-muted-foreground">Storage:</span>
@@ -464,7 +463,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
           </CardContent>
         </Card>
 
-        <Card className="mt-4">
+        <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-center">
               <Button
@@ -537,6 +536,62 @@ export function ProductDetail({ product }: ProductDetailProps) {
           <CardContent className="p-4">
             <h3 className="font-semibold text-foreground mb-3">Description</h3>
             <p className="text-muted-foreground leading-relaxed">{product.description}</p>
+
+            {(product.youtubeUrl || product.websiteUrl) && (
+              <>
+                <Separator className="my-4" />
+                <div className="space-y-3">
+                  {product.youtubeUrl && (
+                    <div className="flex items-center space-x-3 p-3 bg-red-50 rounded-lg border border-red-100">
+                      <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
+                        <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">YouTube Video</p>
+                        <a
+                          href={product.youtubeUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-red-600 hover:text-red-700 hover:underline break-all"
+                        >
+                          {product.youtubeUrl}
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
+                  {product.websiteUrl && (
+                    <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                      <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9"
+                          />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">Website</p>
+                        <a
+                          href={
+                            product.websiteUrl.startsWith("http") ? product.websiteUrl : `https://${product.websiteUrl}`
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-blue-600 hover:text-blue-700 hover:underline break-all"
+                        >
+                          {product.websiteUrl}
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>

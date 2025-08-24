@@ -14,8 +14,8 @@ interface Product {
   city: string
   province: string
   location: string
-  images: string[]
-  primary_category: string
+  image_urls: string[]
+  category: string
 }
 
 interface RelatedProductsProps {
@@ -35,14 +35,13 @@ export function RelatedProducts({ currentProductId, category }: RelatedProductsP
         const { data, error } = await supabase
           .from("products")
           .select("*")
-          .eq("status", "active")
-          .eq("primary_category", category)
+          .eq("category", category)
           .neq("id", currentProductId)
           .limit(3)
           .order("created_at", { ascending: false })
 
         if (error) {
-          console.error("[v0] Error fetching related products:", error)
+          console.error("[v0] Error fetching related products:", error.message)
         } else {
           console.log("[v0] Fetched related products:", data?.length || 0)
           setRelatedProducts(data || [])
@@ -93,7 +92,7 @@ export function RelatedProducts({ currentProductId, category }: RelatedProductsP
               <CardContent className="p-0">
                 <div className="relative">
                   <img
-                    src={product.images?.[0] || "/placeholder.svg"}
+                    src={product.image_urls?.[0] || "/placeholder.svg"}
                     alt={product.title}
                     className="w-full h-48 object-cover rounded-t-lg"
                   />
