@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Eye, MessageSquare, Edit, Trash2, Search, Plus, MoreHorizontal, Package } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
 
@@ -18,7 +19,7 @@ interface Product {
   price: number
   status: string
   views: number
-  images: string[]
+  image_urls: string[]
   category: string
   created_at: string
   user_id: string
@@ -26,6 +27,7 @@ interface Product {
 
 export function MyListings() {
   const { user } = useAuth()
+  const router = useRouter()
   const [listings, setListings] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
@@ -80,7 +82,7 @@ export function MyListings() {
 
   const handleEditAd = (id: string) => {
     console.log("[v0] Editing ad:", id)
-    // Navigate to edit page
+    router.push(`/sell?edit=${id}`)
   }
 
   const handleDeleteAd = async (id: string) => {
@@ -96,6 +98,7 @@ export function MyListings() {
       } else {
         console.log("[v0] Deleted ad:", id)
         setListings((prev) => prev.filter((listing) => listing.id !== id))
+        alert("Ad deleted successfully")
       }
     } catch (error) {
       console.error("Error:", error)
@@ -114,6 +117,7 @@ export function MyListings() {
       } else {
         console.log("[v0] Marked ad as sold:", id)
         setListings((prev) => prev.map((listing) => (listing.id === id ? { ...listing, status: "sold" } : listing)))
+        alert("Ad marked as sold")
       }
     } catch (error) {
       console.error("Error:", error)
@@ -136,6 +140,7 @@ export function MyListings() {
       } else {
         console.log("[v0] Marked ad as active:", id)
         setListings((prev) => prev.map((listing) => (listing.id === id ? { ...listing, status: "active" } : listing)))
+        alert("Ad marked as active")
       }
     } catch (error) {
       console.error("Error:", error)
@@ -196,7 +201,7 @@ export function MyListings() {
           <Card key={listing.id} className="overflow-hidden">
             <div className="relative">
               <img
-                src={listing.images?.[0] || "/placeholder.svg"}
+                src={listing.image_urls?.[0] || "/placeholder.svg"}
                 alt={listing.title}
                 className="w-full h-48 object-cover"
               />
