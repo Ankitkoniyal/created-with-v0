@@ -22,8 +22,8 @@ interface RecentListing {
   price: number
   status: string
   views: number
-  images: string[]
-  primary_category: string
+  image_urls: string[] // Updated from images to image_urls to match database schema
+  category: string // Updated from primary_category to category to match database schema
   created_at: string
 }
 
@@ -227,7 +227,7 @@ export function DashboardOverview() {
                   className="flex items-center space-x-4 p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"
                 >
                   <img
-                    src={listing.images?.[0] || "/placeholder.svg"}
+                    src={listing.image_urls?.[0] || "/placeholder.svg"} // Updated from images to image_urls
                     alt={listing.title}
                     className="w-20 h-20 object-cover rounded-lg"
                   />
@@ -235,7 +235,7 @@ export function DashboardOverview() {
                     <div className="flex items-center space-x-2 mb-1">
                       <h4 className="font-semibold text-foreground">{listing.title}</h4>
                       <Badge variant="outline" className="text-xs">
-                        {listing.primary_category}
+                        {listing.category} {/* Updated from primary_category to category */}
                       </Badge>
                     </div>
                     <p className="text-lg font-bold text-primary">${listing.price.toLocaleString()}</p>
