@@ -58,7 +58,6 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
 
   const fetchProducts = useCallback(async () => {
-    console.log("[v0] Fetching products from database...")
     setLoading(true)
     setError(null)
 
@@ -202,14 +201,11 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
       const { data, error: fetchError } = await query.limit(50)
 
       if (fetchError) {
-        console.error("[v0] Error fetching products:", fetchError)
         setError("Failed to load products. Please try again.")
       } else {
-        console.log("[v0] Fetched products:", data?.length || 0)
         setProducts(data || [])
       }
     } catch (err) {
-      console.error("[v0] Search error:", err)
       setError("An error occurred while searching. Please try again.")
     } finally {
       setLoading(false)

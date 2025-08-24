@@ -5,20 +5,14 @@ import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
 export async function signIn(prevState: any, formData: FormData) {
-  console.log("[v0] SignIn action called with prevState:", prevState)
-
   if (!formData) {
-    console.log("[v0] No form data provided")
     return { error: "Form data is missing", success: false, redirect: null }
   }
 
   const email = formData.get("email")
   const password = formData.get("password")
 
-  console.log("[v0] SignIn attempt for email:", email)
-
   if (!email || !password) {
-    console.log("[v0] Missing email or password")
     return { error: "Email and password are required", success: false, redirect: null }
   }
 
@@ -49,16 +43,12 @@ export async function signIn(prevState: any, formData: FormData) {
     })
 
     if (error) {
-      console.log("[v0] Sign in error:", error.message)
       return { error: error.message, success: false, redirect: null }
     }
 
-    console.log("[v0] Sign in successful, user:", data.user?.email)
     const result = { success: true, redirect: "/dashboard", error: null }
-    console.log("[v0] Returning result:", result)
     return result
   } catch (error: any) {
-    console.error("[v0] Login error:", error)
     if (error.message && error.message.includes("Unexpected token")) {
       return { error: "Authentication service error. Please try again.", success: false, redirect: null }
     }
@@ -105,8 +95,6 @@ export async function signUp(prevState: any, formData: FormData) {
       process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ||
       `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/auth/callback`
 
-    console.log("[v0] Using redirect URL:", redirectUrl)
-
     const { error } = await supabase.auth.signUp({
       email: email.toString(),
       password: password.toString(),
@@ -120,14 +108,11 @@ export async function signUp(prevState: any, formData: FormData) {
     })
 
     if (error) {
-      console.log("[v0] Sign up error:", error.message)
       return { error: error.message }
     }
 
-    console.log("[v0] Sign up successful")
     return { success: "Check your email to confirm your account." }
   } catch (error: any) {
-    console.error("[v0] Sign up error:", error)
     if (error.message && error.message.includes("Unexpected token")) {
       return { error: "Authentication service error. Please check your email format and try again." }
     }
