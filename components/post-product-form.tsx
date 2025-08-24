@@ -807,6 +807,47 @@ export function PostProductForm() {
               <p className="text-sm text-muted-foreground mt-1">
                 Add relevant keywords to improve your ad's search visibility and help buyers find your item
               </p>
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    placeholder="Enter a tag..."
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault()
+                        addTag()
+                      }
+                    }}
+                    maxLength={20}
+                    disabled={formData.tags.length >= 5}
+                  />
+                  <Button
+                    type="button"
+                    onClick={addTag}
+                    disabled={!newTag.trim() || formData.tags.length >= 5 || formData.tags.includes(newTag.trim())}
+                    size="sm"
+                  >
+                    Add
+                  </Button>
+                </div>
+
+                {formData.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {formData.tags.map((tag) => (
+                      <Badge key={tag} variant="secondary" className="flex items-center gap-1 px-2 py-1">
+                        {tag}
+                        <button type="button" onClick={() => removeTag(tag)} className="ml-1 hover:text-red-500">
+                          ×
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                <p className="text-xs text-muted-foreground">{formData.tags.length}/5 tags used</p>
+              </div>
             </div>
 
             <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
