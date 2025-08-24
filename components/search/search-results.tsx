@@ -49,6 +49,14 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
   // Debounce search query to prevent too many API calls
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
 
+  const category = filters.category
+  const subcategory = filters.subcategory
+  const minPrice = filters.minPrice
+  const maxPrice = filters.maxPrice
+  const condition = filters.condition
+  const location = filters.location
+  const sortBy = filters.sortBy
+
   const fetchProducts = useCallback(async () => {
     console.log("[v0] Fetching products from database...")
     setLoading(true)
@@ -147,36 +155,34 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
         ],
       }
 
-      if (filters.subcategory && filters.subcategory !== "all") {
-        query = query.eq("category", filters.subcategory)
-      } else if (filters.category) {
-        const subcategories = categoryMapping[filters.category] || []
+      if (subcategory && subcategory !== "all") {
+        query = query.eq("category", subcategory)
+      } else if (category) {
+        const subcategories = categoryMapping[category] || []
         if (subcategories.length > 0) {
           query = query.in("category", subcategories)
         }
       }
 
-      const minPrice = Number.parseInt(filters.minPrice) || 0
-      const maxPrice = Number.parseInt(filters.maxPrice) || Number.MAX_SAFE_INTEGER
+      const minPriceNum = Number.parseInt(minPrice) || 0
+      const maxPriceNum = Number.parseInt(maxPrice) || Number.MAX_SAFE_INTEGER
 
-      if (minPrice > 0) {
-        query = query.gte("price", minPrice)
+      if (minPriceNum > 0) {
+        query = query.gte("price", minPriceNum)
       }
-      if (maxPrice < Number.MAX_SAFE_INTEGER) {
-        query = query.lte("price", maxPrice)
-      }
-
-      if (filters.condition) {
-        query = query.eq("condition", filters.condition.toLowerCase())
+      if (maxPriceNum < Number.MAX_SAFE_INTEGER) {
+        query = query.lte("price", maxPriceNum)
       }
 
-      if (filters.location) {
-        query = query.or(
-          `city.ilike.%${filters.location}%,province.ilike.%${filters.location}%,location.ilike.%${filters.location}%`,
-        )
+      if (condition) {
+        query = query.eq("condition", condition.toLowerCase())
       }
 
-      switch (filters.sortBy) {
+      if (location) {
+        query = query.or(`city.ilike.%${location}%,province.ilike.%${location}%,location.ilike.%${location}%`)
+      }
+
+      switch (sortBy) {
         case "newest":
           query = query.order("created_at", { ascending: false })
           break
@@ -208,16 +214,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
     } finally {
       setLoading(false)
     }
-  }, [
-    debouncedSearchQuery,
-    filters.category,
-    filters.subcategory,
-    filters.minPrice,
-    filters.maxPrice,
-    filters.condition,
-    filters.location,
-    filters.sortBy,
-  ])
+  }, [debouncedSearchQuery, category, subcategory, minPrice, maxPrice, condition, location, sortBy])
 
   useEffect(() => {
     fetchProducts()
@@ -277,8 +274,8 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
         <p className="text-muted-foreground">
           {filteredProducts.length} result{filteredProducts.length !== 1 ? "s" : ""} found
           {debouncedSearchQuery && ` for "${debouncedSearchQuery}"`}
-          {filters.subcategory && filters.subcategory !== "all" && ` in ${filters.subcategory}`}
-          {!filters.subcategory && filters.category && ` in ${filters.category}`}
+          {subcategory && subcategory !== "all" && ` in ${subcategory}`}
+          {!subcategory && category && ` in ${category}`}
         </p>
 
         <div className="flex items-center space-x-2">
