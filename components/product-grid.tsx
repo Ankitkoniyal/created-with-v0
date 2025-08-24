@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Heart } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 
 interface Product {
@@ -39,7 +39,7 @@ export function ProductGrid() {
 
   const supabase = createClient()
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     try {
       console.log("[v0] Fetching products from database...")
       const { data, error } = await supabase
@@ -63,11 +63,11 @@ export function ProductGrid() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [supabase, visibleCount])
 
   useEffect(() => {
     fetchProducts()
-  }, []) // Only run once on mount
+  }, [fetchProducts])
 
   const toggleFavorite = (productId: string, e: React.MouseEvent) => {
     e.preventDefault()
