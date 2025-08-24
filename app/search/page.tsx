@@ -1,3 +1,6 @@
+"use client"
+
+import { useMemo } from "react"
 import { SearchResults } from "@/components/search/search-results"
 import { SearchFilters } from "@/components/search/search-filters"
 import { Breadcrumb } from "@/components/breadcrumb"
@@ -17,15 +20,27 @@ interface SearchPageProps {
 
 export default function SearchPage({ searchParams }: SearchPageProps) {
   const query = searchParams.q || ""
-  const filters = {
-    category: searchParams.category || "",
-    subcategory: searchParams.subcategory || "",
-    minPrice: searchParams.minPrice || "",
-    maxPrice: searchParams.maxPrice || "",
-    condition: searchParams.condition || "",
-    location: searchParams.location || "",
-    sortBy: searchParams.sortBy || "relevance",
-  }
+
+  const filters = useMemo(
+    () => ({
+      category: searchParams.category || "",
+      subcategory: searchParams.subcategory || "",
+      minPrice: searchParams.minPrice || "",
+      maxPrice: searchParams.maxPrice || "",
+      condition: searchParams.condition || "",
+      location: searchParams.location || "",
+      sortBy: searchParams.sortBy || "relevance",
+    }),
+    [
+      searchParams.category,
+      searchParams.subcategory,
+      searchParams.minPrice,
+      searchParams.maxPrice,
+      searchParams.condition,
+      searchParams.location,
+      searchParams.sortBy,
+    ],
+  )
 
   const breadcrumbItems = [
     { label: "Home", href: "/" },
