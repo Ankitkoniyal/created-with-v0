@@ -137,7 +137,18 @@ const CANADIAN_LOCATIONS = [
   { province: "Yukon", cities: ["Whitehorse", "Dawson City"] },
 ]
 
-const conditions = ["New", "Used", "Refurbished", "Damaged", "Other"]
+const conditions = ["New", "Like New", "Good", "Fair", "Poor"]
+
+const mapConditionToDatabase = (condition: string): string => {
+  const conditionMap: { [key: string]: string } = {
+    New: "new",
+    "Like New": "like_new",
+    Good: "good",
+    Fair: "fair",
+    Poor: "poor",
+  }
+  return conditionMap[condition] || condition.toLowerCase()
+}
 
 export function PostProductForm() {
   const router = useRouter()
@@ -439,7 +450,7 @@ export function PostProductForm() {
         title: formData.title.trim(),
         description: enhancedDescription,
         price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
-        condition: formData.condition.toLowerCase(),
+        condition: mapConditionToDatabase(formData.condition),
         location: `${formData.address}, ${city}`.trim(),
         city: city, // Now correctly parsed city
         province: province, // Now correctly parsed province from postal code
