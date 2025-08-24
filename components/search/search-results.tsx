@@ -46,7 +46,13 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const { category, subcategory } = filters // Declare category and subcategory variables
+  const category = filters.category
+  const subcategory = filters.subcategory
+  const minPrice = filters.minPrice
+  const maxPrice = filters.maxPrice
+  const condition = filters.condition
+  const location = filters.location
+  const sortBy = filters.sortBy
 
   // Debounce search query to prevent too many API calls
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
@@ -57,12 +63,6 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
     setError(null)
 
     try {
-      const minPrice = filters.minPrice
-      const maxPrice = filters.maxPrice
-      const condition = filters.condition
-      const location = filters.location
-      const sortBy = filters.sortBy
-
       const supabase = createClient()
       let query = supabase.from("products").select("*").order("created_at", { ascending: false })
 
@@ -214,7 +214,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
     } finally {
       setLoading(false)
     }
-  }, [debouncedSearchQuery, JSON.stringify(filters)])
+  }, [debouncedSearchQuery, category, subcategory, minPrice, maxPrice, condition, location, sortBy]) // Use individual filter values instead of JSON.stringify(filters)
 
   useEffect(() => {
     fetchProducts()
