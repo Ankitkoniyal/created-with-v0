@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect, useCallback, useRef } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Heart, MapPin, Eye, Grid3X3, List, Package, Loader2 } from "lucide-react"
@@ -40,22 +40,6 @@ interface SearchResultsProps {
   }
 }
 
-// Create a custom deep comparison hook
-function useDeepCompareMemoize(value: any) {
-  const ref = useRef<any>()
-
-  if (!isEqual(value, ref.current)) {
-    ref.current = value
-  }
-
-  return ref.current
-}
-
-// Simple deep comparison function
-function isEqual(obj1: any, obj2: any): boolean {
-  return JSON.stringify(obj1) === JSON.stringify(obj2)
-}
-
 export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [products, setProducts] = useState<Product[]>([])
@@ -64,9 +48,6 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
 
   // Debounce search query to prevent too many API calls
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
-
-  // Memoize filters with deep comparison
-  const memoizedFilters = useDeepCompareMemoize(filters)
 
   const fetchProducts = useCallback(async () => {
     console.log("[v0] Fetching products from database...")
@@ -83,100 +64,100 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
         )
       }
 
-      if (memoizedFilters.subcategory && memoizedFilters.subcategory !== "all") {
-        query = query.eq("category", memoizedFilters.subcategory)
-      } else if (memoizedFilters.category) {
-        const categoryMapping: Record<string, string[]> = {
-          Vehicles: [
-            "Cars",
-            "Motorcycles",
-            "Trucks",
-            "Buses",
-            "Bicycles",
-            "Scooters",
-            "Boats",
-            "RVs",
-            "ATVs",
-            "Parts & Accessories",
-          ],
-          Electronics: [
-            "TV",
-            "Fridge",
-            "Oven",
-            "AC",
-            "Cooler",
-            "Toaster",
-            "Fan",
-            "Washing Machine",
-            "Microwave",
-            "Computer",
-            "Laptop",
-            "Camera",
-            "Audio System",
-          ],
-          Mobile: [
-            "Smartphones",
-            "Tablets",
-            "Accessories",
-            "Cases & Covers",
-            "Chargers",
-            "Headphones",
-            "Smart Watches",
-            "Power Banks",
-          ],
-          "Real Estate": [
-            "Houses",
-            "Apartments",
-            "Commercial",
-            "Land",
-            "Rental",
-            "Vacation Rentals",
-            "Office Space",
-            "Warehouse",
-          ],
-          Fashion: [
-            "Men's Clothing",
-            "Women's Clothing",
-            "Kids Clothing",
-            "Shoes",
-            "Bags",
-            "Jewelry",
-            "Watches",
-            "Accessories",
-          ],
-          Pets: ["Dogs", "Cats", "Birds", "Fish", "Pet Food", "Pet Accessories", "Pet Care", "Pet Services"],
-          Furniture: ["Sofa", "Bed", "Table", "Chair", "Wardrobe", "Desk", "Cabinet", "Dining Set", "Home Decor"],
-          Jobs: ["Full Time", "Part Time", "Freelance", "Internship", "Remote Work", "Contract", "Temporary"],
-          Gaming: ["Video Games", "Consoles", "PC Gaming", "Mobile Games", "Gaming Accessories", "Board Games"],
-          Books: ["Fiction", "Non-Fiction", "Educational", "Comics", "Magazines", "E-books", "Audiobooks"],
-          Services: [
-            "Home Services",
-            "Repair",
-            "Cleaning",
-            "Tutoring",
-            "Photography",
-            "Event Planning",
-            "Transportation",
-          ],
-          Other: [
-            "Sports Equipment",
-            "Musical Instruments",
-            "Art & Crafts",
-            "Collectibles",
-            "Tools",
-            "Garden",
-            "Baby Items",
-          ],
-        }
+      const categoryMapping: Record<string, string[]> = {
+        Vehicles: [
+          "Cars",
+          "Motorcycles",
+          "Trucks",
+          "Buses",
+          "Bicycles",
+          "Scooters",
+          "Boats",
+          "RVs",
+          "ATVs",
+          "Parts & Accessories",
+        ],
+        Electronics: [
+          "TV",
+          "Fridge",
+          "Oven",
+          "AC",
+          "Cooler",
+          "Toaster",
+          "Fan",
+          "Washing Machine",
+          "Microwave",
+          "Computer",
+          "Laptop",
+          "Camera",
+          "Audio System",
+        ],
+        Mobile: [
+          "Smartphones",
+          "Tablets",
+          "Accessories",
+          "Cases & Covers",
+          "Chargers",
+          "Headphones",
+          "Smart Watches",
+          "Power Banks",
+        ],
+        "Real Estate": [
+          "Houses",
+          "Apartments",
+          "Commercial",
+          "Land",
+          "Rental",
+          "Vacation Rentals",
+          "Office Space",
+          "Warehouse",
+        ],
+        Fashion: [
+          "Men's Clothing",
+          "Women's Clothing",
+          "Kids Clothing",
+          "Shoes",
+          "Bags",
+          "Jewelry",
+          "Watches",
+          "Accessories",
+        ],
+        Pets: ["Dogs", "Cats", "Birds", "Fish", "Pet Food", "Pet Accessories", "Pet Care", "Pet Services"],
+        Furniture: ["Sofa", "Bed", "Table", "Chair", "Wardrobe", "Desk", "Cabinet", "Dining Set", "Home Decor"],
+        Jobs: ["Full Time", "Part Time", "Freelance", "Internship", "Remote Work", "Contract", "Temporary"],
+        Gaming: ["Video Games", "Consoles", "PC Gaming", "Mobile Games", "Gaming Accessories", "Board Games"],
+        Books: ["Fiction", "Non-Fiction", "Educational", "Comics", "Magazines", "E-books", "Audiobooks"],
+        Services: [
+          "Home Services",
+          "Repair",
+          "Cleaning",
+          "Tutoring",
+          "Photography",
+          "Event Planning",
+          "Transportation",
+        ],
+        Other: [
+          "Sports Equipment",
+          "Musical Instruments",
+          "Art & Crafts",
+          "Collectibles",
+          "Tools",
+          "Garden",
+          "Baby Items",
+        ],
+      }
 
-        const subcategories = categoryMapping[memoizedFilters.category] || []
+      if (filters.subcategory && filters.subcategory !== "all") {
+        query = query.eq("category", filters.subcategory)
+      } else if (filters.category) {
+        const subcategories = categoryMapping[filters.category] || []
         if (subcategories.length > 0) {
           query = query.in("category", subcategories)
         }
       }
 
-      const minPrice = Number.parseInt(memoizedFilters.minPrice) || 0
-      const maxPrice = Number.parseInt(memoizedFilters.maxPrice) || Number.MAX_SAFE_INTEGER
+      const minPrice = Number.parseInt(filters.minPrice) || 0
+      const maxPrice = Number.parseInt(filters.maxPrice) || Number.MAX_SAFE_INTEGER
 
       if (minPrice > 0) {
         query = query.gte("price", minPrice)
@@ -185,17 +166,17 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
         query = query.lte("price", maxPrice)
       }
 
-      if (memoizedFilters.condition) {
-        query = query.eq("condition", memoizedFilters.condition.toLowerCase())
+      if (filters.condition) {
+        query = query.eq("condition", filters.condition.toLowerCase())
       }
 
-      if (memoizedFilters.location) {
+      if (filters.location) {
         query = query.or(
-          `city.ilike.%${memoizedFilters.location}%,province.ilike.%${memoizedFilters.location}%,location.ilike.%${memoizedFilters.location}%`,
+          `city.ilike.%${filters.location}%,province.ilike.%${filters.location}%,location.ilike.%${filters.location}%`,
         )
       }
 
-      switch (memoizedFilters.sortBy) {
+      switch (filters.sortBy) {
         case "newest":
           query = query.order("created_at", { ascending: false })
           break
@@ -227,7 +208,16 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
     } finally {
       setLoading(false)
     }
-  }, [debouncedSearchQuery, memoizedFilters])
+  }, [
+    debouncedSearchQuery,
+    filters.category,
+    filters.subcategory,
+    filters.minPrice,
+    filters.maxPrice,
+    filters.condition,
+    filters.location,
+    filters.sortBy,
+  ])
 
   useEffect(() => {
     fetchProducts()
@@ -287,8 +277,8 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
         <p className="text-muted-foreground">
           {filteredProducts.length} result{filteredProducts.length !== 1 ? "s" : ""} found
           {debouncedSearchQuery && ` for "${debouncedSearchQuery}"`}
-          {memoizedFilters.subcategory && memoizedFilters.subcategory !== "all" && ` in ${memoizedFilters.subcategory}`}
-          {!memoizedFilters.subcategory && memoizedFilters.category && ` in ${memoizedFilters.category}`}
+          {filters.subcategory && filters.subcategory !== "all" && ` in ${filters.subcategory}`}
+          {!filters.subcategory && filters.category && ` in ${filters.category}`}
         </p>
 
         <div className="flex items-center space-x-2">
