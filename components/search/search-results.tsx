@@ -45,27 +45,6 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const memoizedFilters = useMemo(
-    () => ({
-      category: filters.category,
-      subcategory: filters.subcategory,
-      minPrice: filters.minPrice,
-      maxPrice: filters.maxPrice,
-      condition: filters.condition,
-      location: filters.location,
-      sortBy: filters.sortBy,
-    }),
-    [
-      filters.category,
-      filters.subcategory,
-      filters.minPrice,
-      filters.maxPrice,
-      filters.condition,
-      filters.location,
-      filters.sortBy,
-    ],
-  )
-
   useEffect(() => {
     const fetchProducts = async () => {
       console.log("[v0] Fetching products from database...")
@@ -82,9 +61,9 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
           )
         }
 
-        if (memoizedFilters.subcategory && memoizedFilters.subcategory !== "all") {
-          query = query.eq("category", memoizedFilters.subcategory)
-        } else if (memoizedFilters.category) {
+        if (filters.subcategory && filters.subcategory !== "all") {
+          query = query.eq("category", filters.subcategory)
+        } else if (filters.category) {
           const categoryMapping: Record<string, string[]> = {
             Vehicles: [
               "Cars",
@@ -168,14 +147,14 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
             ],
           }
 
-          const subcategories = categoryMapping[memoizedFilters.category] || []
+          const subcategories = categoryMapping[filters.category] || []
           if (subcategories.length > 0) {
             query = query.in("category", subcategories)
           }
         }
 
-        const minPrice = Number.parseInt(memoizedFilters.minPrice) || 0
-        const maxPrice = Number.parseInt(memoizedFilters.maxPrice) || Number.MAX_SAFE_INTEGER
+        const minPrice = Number.parseInt(filters.minPrice) || 0
+        const maxPrice = Number.parseInt(filters.maxPrice) || Number.MAX_SAFE_INTEGER
 
         if (minPrice > 0) {
           query = query.gte("price", minPrice)
@@ -184,17 +163,17 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
           query = query.lte("price", maxPrice)
         }
 
-        if (memoizedFilters.condition) {
-          query = query.eq("condition", memoizedFilters.condition.toLowerCase())
+        if (filters.condition) {
+          query = query.eq("condition", filters.condition.toLowerCase())
         }
 
-        if (memoizedFilters.location) {
+        if (filters.location) {
           query = query.or(
-            `city.ilike.%${memoizedFilters.location}%,province.ilike.%${memoizedFilters.location}%,location.ilike.%${memoizedFilters.location}%`,
+            `city.ilike.%${filters.location}%,province.ilike.%${filters.location}%,location.ilike.%${filters.location}%`,
           )
         }
 
-        switch (memoizedFilters.sortBy) {
+        switch (filters.sortBy) {
           case "newest":
             query = query.order("created_at", { ascending: false })
             break
@@ -229,7 +208,16 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
     }
 
     fetchProducts()
-  }, [searchQuery, memoizedFilters])
+  }, [
+    searchQuery,
+    filters.category,
+    filters.subcategory,
+    filters.minPrice,
+    filters.maxPrice,
+    filters.condition,
+    filters.location,
+    filters.sortBy,
+  ])
 
   const filteredProducts = useMemo(() => {
     return products
