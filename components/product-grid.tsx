@@ -3,10 +3,10 @@
 import type React from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Heart } from "lucide-react"
+import { Heart, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 
 interface Product {
@@ -23,7 +23,7 @@ interface Product {
   brand?: string
   model?: string
   description: string
-  image_urls: string[]
+  images: string[]
   created_at: string
   user_id: string
   featured?: boolean
@@ -39,35 +39,35 @@ export function ProductGrid() {
 
   const supabase = createClient()
 
-  const fetchProducts = useCallback(async () => {
-    try {
-      console.log("[v0] Fetching products from database...")
-      const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(visibleCount)
-
-      if (error) {
-        console.error("[v0] Error fetching products:", error)
-        setError("Failed to load ads")
-        return
-      }
-
-      console.log("[v0] Fetched products:", data?.length || 0)
-      setProducts(data || [])
-      setError(null)
-    } catch (err) {
-      console.error("[v0] Error fetching products:", err)
-      setError("Failed to load ads")
-    } finally {
-      setIsLoading(false)
-    }
-  }, [supabase, visibleCount])
-
   useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        console.log("[v0] Fetching products from database...")
+        const { data, error } = await supabase
+          .from("products")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(visibleCount)
+
+        if (error) {
+          console.error("[v0] Error fetching products:", error)
+          setError("Failed to load ads")
+          return
+        }
+
+        console.log("[v0] Fetched products:", data?.length || 0)
+        setProducts(data || [])
+        setError(null)
+      } catch (err) {
+        console.error("[v0] Error fetching products:", err)
+        setError("Failed to load ads")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
     fetchProducts()
-  }, [fetchProducts])
+  }, [visibleCount]) // Only depend on visibleCount
 
   const toggleFavorite = (productId: string, e: React.MouseEvent) => {
     e.preventDefault()
@@ -155,7 +155,7 @@ export function ProductGrid() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center py-8">
             <p className="text-red-600 mb-4">{error}</p>
-            <Button onClick={fetchProducts} className="bg-green-600 hover:bg-green-700">
+            <Button onClick={() => window.location.reload()} className="bg-green-600 hover:bg-green-700">
               Try Again
             </Button>
           </div>
@@ -173,7 +173,7 @@ export function ProductGrid() {
           </div>
           <div className="text-center py-8">
             <p className="text-gray-600 mb-4">No ads posted yet. Be the first to post an ad!</p>
-            <Link href="/sell">
+            <Link href="/sell" prefetch={false}>
               <Button className="bg-green-600 hover:bg-green-700">Post Your First Ad</Button>
             </Link>
           </div>
@@ -194,14 +194,16 @@ export function ProductGrid() {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
           {products.map((product) => (
-            <Link key={product.id} href={`/product/${product.id}`} className="block">
+            <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
               <Card className="group h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-md hover:shadow-md transition-all duration-150">
                 <CardContent className="p-0 flex flex-col h-full">
                   <div className="relative w-full h-40 sm:h-48 lg:h-52 overflow-hidden bg-gray-50">
                     <img
-                      src={product.image_urls?.[0] || "/placeholder.svg?height=200&width=200&query=product"}
+                      src={product.images?.[0] || "/placeholder.svg?height=200&width=200&query=product"}
                       alt={product.title}
                       loading="lazy"
+                      width={200}
+                      height={200}
                       className="w-full h-full object-cover"
                     />
 
@@ -226,7 +228,7 @@ export function ProductGrid() {
                     )}
 
                     <Badge className="absolute bottom-1 left-1 bg-black/70 text-white text-[9px] font-mono px-1 py-0.5 rounded">
-                      Ad ID: {product.id.slice(-8)}
+                      ID: {product.id.slice(-8)}
                     </Badge>
                   </div>
 
@@ -262,6 +264,7 @@ export function ProductGrid() {
               disabled={isLoadingMore}
               className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 text-sm font-medium rounded"
             >
+              {isLoadingMore ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               {isLoadingMore ? "Loading..." : "Show More"}
             </Button>
           </div>
