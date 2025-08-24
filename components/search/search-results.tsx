@@ -14,9 +14,9 @@ interface Product {
   location: string
   city: string
   province: string
-  images: string[]
+  image_urls: string[]
   category_id: number
-  primary_category: string
+  category: string
   condition: string
   status: string
   views?: number
@@ -45,31 +45,46 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const memoizedFilters = useMemo(
+    () => ({
+      category: filters.category,
+      subcategory: filters.subcategory,
+      minPrice: filters.minPrice,
+      maxPrice: filters.maxPrice,
+      condition: filters.condition,
+      location: filters.location,
+      sortBy: filters.sortBy,
+    }),
+    [
+      filters.category,
+      filters.subcategory,
+      filters.minPrice,
+      filters.maxPrice,
+      filters.condition,
+      filters.location,
+      filters.sortBy,
+    ],
+  )
+
   useEffect(() => {
     const fetchProducts = async () => {
+      console.log("[v0] Fetching products from database...")
       setLoading(true)
       setError(null)
 
       try {
         const supabase = createClient()
-        let query = supabase
-          .from("products")
-          .select("*")
-          .eq("status", "active")
-          .order("created_at", { ascending: false })
+        let query = supabase.from("products").select("*").order("created_at", { ascending: false })
 
-        // Apply search query filter
         if (searchQuery) {
           query = query.or(
-            `title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,primary_category.ilike.%${searchQuery}%`,
+            `title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,category.ilike.%${searchQuery}%`,
           )
         }
 
-        // Apply category filters
-        if (filters.subcategory && filters.subcategory !== "all") {
-          query = query.eq("primary_category", filters.subcategory)
-        } else if (filters.category) {
-          // For category filtering, we'll use a mapping approach
+        if (memoizedFilters.subcategory && memoizedFilters.subcategory !== "all") {
+          query = query.eq("category", memoizedFilters.subcategory)
+        } else if (memoizedFilters.category) {
           const categoryMapping: Record<string, string[]> = {
             Vehicles: [
               "Cars",
@@ -153,15 +168,14 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
             ],
           }
 
-          const subcategories = categoryMapping[filters.category] || []
+          const subcategories = categoryMapping[memoizedFilters.category] || []
           if (subcategories.length > 0) {
-            query = query.in("primary_category", subcategories)
+            query = query.in("category", subcategories)
           }
         }
 
-        // Apply price range filters
-        const minPrice = Number.parseInt(filters.minPrice) || 0
-        const maxPrice = Number.parseInt(filters.maxPrice) || Number.MAX_SAFE_INTEGER
+        const minPrice = Number.parseInt(memoizedFilters.minPrice) || 0
+        const maxPrice = Number.parseInt(memoizedFilters.maxPrice) || Number.MAX_SAFE_INTEGER
 
         if (minPrice > 0) {
           query = query.gte("price", minPrice)
@@ -170,20 +184,17 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
           query = query.lte("price", maxPrice)
         }
 
-        // Apply condition filter
-        if (filters.condition) {
-          query = query.eq("condition", filters.condition.toLowerCase())
+        if (memoizedFilters.condition) {
+          query = query.eq("condition", memoizedFilters.condition.toLowerCase())
         }
 
-        // Apply location filter
-        if (filters.location) {
+        if (memoizedFilters.location) {
           query = query.or(
-            `city.ilike.%${filters.location}%,province.ilike.%${filters.location}%,location.ilike.%${filters.location}%`,
+            `city.ilike.%${memoizedFilters.location}%,province.ilike.%${memoizedFilters.location}%,location.ilike.%${memoizedFilters.location}%`,
           )
         }
 
-        // Apply sorting
-        switch (filters.sortBy) {
+        switch (memoizedFilters.sortBy) {
           case "newest":
             query = query.order("created_at", { ascending: false })
             break
@@ -197,7 +208,6 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
             query = query.order("city", { ascending: true })
             break
           default:
-            // Default relevance sorting - featured first, then by views/created_at
             query = query.order("created_at", { ascending: false })
         }
 
@@ -219,10 +229,10 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
     }
 
     fetchProducts()
-  }, [searchQuery, filters])
+  }, [searchQuery, memoizedFilters])
 
   const filteredProducts = useMemo(() => {
-    return products // Products are already filtered by the database query
+    return products
   }, [products])
 
   if (loading) {
@@ -271,7 +281,6 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
 
   return (
     <div className="space-y-4">
-      {/* Results Header */}
       <div className="flex items-center justify-between">
         <p className="text-muted-foreground">
           {filteredProducts.length} result{filteredProducts.length !== 1 ? "s" : ""} found
@@ -304,7 +313,6 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
         </div>
       </div>
 
-      {/* Results Grid/List */}
       <div className={viewMode === "grid" ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-4"}>
         {filteredProducts.map((product) => (
           <Link key={product.id} href={`/product/${product.id}`}>
@@ -316,7 +324,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
               <CardContent className={`p-0 ${viewMode === "list" ? "flex" : ""}`}>
                 <div className={`relative ${viewMode === "list" ? "w-48 flex-shrink-0" : ""}`}>
                   <img
-                    src={product.images?.[0] || "/placeholder.svg"}
+                    src={product.image_urls?.[0] || "/placeholder.svg"}
                     alt={product.title}
                     className={`object-cover ${
                       viewMode === "list" ? "w-full h-32" : "w-full h-48"
@@ -343,7 +351,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
 
                   <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
                     <span className="capitalize">{product.condition}</span>
-                    <span>{product.primary_category}</span>
+                    <span>{product.category}</span>
                   </div>
 
                   <div className="flex items-center text-sm text-muted-foreground mb-2">
