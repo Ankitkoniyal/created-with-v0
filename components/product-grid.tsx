@@ -67,7 +67,7 @@ export function ProductGrid() {
 
   useEffect(() => {
     fetchProducts()
-  }, [visibleCount])
+  }, []) // Only run once on mount
 
   const toggleFavorite = (productId: string, e: React.MouseEvent) => {
     e.preventDefault()

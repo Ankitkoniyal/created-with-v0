@@ -208,16 +208,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
     }
 
     fetchProducts()
-  }, [
-    searchQuery,
-    filters.category,
-    filters.subcategory,
-    filters.minPrice,
-    filters.maxPrice,
-    filters.condition,
-    filters.location,
-    filters.sortBy,
-  ])
+  }, [searchQuery, JSON.stringify(filters)])
 
   const filteredProducts = useMemo(() => {
     return products
