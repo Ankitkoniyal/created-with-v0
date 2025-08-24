@@ -1,12 +1,13 @@
 "use client"
 
-import { useState, useMemo, useEffect, useCallback } from "react"
+import { useState, useMemo } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Heart, MapPin, Eye, Grid3X3, List, Package, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { useDebounce } from "@/hooks/use-debounce"
+import { useDeepCompareEffect } from "@/hooks/use-deep-compare-effect"
 
 interface Product {
   id: string
@@ -46,18 +47,9 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const category = filters.category
-  const subcategory = filters.subcategory
-  const minPrice = filters.minPrice
-  const maxPrice = filters.maxPrice
-  const condition = filters.condition
-  const location = filters.location
-  const sortBy = filters.sortBy
-
-  // Debounce search query to prevent too many API calls
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
 
-  const fetchProducts = useCallback(async () => {
+  const fetchProducts = async () => {
     setLoading(true)
     setError(null)
 
@@ -154,17 +146,17 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
         ],
       }
 
-      if (subcategory && subcategory !== "all") {
-        query = query.eq("category", subcategory)
-      } else if (category) {
-        const subcategories = categoryMapping[category] || []
+      if (filters.subcategory && filters.subcategory !== "all") {
+        query = query.eq("category", filters.subcategory)
+      } else if (filters.category) {
+        const subcategories = categoryMapping[filters.category] || []
         if (subcategories.length > 0) {
           query = query.in("category", subcategories)
         }
       }
 
-      const minPriceNum = Number.parseInt(minPrice) || 0
-      const maxPriceNum = Number.parseInt(maxPrice) || Number.MAX_SAFE_INTEGER
+      const minPriceNum = Number.parseInt(filters.minPrice) || 0
+      const maxPriceNum = Number.parseInt(filters.maxPrice) || Number.MAX_SAFE_INTEGER
 
       if (minPriceNum > 0) {
         query = query.gte("price", minPriceNum)
@@ -173,15 +165,17 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
         query = query.lte("price", maxPriceNum)
       }
 
-      if (condition) {
-        query = query.eq("condition", condition.toLowerCase())
+      if (filters.condition) {
+        query = query.eq("condition", filters.condition.toLowerCase())
       }
 
-      if (location) {
-        query = query.or(`city.ilike.%${location}%,province.ilike.%${location}%,location.ilike.%${location}%`)
+      if (filters.location) {
+        query = query.or(
+          `city.ilike.%${filters.location}%,province.ilike.%${filters.location}%,location.ilike.%${filters.location}%`,
+        )
       }
 
-      switch (sortBy) {
+      switch (filters.sortBy) {
         case "newest":
           query = query.order("created_at", { ascending: false })
           break
@@ -210,11 +204,11 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
     } finally {
       setLoading(false)
     }
-  }, [debouncedSearchQuery, category, subcategory, minPrice, maxPrice, condition, location, sortBy]) // Use individual filter values instead of JSON.stringify(filters)
+  }
 
-  useEffect(() => {
+  useDeepCompareEffect(() => {
     fetchProducts()
-  }, [fetchProducts])
+  }, [debouncedSearchQuery, filters])
 
   const filteredProducts = useMemo(() => {
     return products
@@ -270,8 +264,8 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
         <p className="text-muted-foreground">
           {filteredProducts.length} result{filteredProducts.length !== 1 ? "s" : ""} found
           {debouncedSearchQuery && ` for "${debouncedSearchQuery}"`}
-          {subcategory && subcategory !== "all" && ` in ${subcategory}`}
-          {!subcategory && category && ` in ${category}`}
+          {filters.subcategory && filters.subcategory !== "all" && ` in ${filters.subcategory}`}
+          {!filters.subcategory && filters.category && ` in ${filters.category}`}
         </p>
 
         <div className="flex items-center space-x-2">
