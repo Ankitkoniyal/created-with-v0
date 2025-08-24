@@ -21,25 +21,28 @@ async function getProduct(id: string) {
   const supabase = createClient()
 
   try {
-    const { data: product, error } = await supabase
-      .from("products")
-      .select("*")
-      .eq("id", id)
-      .eq("status", "active")
-      .single()
+    console.log("[v0] Fetching product with ID:", id)
+
+    const { data: products, error } = await supabase.from("products").select("*").eq("id", id)
 
     if (error) {
       console.error("[v0] Database error fetching product:", error.message)
       return null
     }
 
-    if (!product) {
+    console.log("[v0] Query returned products:", products?.length || 0)
+
+    if (!products || products.length === 0) {
       console.error("[v0] Product not found:", id)
       return null
     }
 
+    const product = products[0]
+    console.log("[v0] Product found:", product.title)
+
     let profileData = null
     if (product.user_id) {
+      console.log("[v0] Fetching profile for user:", product.user_id)
       const { data: profile } = await supabase
         .from("profiles")
         .select("full_name, avatar_url, created_at")
@@ -47,6 +50,7 @@ async function getProduct(id: string) {
         .single()
 
       profileData = profile
+      console.log("[v0] Profile found:", profileData?.full_name || "No profile")
     }
 
     return {
