@@ -23,14 +23,7 @@ async function getProduct(id: string) {
   try {
     const { data: product, error } = await supabase
       .from("products")
-      .select(`
-        *,
-        profiles!user_id (
-          full_name,
-          avatar_url,
-          created_at
-        )
-      `)
+      .select("*")
       .eq("id", id)
       .eq("status", "active")
       .single()
@@ -43,6 +36,17 @@ async function getProduct(id: string) {
     if (!product) {
       console.error("[v0] Product not found:", id)
       return null
+    }
+
+    let profileData = null
+    if (product.user_id) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name, avatar_url, created_at")
+        .eq("id", product.user_id)
+        .single()
+
+      profileData = profile
     }
 
     return {
@@ -59,12 +63,10 @@ async function getProduct(id: string) {
       postedDate: product.created_at,
       views: product.views || 0,
       seller: {
-        name: product.profiles?.full_name || "Anonymous Seller",
+        name: profileData?.full_name || "Anonymous Seller",
         rating: 4.5, // TODO: Implement rating system
         totalReviews: 0, // TODO: Implement review system
-        memberSince: product.profiles?.created_at
-          ? new Date(product.profiles.created_at).getFullYear().toString()
-          : "2024",
+        memberSince: profileData?.created_at ? new Date(profileData.created_at).getFullYear().toString() : "2024",
         verified: true, // TODO: Implement verification system
         responseTime: "Usually responds within 2 hours",
       },
