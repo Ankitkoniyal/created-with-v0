@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect, useCallback } from "react"
+import { useState, useMemo, useEffect, useCallback, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Heart, MapPin, Eye, Grid3X3, List, Package, Loader2 } from "lucide-react"
@@ -43,11 +43,11 @@ interface SearchResultsProps {
 // Create a custom deep comparison hook
 function useDeepCompareMemoize(value: any) {
   const ref = useRef<any>()
-  
+
   if (!isEqual(value, ref.current)) {
     ref.current = value
   }
-  
+
   return ref.current
 }
 
@@ -64,7 +64,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
 
   // Debounce search query to prevent too many API calls
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
-  
+
   // Memoize filters with deep comparison
   const memoizedFilters = useDeepCompareMemoize(filters)
 
