@@ -23,7 +23,7 @@ interface Product {
   brand?: string
   model?: string
   description: string
-  images: string[]
+  image_urls: string[] // Updated from images to image_urls to match database schema
   created_at: string
   user_id: string
   featured?: boolean
@@ -195,7 +195,7 @@ export function ProductGrid() {
                 <CardContent className="p-0 flex flex-col h-full">
                   <div className="relative w-full h-40 sm:h-48 lg:h-52 overflow-hidden bg-gray-50">
                     <img
-                      src={product.images?.[0] || "/placeholder.svg?height=200&width=200&query=product"}
+                      src={product.image_urls?.[0] || "/placeholder.svg?height=200&width=200&query=product"} // Updated from images to image_urls
                       alt={product.title}
                       loading="lazy"
                       width={200}

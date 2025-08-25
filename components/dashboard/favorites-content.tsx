@@ -18,7 +18,7 @@ interface FavoriteProduct {
     id: string
     title: string
     price: number
-    images: string[]
+    image_urls: string[] // Updated from images to image_urls to match database schema
     condition: string
     created_at: string
   }
@@ -46,7 +46,7 @@ export function FavoritesContent() {
               id,
               title,
               price,
-              images,
+              image_urls,
               condition,
               created_at
             )
@@ -137,7 +137,7 @@ export function FavoritesContent() {
                 <div className="relative">
                   <Link href={`/product/${product.id}`}>
                     <img
-                      src={product.images?.[0] || "/placeholder.svg"}
+                      src={product.image_urls?.[0] || "/placeholder.svg"} // Updated from images to image_urls
                       alt={product.title}
                       className="w-full h-48 object-cover rounded-t-lg"
                     />

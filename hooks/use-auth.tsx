@@ -33,27 +33,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const supabase = createClient()
 
-  const fetchProfile = async (userId: string, userData: User): Promise<Profile> => {
+  const fetchProfile = async (userId: string, userData: User): Promise<Profile | null> => {
     try {
       const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
 
       if (error) {
-        const fallbackProfile = {
+        const newProfile = {
           id: userId,
-          name: userData?.user_metadata?.full_name || userData?.email?.split("@")[0] || "User",
+          full_name: userData?.user_metadata?.full_name || userData?.email?.split("@")[0] || "User",
           email: userData?.email || "",
           phone: userData?.user_metadata?.phone || "",
           avatar_url: userData?.user_metadata?.avatar_url || "",
           bio: "",
           location: "",
           verified: false,
-          created_at: new Date().toISOString(),
         }
 
-        return fallbackProfile
+        const { data: createdProfile, error: createError } = await supabase
+          .from("profiles")
+          .insert(newProfile)
+          .select()
+          .single()
+
+        if (createError) {
+          console.error("Failed to create profile:", createError)
+          return null
+        }
+
+        return {
+          id: createdProfile.id,
+          name: createdProfile.full_name || "User",
+          email: createdProfile.email || "",
+          phone: createdProfile.phone || "",
+          avatar_url: createdProfile.avatar_url || "",
+          bio: createdProfile.bio || "",
+          location: createdProfile.location || "",
+          verified: createdProfile.verified || false,
+          created_at: createdProfile.created_at,
+        }
       }
 
-      const profileData = {
+      return {
         id: data.id,
         name: data.full_name || userData?.email?.split("@")[0] || "User",
         email: data.email || userData?.email || "",
@@ -64,22 +84,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         verified: data.verified || false,
         created_at: data.created_at,
       }
-
-      return profileData
     } catch (error) {
-      const fallbackProfile = {
-        id: userId,
-        name: userData?.user_metadata?.full_name || userData?.email?.split("@")[0] || "User",
-        email: userData?.email || "",
-        phone: userData?.user_metadata?.phone || "",
-        avatar_url: userData?.user_metadata?.avatar_url || "",
-        bio: "",
-        location: "",
-        verified: false,
-        created_at: new Date().toISOString(),
-      }
-
-      return fallbackProfile
+      console.error("Profile fetch error:", error)
+      return null
     }
   }
 
@@ -96,17 +103,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (session?.user) {
           setUser(session.user)
-
-          try {
-            const profileData = await fetchProfile(session.user.id, session.user)
-            if (mounted) {
-              setProfile(profileData)
-            }
-          } catch (profileError) {
-            console.error("Profile fetch error:", profileError)
-            if (mounted) {
-              setProfile(null)
-            }
+          const profileData = await fetchProfile(session.user.id, session.user)
+          if (mounted) {
+            setProfile(profileData)
           }
         } else {
           setUser(null)
@@ -119,6 +118,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         console.error("Auth initialization error:", error)
         if (mounted) {
+          setUser(null)
+          setProfile(null)
           setIsLoading(false)
         }
       }
@@ -133,16 +134,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (event === "SIGNED_IN" && session?.user) {
         setUser(session.user)
-        try {
-          const profileData = await fetchProfile(session.user.id, session.user)
-          if (mounted) {
-            setProfile(profileData)
-          }
-        } catch (profileError) {
-          console.error("Profile fetch error after sign in:", profileError)
-          if (mounted) {
-            setProfile(null)
-          }
+        const profileData = await fetchProfile(session.user.id, session.user)
+        if (mounted) {
+          setProfile(profileData)
         }
         setIsLoading(false)
       } else if (event === "SIGNED_OUT") {
@@ -169,15 +163,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         setIsLoading(false)
-
-        if (error.message.includes("Invalid login credentials")) {
-          return { error: "Invalid email or password. Please check your credentials and try again." }
-        } else if (error.message.includes("Email not confirmed")) {
-          return { error: "Please check your email and click the confirmation link before signing in." }
-        } else if (error.message.includes("Too many requests")) {
-          return { error: "Too many login attempts. Please wait a few minutes before trying again." }
-        }
-
         return { error: error.message }
       }
 

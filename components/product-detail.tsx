@@ -31,16 +31,16 @@ interface Product {
   price: string
   originalPrice?: string
   location: string
-  images: string[] // Changed from image_urls to images to match database
+  image_urls: string[] // Updated from images to image_urls to match database schema
   description: string
-  youtube_url?: string | null // Changed from youtubeUrl to youtube_url
-  website_url?: string | null // Changed from websiteUrl to website_url
+  youtube_url?: string | null
+  website_url?: string | null
   category: string
   subcategory?: string | null
   condition: string
-  brand?: string | null // Made optional since it can be null
-  model?: string | null // Made optional since it can be null
-  tags?: string[] | null // Added tags field
+  brand?: string | null
+  model?: string | null
+  tags?: string[] | null
   postedDate: string
   views: number
   seller: {
@@ -51,7 +51,7 @@ interface Product {
     verified: boolean
     responseTime: string
   }
-  features?: string[] // Made optional since it might not exist
+  features?: string[]
   storage?: string | null
   color?: string | null
   [key: string]: any
@@ -232,7 +232,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
           <CardContent className="p-0">
             <div className="relative">
               <img
-                src={product.images?.[selectedImage] || "/placeholder.svg"}
+                src={product.image_urls?.[selectedImage] || "/placeholder.svg"} // Updated from images to image_urls
                 alt={product.title}
                 className="w-full h-80 object-cover rounded-t-lg"
               />
@@ -240,21 +240,26 @@ export function ProductDetail({ product }: ProductDetailProps) {
 
             <div className="p-3">
               <div className="flex space-x-2 overflow-x-auto">
-                {product.images?.map((image, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setSelectedImage(index)}
-                    className={`flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden border-2 ${
-                      selectedImage === index ? "border-primary" : "border-border"
-                    }`}
-                  >
-                    <img
-                      src={image || "/placeholder.svg"}
-                      alt={`${product.title} ${index + 1}`}
-                      className="w-full h-full object-cover"
-                    />
-                  </button>
-                ))}
+                {product.image_urls?.map(
+                  (
+                    image,
+                    index, // Updated from images to image_urls
+                  ) => (
+                    <button
+                      key={index}
+                      onClick={() => setSelectedImage(index)}
+                      className={`flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden border-2 ${
+                        selectedImage === index ? "border-primary" : "border-border"
+                      }`}
+                    >
+                      <img
+                        src={image || "/placeholder.svg"}
+                        alt={`${product.title} ${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </button>
+                  ),
+                )}
               </div>
             </div>
           </CardContent>
@@ -398,7 +403,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                   id: product.id,
                   title: product.title,
                   price: product.price,
-                  image: product.images?.[0] || "/placeholder.svg", // Updated to use images field
+                  image: product.image_urls?.[0] || "/placeholder.svg", // Updated from images to image_urls
                 }}
                 seller={{
                   name: product.seller.name,

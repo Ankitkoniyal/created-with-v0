@@ -1,6 +1,7 @@
 "use client"
-import { useActionState } from "react"
-import { useState, useEffect } from "react"
+import { useState } from "react"
+import type React from "react"
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,37 +9,47 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, Mail, Lock, User, AlertCircle, Phone, CheckCircle } from "lucide-react"
-import { signUp } from "@/lib/actions/auth"
 import { useRouter } from "next/navigation"
-
-const initialState = {
-  error: null,
-  success: null,
-}
+import { useAuth } from "@/hooks/use-auth"
 
 export function SignupForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [agreeToTerms, setAgreeToTerms] = useState(false)
-  const [state, formAction] = useActionState(signUp, initialState)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
   const router = useRouter()
+  const { signup } = useAuth()
 
-  useEffect(() => {
-    console.log("[v0] Signup form state changed:", state)
-    if (state?.success) {
-      setTimeout(() => {
-        router.push("/")
-      }, 2000) // 2 second delay to show success message
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+    setError(null)
+    setSuccess(null)
+
+    const formData = new FormData(e.currentTarget)
+    const email = formData.get("email") as string
+    const password = formData.get("password") as string
+    const fullName = formData.get("fullName") as string
+    const phone = formData.get("phone") as string
+
+    try {
+      const result = await signup(email, password, fullName, phone)
+
+      if (result.error) {
+        setError(result.error)
+        setIsSubmitting(false)
+      } else {
+        setSuccess("Check your email to confirm your account.")
+        setTimeout(() => {
+          router.push("/")
+        }, 2000)
+      }
+    } catch (err) {
+      console.error("Signup error:", err)
+      setError("An unexpected error occurred. Please try again.")
+      setIsSubmitting(false)
     }
-  }, [state, router])
-
-  const handleFormAction = async (formData: FormData) => {
-    console.log("[v0] Signup form submitted with data:", {
-      fullName: formData.get("fullName"),
-      email: formData.get("email"),
-      phone: formData.get("phone"),
-      password: "***hidden***",
-    })
-    return formAction(formData)
   }
 
   return (
@@ -47,27 +58,28 @@ export function SignupForm() {
         <CardTitle className="text-2xl font-bold text-center">Create Account</CardTitle>
       </CardHeader>
       <CardContent>
-        <form action={handleFormAction} className="space-y-4">
-          {state?.error && (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{state.error}</AlertDescription>
+              <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
 
-          {state?.success && (
+          {success && (
             <Alert className="border-green-200 bg-green-50 text-green-800">
               <CheckCircle className="h-4 w-4 text-green-600" />
               <AlertDescription>
                 <div className="space-y-1">
                   <p className="font-medium">Account created successfully!</p>
-                  <p className="text-sm">{state.success}</p>
+                  <p className="text-sm">{success}</p>
                   <p className="text-sm font-medium">Redirecting to homepage...</p>
                 </div>
               </AlertDescription>
             </Alert>
           )}
 
+          {/* ... existing form fields ... */}
           <div className="space-y-2">
             <Label htmlFor="fullName">Full Name</Label>
             <div className="relative">
@@ -141,8 +153,8 @@ export function SignupForm() {
             </Label>
           </div>
 
-          <Button type="submit" className="w-full" disabled={!agreeToTerms}>
-            Create Account
+          <Button type="submit" className="w-full" disabled={!agreeToTerms || isSubmitting}>
+            {isSubmitting ? "Creating Account..." : "Create Account"}
           </Button>
         </form>
       </CardContent>
