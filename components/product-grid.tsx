@@ -42,12 +42,11 @@ export function ProductGrid() {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        console.log("[v0] Fetching products from database...")
         const { data, error } = await supabase
           .from("products")
           .select("*")
           .order("created_at", { ascending: false })
-          .limit(visibleCount)
+          .limit(20)
 
         if (error) {
           console.error("[v0] Error fetching products:", error)
@@ -55,7 +54,6 @@ export function ProductGrid() {
           return
         }
 
-        console.log("[v0] Fetched products:", data?.length || 0)
         setProducts(data || [])
         setError(null)
       } catch (err) {
@@ -67,7 +65,7 @@ export function ProductGrid() {
     }
 
     fetchProducts()
-  }, [visibleCount]) // Only depend on visibleCount
+  }, []) // Removed visibleCount dependency to prevent infinite loop
 
   const toggleFavorite = (productId: string, e: React.MouseEvent) => {
     e.preventDefault()
