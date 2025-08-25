@@ -100,7 +100,7 @@ async function getProduct(id: string) {
       title: product.title,
       price: `$${product.price.toLocaleString()}`,
       location: product.city && product.province ? `${product.city}, ${product.province}` : product.location,
-      images: product.image_urls || ["/placeholder.svg"],
+      images: product.images || ["/placeholder.svg"],
       description: cleanDescription,
       youtubeUrl,
       websiteUrl,
