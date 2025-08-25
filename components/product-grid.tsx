@@ -23,49 +23,61 @@ interface Product {
   brand?: string
   model?: string
   description: string
-  images: string[]
+  image_urls: string[]
   created_at: string
   user_id: string
   featured?: boolean
 }
 
+const PRODUCTS_PER_PAGE = 20
+
 export function ProductGrid() {
   const [products, setProducts] = useState<Product[]>([])
-  const [visibleCount, setVisibleCount] = useState(20)
+  const [page, setPage] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
 
   const supabase = createClient()
 
-  useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("products")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(20)
+  const fetchProducts = async (currentPage: number) => {
+    const from = currentPage * PRODUCTS_PER_PAGE
+    const to = from + PRODUCTS_PER_PAGE - 1
 
-        if (error) {
-          console.error("[v0] Error fetching products:", error)
-          setError("Failed to load ads")
-          return
-        }
+    try {
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .range(from, to)
 
-        setProducts(data || [])
-        setError(null)
-      } catch (err) {
-        console.error("[v0] Error fetching products:", err)
+      if (error) {
+        console.error("Error fetching products:", error)
         setError("Failed to load ads")
-      } finally {
-        setIsLoading(false)
+        return null
       }
+      return data || []
+    } catch (err) {
+      console.error("Error fetching products:", err)
+      setError("Failed to load ads")
+      return null
     }
+  }
 
-    fetchProducts()
-  }, []) // Removed visibleCount dependency to prevent infinite loop
+  useEffect(() => {
+    const initialFetch = async () => {
+      setIsLoading(true)
+      const initialProducts = await fetchProducts(0)
+      if (initialProducts) {
+        setProducts(initialProducts)
+        setHasMore(initialProducts.length === PRODUCTS_PER_PAGE)
+      }
+      setIsLoading(false)
+    }
+    initialFetch()
+  }, [])
 
   const toggleFavorite = (productId: string, e: React.MouseEvent) => {
     e.preventDefault()
@@ -78,28 +90,16 @@ export function ProductGrid() {
   }
 
   const loadMore = async () => {
+    if (isLoadingMore || !hasMore) return
     setIsLoadingMore(true)
-    const newVisibleCount = visibleCount + 12
-
-    try {
-      const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(newVisibleCount)
-
-      if (error) {
-        console.error("[v0] Error loading more products:", error)
-        return
-      }
-
-      setProducts(data || [])
-      setVisibleCount(newVisibleCount)
-    } catch (err) {
-      console.error("[v0] Error loading more products:", err)
-    } finally {
-      setIsLoadingMore(false)
+    const nextPage = page + 1
+    const newProducts = await fetchProducts(nextPage)
+    if (newProducts) {
+      setProducts((prev) => [...prev, ...newProducts])
+      setPage(nextPage)
+      setHasMore(newProducts.length === PRODUCTS_PER_PAGE)
     }
+    setIsLoadingMore(false)
   }
 
   const formatPrice = (price: number, priceType: string) => {
@@ -180,8 +180,6 @@ export function ProductGrid() {
     )
   }
 
-  const hasMore = products.length >= visibleCount
-
   return (
     <section className="py-2">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -197,7 +195,7 @@ export function ProductGrid() {
                 <CardContent className="p-0 flex flex-col h-full">
                   <div className="relative w-full h-40 sm:h-48 lg:h-52 overflow-hidden bg-gray-50">
                     <img
-                      src={product.images?.[0] || "/placeholder.svg?height=200&width=200&query=product"}
+                      src={product.image_urls?.[0] || "/placeholder.svg?height=200&width=200&query=product"}
                       alt={product.title}
                       loading="lazy"
                       width={200}
