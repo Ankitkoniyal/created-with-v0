@@ -31,7 +31,7 @@ interface Product {
   price: string
   originalPrice?: string
   location: string
-  image_urls: string[] // Changed from images to image_urls to match database
+  images: string[] // Changed from image_urls to images to match database
   description: string
   youtube_url?: string | null // Changed from youtubeUrl to youtube_url
   website_url?: string | null // Changed from websiteUrl to website_url
@@ -232,7 +232,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
           <CardContent className="p-0">
             <div className="relative">
               <img
-                src={product.image_urls?.[selectedImage] || "/placeholder.svg"}
+                src={product.images?.[selectedImage] || "/placeholder.svg"}
                 alt={product.title}
                 className="w-full h-80 object-cover rounded-t-lg"
               />
@@ -240,7 +240,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
 
             <div className="p-3">
               <div className="flex space-x-2 overflow-x-auto">
-                {product.image_urls?.map((image, index) => (
+                {product.images?.map((image, index) => (
                   <button
                     key={index}
                     onClick={() => setSelectedImage(index)}
@@ -398,7 +398,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                   id: product.id,
                   title: product.title,
                   price: product.price,
-                  image: product.image_urls?.[0] || "/placeholder.svg", // Updated to use image_urls
+                  image: product.images?.[0] || "/placeholder.svg", // Updated to use images field
                 }}
                 seller={{
                   name: product.seller.name,
