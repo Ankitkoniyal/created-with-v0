@@ -4,7 +4,23 @@ import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { Heart, Share2, Flag, MapPin, Eye, Calendar, Star, Shield, Clock, Phone, X, Copy, Check } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import {
+  Heart,
+  Share2,
+  Flag,
+  MapPin,
+  Eye,
+  Calendar,
+  Star,
+  Shield,
+  Clock,
+  Phone,
+  X,
+  Copy,
+  Check,
+  Tag,
+} from "lucide-react"
 import { ContactSellerModal } from "@/components/messaging/contact-seller-modal"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
@@ -15,18 +31,18 @@ interface Product {
   price: string
   originalPrice?: string
   location: string
-  images: string[]
+  image_urls: string[] // Changed from images to image_urls to match database
   description: string
-  youtubeUrl?: string | null
-  websiteUrl?: string | null
+  youtube_url?: string | null // Changed from youtubeUrl to youtube_url
+  website_url?: string | null // Changed from websiteUrl to website_url
   category: string
   subcategory?: string | null
   condition: string
-  brand: string
-  model: string
+  brand?: string | null // Made optional since it can be null
+  model?: string | null // Made optional since it can be null
+  tags?: string[] | null // Added tags field
   postedDate: string
   views: number
-  adId: string
   seller: {
     name: string
     rating: number
@@ -35,7 +51,7 @@ interface Product {
     verified: boolean
     responseTime: string
   }
-  features: string[]
+  features?: string[] // Made optional since it might not exist
   storage?: string | null
   color?: string | null
   [key: string]: any
@@ -216,7 +232,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
           <CardContent className="p-0">
             <div className="relative">
               <img
-                src={product.images[selectedImage] || "/placeholder.svg"}
+                src={product.image_urls?.[selectedImage] || "/placeholder.svg"}
                 alt={product.title}
                 className="w-full h-80 object-cover rounded-t-lg"
               />
@@ -224,7 +240,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
 
             <div className="p-3">
               <div className="flex space-x-2 overflow-x-auto">
-                {product.images.map((image, index) => (
+                {product.image_urls?.map((image, index) => (
                   <button
                     key={index}
                     onClick={() => setSelectedImage(index)}
@@ -382,7 +398,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                   id: product.id,
                   title: product.title,
                   price: product.price,
-                  image: product.images[0],
+                  image: product.image_urls?.[0] || "/placeholder.svg", // Updated to use image_urls
                 }}
                 seller={{
                   name: product.seller.name,
@@ -413,14 +429,18 @@ export function ProductDetail({ product }: ProductDetailProps) {
                 <span className="text-muted-foreground">Condition:</span>
                 <span className="ml-2 font-medium">{product.condition}</span>
               </div>
-              <div>
-                <span className="text-muted-foreground">Brand:</span>
-                <span className="ml-2 font-medium">{product.brand}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Model:</span>
-                <span className="ml-2 font-medium">{product.model}</span>
-              </div>
+              {product.brand && (
+                <div>
+                  <span className="text-muted-foreground">Brand:</span>
+                  <span className="ml-2 font-medium">{product.brand}</span>
+                </div>
+              )}
+              {product.model && (
+                <div>
+                  <span className="text-muted-foreground">Model:</span>
+                  <span className="ml-2 font-medium">{product.model}</span>
+                </div>
+              )}
               <div>
                 <span className="text-muted-foreground">Category:</span>
                 <span className="ml-2 font-medium">{product.category}</span>
@@ -445,17 +465,37 @@ export function ProductDetail({ product }: ProductDetailProps) {
               )}
             </div>
 
-            <Separator className="my-4" />
+            {product.tags && product.tags.length > 0 && (
+              <>
+                <Separator className="my-4" />
+                <h3 className="font-semibold text-foreground mb-2 flex items-center">
+                  <Tag className="h-4 w-4 mr-2" />
+                  Tags
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {product.tags.map((tag, index) => (
+                    <Badge key={index} variant="secondary" className="text-xs">
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              </>
+            )}
 
-            <h3 className="font-semibold text-foreground mb-2">Key Features</h3>
-            <ul className="space-y-1">
-              {product.features.map((feature, index) => (
-                <li key={index} className="flex items-center text-sm">
-                  <div className="w-2 h-2 bg-primary rounded-full mr-3" />
-                  {feature}
-                </li>
-              ))}
-            </ul>
+            {product.features && product.features.length > 0 && (
+              <>
+                <Separator className="my-4" />
+                <h3 className="font-semibold text-foreground mb-2">Key Features</h3>
+                <ul className="space-y-1">
+                  {product.features.map((feature, index) => (
+                    <li key={index} className="flex items-center text-sm">
+                      <div className="w-2 h-2 bg-primary rounded-full mr-3" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -531,13 +571,13 @@ export function ProductDetail({ product }: ProductDetailProps) {
         <Card>
           <CardContent className="p-4">
             <h3 className="font-semibold text-foreground mb-3">Description</h3>
-            <p className="text-muted-foreground leading-relaxed">{product.description}</p>
+            <p className="text-muted-foreground leading-relaxed whitespace-pre-line">{product.description}</p>
 
-            {(product.youtubeUrl || product.websiteUrl) && (
+            {(product.youtube_url || product.website_url) && (
               <>
                 <Separator className="my-4" />
                 <div className="space-y-3">
-                  {product.youtubeUrl && (
+                  {product.youtube_url && (
                     <div className="flex items-center space-x-3 p-3 bg-red-50 rounded-lg border border-red-100">
                       <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
                         <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
@@ -547,18 +587,18 @@ export function ProductDetail({ product }: ProductDetailProps) {
                       <div className="flex-1">
                         <p className="text-sm font-medium text-gray-900">YouTube Video</p>
                         <a
-                          href={product.youtubeUrl}
+                          href={product.youtube_url}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-sm text-red-600 hover:text-red-700 hover:underline break-all"
                         >
-                          {product.youtubeUrl}
+                          {product.youtube_url}
                         </a>
                       </div>
                     </div>
                   )}
 
-                  {product.websiteUrl && (
+                  {product.website_url && (
                     <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
                       <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                         <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -574,13 +614,15 @@ export function ProductDetail({ product }: ProductDetailProps) {
                         <p className="text-sm font-medium text-gray-900">Website</p>
                         <a
                           href={
-                            product.websiteUrl.startsWith("http") ? product.websiteUrl : `https://${product.websiteUrl}`
+                            product.website_url.startsWith("http")
+                              ? product.website_url
+                              : `https://${product.website_url}`
                           }
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-sm text-blue-600 hover:text-blue-700 hover:underline break-all"
                         >
-                          {product.websiteUrl}
+                          {product.website_url}
                         </a>
                       </div>
                     </div>

@@ -1,6 +1,7 @@
 "use client"
 
 import { Checkbox } from "@/components/ui/checkbox"
+import { toast } from "react-toastify"
 
 import type React from "react"
 
@@ -39,87 +40,129 @@ interface ProductFormData {
   features: string[]
 }
 
-const categories = [
-  "Vehicles",
-  "Electronics",
-  "Mobile",
-  "Real Estate",
-  "Fashion",
-  "Pets",
-  "Furniture",
-  "Jobs",
-  "Gaming",
-  "Books",
-  "Services",
-  "Other",
-]
-
-const subcategories: Record<string, string[]> = {
-  Electronics: [
-    "TV",
-    "Fridge",
-    "Oven",
-    "AC",
-    "Cooler",
-    "Toaster",
-    "Fan",
-    "Washing Machine",
-    "Microwave",
-    "Computer",
-    "Laptop",
-    "Camera",
-    "Audio System",
-  ],
-  Vehicles: [
-    "Cars",
-    "Motorcycles",
-    "Trucks",
-    "Buses",
-    "Bicycles",
-    "Scooters",
-    "Boats",
-    "RVs",
-    "ATVs",
-    "Parts & Accessories",
-  ],
-  Mobile: [
-    "Smartphones",
-    "Tablets",
-    "Accessories",
-    "Cases & Covers",
-    "Chargers",
-    "Headphones",
-    "Smart Watches",
-    "Power Banks",
-  ],
-  "Real Estate": [
-    "Houses",
-    "Apartments",
-    "Commercial",
-    "Land",
-    "Rental",
-    "Vacation Rentals",
-    "Office Space",
-    "Warehouse",
-  ],
-  Fashion: [
-    "Men's Clothing",
-    "Women's Clothing",
-    "Kids Clothing",
-    "Shoes",
-    "Bags",
-    "Jewelry",
-    "Watches",
-    "Accessories",
-  ],
-  Pets: ["Dogs", "Cats", "Birds", "Fish", "Pet Food", "Pet Accessories", "Pet Care", "Pet Services"],
-  Furniture: ["Sofa", "Bed", "Table", "Chair", "Wardrobe", "Desk", "Cabinet", "Dining Set", "Home Decor"],
-  Jobs: ["Full Time", "Part Time", "Freelance", "Internship", "Remote Work", "Contract", "Temporary"],
-  Gaming: ["Video Games", "Consoles", "PC Gaming", "Mobile Games", "Gaming Accessories", "Board Games"],
-  Books: ["Fiction", "Non-Fiction", "Educational", "Comics", "Magazines", "E-books", "Audiobooks"],
-  Services: ["Home Services", "Repair", "Cleaning", "Tutoring", "Photography", "Event Planning", "Transportation"],
-  Other: ["Sports Equipment", "Musical Instruments", "Art & Crafts", "Collectibles", "Tools", "Garden", "Baby Items"],
+interface Category {
+  name: string
+  subcategories: string[]
 }
+
+const categories: Category[] = [
+  {
+    name: "Vehicles",
+    subcategories: [
+      "Cars",
+      "Motorcycles",
+      "Trucks",
+      "Buses",
+      "Bicycles",
+      "Scooters",
+      "Boats",
+      "RVs",
+      "ATVs",
+      "Parts & Accessories",
+    ],
+  },
+  {
+    name: "Electronics",
+    subcategories: [
+      "TV",
+      "Fridge",
+      "Oven",
+      "AC",
+      "Cooler",
+      "Toaster",
+      "Fan",
+      "Washing Machine",
+      "Microwave",
+      "Computer",
+      "Laptop",
+      "Camera",
+      "Audio System",
+    ],
+  },
+  {
+    name: "Mobile",
+    subcategories: [
+      "Smartphones",
+      "Tablets",
+      "Accessories",
+      "Cases & Covers",
+      "Chargers",
+      "Headphones",
+      "Smart Watches",
+      "Power Banks",
+    ],
+  },
+  {
+    name: "Real Estate",
+    subcategories: [
+      "Houses",
+      "Apartments",
+      "Commercial",
+      "Land",
+      "Rental",
+      "Vacation Rentals",
+      "Office Space",
+      "Warehouse",
+    ],
+  },
+  {
+    name: "Fashion",
+    subcategories: [
+      "Men's Clothing",
+      "Women's Clothing",
+      "Kids Clothing",
+      "Shoes",
+      "Bags",
+      "Jewelry",
+      "Watches",
+      "Accessories",
+    ],
+  },
+  {
+    name: "Pets",
+    subcategories: ["Dogs", "Cats", "Birds", "Fish", "Pet Food", "Pet Accessories", "Pet Care", "Pet Services"],
+  },
+  {
+    name: "Furniture",
+    subcategories: ["Sofa", "Bed", "Table", "Chair", "Wardrobe", "Desk", "Cabinet", "Dining Set", "Home Decor"],
+  },
+  {
+    name: "Jobs",
+    subcategories: ["Full Time", "Part Time", "Freelance", "Internship", "Remote Work", "Contract", "Temporary"],
+  },
+  {
+    name: "Gaming",
+    subcategories: ["Video Games", "Consoles", "PC Gaming", "Mobile Games", "Gaming Accessories", "Board Games"],
+  },
+  {
+    name: "Books",
+    subcategories: ["Fiction", "Non-Fiction", "Educational", "Comics", "Magazines", "E-books", "Audiobooks"],
+  },
+  {
+    name: "Services",
+    subcategories: [
+      "Home Services",
+      "Repair",
+      "Cleaning",
+      "Tutoring",
+      "Photography",
+      "Event Planning",
+      "Transportation",
+    ],
+  },
+  {
+    name: "Other",
+    subcategories: [
+      "Sports Equipment",
+      "Musical Instruments",
+      "Art & Crafts",
+      "Collectibles",
+      "Tools",
+      "Garden",
+      "Baby Items",
+    ],
+  },
+]
 
 const CANADIAN_LOCATIONS = [
   { province: "Alberta", cities: ["Calgary", "Edmonton", "Red Deer", "Lethbridge"] },
@@ -148,6 +191,13 @@ const mapConditionToDatabase = (condition: string): string => {
     Poor: "poor",
   }
   return conditionMap[condition] || condition.toLowerCase()
+}
+
+const parseLocation = (location: string): { city: string; province: string } => {
+  const parts = location.split(", ")
+  const city = parts.length >= 2 ? parts[parts.length - 1] : ""
+  const province = parts.length >= 2 ? parts[parts.length - 2] : ""
+  return { city, province }
 }
 
 export function PostProductForm() {
@@ -194,7 +244,7 @@ export function PostProductForm() {
 
     const validFiles = files.filter((file) => {
       if (file.size > 2 * 1024 * 1024) {
-        alert(`${file.name} is too large. Maximum size is 2MB per image.`)
+        toast.error(`${file.name} is too large. Maximum size is 2MB per image.`)
         return false
       }
       return true
@@ -203,7 +253,7 @@ export function PostProductForm() {
     if (formData.images.length + validFiles.length <= 5) {
       setFormData((prev) => ({ ...prev, images: [...prev.images, ...validFiles] }))
     } else {
-      alert("You can upload maximum 5 images.")
+      toast.error("You can upload maximum 5 images.")
     }
   }
 
@@ -248,214 +298,83 @@ export function PostProductForm() {
     }))
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
     if (!user) {
-      alert("Please log in to post an ad")
-      router.push("/auth/login")
-      return
-    }
-
-    if (!formData.title.trim()) {
-      alert("Product title is required")
-      return
-    }
-
-    if (!formData.category) {
-      alert("Please select a category")
-      return
-    }
-
-    if (!formData.condition) {
-      alert("Please select the product condition")
-      return
-    }
-
-    if (formData.priceType === "amount" && (!formData.price || Number.parseFloat(formData.price) <= 0)) {
-      alert("Please enter a valid price")
-      return
-    }
-
-    if (!formData.description.trim()) {
-      alert("Product description is required")
-      return
-    }
-
-    if (!formData.address.trim()) {
-      alert("Address is required")
-      return
-    }
-
-    if (!formData.location) {
-      alert("Please select a city/province")
-      return
-    }
-
-    if (!formData.postalCode.trim()) {
-      alert("Postal code is required")
-      return
-    }
-
-    const postalCodeRegex = /^[A-Z]\d[A-Z]\s?\d[A-Z]\d$/
-    if (!postalCodeRegex.test(formData.postalCode.replace(/\s/g, ""))) {
-      alert("Please enter a valid Canadian postal code (e.g., M5V 3A8)")
+      toast.error("Please log in to post an ad")
       return
     }
 
     setIsSubmitting(true)
-    setSubmitError(null)
-    console.log("[v0] Starting ad submission process")
 
     try {
+      console.log("[v0] Starting ad submission process")
+
       const supabase = createClient()
       console.log("[v0] Supabase client created successfully")
 
+      // Upload images first
       const imageUrls: string[] = []
-      let imageUploadFailed = false
-
       if (formData.images.length > 0) {
         console.log("[v0] Uploading images:", formData.images.length)
-        for (let i = 0; i < formData.images.length; i++) {
-          const image = formData.images[i]
-          try {
-            const fileExtension = image.name.split(".").pop() || "jpg"
-            const fileName = `${user.id}/${Date.now()}-${i + 1}.${fileExtension}`
 
-            console.log("[v0] Uploading image:", fileName)
-            const { data: uploadData, error: uploadError } = await supabase.storage
-              .from("product-images")
-              .upload(fileName, image, {
-                cacheControl: "3600",
-                upsert: false,
-              })
+        for (const image of formData.images) {
+          const fileExt = image.name.split(".").pop()
+          const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
 
-            if (uploadError) {
-              console.error("[v0] Image upload error:", uploadError)
-              if (uploadError.message.includes("row-level security") || uploadError.message.includes("policy")) {
-                console.log("[v0] Skipping image upload due to RLS policy restrictions")
-                imageUploadFailed = true
-                break
-              } else {
-                throw uploadError
-              }
-            } else {
-              const {
-                data: { publicUrl },
-              } = supabase.storage.from("product-images").getPublicUrl(fileName)
-              imageUrls.push(publicUrl)
-              console.log("[v0] Image uploaded successfully:", publicUrl)
-            }
-          } catch (uploadError) {
-            console.error("[v0] Image upload failed:", uploadError)
-            imageUploadFailed = true
-            break
+          console.log("[v0] Uploading image:", fileName)
+
+          const { data, error } = await supabase.storage.from("product-images").upload(fileName, image)
+
+          if (error) {
+            console.error("[v0] Image upload error:", error)
+            throw new Error(`Failed to upload image: ${error.message}`)
           }
+
+          const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(fileName)
+          imageUrls.push(urlData.publicUrl)
+          console.log("[v0] Image uploaded successfully:", urlData.publicUrl)
         }
-      } else {
-        console.log("[v0] No images to upload")
       }
 
-      console.log("[v0] Image upload phase completed. URLs:", imageUrls.length, "Failed:", imageUploadFailed)
+      console.log("[v0] Image upload phase completed. URLs:", imageUrls.length, "Failed:", false)
 
-      const primaryCategory = formData.subcategory || formData.category
-
-      let categoryIndex = 1 // Default fallback value
-
-      if (formData.subcategory && formData.category) {
-        // If subcategory is selected, find its index
-        const subcategoryIndex = subcategories[formData.category]?.indexOf(formData.subcategory)
-        if (subcategoryIndex !== undefined && subcategoryIndex >= 0) {
-          categoryIndex = subcategoryIndex + 1
-        } else {
-          // Fallback to category index if subcategory not found
-          const categoryIndexFallback = categories.indexOf(formData.category)
-          categoryIndex = categoryIndexFallback >= 0 ? categoryIndexFallback + 1 : 1
-        }
-      } else if (formData.category) {
-        // If only category is selected
-        const categoryIndexValue = categories.indexOf(formData.category)
-        categoryIndex = categoryIndexValue >= 0 ? categoryIndexValue + 1 : 1
-      }
-
-      // Ensure categoryIndex is never 0 or null
-      if (!categoryIndex || categoryIndex <= 0) {
-        categoryIndex = 1
-      }
+      // Parse location to get city and province
+      const locationParts = parseLocation(formData.location)
+      const city = locationParts.city || formData.location.split(",")[0]?.trim() || ""
+      const province = locationParts.province || formData.location.split(",")[1]?.trim() || ""
 
       console.log("[v0] Preparing product data...")
+
+      // Get category information
+      const selectedCategory = categories.find((cat) => cat.name === formData.category)
+      const selectedSubcategory = selectedCategory?.subcategories.find((sub) => sub === formData.subcategory)
+      const primaryCategory = selectedSubcategory || selectedCategory?.name || formData.category
+      const categoryIndex = categories.findIndex((cat) => cat.name === formData.category) + 1
+
       console.log("[v0] Primary category:", primaryCategory)
       console.log("[v0] Category index:", categoryIndex)
       console.log("[v0] Form category:", formData.category)
       console.log("[v0] Form subcategory:", formData.subcategory)
-
-      const locationParts = formData.location.split(", ")
-      // The city is typically the last part before province, province comes from a separate field or parsing
-      const city =
-        locationParts.length >= 2
-          ? locationParts[locationParts.length - 1]
-          : formData.location.split(",")[0]?.trim() || "Unknown"
-
-      // For province, we need to extract it from the location or use a default
-      // Since location format is "address, city" we need to get province from postal code or other source
-      let province = "Unknown"
-
-      // Try to extract province from postal code pattern (Canadian postal codes)
-      if (formData.postalCode) {
-        const postalPrefix = formData.postalCode.charAt(0).toUpperCase()
-        const provinceMap: { [key: string]: string } = {
-          A: "Newfoundland and Labrador",
-          B: "Nova Scotia",
-          C: "Prince Edward Island",
-          E: "New Brunswick",
-          G: "Quebec",
-          H: "Quebec",
-          J: "Quebec",
-          K: "Ontario",
-          L: "Ontario",
-          M: "Ontario",
-          N: "Ontario",
-          P: "Ontario",
-          R: "Manitoba",
-          S: "Saskatchewan",
-          T: "Alberta",
-          V: "British Columbia",
-          X: "Northwest Territories",
-          Y: "Yukon",
-        }
-        province = provinceMap[postalPrefix] || "Unknown"
-      }
-
       console.log("[v0] Location parts:", { city, province })
-
-      const enhancedDescription = [
-        formData.description,
-        formData.address ? `\n\n📍 Address: ${formData.address}` : "",
-        formData.location ? `\n🏙️ Location: ${formData.location}` : "",
-        formData.postalCode ? ` ${formData.postalCode}` : "",
-        formData.brand ? `\n🏷️ Brand: ${formData.brand}` : "",
-        formData.model ? `\n📱 Model: ${formData.model}` : "",
-        formData.youtubeUrl ? `\n\n🎥 Video: ${formData.youtubeUrl}` : "",
-        formData.websiteUrl ? `\n🌐 Website: ${formData.websiteUrl}` : "",
-        formData.tags.length > 0 ? `\n\n🏷️ Tags: ${formData.tags.join(", ")}` : "",
-        formData.features.length > 0 ? `\n\n✨ Features: ${formData.features.join(", ")}` : "",
-        formData.showMobileNumber ? "\n\n📱 Mobile number available - contact seller" : "",
-        formData.priceType !== "amount"
-          ? `\n\n💰 Price: ${formData.priceType === "free" ? "Free" : formData.priceType === "contact" ? "Contact for price" : "Swap/Exchange"}`
-          : "",
-      ]
-        .filter(Boolean)
-        .join("")
 
       const productData = {
         user_id: user.id,
         title: formData.title.trim(),
-        description: enhancedDescription,
+        description: formData.description.trim(), // Keep only user's actual description
         price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
         condition: mapConditionToDatabase(formData.condition),
         location: `${formData.address}, ${city}`.trim(),
-        city: city, // Now correctly parsed city
-        province: province, // Now correctly parsed province from postal code
-        images: imageUrls,
+        city: city,
+        province: province,
+        image_urls: imageUrls, // Changed from 'images' to 'image_urls'
         category_id: categoryIndex,
+        brand: formData.brand.trim() || null,
+        model: formData.model.trim() || null,
+        tags: formData.tags.length > 0 ? formData.tags : null,
+        youtube_url: formData.youtubeUrl.trim() || null,
+        website_url: formData.websiteUrl.trim() || null,
+        address: formData.address.trim() || null,
         status: "active",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -494,9 +413,7 @@ export function PostProductForm() {
 
       console.log("[v0] Product saved successfully:", data)
 
-      const successMessage = imageUploadFailed
-        ? "Your ad has been posted successfully! (Note: Some images couldn't be uploaded due to storage restrictions)"
-        : "Your ad has been posted successfully!"
+      const successMessage = "Your ad has been posted successfully!"
 
       console.log("[v0] Redirecting to success page with ID:", data.id)
       sessionStorage.setItem("adPostSuccess", successMessage)
@@ -638,8 +555,8 @@ export function PostProductForm() {
                   </SelectTrigger>
                   <SelectContent>
                     {categories.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
+                      <SelectItem key={category.name} value={category.name}>
+                        {category.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -651,18 +568,23 @@ export function PostProductForm() {
                 <Select
                   value={formData.subcategory}
                   onValueChange={(value) => handleInputChange("subcategory", value)}
-                  disabled={!formData.category || !subcategories[formData.category]}
+                  disabled={
+                    !formData.category ||
+                    !categories.find((cat) => cat.name === formData.category)?.subcategories.length
+                  }
                 >
                   <SelectTrigger className="border-2 border-gray-200 focus:border-primary">
                     <SelectValue placeholder="Select subcategory" />
                   </SelectTrigger>
                   <SelectContent>
                     {formData.category &&
-                      subcategories[formData.category]?.map((subcategory) => (
-                        <SelectItem key={subcategory} value={subcategory}>
-                          {subcategory}
-                        </SelectItem>
-                      ))}
+                      categories
+                        .find((cat) => cat.name === formData.category)
+                        ?.subcategories.map((subcategory) => (
+                          <SelectItem key={subcategory} value={subcategory}>
+                            {subcategory}
+                          </SelectItem>
+                        ))}
                   </SelectContent>
                 </Select>
               </div>
