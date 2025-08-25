@@ -125,6 +125,7 @@ export function Header() {
           notifications: notificationsCount,
         })
       } catch (error) {
+        console.log("[v0] Error fetching notification counts:", error)
         // Keep default values on error
       }
     }
@@ -137,7 +138,14 @@ export function Header() {
   }, [user?.id])
 
   useEffect(() => {
-    // Authentication state is now properly managed without debug logging
+    console.log(
+      "[v0] Header auth state - User:",
+      user ? user.email : "null",
+      "Profile:",
+      profile ? profile.name : "null",
+      "Authenticated:",
+      user && profile,
+    )
   }, [user, profile])
 
   // Show loading state for header

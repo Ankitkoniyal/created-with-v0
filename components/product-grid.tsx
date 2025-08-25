@@ -3,10 +3,10 @@
 import type React from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Heart, Loader2, AlertCircle, RefreshCw } from "lucide-react"
+import { Heart, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 
 interface Product {
@@ -39,70 +39,32 @@ export function ProductGrid() {
   const [hasMore, setHasMore] = useState(true)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
-  const [retryCount, setRetryCount] = useState(0)
 
-  const supabase = useMemo(() => createClient(), [])
+  const supabase = createClient()
 
-  const fetchProducts = useCallback(
-    async (currentPage: number, isRetry = false) => {
-      const from = currentPage * PRODUCTS_PER_PAGE
-      const to = from + PRODUCTS_PER_PAGE - 1
+  const fetchProducts = async (currentPage: number) => {
+    const from = currentPage * PRODUCTS_PER_PAGE
+    const to = from + PRODUCTS_PER_PAGE - 1
 
-      try {
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Request timeout")), 8000))
+    try {
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .range(from, to)
 
-        const queryPromise = supabase
-          .from("products")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .range(from, to)
-
-        const { data, error } = (await Promise.race([queryPromise, timeoutPromise])) as any
-
-        if (error) {
-          throw error
-        }
-
-        setRetryCount(0)
-        return data || []
-      } catch (err: any) {
-        console.error("Error fetching products:", err)
-
-        let errorMessage = "Failed to load ads"
-
-        if (err.message === "Request timeout") {
-          errorMessage = "Loading is taking too long. Please check your connection."
-        } else if (err.message?.includes("network")) {
-          errorMessage = "Network error. Please check your internet connection."
-        } else if (err.code === "PGRST301") {
-          errorMessage = "Service temporarily unavailable. Please try again."
-        }
-
-        if (!isRetry) {
-          setError(errorMessage)
-        }
+      if (error) {
+        console.error("Error fetching products:", error)
+        setError("Failed to load ads")
         return null
       }
-    },
-    [supabase],
-  )
-
-  const handleRetry = useCallback(() => {
-    const delay = Math.min(1000 * Math.pow(2, retryCount), 8000)
-    setRetryCount((prev) => prev + 1)
-    setError(null)
-
-    setTimeout(async () => {
-      setIsLoading(true)
-      const initialProducts = await fetchProducts(0, true)
-      if (initialProducts) {
-        setProducts(initialProducts)
-        setHasMore(initialProducts.length === PRODUCTS_PER_PAGE)
-        setPage(0)
-      }
-      setIsLoading(false)
-    }, delay)
-  }, [fetchProducts, retryCount])
+      return data || []
+    } catch (err) {
+      console.error("Error fetching products:", err)
+      setError("Failed to load ads")
+      return null
+    }
+  }
 
   useEffect(() => {
     const initialFetch = async () => {
@@ -115,9 +77,9 @@ export function ProductGrid() {
       setIsLoading(false)
     }
     initialFetch()
-  }, [fetchProducts])
+  }, [])
 
-  const toggleFavorite = useCallback((productId: string, e: React.MouseEvent) => {
+  const toggleFavorite = (productId: string, e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setFavorites((prev) => {
@@ -125,9 +87,9 @@ export function ProductGrid() {
       next.has(productId) ? next.delete(productId) : next.add(productId)
       return next
     })
-  }, [])
+  }
 
-  const loadMore = useCallback(async () => {
+  const loadMore = async () => {
     if (isLoadingMore || !hasMore) return
     setIsLoadingMore(true)
     const nextPage = page + 1
@@ -138,15 +100,15 @@ export function ProductGrid() {
       setHasMore(newProducts.length === PRODUCTS_PER_PAGE)
     }
     setIsLoadingMore(false)
-  }, [isLoadingMore, hasMore, page, fetchProducts])
+  }
 
-  const formatPrice = useCallback((price: number, priceType: string) => {
+  const formatPrice = (price: number, priceType: string) => {
     if (priceType === "free") return "Free"
     if (priceType === "contact") return "Contact for Price"
     return `$${price.toLocaleString()}`
-  }, [])
+  }
 
-  const formatTimePosted = useCallback((createdAt: string) => {
+  const formatTimePosted = (createdAt: string) => {
     const now = new Date()
     const posted = new Date(createdAt)
     const diffInHours = Math.floor((now.getTime() - posted.getTime()) / (1000 * 60 * 60))
@@ -156,7 +118,7 @@ export function ProductGrid() {
     if (diffInHours < 48) return "1 day ago"
     if (diffInHours < 168) return `${Math.floor(diffInHours / 24)} days ago`
     return posted.toLocaleDateString()
-  }, [])
+  }
 
   if (isLoading) {
     return (
@@ -189,22 +151,12 @@ export function ProductGrid() {
     return (
       <section className="py-2">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <Card>
-            <CardContent className="p-12 text-center">
-              <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-foreground mb-2">Unable to Load Ads</h3>
-              <p className="text-muted-foreground mb-4">{error}</p>
-              <div className="flex justify-center space-x-2">
-                <Button onClick={handleRetry} className="bg-green-600 hover:bg-green-700">
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  {retryCount > 0 ? `Retry (${retryCount + 1})` : "Try Again"}
-                </Button>
-                <Button variant="outline" onClick={() => window.location.reload()}>
-                  Refresh Page
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="text-center py-8">
+            <p className="text-red-600 mb-4">{error}</p>
+            <Button onClick={() => window.location.reload()} className="bg-green-600 hover:bg-green-700">
+              Try Again
+            </Button>
+          </div>
         </div>
       </section>
     )

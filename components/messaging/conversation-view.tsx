@@ -82,12 +82,28 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
 
       if (error) {
         console.error("Error marking messages as read:", error)
-      } else {
-        console.log("[v0] Messages marked as read")
       }
     } catch (error) {
       console.error("Error:", error)
     }
+  }
+
+  const parseConversationId = (conversationId: string) => {
+    // UUID format: 8-4-4-4-12 characters (36 total including hyphens)
+    // Conversation ID format: {productId}-{participantId}
+    // We need to find where the first UUID ends and second begins
+
+    const parts = conversationId.split("-")
+    if (parts.length < 8) {
+      throw new Error("Invalid conversation ID format")
+    }
+
+    // First UUID: parts[0]-parts[1]-parts[2]-parts[3]-parts[4]
+    const productId = parts.slice(0, 5).join("-")
+    // Second UUID: parts[5]-parts[6]-parts[7]-parts[8]-parts[9]
+    const participantId = parts.slice(5, 10).join("-")
+
+    return { productId, participantId }
   }
 
   useEffect(() => {
@@ -97,7 +113,7 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
       try {
         const supabase = createClient()
 
-        const [productId, participantId] = conversationId.split("-")
+        const { productId, participantId } = parseConversationId(conversationId)
 
         await markMessagesAsRead(productId, participantId)
 
@@ -217,7 +233,7 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
 
     try {
       const supabase = createClient()
-      const [productId, participantId] = conversationId.split("-")
+      const { productId, participantId } = parseConversationId(conversationId)
 
       const { error } = await supabase
         .from("messages")
@@ -254,7 +270,7 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
 
     try {
       const supabase = createClient()
-      const [productId, participantId] = conversationId.split("-")
+      const { productId, participantId } = parseConversationId(conversationId)
 
       const { error } = await supabase.from("blocked_users").insert({
         blocker_id: user.id,
@@ -288,7 +304,7 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
 
     try {
       const supabase = createClient()
-      const [productId, participantId] = conversationId.split("-")
+      const { productId, participantId } = parseConversationId(conversationId)
 
       const { error } = await supabase.from("reports").insert({
         reporter_id: user.id,
@@ -319,7 +335,7 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
 
     try {
       const supabase = createClient()
-      const [productId, participantId] = conversationId.split("-")
+      const { productId, participantId } = parseConversationId(conversationId)
 
       const { data, error } = await supabase
         .from("messages")

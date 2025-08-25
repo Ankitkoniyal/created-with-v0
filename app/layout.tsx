@@ -4,6 +4,7 @@ import { DM_Sans } from "next/font/google"
 import "./globals.css"
 import { AuthProvider } from "@/hooks/use-auth"
 import { Header } from "@/components/header"
+import { Toaster } from "@/components/ui/toaster"
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -36,6 +37,7 @@ html {
         <AuthProvider>
           <Header />
           {children}
+          <Toaster />
         </AuthProvider>
       </body>
     </html>

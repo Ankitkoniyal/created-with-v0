@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from "react"
+import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import { createClient } from "@/lib/supabase/client"
 import type { User } from "@supabase/supabase-js"
 
@@ -31,44 +31,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const supabase = createClient()
 
-  const supabase = useMemo(() => createClient(), [])
+  const fetchProfile = async (userId: string, userData: User): Promise<Profile> => {
+    try {
+      console.log("[v0] Fetching profile for user:", userId)
+      const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
 
-  const fetchProfile = useCallback(
-    async (userId: string, userData: User): Promise<Profile> => {
-      try {
-        const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
-
-        if (error) {
-          const fallbackProfile = {
-            id: userId,
-            name: userData?.user_metadata?.full_name || userData?.email?.split("@")[0] || "User",
-            email: userData?.email || "",
-            phone: userData?.user_metadata?.phone || "",
-            avatar_url: userData?.user_metadata?.avatar_url || "",
-            bio: "",
-            location: "",
-            verified: false,
-            created_at: new Date().toISOString(),
-          }
-
-          return fallbackProfile
-        }
-
-        const profileData = {
-          id: data.id,
-          name: data.full_name || userData?.user_metadata?.full_name || userData?.email?.split("@")[0] || "User",
-          email: data.email || userData?.email || "",
-          phone: data.phone || userData?.user_metadata?.phone || "",
-          avatar_url: data.avatar_url || userData?.user_metadata?.avatar_url || "",
-          bio: data.bio || "",
-          location: data.location || "",
-          verified: data.verified || false,
-          created_at: data.created_at,
-        }
-
-        return profileData
-      } catch (error) {
+      if (error) {
+        console.log("[v0] Profile fetch error, using fallback:", error.message)
         const fallbackProfile = {
           id: userId,
           name: userData?.user_metadata?.full_name || userData?.email?.split("@")[0] || "User",
@@ -83,69 +54,84 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         return fallbackProfile
       }
-    },
-    [supabase],
-  )
+
+      console.log("[v0] Profile fetched successfully:", data.full_name || data.email)
+      const profileData = {
+        id: data.id,
+        name: data.full_name || userData?.email?.split("@")[0] || "User",
+        email: data.email || userData?.email || "",
+        phone: data.phone || "",
+        avatar_url: data.avatar_url || "",
+        bio: data.bio || "",
+        location: data.location || "",
+        verified: data.verified || false,
+        created_at: data.created_at,
+      }
+
+      return profileData
+    } catch (error) {
+      console.log("[v0] Profile fetch exception, using fallback:", error)
+      const fallbackProfile = {
+        id: userId,
+        name: userData?.user_metadata?.full_name || userData?.email?.split("@")[0] || "User",
+        email: userData?.email || "",
+        phone: userData?.user_metadata?.phone || "",
+        avatar_url: userData?.user_metadata?.avatar_url || "",
+        bio: "",
+        location: "",
+        verified: false,
+        created_at: new Date().toISOString(),
+      }
+
+      return fallbackProfile
+    }
+  }
 
   useEffect(() => {
     let mounted = true
-    let retryCount = 0
-    const maxRetries = 3
+    console.log("[v0] Starting auth initialization...")
 
     const initializeAuth = async () => {
       try {
+        console.log("[v0] Getting session...")
         const {
           data: { session },
-          error: sessionError,
         } = await supabase.auth.getSession()
 
-        if (sessionError) {
-          console.error("Session error:", sessionError)
-          if (mounted) {
-            setUser(null)
-            setProfile(null)
-            setIsLoading(false)
-          }
+        if (!mounted) {
+          console.log("[v0] Component unmounted, skipping auth initialization")
           return
         }
 
-        if (!mounted) return
-
         if (session?.user) {
+          console.log("[v0] Session found for user:", session.user.email)
           setUser(session.user)
 
           try {
             const profileData = await fetchProfile(session.user.id, session.user)
             if (mounted) {
               setProfile(profileData)
+              console.log("[v0] Auth initialization complete - User logged in")
             }
           } catch (profileError) {
-            console.error("Profile fetch error:", profileError)
+            console.error("[v0] Profile fetch error:", profileError)
             if (mounted) {
               setProfile(null)
             }
           }
         } else {
+          console.log("[v0] No session found")
           setUser(null)
           setProfile(null)
         }
 
         if (mounted) {
           setIsLoading(false)
+          console.log("[v0] Auth initialization complete, loading set to false")
         }
       } catch (error) {
-        console.error("Auth initialization error:", error)
-
-        if (retryCount < maxRetries && mounted) {
-          retryCount++
-          setTimeout(() => {
-            if (mounted) {
-              initializeAuth()
-            }
-          }, 1000 * retryCount) // Exponential backoff
-        } else if (mounted) {
-          setUser(null)
-          setProfile(null)
+        console.error("[v0] Auth initialization error:", error)
+        if (mounted) {
           setIsLoading(false)
         }
       }
@@ -153,164 +139,117 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     initializeAuth()
 
+    console.log("[v0] Setting up auth state change listener...")
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return
 
+      console.log("[v0] Auth state change:", event, session?.user?.email || "no user")
+
       if (event === "SIGNED_IN" && session?.user) {
+        console.log("[v0] User signed in:", session.user.email)
         setUser(session.user)
         try {
           const profileData = await fetchProfile(session.user.id, session.user)
           if (mounted) {
             setProfile(profileData)
+            console.log("[v0] Profile loaded after sign in:", profileData.name)
           }
         } catch (profileError) {
-          console.error("Profile fetch error after sign in:", profileError)
+          console.error("[v0] Profile fetch error after sign in:", profileError)
           if (mounted) {
             setProfile(null)
           }
         }
-        if (mounted) {
-          setIsLoading(false)
-        }
+        setIsLoading(false)
       } else if (event === "SIGNED_OUT") {
+        console.log("[v0] User signed out")
         setUser(null)
         setProfile(null)
-        if (mounted) {
-          setIsLoading(false)
-        }
-      } else if (event === "TOKEN_REFRESHED" && session?.user) {
-        setUser(session.user)
-        if (mounted) {
-          setIsLoading(false)
-        }
+        setIsLoading(false)
       }
     })
 
     return () => {
+      console.log("[v0] Cleaning up auth provider")
       mounted = false
       subscription.unsubscribe()
     }
-  }, [supabase, fetchProfile])
+  }, [])
 
-  const login = useCallback(
-    async (email: string, password: string) => {
-      try {
-        setIsLoading(true)
-
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Login timeout")), 15000))
-
-        const loginPromise = supabase.auth.signInWithPassword({
-          email,
-          password,
-        })
-
-        const { error } = (await Promise.race([loginPromise, timeoutPromise])) as any
-
-        if (error) {
-          setIsLoading(false)
-
-          if (error.message.includes("Invalid login credentials")) {
-            return { error: "Invalid email or password. Please check your credentials and try again." }
-          } else if (error.message.includes("Email not confirmed")) {
-            return { error: "Please check your email and click the confirmation link before signing in." }
-          } else if (error.message.includes("Too many requests")) {
-            return { error: "Too many login attempts. Please wait a few minutes before trying again." }
-          }
-
-          return { error: error.message }
-        }
-
-        return {}
-      } catch (error: any) {
-        setIsLoading(false)
-
-        if (error.message === "Login timeout") {
-          return { error: "Login is taking too long. Please check your connection and try again." }
-        }
-
-        return { error: "Network error: Unable to connect to authentication service" }
-      }
-    },
-    [supabase],
-  )
-
-  const signup = useCallback(
-    async (email: string, password: string, name: string, phone: string) => {
-      try {
-        setIsLoading(true)
-        const redirectUrl =
-          process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ||
-          (typeof window !== "undefined"
-            ? `${window.location.origin}/auth/callback`
-            : "http://localhost:3000/auth/callback")
-
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Signup timeout")), 15000))
-
-        const signupPromise = supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: redirectUrl,
-            data: {
-              full_name: name,
-              phone,
-            },
-          },
-        })
-
-        const { error } = (await Promise.race([signupPromise, timeoutPromise])) as any
-
-        if (error) {
-          setIsLoading(false)
-          return { error: error.message }
-        }
-
-        return {}
-      } catch (error: any) {
-        setIsLoading(false)
-
-        if (error.message === "Signup timeout") {
-          return { error: "Signup is taking too long. Please check your connection and try again." }
-        }
-
-        return { error: "An unexpected error occurred" }
-      }
-    },
-    [supabase],
-  )
-
-  const logout = useCallback(async () => {
-    setIsLoading(true)
+  const login = async (email: string, password: string) => {
     try {
-      await Promise.race([
-        supabase.auth.signOut(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("Logout timeout")), 10000)),
-      ])
+      setIsLoading(true)
+
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (error) {
+        setIsLoading(false)
+
+        if (error.message.includes("Invalid login credentials")) {
+          return { error: "Invalid email or password. Please check your credentials and try again." }
+        } else if (error.message.includes("Email not confirmed")) {
+          return { error: "Please check your email and click the confirmation link before signing in." }
+        } else if (error.message.includes("Too many requests")) {
+          return { error: "Too many login attempts. Please wait a few minutes before trying again." }
+        }
+
+        return { error: error.message }
+      }
+
+      return {}
     } catch (error) {
-      console.error("Logout error:", error)
-      // Force logout on client side even if server request fails
-      setUser(null)
-      setProfile(null)
       setIsLoading(false)
+      return { error: "Network error: Unable to connect to authentication service" }
     }
+  }
+
+  const signup = async (email: string, password: string, name: string, phone: string) => {
+    try {
+      setIsLoading(true)
+      const redirectUrl =
+        process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ||
+        (typeof window !== "undefined"
+          ? `${window.location.origin}/auth/callback`
+          : "http://localhost:3000/auth/callback")
+
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: redirectUrl,
+          data: {
+            full_name: name,
+            phone,
+          },
+        },
+      })
+
+      if (error) {
+        setIsLoading(false)
+        return { error: error.message }
+      }
+
+      return {}
+    } catch (error) {
+      setIsLoading(false)
+      return { error: "An unexpected error occurred" }
+    }
+  }
+
+  const logout = async () => {
+    setIsLoading(true)
+    await supabase.auth.signOut()
     // State will be updated by the auth state change listener
-  }, [supabase])
+  }
 
-  const contextValue = useMemo(
-    () => ({
-      user,
-      profile,
-      login,
-      signup,
-      logout,
-      isLoading,
-    }),
-    [user, profile, login, signup, logout, isLoading],
+  return (
+    <AuthContext.Provider value={{ user, profile, login, signup, logout, isLoading }}>{children}</AuthContext.Provider>
   )
-
-  return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {

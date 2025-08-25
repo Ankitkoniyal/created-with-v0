@@ -31,16 +31,16 @@ interface Product {
   price: string
   originalPrice?: string
   location: string
-  image_urls: string[] // Fixed field name from images to image_urls to match database schema
+  images: string[] // Changed from image_urls to images to match database
   description: string
-  youtube_url?: string | null
-  website_url?: string | null
+  youtube_url?: string | null // Changed from youtubeUrl to youtube_url
+  website_url?: string | null // Changed from websiteUrl to website_url
   category: string
   subcategory?: string | null
   condition: string
-  brand?: string | null
-  model?: string | null
-  tags?: string[] | null
+  brand?: string | null // Made optional since it can be null
+  model?: string | null // Made optional since it can be null
+  tags?: string[] | null // Added tags field
   postedDate: string
   views: number
   seller: {
@@ -51,7 +51,7 @@ interface Product {
     verified: boolean
     responseTime: string
   }
-  features?: string[]
+  features?: string[] // Made optional since it might not exist
   storage?: string | null
   color?: string | null
   [key: string]: any
@@ -78,6 +78,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
   useEffect(() => {
     const checkFavoriteStatus = async () => {
       if (!user || !isValidUUID(product.id)) {
+        console.log("[v0] Skipping favorite check - invalid UUID or no user:", product.id)
         return
       }
 
@@ -124,6 +125,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
           console.error("Error removing favorite:", error)
           alert("Failed to remove from favorites")
         } else {
+          console.log("[v0] Removed from favorites:", product.id)
           setIsFavorited(false)
         }
       } else {
@@ -136,6 +138,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
           console.error("Error adding favorite:", error)
           alert("Failed to add to favorites")
         } else {
+          console.log("[v0] Added to favorites:", product.id)
           setIsFavorited(true)
         }
       }
@@ -156,6 +159,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
     )
 
     if (confirmed) {
+      console.log("[v0] Reporting ad:", product.id)
       alert("Thank you for your report. Our team will review this ad shortly.")
     }
   }
@@ -228,7 +232,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
           <CardContent className="p-0">
             <div className="relative">
               <img
-                src={product.image_urls?.[selectedImage] || "/placeholder.svg"} // Fixed field name from images to image_urls
+                src={product.images?.[selectedImage] || "/placeholder.svg"}
                 alt={product.title}
                 className="w-full h-80 object-cover rounded-t-lg"
               />
@@ -236,26 +240,21 @@ export function ProductDetail({ product }: ProductDetailProps) {
 
             <div className="p-3">
               <div className="flex space-x-2 overflow-x-auto">
-                {product.image_urls?.map(
-                  (
-                    image,
-                    index, // Fixed field name from images to image_urls
-                  ) => (
-                    <button
-                      key={index}
-                      onClick={() => setSelectedImage(index)}
-                      className={`flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden border-2 ${
-                        selectedImage === index ? "border-primary" : "border-border"
-                      }`}
-                    >
-                      <img
-                        src={image || "/placeholder.svg"}
-                        alt={`${product.title} ${index + 1}`}
-                        className="w-full h-full object-cover"
-                      />
-                    </button>
-                  ),
-                )}
+                {product.images?.map((image, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setSelectedImage(index)}
+                    className={`flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden border-2 ${
+                      selectedImage === index ? "border-primary" : "border-border"
+                    }`}
+                  >
+                    <img
+                      src={image || "/placeholder.svg"}
+                      alt={`${product.title} ${index + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                ))}
               </div>
             </div>
           </CardContent>
@@ -399,7 +398,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                   id: product.id,
                   title: product.title,
                   price: product.price,
-                  image: product.image_urls?.[0] || "/placeholder.svg", // Fixed field name from images to image_urls
+                  image: product.images?.[0] || "/placeholder.svg", // Updated to use images field
                 }}
                 seller={{
                   name: product.seller.name,

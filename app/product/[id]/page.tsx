@@ -14,27 +14,35 @@ async function getProduct(id: string) {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
   if (!uuidRegex.test(id)) {
+    console.error("[v0] Invalid UUID format:", id)
     return null
   }
 
   const supabase = createClient()
 
   try {
+    console.log("[v0] Fetching product with ID:", id)
+
     const { data: products, error } = await supabase.from("products").select("*").eq("id", id)
 
     if (error) {
-      console.error("Database error fetching product:", error.message)
+      console.error("[v0] Database error fetching product:", error.message)
       return null
     }
 
+    console.log("[v0] Query returned products:", products?.length || 0)
+
     if (!products || products.length === 0) {
+      console.error("[v0] Product not found:", id)
       return null
     }
 
     const product = products[0]
+    console.log("[v0] Product found:", product.title)
 
     let profileData = null
     if (product.user_id) {
+      console.log("[v0] Fetching profile for user:", product.user_id)
       const { data: profile } = await supabase
         .from("profiles")
         .select("full_name, avatar_url, created_at")
@@ -42,6 +50,7 @@ async function getProduct(id: string) {
         .single()
 
       profileData = profile
+      console.log("[v0] Profile found:", profileData?.full_name || "No profile")
     }
 
     const extractUrls = (description: string) => {
@@ -51,10 +60,12 @@ async function getProduct(id: string) {
       const youtubeMatches = description.match(youtubeRegex) || []
       const websiteMatches = description.match(websiteRegex) || []
 
+      // Filter out YouTube URLs from website matches
       const filteredWebsiteMatches = websiteMatches.filter(
         (url) => !url.includes("youtube.com") && !url.includes("youtu.be"),
       )
 
+      // Remove URLs from description
       let cleanDescription = description
       youtubeMatches.forEach((url) => {
         cleanDescription = cleanDescription.replace(url, "").trim()
@@ -78,6 +89,7 @@ async function getProduct(id: string) {
       const month = (date.getMonth() + 1).toString().padStart(2, "0")
       const day = date.getDate().toString().padStart(2, "0")
 
+      // Use first 4 characters of product ID for consistency
       const idSuffix = productId.replace(/-/g, "").substring(0, 4).toUpperCase()
 
       return `AD${year}${month}${day}${idSuffix}`
@@ -114,7 +126,7 @@ async function getProduct(id: string) {
       featured: false,
     }
   } catch (error) {
-    console.error("Unexpected error fetching product:", error)
+    console.error("[v0] Unexpected error fetching product:", error)
     return null
   }
 }

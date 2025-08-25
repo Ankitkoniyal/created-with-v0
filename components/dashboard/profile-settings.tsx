@@ -15,9 +15,11 @@ import { Switch } from "@/components/ui/switch"
 import { Camera, Shield, Star, Calendar, AlertTriangle, Loader2 } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { createClient } from "@/lib/supabase/client"
+import { useToast } from "@/hooks/use-toast"
 
 export function ProfileSettings() {
   const { user, profile } = useAuth()
+  const { toast } = useToast()
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [showPasswordReset, setShowPasswordReset] = useState(false)
@@ -124,13 +126,20 @@ export function ProfileSettings() {
             avatarUrl = publicUrl
             console.log("[v0] Image uploaded successfully:", publicUrl)
           } else {
-            console.error("[v0] Avatar upload error:", uploadError)
-            // Continue with profile update even if image upload fails
-            alert("Profile updated but image upload failed. Please try uploading the image again.")
+            console.error("Avatar upload error:", uploadError)
+            toast({
+              variant: "destructive",
+              title: "Image Upload Failed",
+              description: "Profile updated but image upload failed. Please try uploading the image again.",
+            })
           }
         } catch (imageError) {
-          console.error("[v0] Image upload exception:", imageError)
-          alert("Profile updated but image upload failed. Please check your connection and try again.")
+          console.error("Image upload exception:", imageError)
+          toast({
+            variant: "destructive",
+            title: "Image Upload Failed",
+            description: "Profile updated but image upload failed. Please check your connection and try again.",
+          })
         }
       }
 
@@ -145,7 +154,7 @@ export function ProfileSettings() {
       })
 
       if (authUpdateError) {
-        console.error("[v0] Auth update error:", authUpdateError)
+        console.error("Auth update error:", authUpdateError)
         throw authUpdateError
       }
 
@@ -169,22 +178,27 @@ export function ProfileSettings() {
         .upsert(profileUpdateData, { onConflict: "id" })
 
       if (profileUpdateError) {
-        console.error("[v0] Profile update error:", profileUpdateError)
+        console.error("Profile update error:", profileUpdateError)
       }
 
-      console.log("[v0] Profile updated successfully")
-      alert("Profile updated successfully!")
+      toast({
+        title: "Profile Updated",
+        description: "Your profile has been updated successfully!",
+      })
       setIsEditing(false)
       setImageUpload(null)
       setPreviewUrl(null)
 
       setProfileData({ ...profileData, ...profileUpdateData })
     } catch (error) {
-      console.error("[v0] Profile save error:", error)
-      alert("Failed to update profile. Please try again.")
+      console.error("Profile save error:", error)
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: "Failed to update profile. Please try again.",
+      })
     } finally {
       setIsSaving(false)
-      console.log("[v0] Profile save process completed")
     }
   }
 
@@ -198,21 +212,35 @@ export function ProfileSettings() {
       })
 
       if (error) {
-        console.error("[v0] Password reset error:", error)
-        alert("Failed to send password reset email. Please try again.")
+        console.error("Password reset error:", error)
+        toast({
+          variant: "destructive",
+          title: "Reset Failed",
+          description: "Failed to send password reset email. Please try again.",
+        })
       } else {
-        alert("Password reset email sent! Check your inbox.")
+        toast({
+          title: "Reset Email Sent",
+          description: "Password reset email sent! Check your inbox.",
+        })
         setShowPasswordReset(false)
       }
     } catch (error) {
-      console.error("[v0] Password reset error:", error)
-      alert("An error occurred. Please try again.")
+      console.error("Password reset error:", error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "An error occurred. Please try again.",
+      })
     }
   }
 
   const handleDeleteAccount = async () => {
-    console.log("[v0] Account deletion requested - user data will be preserved for system integrity")
-    alert("Account has been deactivated. Your information is preserved for system integrity and legal compliance.")
+    toast({
+      title: "Account Deactivated",
+      description:
+        "Account has been deactivated. Your information is preserved for system integrity and legal compliance.",
+    })
     setShowDeleteConfirm(false)
   }
 
@@ -220,14 +248,17 @@ export function ProfileSettings() {
     const file = event.target.files?.[0]
     if (file) {
       if (file.size > 2 * 1024 * 1024) {
-        alert("Image must be less than 2MB")
+        toast({
+          variant: "destructive",
+          title: "File Too Large",
+          description: "Image must be less than 2MB",
+        })
         return
       }
 
       setImageUpload(file)
       const url = URL.createObjectURL(file)
       setPreviewUrl(url)
-      console.log("[v0] Profile image selected:", file.name)
     }
   }
 

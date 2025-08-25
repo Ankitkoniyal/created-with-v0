@@ -19,7 +19,7 @@ interface Product {
   price: number
   status: string
   views: number
-  image_urls: string[] // Fixed field name from images to image_urls to match database schema
+  images: string[] // Fixed field name from image_urls to images to match database schema
   category: string
   created_at: string
   user_id: string
@@ -196,7 +196,7 @@ export function MyListings() {
           <Card key={listing.id} className="overflow-hidden">
             <div className="relative">
               <img
-                src={listing.image_urls?.[0] || "/placeholder.svg"} // Fixed field name from images to image_urls
+                src={listing.images?.[0] || "/placeholder.svg"} // Fixed field name from image_urls to images
                 alt={listing.title}
                 className="w-full h-48 object-cover"
               />

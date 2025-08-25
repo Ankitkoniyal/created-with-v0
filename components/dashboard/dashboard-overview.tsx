@@ -22,8 +22,8 @@ interface RecentListing {
   price: number
   status: string
   views: number
-  image_urls: string[] // Updated from images to image_urls to match database schema
-  category: string
+  images: string[] // Updated from image_urls to images to match database schema
+  category: string // Updated from primary_category to category to match database schema
   created_at: string
 }
 
@@ -227,7 +227,7 @@ export function DashboardOverview() {
                   className="flex items-center space-x-4 p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"
                 >
                   <img
-                    src={listing.image_urls?.[0] || "/placeholder.svg"} // Updated from images to image_urls
+                    src={listing.images?.[0] || "/placeholder.svg"} // Updated from image_urls to images
                     alt={listing.title}
                     className="w-20 h-20 object-cover rounded-lg"
                   />
