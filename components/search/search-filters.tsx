@@ -1,8 +1,6 @@
 "use client"
 
-import {
-  Button
-} from "@/components/ui/button"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -10,7 +8,7 @@ import { Separator } from "@/components/ui/separator"
 import { Slider } from "@/components/ui/slider"
 import { X, Filter, DollarSign, ArrowUpDown } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useState, useMemo } from "react"
 
 const categories = [
   "Vehicles",
@@ -137,29 +135,42 @@ export function SearchFilters({ searchQuery }: SearchFiltersProps) {
   const selectedSubcategory = searchParams.get("subcategory") || ""
   const location = searchParams.get("location") || ""
   const sortBy = searchParams.get("sortBy") || "relevance"
-  const categoryFilters = Array.from(searchParams.entries()).reduce((acc, [key, value]) => {
-    // Check if the key is a category-specific filter
-    const isCategoryFilter = Object.values(categorySpecificFilters).some(catFilters => Object.keys(catFilters).map(k => k.toLowerCase().replace(/\s+/g, "_")).includes(key))
-    if (isCategoryFilter) {
-        acc[key] = [value];
-    }
-    return acc;
-}, {} as Record<string, string[]>)
+
+  const categoryFilters = useMemo(() => {
+    return Array.from(searchParams.entries()).reduce(
+      (acc, [key, value]) => {
+        // Check if the key is a category-specific filter
+        const isCategoryFilter = Object.values(categorySpecificFilters).some((catFilters) =>
+          Object.keys(catFilters)
+            .map((k) => k.toLowerCase().replace(/\s+/g, "_"))
+            .includes(key),
+        )
+        if (isCategoryFilter) {
+          acc[key] = [value]
+        }
+        return acc
+      },
+      {} as Record<string, string[]>,
+    )
+  }, [searchParams])
 
   // Create a new URLSearchParams object based on the current URL
-  const updateUrl = useCallback((newParams: { [key: string]: string | null }) => {
-    const params = new URLSearchParams(searchParams.toString())
+  const updateUrl = useCallback(
+    (newParams: { [key: string]: string | null }) => {
+      const params = new URLSearchParams(searchParams.toString())
 
-    Object.entries(newParams).forEach(([key, value]) => {
-      if (value === null) {
-        params.delete(key)
-      } else {
-        params.set(key, value)
-      }
-    })
+      Object.entries(newParams).forEach(([key, value]) => {
+        if (value === null) {
+          params.delete(key)
+        } else {
+          params.set(key, value)
+        }
+      })
 
-    router.push(`/search?${params.toString()}`, { scroll: false })
-  }, [router, searchParams])
+      router.push(`/search?${params.toString()}`, { scroll: false })
+    },
+    [router, searchParams],
+  )
 
   const availableSubcategories = selectedCategory ? subcategories[selectedCategory] || [] : []
   const categoryOptions = categorySpecificFilters[selectedCategory as keyof typeof categorySpecificFilters] || {}
@@ -268,9 +279,9 @@ export function SearchFilters({ searchQuery }: SearchFiltersProps) {
                           value={categoryFilters[filterType]?.[0] || "all"}
                           onValueChange={(value) => {
                             if (value === "all") {
-                                updateUrl({ [filterType.toLowerCase().replace(/\s+/g, "_")]: null })
+                              updateUrl({ [filterType.toLowerCase().replace(/\s+/g, "_")]: null })
                             } else {
-                                updateUrl({ [filterType.toLowerCase().replace(/\s+/g, "_")]: value })
+                              updateUrl({ [filterType.toLowerCase().replace(/\s+/g, "_")]: value })
                             }
                           }}
                         >
@@ -330,8 +341,8 @@ export function SearchFilters({ searchQuery }: SearchFiltersProps) {
               onValueChange={setPriceRange}
               onValueCommit={(value) => {
                 updateUrl({
-                    minPrice: value[0] > 0 ? value[0].toString() : null,
-                    maxPrice: value[1] < 10000 ? value[1].toString() : null
+                  minPrice: value[0] > 0 ? value[0].toString() : null,
+                  maxPrice: value[1] < 10000 ? value[1].toString() : null,
                 })
               }}
               max={10000}
@@ -349,10 +360,10 @@ export function SearchFilters({ searchQuery }: SearchFiltersProps) {
                 type="number"
                 value={priceRange[0]}
                 onChange={(e) => {
-                    setPriceRange([Number.parseInt(e.target.value) || 0, priceRange[1]])
+                  setPriceRange([Number.parseInt(e.target.value) || 0, priceRange[1]])
                 }}
                 onBlur={(e) => {
-                    updateUrl({ minPrice: e.target.value > "0" ? e.target.value : null })
+                  updateUrl({ minPrice: e.target.value > "0" ? e.target.value : null })
                 }}
                 className="border-2 border-gray-200 hover:border-green-400 focus:border-green-500"
               />
@@ -361,10 +372,10 @@ export function SearchFilters({ searchQuery }: SearchFiltersProps) {
                 type="number"
                 value={priceRange[1]}
                 onChange={(e) => {
-                    setPriceRange([priceRange[0], Number.parseInt(e.target.value) || 10000])
+                  setPriceRange([priceRange[0], Number.parseInt(e.target.value) || 10000])
                 }}
                 onBlur={(e) => {
-                    updateUrl({ maxPrice: e.target.value < "10000" ? e.target.value : null })
+                  updateUrl({ maxPrice: e.target.value < "10000" ? e.target.value : null })
                 }}
                 className="border-2 border-gray-200 hover:border-green-400 focus:border-green-500"
               />
@@ -379,7 +390,9 @@ export function SearchFilters({ searchQuery }: SearchFiltersProps) {
           <Input
             placeholder="Enter city or province"
             value={location}
-            onChange={(e) => { /* No-op, we'll use a button to apply */ }}
+            onChange={(e) => {
+              /* No-op, we'll use a button to apply */
+            }}
             className="border-2 border-gray-200 hover:border-green-400 focus:border-green-500"
           />
         </div>
@@ -391,10 +404,7 @@ export function SearchFilters({ searchQuery }: SearchFiltersProps) {
             <ArrowUpDown className="h-5 w-5 mr-2 text-green-600" />
             Sort By
           </Label>
-          <Select
-            value={sortBy}
-            onValueChange={(value) => updateUrl({ sortBy: value === "relevance" ? null : value })}
-          >
+          <Select value={sortBy} onValueChange={(value) => updateUrl({ sortBy: value === "relevance" ? null : value })}>
             <SelectTrigger className="w-full bg-white border-2 border-gray-200 hover:border-green-400 focus:border-green-500 transition-colors">
               <SelectValue />
             </SelectTrigger>
@@ -410,9 +420,11 @@ export function SearchFilters({ searchQuery }: SearchFiltersProps) {
 
         <Button
           onClick={() => {
-            const locationInput = document.querySelector('input[placeholder="Enter city or province"]') as HTMLInputElement
+            const locationInput = document.querySelector(
+              'input[placeholder="Enter city or province"]',
+            ) as HTMLInputElement
             if (locationInput) {
-                updateUrl({ location: locationInput.value || null })
+              updateUrl({ location: locationInput.value || null })
             }
           }}
           className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200"
