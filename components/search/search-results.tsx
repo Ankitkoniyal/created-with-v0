@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState } from "react"
 import { useDeepCompareEffect } from "@/hooks/use-deep-compare-effect"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -53,7 +53,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
 
       try {
         const supabase = createClient()
-        let query = supabase.from("products").select("*")
+        let query = supabase.from("products").select("*").order("created_at", { ascending: false })
 
         if (searchQuery) {
           query = query.or(
@@ -66,61 +66,19 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
         } else if (filters.category) {
           const categoryMapping: Record<string, string[]> = {
             Vehicles: [
-              "Cars",
-              "Motorcycles",
-              "Trucks",
-              "Buses",
-              "Bicycles",
-              "Scooters",
-              "Boats",
-              "RVs",
-              "ATVs",
-              "Parts & Accessories",
+              "Cars", "Motorcycles", "Trucks", "Buses", "Bicycles", "Scooters", "Boats", "RVs", "ATVs", "Parts & Accessories",
             ],
             Electronics: [
-              "TV",
-              "Fridge",
-              "Oven",
-              "AC",
-              "Cooler",
-              "Toaster",
-              "Fan",
-              "Washing Machine",
-              "Microwave",
-              "Computer",
-              "Laptop",
-              "Camera",
-              "Audio System",
+              "TV", "Fridge", "Oven", "AC", "Cooler", "Toaster", "Fan", "Washing Machine", "Microwave", "Computer", "Laptop", "Camera", "Audio System",
             ],
             Mobile: [
-              "Smartphones",
-              "Tablets",
-              "Accessories",
-              "Cases & Covers",
-              "Chargers",
-              "Headphones",
-              "Smart Watches",
-              "Power Banks",
+              "Smartphones", "Tablets", "Accessories", "Cases & Covers", "Chargers", "Headphones", "Smart Watches", "Power Banks",
             ],
             "Real Estate": [
-              "Houses",
-              "Apartments",
-              "Commercial",
-              "Land",
-              "Rental",
-              "Vacation Rentals",
-              "Office Space",
-              "Warehouse",
+              "Houses", "Apartments", "Commercial", "Land", "Rental", "Vacation Rentals", "Office Space", "Warehouse",
             ],
             Fashion: [
-              "Men's Clothing",
-              "Women's Clothing",
-              "Kids Clothing",
-              "Shoes",
-              "Bags",
-              "Jewelry",
-              "Watches",
-              "Accessories",
+              "Men's Clothing", "Women's Clothing", "Kids Clothing", "Shoes", "Bags", "Jewelry", "Watches", "Accessories",
             ],
             Pets: ["Dogs", "Cats", "Birds", "Fish", "Pet Food", "Pet Accessories", "Pet Care", "Pet Services"],
             Furniture: ["Sofa", "Bed", "Table", "Chair", "Wardrobe", "Desk", "Cabinet", "Dining Set", "Home Decor"],
@@ -128,25 +86,12 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
             Gaming: ["Video Games", "Consoles", "PC Gaming", "Mobile Games", "Gaming Accessories", "Board Games"],
             Books: ["Fiction", "Non-Fiction", "Educational", "Comics", "Magazines", "E-books", "Audiobooks"],
             Services: [
-              "Home Services",
-              "Repair",
-              "Cleaning",
-              "Tutoring",
-              "Photography",
-              "Event Planning",
-              "Transportation",
+              "Home Services", "Repair", "Cleaning", "Tutoring", "Photography", "Event Planning", "Transportation",
             ],
             Other: [
-              "Sports Equipment",
-              "Musical Instruments",
-              "Art & Crafts",
-              "Collectibles",
-              "Tools",
-              "Garden",
-              "Baby Items",
+              "Sports Equipment", "Musical Instruments", "Art & Crafts", "Collectibles", "Tools", "Garden", "Baby Items",
             ],
           }
-
           const subcategories = categoryMapping[filters.category] || []
           if (subcategories.length > 0) {
             query = query.in("category", subcategories)
@@ -209,10 +154,6 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
     fetchProducts()
   }, [searchQuery, filters])
 
-  const filteredProducts = useMemo(() => {
-    return products
-  }, [products])
-
   if (loading) {
     return (
       <Card>
@@ -240,7 +181,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
     )
   }
 
-  if (filteredProducts.length === 0) {
+  if (products.length === 0) {
     return (
       <Card>
         <CardContent className="p-12 text-center">
@@ -261,7 +202,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-muted-foreground">
-          {filteredProducts.length} result{filteredProducts.length !== 1 ? "s" : ""} found
+          {products.length} result{products.length !== 1 ? "s" : ""} found
           {searchQuery && ` for "${searchQuery}"`}
           {filters.subcategory && filters.subcategory !== "all" && ` in ${filters.subcategory}`}
           {!filters.subcategory && filters.category && ` in ${filters.category}`}
@@ -292,7 +233,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
       </div>
 
       <div className={viewMode === "grid" ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-4"}>
-        {filteredProducts.map((product) => (
+        {products.map((product) => (
           <Link key={product.id} href={`/product/${product.id}`} prefetch={false}>
             <Card
               className={`group cursor-pointer hover:shadow-lg hover:bg-green-50 hover:border-green-200 transition-all duration-300 ${
