@@ -48,7 +48,6 @@ export function MyListings() {
         if (error) {
           console.error("Error fetching listings:", error)
         } else {
-          console.log("[v0] Fetched user listings:", data)
           setListings(data || [])
         }
       } catch (error) {
@@ -81,7 +80,6 @@ export function MyListings() {
   }
 
   const handleEditAd = (id: string) => {
-    console.log("[v0] Editing ad:", id)
     router.push(`/sell?edit=${id}`)
   }
 
@@ -96,7 +94,6 @@ export function MyListings() {
         console.error("Error deleting ad:", error)
         alert("Failed to delete ad")
       } else {
-        console.log("[v0] Deleted ad:", id)
         setListings((prev) => prev.filter((listing) => listing.id !== id))
         alert("Ad deleted successfully")
       }
@@ -115,7 +112,6 @@ export function MyListings() {
         console.error("Error updating ad:", error)
         alert("Failed to update ad")
       } else {
-        console.log("[v0] Marked ad as sold:", id)
         setListings((prev) => prev.map((listing) => (listing.id === id ? { ...listing, status: "sold" } : listing)))
         alert("Ad marked as sold")
       }
@@ -138,7 +134,6 @@ export function MyListings() {
         console.error("Error updating ad:", error)
         alert("Failed to update ad")
       } else {
-        console.log("[v0] Marked ad as active:", id)
         setListings((prev) => prev.map((listing) => (listing.id === id ? { ...listing, status: "active" } : listing)))
         alert("Ad marked as active")
       }
