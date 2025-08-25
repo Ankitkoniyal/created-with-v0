@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useMemo, useEffect, useRef } from "react"
+import { useState, useMemo } from "react"
+import { useDeepCompareEffect } from "@/hooks/use-deep-compare-effect"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Heart, MapPin, Eye, Grid3X3, List, Package, Loader2 } from "lucide-react"
@@ -44,12 +45,9 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const filtersRef = useRef(filters)
-  const searchQueryRef = useRef(searchQuery)
 
-  useEffect(() => {
+  useDeepCompareEffect(() => {
     const fetchProducts = async () => {
-      console.log("[v0] Fetching products from database...")
       setLoading(true)
       setError(null)
 
@@ -57,15 +55,15 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
         const supabase = createClient()
         let query = supabase.from("products").select("*")
 
-        if (searchQueryRef.current) {
+        if (searchQuery) {
           query = query.or(
-            `title.ilike.%${searchQueryRef.current}%,description.ilike.%${searchQueryRef.current}%,category.ilike.%${searchQueryRef.current}%`,
+            `title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,category.ilike.%${searchQuery}%`,
           )
         }
 
-        if (filtersRef.current.subcategory && filtersRef.current.subcategory !== "all") {
-          query = query.eq("category", filtersRef.current.subcategory)
-        } else if (filtersRef.current.category) {
+        if (filters.subcategory && filters.subcategory !== "all") {
+          query = query.eq("category", filters.subcategory)
+        } else if (filters.category) {
           const categoryMapping: Record<string, string[]> = {
             Vehicles: [
               "Cars",
@@ -149,14 +147,14 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
             ],
           }
 
-          const subcategories = categoryMapping[filtersRef.current.category] || []
+          const subcategories = categoryMapping[filters.category] || []
           if (subcategories.length > 0) {
             query = query.in("category", subcategories)
           }
         }
 
-        const minPrice = Number.parseInt(filtersRef.current.minPrice) || 0
-        const maxPrice = Number.parseInt(filtersRef.current.maxPrice) || Number.MAX_SAFE_INTEGER
+        const minPrice = Number.parseInt(filters.minPrice) || 0
+        const maxPrice = Number.parseInt(filters.maxPrice) || Number.MAX_SAFE_INTEGER
 
         if (minPrice > 0) {
           query = query.gte("price", minPrice)
@@ -165,17 +163,17 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
           query = query.lte("price", maxPrice)
         }
 
-        if (filtersRef.current.condition && filtersRef.current.condition !== "all") {
-          query = query.eq("condition", filtersRef.current.condition.toLowerCase())
+        if (filters.condition && filters.condition !== "all") {
+          query = query.eq("condition", filters.condition.toLowerCase())
         }
 
-        if (filtersRef.current.location) {
+        if (filters.location) {
           query = query.or(
-            `city.ilike.%${filtersRef.current.location}%,province.ilike.%${filtersRef.current.location}%,location.ilike.%${filtersRef.current.location}%`,
+            `city.ilike.%${filters.location}%,province.ilike.%${filters.location}%,location.ilike.%${filters.location}%`,
           )
         }
 
-        switch (filtersRef.current.sortBy) {
+        switch (filters.sortBy) {
           case "newest":
             query = query.order("created_at", { ascending: false })
             break
@@ -195,31 +193,21 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
         const { data, error: fetchError } = await query.limit(50)
 
         if (fetchError) {
-          console.error("[v0] Error fetching products:", fetchError)
+          console.error("Error fetching products:", fetchError)
           setError("Failed to load products. Please try again.")
         } else {
-          console.log("[v0] Fetched products:", data?.length || 0)
           setProducts(data || [])
         }
       } catch (err) {
-        console.error("[v0] Search error:", err)
+        console.error("Search error:", err)
         setError("An error occurred while searching. Please try again.")
       } finally {
         setLoading(false)
       }
     }
 
-    // Update refs with current values
-    filtersRef.current = filters
-    searchQueryRef.current = searchQuery
-
-    // Debounce the search
-    const timeoutId = setTimeout(() => {
-      fetchProducts()
-    }, 300)
-
-    return () => clearTimeout(timeoutId)
-  }, [searchQuery, filters]) // Dependencies that trigger re-fetch
+    fetchProducts()
+  }, [searchQuery, filters])
 
   const filteredProducts = useMemo(() => {
     return products
