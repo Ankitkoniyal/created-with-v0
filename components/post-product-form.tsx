@@ -367,7 +367,7 @@ export function PostProductForm() {
         location: `${formData.address}, ${city}`.trim(),
         city: city,
         province: province,
-        image_urls: imageUrls, // Updated from images to image_urls to match database schema
+        image_urls: imageUrls, // Changed from 'images' to 'image_urls'
         category_id: categoryIndex,
         brand: formData.brand.trim() || null,
         model: formData.model.trim() || null,

@@ -1,10 +1,10 @@
 "use client"
 
-import { useState } from "react"
-import { useDeepCompareEffect } from "@/hooks/use-deep-compare-effect"
+import { useState, useCallback, useMemo } from "react"
+import { useDeepCompareEffect } from "@/hooks/use-deep-compare-effect-fix"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Heart, MapPin, Eye, Grid3X3, List, Package, Loader2 } from "lucide-react"
+import { Heart, MapPin, Eye, Grid3X3, List, Package, Loader2, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 
@@ -45,14 +45,18 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
 
-  useDeepCompareEffect(() => {
-    const fetchProducts = async () => {
-      setLoading(true)
-      setError(null)
+  const supabase = useMemo(() => createClient(), [])
+
+  const fetchProducts = useCallback(
+    async (isRetry = false) => {
+      if (!isRetry) {
+        setLoading(true)
+        setError(null)
+      }
 
       try {
-        const supabase = createClient()
         let query = supabase.from("products").select("*").order("created_at", { ascending: false })
 
         if (searchQuery) {
@@ -66,19 +70,61 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
         } else if (filters.category) {
           const categoryMapping: Record<string, string[]> = {
             Vehicles: [
-              "Cars", "Motorcycles", "Trucks", "Buses", "Bicycles", "Scooters", "Boats", "RVs", "ATVs", "Parts & Accessories",
+              "Cars",
+              "Motorcycles",
+              "Trucks",
+              "Buses",
+              "Bicycles",
+              "Scooters",
+              "Boats",
+              "RVs",
+              "ATVs",
+              "Parts & Accessories",
             ],
             Electronics: [
-              "TV", "Fridge", "Oven", "AC", "Cooler", "Toaster", "Fan", "Washing Machine", "Microwave", "Computer", "Laptop", "Camera", "Audio System",
+              "TV",
+              "Fridge",
+              "Oven",
+              "AC",
+              "Cooler",
+              "Toaster",
+              "Fan",
+              "Washing Machine",
+              "Microwave",
+              "Computer",
+              "Laptop",
+              "Camera",
+              "Audio System",
             ],
             Mobile: [
-              "Smartphones", "Tablets", "Accessories", "Cases & Covers", "Chargers", "Headphones", "Smart Watches", "Power Banks",
+              "Smartphones",
+              "Tablets",
+              "Accessories",
+              "Cases & Covers",
+              "Chargers",
+              "Headphones",
+              "Smart Watches",
+              "Power Banks",
             ],
             "Real Estate": [
-              "Houses", "Apartments", "Commercial", "Land", "Rental", "Vacation Rentals", "Office Space", "Warehouse",
+              "Houses",
+              "Apartments",
+              "Commercial",
+              "Land",
+              "Rental",
+              "Vacation Rentals",
+              "Office Space",
+              "Warehouse",
             ],
             Fashion: [
-              "Men's Clothing", "Women's Clothing", "Kids Clothing", "Shoes", "Bags", "Jewelry", "Watches", "Accessories",
+              "Men's Clothing",
+              "Women's Clothing",
+              "Kids Clothing",
+              "Shoes",
+              "Bags",
+              "Jewelry",
+              "Watches",
+              "Accessories",
             ],
             Pets: ["Dogs", "Cats", "Birds", "Fish", "Pet Food", "Pet Accessories", "Pet Care", "Pet Services"],
             Furniture: ["Sofa", "Bed", "Table", "Chair", "Wardrobe", "Desk", "Cabinet", "Dining Set", "Home Decor"],
@@ -86,10 +132,22 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
             Gaming: ["Video Games", "Consoles", "PC Gaming", "Mobile Games", "Gaming Accessories", "Board Games"],
             Books: ["Fiction", "Non-Fiction", "Educational", "Comics", "Magazines", "E-books", "Audiobooks"],
             Services: [
-              "Home Services", "Repair", "Cleaning", "Tutoring", "Photography", "Event Planning", "Transportation",
+              "Home Services",
+              "Repair",
+              "Cleaning",
+              "Tutoring",
+              "Photography",
+              "Event Planning",
+              "Transportation",
             ],
             Other: [
-              "Sports Equipment", "Musical Instruments", "Art & Crafts", "Collectibles", "Tools", "Garden", "Baby Items",
+              "Sports Equipment",
+              "Musical Instruments",
+              "Art & Crafts",
+              "Collectibles",
+              "Tools",
+              "Garden",
+              "Baby Items",
             ],
           }
           const subcategories = categoryMapping[filters.category] || []
@@ -135,22 +193,49 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
             query = query.order("created_at", { ascending: false })
         }
 
-        const { data, error: fetchError } = await query.limit(50)
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Request timeout")), 10000))
+
+        const queryPromise = query.limit(50)
+
+        const { data, error: fetchError } = (await Promise.race([queryPromise, timeoutPromise])) as any
 
         if (fetchError) {
-          console.error("Error fetching products:", fetchError)
-          setError("Failed to load products. Please try again.")
-        } else {
-          setProducts(data || [])
+          throw fetchError
         }
-      } catch (err) {
+
+        setProducts(data || [])
+        setRetryCount(0)
+      } catch (err: any) {
         console.error("Search error:", err)
-        setError("An error occurred while searching. Please try again.")
+
+        let errorMessage = "An error occurred while searching. Please try again."
+
+        if (err.message === "Request timeout") {
+          errorMessage = "Search is taking too long. Please check your connection and try again."
+        } else if (err.message?.includes("network")) {
+          errorMessage = "Network error. Please check your internet connection."
+        } else if (err.code === "PGRST301") {
+          errorMessage = "Database is temporarily unavailable. Please try again in a moment."
+        }
+
+        setError(errorMessage)
       } finally {
         setLoading(false)
       }
-    }
+    },
+    [searchQuery, filters, supabase],
+  )
 
+  const handleRetry = useCallback(() => {
+    const delay = Math.min(1000 * Math.pow(2, retryCount), 10000)
+    setRetryCount((prev) => prev + 1)
+
+    setTimeout(() => {
+      fetchProducts(true)
+    }, delay)
+  }, [fetchProducts, retryCount])
+
+  useDeepCompareEffect(() => {
     fetchProducts()
   }, [searchQuery, filters])
 
@@ -170,12 +255,17 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
     return (
       <Card>
         <CardContent className="p-12 text-center">
-          <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-foreground mb-2">Search Error</h3>
           <p className="text-muted-foreground mb-4">{error}</p>
-          <Button onClick={() => window.location.reload()} className="bg-green-800 hover:bg-green-900">
-            Try Again
-          </Button>
+          <div className="flex justify-center space-x-2">
+            <Button onClick={handleRetry} className="bg-green-800 hover:bg-green-900">
+              {retryCount > 0 ? `Retry (${retryCount + 1})` : "Try Again"}
+            </Button>
+            <Button variant="outline" onClick={() => window.location.reload()}>
+              Refresh Page
+            </Button>
+          </div>
         </CardContent>
       </Card>
     )

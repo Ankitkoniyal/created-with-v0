@@ -21,7 +21,7 @@ interface Conversation {
     id: string
     title: string
     price: number
-    image_urls: string[] // Updated from images to image_urls to match database schema
+    images: string[]
     status: string
   }
   sender_profile: {
@@ -69,7 +69,7 @@ export function MessagesList() {
               id,
               title,
               price,
-              image_urls,
+              images,
               status
             ),
             sender:profiles!sender_id (
@@ -269,7 +269,7 @@ export function MessagesList() {
                     {/* Product Image */}
                     <div className="w-16 h-16 flex-shrink-0">
                       <img
-                        src={conversation.products?.image_urls?.[0] || "/placeholder.svg"} // Updated from images to image_urls
+                        src={conversation.products?.images?.[0] || "/placeholder.svg"}
                         alt={conversation.products?.title || "Product"}
                         className="w-full h-full object-cover rounded-lg"
                       />

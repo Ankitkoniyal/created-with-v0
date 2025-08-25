@@ -31,7 +31,7 @@ interface Product {
   price: string
   originalPrice?: string
   location: string
-  image_urls: string[] // Updated from images to image_urls to match database schema
+  image_urls: string[] // Fixed field name from images to image_urls to match database schema
   description: string
   youtube_url?: string | null
   website_url?: string | null
@@ -78,7 +78,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
   useEffect(() => {
     const checkFavoriteStatus = async () => {
       if (!user || !isValidUUID(product.id)) {
-        console.log("[v0] Skipping favorite check - invalid UUID or no user:", product.id)
         return
       }
 
@@ -125,7 +124,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
           console.error("Error removing favorite:", error)
           alert("Failed to remove from favorites")
         } else {
-          console.log("[v0] Removed from favorites:", product.id)
           setIsFavorited(false)
         }
       } else {
@@ -138,7 +136,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
           console.error("Error adding favorite:", error)
           alert("Failed to add to favorites")
         } else {
-          console.log("[v0] Added to favorites:", product.id)
           setIsFavorited(true)
         }
       }
@@ -159,7 +156,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
     )
 
     if (confirmed) {
-      console.log("[v0] Reporting ad:", product.id)
       alert("Thank you for your report. Our team will review this ad shortly.")
     }
   }
@@ -232,7 +228,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
           <CardContent className="p-0">
             <div className="relative">
               <img
-                src={product.image_urls?.[selectedImage] || "/placeholder.svg"} // Updated from images to image_urls
+                src={product.image_urls?.[selectedImage] || "/placeholder.svg"} // Fixed field name from images to image_urls
                 alt={product.title}
                 className="w-full h-80 object-cover rounded-t-lg"
               />
@@ -243,7 +239,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                 {product.image_urls?.map(
                   (
                     image,
-                    index, // Updated from images to image_urls
+                    index, // Fixed field name from images to image_urls
                   ) => (
                     <button
                       key={index}
@@ -403,7 +399,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                   id: product.id,
                   title: product.title,
                   price: product.price,
-                  image: product.image_urls?.[0] || "/placeholder.svg", // Updated from images to image_urls
+                  image: product.image_urls?.[0] || "/placeholder.svg", // Fixed field name from images to image_urls
                 }}
                 seller={{
                   name: product.seller.name,
