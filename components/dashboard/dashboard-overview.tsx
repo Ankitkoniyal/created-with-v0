@@ -22,7 +22,7 @@ interface RecentListing {
   price: number
   status: string
   views: number
-  image_urls: string[] // Updated from images to image_urls to match database schema
+  images: string[] // Updated from image_urls to images to match database schema
   category: string // Updated from primary_category to category to match database schema
   created_at: string
 }
@@ -51,7 +51,7 @@ export function DashboardOverview() {
           .eq("user_id", user.id)
 
         if (productsError) {
-          console.error("[v0] Error fetching products:", productsError)
+          console.error("Error fetching products:", productsError)
         } else {
           const activeProducts = products?.filter((p) => p.status === "active") || []
           const totalViews = products?.reduce((sum, p) => sum + (p.views || 0), 0) || 0
@@ -70,7 +70,7 @@ export function DashboardOverview() {
           setRecentListings(recent)
         }
       } catch (error) {
-        console.error("[v0] Error fetching dashboard data:", error)
+        console.error("Error fetching dashboard data:", error)
       } finally {
         setLoading(false)
       }
@@ -227,7 +227,7 @@ export function DashboardOverview() {
                   className="flex items-center space-x-4 p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"
                 >
                   <img
-                    src={listing.image_urls?.[0] || "/placeholder.svg"} // Updated from images to image_urls
+                    src={listing.images?.[0] || "/placeholder.svg"} // Updated from image_urls to images
                     alt={listing.title}
                     className="w-20 h-20 object-cover rounded-lg"
                   />
@@ -235,7 +235,7 @@ export function DashboardOverview() {
                     <div className="flex items-center space-x-2 mb-1">
                       <h4 className="font-semibold text-foreground">{listing.title}</h4>
                       <Badge variant="outline" className="text-xs">
-                        {listing.category} {/* Updated from primary_category to category */}
+                        {listing.category}
                       </Badge>
                     </div>
                     <p className="text-lg font-bold text-primary">${listing.price.toLocaleString()}</p>

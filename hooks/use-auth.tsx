@@ -88,45 +88,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const initializeAuth = async () => {
       try {
-        console.log("[v0] Starting auth initialization...")
-
         const {
           data: { session },
         } = await supabase.auth.getSession()
 
-        console.log("[v0] Session check result:", session ? "Session found" : "No session found")
-
         if (!mounted) return
 
         if (session?.user) {
-          console.log("[v0] User found in session:", session.user.email)
           setUser(session.user)
 
           try {
-            console.log("[v0] Fetching profile for user:", session.user.id)
             const profileData = await fetchProfile(session.user.id, session.user)
             if (mounted) {
-              console.log("[v0] Profile fetched successfully:", profileData.name)
               setProfile(profileData)
             }
           } catch (profileError) {
-            console.log("[v0] Profile fetch error:", profileError)
+            console.error("Profile fetch error:", profileError)
             if (mounted) {
               setProfile(null)
             }
           }
         } else {
-          console.log("[v0] No user in session, setting user to null")
           setUser(null)
           setProfile(null)
         }
 
         if (mounted) {
-          console.log("[v0] Auth initialization complete, setting loading to false")
           setIsLoading(false)
         }
       } catch (error) {
-        console.log("[v0] Auth initialization error:", error)
+        console.error("Auth initialization error:", error)
         if (mounted) {
           setIsLoading(false)
         }
@@ -138,28 +129,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("[v0] Auth state change:", event)
-
       if (!mounted) return
 
       if (event === "SIGNED_IN" && session?.user) {
-        console.log("[v0] User signed in:", session.user.email)
         setUser(session.user)
         try {
           const profileData = await fetchProfile(session.user.id, session.user)
           if (mounted) {
-            console.log("[v0] Profile loaded after sign in:", profileData.name)
             setProfile(profileData)
           }
         } catch (profileError) {
-          console.log("[v0] Profile fetch error after sign in:", profileError)
+          console.error("Profile fetch error after sign in:", profileError)
           if (mounted) {
             setProfile(null)
           }
         }
         setIsLoading(false)
       } else if (event === "SIGNED_OUT") {
-        console.log("[v0] User signed out")
         setUser(null)
         setProfile(null)
         setIsLoading(false)
