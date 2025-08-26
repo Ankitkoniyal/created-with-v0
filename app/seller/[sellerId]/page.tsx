@@ -8,7 +8,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Star, Shield, Calendar, MapPin, Package, MessageSquare } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { ProductGrid } from "@/components/product-grid"
+import { ContactSellerModal } from "@/components/messaging/contact-seller-modal"
+import { useAuth } from "@/hooks/use-auth"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 interface SellerProfile {
   id: string
@@ -35,6 +38,9 @@ export default function SellerProfilePage({ params }: { params: { sellerId: stri
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("ads")
+  const [showContactModal, setShowContactModal] = useState(false)
+  const { user } = useAuth()
+  const router = useRouter()
 
   useEffect(() => {
     const fetchSellerData = async () => {
@@ -75,6 +81,19 @@ export default function SellerProfilePage({ params }: { params: { sellerId: stri
 
     fetchSellerData()
   }, [params.sellerId])
+
+  const handleContactSeller = () => {
+    if (!user) {
+      router.push("/auth/login")
+      return
+    }
+
+    if (user.id === params.sellerId) {
+      return
+    }
+
+    setShowContactModal(true)
+  }
 
   if (loading) {
     return (
@@ -158,9 +177,13 @@ export default function SellerProfilePage({ params }: { params: { sellerId: stri
             </div>
 
             <div className="flex flex-col space-y-2">
-              <Button className="bg-primary hover:bg-green-600">
+              <Button
+                className="bg-primary hover:bg-green-600"
+                onClick={handleContactSeller}
+                disabled={user?.id === params.sellerId}
+              >
                 <MessageSquare className="h-4 w-4 mr-2" />
-                Contact Seller
+                {user?.id === params.sellerId ? "Your Profile" : "Contact Seller"}
               </Button>
               <div className="text-center text-sm text-muted-foreground">{products.length} active ads</div>
             </div>
@@ -188,6 +211,20 @@ export default function SellerProfilePage({ params }: { params: { sellerId: stri
           )}
         </CardContent>
       </Card>
+
+      {/* Contact Seller Modal */}
+      {showContactModal && seller && (
+        <ContactSellerModal
+          isOpen={showContactModal}
+          onClose={() => setShowContactModal(false)}
+          seller={{
+            id: seller.id,
+            name: seller.full_name,
+            avatar: seller.avatar_url,
+          }}
+          product={products[0] || null} // Use first product or null if no products
+        />
+      )}
     </div>
   )
 }
