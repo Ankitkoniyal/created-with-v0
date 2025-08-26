@@ -937,7 +937,7 @@ export function PostProductForm() {
                   >
                     <option value="">Select city/province</option>
                     {CANADIAN_LOCATIONS.map((location) => (
-                      <div key={location.province}>
+                      <optgroup key={location.province} label={location.province}>
                         <option value={location.province} className="font-semibold">
                           {location.province}
                         </option>
@@ -946,7 +946,7 @@ export function PostProductForm() {
                             {city}
                           </option>
                         ))}
-                      </div>
+                      </optgroup>
                     ))}
                   </select>
                 </div>
