@@ -215,7 +215,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
   }
 
   const handleViewAllAds = () => {
-    window.location.href = `/seller/${product.seller.id || "unknown"}/ads`
+    window.location.href = `/seller/${product.seller.id || "unknown"}`
   }
 
   const handleShowMobile = () => {
