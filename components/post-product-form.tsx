@@ -367,14 +367,13 @@ export function PostProductForm() {
         location: `${formData.address}, ${city}`.trim(),
         city: city,
         province: province,
-        image_urls: imageUrls, // Changed from 'images' to 'image_urls'
+        images: imageUrls, // Changed from 'image_urls' back to 'images' to match database schema
         category_id: categoryIndex,
         brand: formData.brand.trim() || null,
         model: formData.model.trim() || null,
         tags: formData.tags.length > 0 ? formData.tags : null,
         youtube_url: formData.youtubeUrl.trim() || null,
         website_url: formData.websiteUrl.trim() || null,
-        address: formData.address.trim() || null,
         status: "active",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
