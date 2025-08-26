@@ -44,6 +44,7 @@ interface Product {
   postedDate: string
   views: number
   seller: {
+    id: string // Added seller ID field
     name: string
     rating: number
     totalReviews: number
@@ -214,7 +215,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
   }
 
   const handleViewAllAds = () => {
-    window.location.href = `/seller/${product.seller.name.toLowerCase().replace(/\s+/g, "-")}/ads`
+    window.location.href = `/seller/${product.seller.id || "unknown"}/ads`
   }
 
   const handleShowMobile = () => {
@@ -554,7 +555,11 @@ export function ProductDetail({ product }: ProductDetailProps) {
             </div>
 
             <div className="space-y-2 mt-3">
-              <Button variant="outline" className="w-full bg-transparent hover:bg-green-100 hover:text-green-700">
+              <Button
+                variant="outline"
+                className="w-full bg-transparent hover:bg-green-100 hover:text-green-700"
+                onClick={() => (window.location.href = `/seller/${product.seller.id || "unknown"}`)}
+              >
                 View Seller Profile
               </Button>
               <Button

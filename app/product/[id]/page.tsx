@@ -14,7 +14,7 @@ async function getProduct(id: string) {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
   if (!uuidRegex.test(id)) {
-    console.error("[v0] Invalid UUID format:", id)
+    console.log("[v0] Invalid UUID format:", id)
     return null
   }
 
@@ -51,6 +51,26 @@ async function getProduct(id: string) {
 
       profileData = profile
       console.log("[v0] Profile found:", profileData?.full_name || "No profile")
+    }
+
+    let parsedTags = null
+    if (product.tags) {
+      try {
+        parsedTags = Array.isArray(product.tags) ? product.tags : JSON.parse(product.tags)
+      } catch (error) {
+        console.error("Error parsing tags:", error)
+        parsedTags = []
+      }
+    }
+
+    let parsedFeatures = null
+    if (product.features) {
+      try {
+        parsedFeatures = Array.isArray(product.features) ? product.features : JSON.parse(product.features)
+      } catch (error) {
+        console.error("Error parsing features:", error)
+        parsedFeatures = []
+      }
     }
 
     const extractUrls = (description: string) => {
@@ -100,19 +120,21 @@ async function getProduct(id: string) {
       title: product.title,
       price: `$${product.price.toLocaleString()}`,
       location: product.city && product.province ? `${product.city}, ${product.province}` : product.location,
-      images: product.images || ["/placeholder.svg"],
+      images: product.images || ["/placeholder.svg"], // Use images field from database
       description: cleanDescription,
-      youtubeUrl,
-      websiteUrl,
+      youtube_url: product.youtube_url || youtubeUrl, // Use database field first, fallback to extracted
+      website_url: product.website_url || websiteUrl, // Use database field first, fallback to extracted
       category: product.category || "Other",
       subcategory: product.subcategory || null,
       condition: product.condition || "Used",
-      brand: product.brand || "Not specified",
-      model: product.model || "Not specified",
+      brand: product.brand || null, // Use database field directly
+      model: product.model || null, // Use database field directly
+      tags: parsedTags, // Include parsed tags from database
       postedDate: product.created_at,
       views: product.views || 0,
       adId: generateAdId(product.id, product.created_at),
       seller: {
+        id: product.user_id, // Include seller ID for profile navigation
         name: profileData?.full_name || "Anonymous Seller",
         rating: 4.5,
         totalReviews: 0,
@@ -120,7 +142,7 @@ async function getProduct(id: string) {
         verified: true,
         responseTime: "Usually responds within 2 hours",
       },
-      features: [],
+      features: parsedFeatures || [], // Include parsed features from database
       storage: product.storage || null,
       color: product.color || null,
       featured: false,
