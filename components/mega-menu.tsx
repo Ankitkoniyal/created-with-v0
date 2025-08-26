@@ -15,18 +15,6 @@ const CATEGORY_ICONS = {
   "Books & Hobbies": Book,
 }
 
-const CATEGORY_COUNTS = {
-  Vehicles: 15420,
-  "Real Estate": 8930,
-  Electronics: 22150,
-  Fashion: 12680,
-  Furniture: 6740,
-  Jobs: 4320,
-  Services: 3890,
-  Pets: 2150,
-  "Books & Hobbies": 5670,
-}
-
 const TRENDING_CATEGORIES = ["Electronics", "Vehicles", "Real Estate"]
 
 const MEGA_MENU_CATEGORIES = {
@@ -99,6 +87,7 @@ interface MegaMenuProps {
 
 export function MegaMenu({ onCategorySelect }: MegaMenuProps) {
   const [searchTerm, setSearchTerm] = useState("")
+  const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({})
 
   const handleCategoryClick = (category: string, subcategory?: string) => {
     if (onCategorySelect) {
@@ -155,7 +144,7 @@ export function MegaMenu({ onCategorySelect }: MegaMenuProps) {
           {filteredCategories.map(([category, subcategories]) => {
             const IconComponent = CATEGORY_ICONS[category as keyof typeof CATEGORY_ICONS]
             const isPopular = TRENDING_CATEGORIES.includes(category)
-            const adCount = CATEGORY_COUNTS[category as keyof typeof CATEGORY_COUNTS]
+            const adCount = categoryCounts[category] || 0
 
             return (
               <div key={category} className="space-y-3">
@@ -176,7 +165,9 @@ export function MegaMenu({ onCategorySelect }: MegaMenuProps) {
                   )}
                 </Link>
 
-                <div className="text-xs text-gray-500 px-2 mb-2">{adCount?.toLocaleString()} ads available</div>
+                {adCount > 0 && (
+                  <div className="text-xs text-gray-500 px-2 mb-2">{adCount.toLocaleString()} ads available</div>
+                )}
 
                 <div className="space-y-1">
                   {Object.entries(subcategories).map(([subcat, items]) => (

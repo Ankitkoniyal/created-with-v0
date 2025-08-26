@@ -35,11 +35,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchProfile = async (userId: string, userData: User): Promise<Profile> => {
     try {
-      console.log("[v0] Fetching profile for user:", userId)
       const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
 
       if (error) {
-        console.log("[v0] Profile fetch error, using fallback:", error.message)
         const fallbackProfile = {
           id: userId,
           name: userData?.user_metadata?.full_name || userData?.email?.split("@")[0] || "User",
@@ -55,7 +53,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return fallbackProfile
       }
 
-      console.log("[v0] Profile fetched successfully:", data.full_name || data.email)
       const profileData = {
         id: data.id,
         name: data.full_name || userData?.email?.split("@")[0] || "User",
@@ -70,7 +67,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       return profileData
     } catch (error) {
-      console.log("[v0] Profile fetch exception, using fallback:", error)
       const fallbackProfile = {
         id: userId,
         name: userData?.user_metadata?.full_name || userData?.email?.split("@")[0] || "User",
@@ -89,18 +85,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let mounted = true
-    console.log("[v0] Starting auth initialization...")
 
     const initializeAuth = async () => {
       try {
-        console.log("[v0] Getting session...")
         const {
           data: { session },
           error: sessionError,
         } = await supabase.auth.getSession()
 
         if (!mounted) {
-          console.log("[v0] Component unmounted, skipping auth initialization")
           return
         }
 
@@ -109,7 +102,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             sessionError.message?.includes("refresh_token_not_found") ||
             sessionError.message?.includes("Invalid Refresh Token")
           ) {
-            // Clear any stored auth data and reset to logged out state
             await supabase.auth.signOut()
             setUser(null)
             setProfile(null)
@@ -120,33 +112,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         if (session?.user) {
-          console.log("[v0] Session found for user:", session.user.email)
           setUser(session.user)
 
           try {
             const profileData = await fetchProfile(session.user.id, session.user)
             if (mounted) {
               setProfile(profileData)
-              console.log("[v0] Auth initialization complete - User logged in")
             }
           } catch (profileError) {
-            console.error("[v0] Profile fetch error:", profileError)
+            console.error("Profile fetch error:", profileError)
             if (mounted) {
               setProfile(null)
             }
           }
         } else {
-          console.log("[v0] No session found")
           setUser(null)
           setProfile(null)
         }
 
         if (mounted) {
           setIsLoading(false)
-          console.log("[v0] Auth initialization complete, loading set to false")
         }
       } catch (error) {
-        console.error("[v0] Auth initialization error:", error)
+        console.error("Auth initialization error:", error)
         if (mounted) {
           setUser(null)
           setProfile(null)
@@ -157,32 +145,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     initializeAuth()
 
-    console.log("[v0] Setting up auth state change listener...")
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return
 
-      console.log("[v0] Auth state change:", event, session?.user?.email || "no user")
-
       if (event === "SIGNED_IN" && session?.user) {
-        console.log("[v0] User signed in:", session.user.email)
         setUser(session.user)
         try {
           const profileData = await fetchProfile(session.user.id, session.user)
           if (mounted) {
             setProfile(profileData)
-            console.log("[v0] Profile loaded after sign in:", profileData.name)
           }
         } catch (profileError) {
-          console.error("[v0] Profile fetch error after sign in:", profileError)
+          console.error("Profile fetch error after sign in:", profileError)
           if (mounted) {
             setProfile(null)
           }
         }
         setIsLoading(false)
       } else if (event === "SIGNED_OUT") {
-        console.log("[v0] User signed out")
         setUser(null)
         setProfile(null)
         setIsLoading(false)
@@ -194,7 +176,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
 
     return () => {
-      console.log("[v0] Cleaning up auth provider")
       mounted = false
       subscription.unsubscribe()
     }
@@ -266,7 +247,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     setIsLoading(true)
     await supabase.auth.signOut()
-    // State will be updated by the auth state change listener
   }
 
   return (
