@@ -1,9 +1,8 @@
 "use client"
 
-import type React from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Heart, Loader2, MapPin, Clock, Star } from "lucide-react"
+import { Heart, Loader2, MapPin, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useState, useEffect } from "react"
@@ -27,7 +26,6 @@ interface Product {
   created_at: string
   user_id: string
   featured?: boolean
-  rating?: number
 }
 
 const PRODUCTS_PER_PAGE = 20
@@ -55,13 +53,11 @@ export function ProductGrid() {
         .range(from, to)
 
       if (error) {
-        console.error("Error fetching products:", error)
         setError("Failed to load ads")
         return null
       }
       return data || []
-    } catch (err) {
-      console.error("Error fetching products:", err)
+    } catch {
       setError("Failed to load ads")
       return null
     }
@@ -126,27 +122,6 @@ export function ProductGrid() {
     return title.charAt(0).toUpperCase() + title.slice(1).toLowerCase()
   }
 
-  const renderStars = (rating: number = 4.5) => {
-    const fullStars = Math.floor(rating)
-    const halfStar = rating % 1 >= 0.5
-    return (
-      <div className="flex items-center space-x-0.5">
-        {[...Array(5)].map((_, i) => (
-          <Star
-            key={i}
-            className={`h-3.5 w-3.5 ${
-              i < fullStars
-                ? "fill-yellow-400 text-yellow-400"
-                : halfStar && i === fullStars
-                ? "fill-yellow-300 text-yellow-300"
-                : "text-gray-300"
-            }`}
-          />
-        ))}
-      </div>
-    )
-  }
-
   if (isLoading) {
     return (
       <section className="py-0">
@@ -192,14 +167,15 @@ export function ProductGrid() {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-5">
             {products.map((product) => (
               <Link key={product.id} href={`/product/${product.id}`} prefetch={false}>
-                <Card className="group h-full flex flex-col overflow-hidden border border-gray-100 bg-white rounded-xl shadow-sm hover:shadow-lg transition">
+                <Card className="group h-full flex flex-col overflow-hidden border border-gray-100 bg-white rounded-xl shadow-sm hover:shadow-md transition">
                   <CardContent className="p-0 flex flex-col h-full">
+                    
                     {/* Image */}
-                    <div className="relative w-full h-48 overflow-hidden bg-gray-50">
+                    <div className="relative w-full h-48 overflow-hidden bg-gray-50 m-0">
                       <img
                         src={product.images?.[0] || "/placeholder.svg"}
                         alt={product.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                        className="w-full h-full object-cover"
                       />
                       <Button
                         size="icon"
@@ -221,19 +197,16 @@ export function ProductGrid() {
                     </div>
 
                     {/* Info */}
-                    <div className="p-3 flex flex-col flex-1">
-                      <p className="text-lg font-bold text-green-600 mb-1">
+                    <div className="p-3 flex flex-col">
+                      <p className="text-lg font-bold text-green-600">
                         {formatPrice(product.price, product.price_type)}
                       </p>
-                      <h4 className="text-sm font-semibold text-gray-800 leading-5 line-clamp-2 mb-1">
+                      <h4 className="text-sm font-semibold text-gray-800 leading-5 line-clamp-2">
                         {formatTitleSentenceCase(product.title)}
                       </h4>
 
-                      {/* Stars */}
-                      <div className="mb-2">{renderStars(product.rating || 4.5)}</div>
-
                       {/* Location + Time */}
-                      <div className="text-xs text-gray-500 mt-auto space-y-1">
+                      <div className="text-xs text-gray-500 mt-2 space-y-1">
                         <div className="flex items-center gap-1">
                           <MapPin className="h-3 w-3 text-gray-400" />
                           <span>{product.city}, {product.province}</span>
