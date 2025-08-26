@@ -96,11 +96,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log("[v0] Getting session...")
         const {
           data: { session },
+          error: sessionError,
         } = await supabase.auth.getSession()
 
         if (!mounted) {
           console.log("[v0] Component unmounted, skipping auth initialization")
           return
+        }
+
+        if (sessionError) {
+          if (
+            sessionError.message?.includes("refresh_token_not_found") ||
+            sessionError.message?.includes("Invalid Refresh Token")
+          ) {
+            // Clear any stored auth data and reset to logged out state
+            await supabase.auth.signOut()
+            setUser(null)
+            setProfile(null)
+            setIsLoading(false)
+            return
+          }
+          throw sessionError
         }
 
         if (session?.user) {
@@ -132,6 +148,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         console.error("[v0] Auth initialization error:", error)
         if (mounted) {
+          setUser(null)
+          setProfile(null)
           setIsLoading(false)
         }
       }
@@ -168,6 +186,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null)
         setProfile(null)
         setIsLoading(false)
+      } else if (event === "TOKEN_REFRESHED") {
+        if (session?.user && mounted) {
+          setUser(session.user)
+        }
       }
     })
 
