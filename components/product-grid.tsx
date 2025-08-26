@@ -224,17 +224,27 @@ export function ProductGrid() {
                     )}
                   </div>
 
-                  <div className="p-2 flex flex-col flex-1">
-                    <div className="flex items-start justify-between mb-1">
-                      <p className="text-sm font-bold text-black">{formatPrice(product.price, product.price_type)}</p>
+                  <div className="p-3 flex flex-col flex-1">
+                    <div className="flex items-start justify-between mb-2">
+                      <p className="text-lg font-bold text-green-600">
+                        {formatPrice(product.price, product.price_type)}
+                      </p>
                     </div>
 
-                    <h4 className="text-xs text-gray-700 leading-tight line-clamp-1 mb-1 min-h-[1rem]">
-                      {product.title.length > 35 ? `${product.title.substring(0, 35)}...` : product.title}
+                    <h4 className="text-sm font-semibold text-gray-900 leading-snug line-clamp-2 mb-2 min-h-[2.5rem]">
+                      {product.title}
                     </h4>
 
-                    <div className="flex items-center justify-between text-[11px] text-gray-500 uppercase tracking-wide mt-auto">
-                      <span className="truncate">
+                    {(product.brand || product.category) && (
+                      <p className="text-xs text-gray-500 mb-2 truncate">
+                        {product.brand && product.category
+                          ? `${product.brand} • ${product.category}`
+                          : product.brand || product.category}
+                      </p>
+                    )}
+
+                    <div className="flex items-center justify-between text-[10px] text-gray-400 uppercase tracking-wide mt-auto pt-1 border-t border-gray-100">
+                      <span className="truncate font-medium">
                         {product.city}, {product.province}
                       </span>
                       <span className="whitespace-nowrap">{formatTimePosted(product.created_at)}</span>
