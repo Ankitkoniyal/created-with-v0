@@ -24,6 +24,8 @@ export function ProfileSettings() {
   const [isSaving, setIsSaving] = useState(false)
   const [showPasswordReset, setShowPasswordReset] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showEmailVerification, setShowEmailVerification] = useState(false)
+  const [isResendingVerification, setIsResendingVerification] = useState(false)
   const [imageUpload, setImageUpload] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -94,7 +96,6 @@ export function ProfileSettings() {
     if (!user) return
 
     setIsSaving(true)
-    console.log("[v0] Starting profile save process...")
 
     try {
       const supabase = createClient()
@@ -102,7 +103,6 @@ export function ProfileSettings() {
       let avatarUrl = profileData?.avatar_url || user.user_metadata?.avatar_url
 
       if (imageUpload) {
-        console.log("[v0] Uploading profile image...")
         const fileExt = imageUpload.name.split(".").pop()
         const fileName = `${user.id}/avatar.${fileExt}`
 
@@ -116,9 +116,7 @@ export function ProfileSettings() {
               data: { publicUrl },
             } = supabase.storage.from("avatars").getPublicUrl(fileName)
             avatarUrl = publicUrl
-            console.log("[v0] Image uploaded successfully:", publicUrl)
           } else {
-            console.error("Avatar upload error:", uploadError)
             toast({
               variant: "destructive",
               title: "Image Upload Failed",
@@ -126,7 +124,6 @@ export function ProfileSettings() {
             })
           }
         } catch (imageError) {
-          console.error("Image upload exception:", imageError)
           toast({
             variant: "destructive",
             title: "Image Upload Failed",
@@ -135,28 +132,27 @@ export function ProfileSettings() {
         }
       }
 
-      console.log("[v0] Updating auth user metadata...")
       const { error: authUpdateError } = await supabase.auth.updateUser({
         data: {
           full_name: formData.name,
           location: formData.location,
           bio: formData.bio,
           avatar_url: avatarUrl,
+          phone: formData.mobile,
         },
       })
 
       if (authUpdateError) {
-        console.error("Auth update error:", authUpdateError)
         throw authUpdateError
       }
 
-      console.log("[v0] Updating profiles table...")
       const profileUpdateData = {
         id: user.id,
         full_name: formData.name,
         location: formData.location,
         bio: formData.bio,
         avatar_url: avatarUrl,
+        phone: formData.mobile,
         email_notifications: formData.notifications.email,
         sms_notifications: formData.notifications.sms,
         push_notifications: formData.notifications.push,
@@ -202,7 +198,6 @@ export function ProfileSettings() {
       })
 
       if (error) {
-        console.error("Password reset error:", error)
         toast({
           variant: "destructive",
           title: "Reset Failed",
@@ -216,7 +211,6 @@ export function ProfileSettings() {
         setShowPasswordReset(false)
       }
     } catch (error) {
-      console.error("Password reset error:", error)
       toast({
         variant: "destructive",
         title: "Error",
@@ -232,6 +226,44 @@ export function ProfileSettings() {
         "Account has been deactivated. Your information is preserved for system integrity and legal compliance.",
     })
     setShowDeleteConfirm(false)
+  }
+
+  const handleResendVerification = async () => {
+    if (!user?.email) return
+
+    setIsResendingVerification(true)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email: user.email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      })
+
+      if (error) {
+        toast({
+          variant: "destructive",
+          title: "Verification Failed",
+          description: "Failed to send verification email. Please try again.",
+        })
+      } else {
+        toast({
+          title: "Verification Email Sent",
+          description: "Please check your inbox and click the verification link.",
+        })
+        setShowEmailVerification(false)
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "An error occurred. Please try again.",
+      })
+    } finally {
+      setIsResendingVerification(false)
+    }
   }
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -308,10 +340,15 @@ export function ProfileSettings() {
             <div className="flex-1">
               <div className="flex items-center space-x-2 mb-2">
                 <h2 className="text-2xl font-bold text-foreground">{formData.name || user?.email}</h2>
-                {user?.email_verified && (
+                {user?.email_verified ? (
                   <Badge variant="secondary" className="flex items-center">
                     <Shield className="h-3 w-3 mr-1" />
                     Verified
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="flex items-center text-orange-600 border-orange-200">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    Unverified
                   </Badge>
                 )}
               </div>
@@ -378,9 +415,15 @@ export function ProfileSettings() {
 
             <div className="space-y-2">
               <Label htmlFor="phone">Phone Number</Label>
-              <Input id="phone" value={formData.mobile || "Not provided"} disabled={true} className="bg-muted" />
+              <Input
+                id="phone"
+                value={formData.mobile}
+                onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
+                disabled={!isEditing}
+                placeholder="Enter your phone number"
+              />
               <p className="text-xs text-muted-foreground">
-                {formData.mobile ? "Phone number from your profile" : "No phone number on file"}
+                {isEditing ? "Update your phone number for better communication" : "Phone number for contact purposes"}
               </p>
             </div>
 
@@ -415,6 +458,45 @@ export function ProfileSettings() {
           <CardTitle>Security</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {!user?.email_verified && (
+            <>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-medium">Email Verification</h4>
+                  <p className="text-sm text-muted-foreground">Verify your email address to secure your account</p>
+                </div>
+                <Button variant="outline" onClick={() => setShowEmailVerification(true)}>
+                  Verify Email
+                </Button>
+              </div>
+
+              {showEmailVerification && (
+                <div className="mt-4 p-4 border border-border rounded-lg bg-muted/50">
+                  <p className="text-sm text-muted-foreground mb-3">
+                    A verification link will be sent to your email address.
+                  </p>
+                  <div className="flex space-x-2">
+                    <Button size="sm" onClick={handleResendVerification} disabled={isResendingVerification}>
+                      {isResendingVerification ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        "Send Verification"
+                      )}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setShowEmailVerification(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <Separator />
+            </>
+          )}
+
           <div className="flex items-center justify-between">
             <div>
               <h4 className="font-medium">Password</h4>
