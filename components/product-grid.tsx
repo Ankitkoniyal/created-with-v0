@@ -3,7 +3,7 @@
 import type React from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Heart, MapPin, Clock, Loader2 } from "lucide-react"
+import { Heart, Loader2, MapPin, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useState, useEffect } from "react"
@@ -105,7 +105,7 @@ export function ProductGrid() {
   const formatPrice = (price: number, priceType: string) => {
     if (priceType === "free") return "Free"
     if (priceType === "contact") return "Contact for Price"
-    return `₹${price.toLocaleString('en-IN')}`
+    return `$${price.toLocaleString()}`
   }
 
   const formatTimePosted = (createdAt: string) => {
@@ -114,178 +114,162 @@ export function ProductGrid() {
     const diffInHours = Math.floor((now.getTime() - posted.getTime()) / (1000 * 60 * 60))
 
     if (diffInHours < 1) return "Just now"
-    if (diffInHours < 24) return "TODAY"
-    if (diffInHours < 48) return "YESTERDAY"
-    if (diffInHours < 168) return `${Math.floor(diffInHours / 24)} DAYS AGO`
+    if (diffInHours < 24) return `${diffInHours} hours ago`
+    if (diffInHours < 48) return "1 day ago"
+    if (diffInHours < 168) return `${Math.floor(diffInHours / 24)} days ago`
     return posted.toLocaleDateString()
-  }
-
-  const formatTitle = (title: string) => {
-    return title
-      .toLowerCase()
-      .split(' ')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
   }
 
   if (isLoading) {
     return (
-      <div className="max-w-6xl mx-auto px-2">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div
-              key={i}
-              className="h-full flex flex-col overflow-hidden bg-white border border-gray-200 animate-pulse"
-            >
-              <div className="w-full h-40 bg-gray-200"></div>
-              <div className="p-2 flex flex-col flex-1">
-                <div className="h-5 bg-gray-200 rounded mb-2"></div>
-                <div className="h-4 bg-gray-200 rounded mb-2"></div>
-                <div className="flex justify-between mt-2">
-                  <div className="h-3 bg-gray-200 rounded w-1/3"></div>
-                  <div className="h-3 bg-gray-200 rounded w-1/4"></div>
+      <section className="py-2">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xl font-bold text-foreground">Latest Ads</h3>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <Card
+                key={i}
+                className="h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-xl animate-pulse"
+              >
+                <div className="w-full h-40 sm:h-48 lg:h-52 bg-gray-200"></div>
+                <div className="p-3 flex flex-col flex-1">
+                  <div className="h-4 bg-gray-200 rounded mb-2"></div>
+                  <div className="h-3 bg-gray-200 rounded mb-1"></div>
+                  <div className="h-3 bg-gray-200 rounded"></div>
                 </div>
-              </div>
-            </div>
-          ))}
+              </Card>
+            ))}
+          </div>
         </div>
-      </div>
+      </section>
     )
   }
 
   if (error) {
     return (
-      <div className="max-w-6xl mx-auto px-2 py-4">
-        <div className="text-center">
-          <p className="text-red-600 mb-3 font-medium">{error}</p>
-          <Button 
-            onClick={() => window.location.reload()} 
-            className="bg-green-600 hover:bg-green-700 text-white font-medium py-1 px-3 text-sm"
-          >
-            Try Again
-          </Button>
+      <section className="py-2">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center py-8">
+            <p className="text-red-600 mb-4">{error}</p>
+            <Button onClick={() => window.location.reload()} className="bg-green-600 hover:bg-green-700">
+              Try Again
+            </Button>
+          </div>
         </div>
-      </div>
+      </section>
     )
   }
 
   if (products.length === 0) {
     return (
-      <div className="max-w-6xl mx-auto px-2 py-4">
-        <div className="text-center py-4 bg-gray-50 border rounded">
-          <p className="text-gray-600 mb-3 font-medium">No ads posted yet. Be the first to post an ad!</p>
-          <Link href="/sell" prefetch={false}>
-            <Button className="bg-green-600 hover:bg-green-700 text-white font-medium py-1 px-3 text-sm">
-              Post Your First Ad
-            </Button>
-          </Link>
+      <section className="py-2">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xl font-bold text-foreground">Latest Ads</h3>
+          </div>
+          <div className="text-center py-8">
+            <p className="text-gray-600 mb-4">No ads posted yet. Be the first to post an ad!</p>
+            <Link href="/sell" prefetch={false}>
+              <Button className="bg-green-600 hover:bg-green-700">Post Your First Ad</Button>
+            </Link>
+          </div>
         </div>
-      </div>
+      </section>
     )
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-2">
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-        {products.map((product) => (
-          <Link 
-            key={product.id} 
-            href={`/product/${product.id}`} 
-            className="block"
-            prefetch={false}
-          >
-            <Card className="h-full flex flex-col overflow-hidden bg-white border border-gray-200 hover:border-green-400 transition-colors">
-              <CardContent className="p-0 flex flex-col h-full">
-                <div className="relative w-full h-40 overflow-hidden bg-gray-50">
-                  <img
-                    src={product.images?.[0] || "/placeholder.svg?height=160&width=300"}
-                    alt={product.title}
-                    loading="lazy"
-                    className="w-full h-full object-cover"
-                  />
+    <section className="py-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-2xl font-bold text-foreground">Latest Ads</h3>
+          <p className="text-sm text-gray-600">{products.length} ads found</p>
+        </div>
 
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    aria-label="Toggle favorite"
-                    className="absolute top-1 right-1 bg-white/90 hover:bg-white shadow h-6 w-6 p-0 rounded-full"
-                    onClick={(e) => toggleFavorite(product.id, e)}
-                  >
-                    <Heart
-                      className={`h-3.5 w-3.5 ${
-                        favorites.has(product.id) 
-                          ? "fill-red-500 text-red-500" 
-                          : "text-gray-600"
-                      }`}
+        {/* Product Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-5">
+          {products.map((product) => (
+            <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
+              <Card className="group h-full flex flex-col overflow-hidden border border-gray-100 bg-white rounded-xl shadow-sm hover:shadow-lg hover:border-gray-200 transition-all duration-200">
+                <CardContent className="p-0 flex flex-col h-full">
+                  {/* Image Section */}
+                  <div className="relative w-full h-48 overflow-hidden bg-gray-50">
+                    <img
+                      src={product.images?.[0] || "/placeholder.svg?height=200&width=300&query=product"}
+                      alt={product.title}
+                      loading="lazy"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
-                  </Button>
 
-                  {product.featured && (
-                    <Badge className="absolute top-1 left-1 bg-green-600 text-white text-xs font-semibold px-1 py-0 rounded">
-                      Featured
-                    </Badge>
-                  )}
-                </div>
+                    {/* Favorite Button */}
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      aria-label="Toggle favorite"
+                      className="absolute top-3 right-3 bg-white/90 hover:bg-white shadow-sm h-8 w-8 p-0 rounded-full"
+                      onClick={(e) => toggleFavorite(product.id, e)}
+                    >
+                      <Heart
+                        className={`h-4 w-4 ${
+                          favorites.has(product.id) ? "fill-red-500 text-red-500" : "text-gray-600"
+                        }`}
+                      />
+                    </Button>
 
-                <div className="p-2 flex flex-col flex-1">
-                  <div className="mb-1">
-                    <span className="text-base font-bold text-gray-900">
-                      {formatPrice(product.price, product.price_type)}
-                    </span>
-                  </div>
-
-                  <div className="mb-2">
-                    <h4 className="text-sm font-medium text-gray-900 leading-tight line-clamp-2">
-                      {formatTitle(product.title)}
-                    </h4>
-                    {product.description && (
-                      <p className="text-xs text-gray-600 line-clamp-2 mt-1">
-                        {product.description}
-                      </p>
+                    {/* Featured Badge */}
+                    {product.featured && (
+                      <Badge className="absolute top-3 left-3 bg-gradient-to-r from-orange-500 to-red-500 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full shadow">
+                        Featured
+                      </Badge>
                     )}
                   </div>
 
-                  <div className="mt-auto text-xs text-gray-500">
-                    <div className="flex items-center mb-1">
-                      <MapPin className="h-3 w-3 mr-1" />
-                      <span className="truncate">
-                        {product.city}, {product.province}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span>{formatTimePosted(product.created_at)}</span>
-                      {product.condition && (
-                        <span className="text-xs bg-gray-100 px-1 py-0.5 rounded">
-                          {product.condition}
-                        </span>
-                      )}
+                  {/* Content Section */}
+                  <div className="p-3 flex flex-col flex-1">
+                    {/* Price */}
+                    <p className="text-lg font-bold text-green-600 mb-1">
+                      {formatPrice(product.price, product.price_type)}
+                    </p>
+
+                    {/* Title */}
+                    <h4 className="text-sm font-semibold text-gray-800 leading-5 line-clamp-2 mb-2">
+                      {product.title}
+                    </h4>
+
+                    {/* Location & Time */}
+                    <div className="text-xs text-gray-500 mt-auto space-y-1">
+                      <div className="flex items-center gap-1">
+                        <MapPin className="h-3 w-3 text-gray-400" />
+                        <span className="truncate">{product.city}, {product.province}</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-gray-400">
+                        <Clock className="h-3 w-3" />
+                        <span>{formatTimePosted(product.created_at)}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
-
-      {hasMore && (
-        <div className="text-center mt-4">
-          <Button
-            onClick={loadMore}
-            disabled={isLoadingMore}
-            className="bg-green-600 hover:bg-green-700 text-white font-medium px-4 py-1 text-sm rounded"
-          >
-            {isLoadingMore ? (
-              <>
-                <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                Loading...
-              </>
-            ) : (
-              "Load More Ads"
-            )}
-          </Button>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
         </div>
-      )}
-    </div>
+
+        {/* Load More */}
+        {hasMore && (
+          <div className="text-center mt-6">
+            <Button
+              onClick={loadMore}
+              disabled={isLoadingMore}
+              className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 text-sm font-medium rounded"
+            >
+              {isLoadingMore ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              {isLoadingMore ? "Loading..." : "Show More"}
+            </Button>
+          </div>
+        )}
+      </div>
+    </section>
   )
 }
