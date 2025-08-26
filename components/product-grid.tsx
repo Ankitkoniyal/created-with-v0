@@ -229,8 +229,8 @@ export function ProductGrid() {
                       <p className="text-sm font-bold text-black">{formatPrice(product.price, product.price_type)}</p>
                     </div>
 
-                    <h4 className="text-xs text-gray-700 leading-tight line-clamp-2 mb-1 min-h-[2rem]">
-                      {product.title}
+                    <h4 className="text-xs text-gray-700 leading-tight line-clamp-1 mb-1 min-h-[1rem]">
+                      {product.title.length > 35 ? `${product.title.substring(0, 35)}...` : product.title}
                     </h4>
 
                     <div className="flex items-center justify-between text-[11px] text-gray-500 uppercase tracking-wide mt-auto">
