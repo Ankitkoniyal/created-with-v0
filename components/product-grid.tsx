@@ -3,7 +3,7 @@
 import type React from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Heart, Loader2 } from "lucide-react"
+import { Heart, MapPin, Clock, Loader2, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useState, useEffect } from "react"
@@ -114,32 +114,36 @@ export function ProductGrid() {
     const diffInHours = Math.floor((now.getTime() - posted.getTime()) / (1000 * 60 * 60))
 
     if (diffInHours < 1) return "Just now"
-    if (diffInHours < 24) return `${diffInHours} hours ago`
-    if (diffInHours < 48) return "1 day ago"
-    if (diffInHours < 168) return `${Math.floor(diffInHours / 24)} days ago`
+    if (diffInHours < 24) return `${diffInHours}h ago`
+    if (diffInHours < 48) return "1d ago"
+    if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}d ago`
     return posted.toLocaleDateString()
   }
 
   if (isLoading) {
     return (
-      <section className="py-2">
+      <section className="py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xl font-bold text-foreground">Latest Ads</h3>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-2xl font-bold text-gray-900">Latest Ads</h3>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-            {Array.from({ length: 12 }).map((_, i) => (
-              <Card
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <div
                 key={i}
-                className="h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-md animate-pulse"
+                className="h-full flex flex-col overflow-hidden bg-white rounded-xl shadow-sm border border-gray-100 animate-pulse"
               >
-                <div className="w-full h-40 sm:h-48 lg:h-52 bg-gray-200"></div>
-                <div className="p-2 flex flex-col flex-1">
-                  <div className="h-4 bg-gray-200 rounded mb-2"></div>
-                  <div className="h-3 bg-gray-200 rounded mb-1"></div>
-                  <div className="h-3 bg-gray-200 rounded"></div>
+                <div className="w-full aspect-square bg-gray-200 rounded-t-xl"></div>
+                <div className="p-3 flex flex-col flex-1">
+                  <div className="h-5 bg-gray-200 rounded mb-2"></div>
+                  <div className="h-4 bg-gray-200 rounded mb-3"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                  <div className="mt-auto pt-3 flex justify-between items-center">
+                    <div className="h-3 bg-gray-200 rounded w-1/3"></div>
+                    <div className="h-3 bg-gray-200 rounded w-1/4"></div>
+                  </div>
                 </div>
-              </Card>
+              </div>
             ))}
           </div>
         </div>
@@ -149,11 +153,14 @@ export function ProductGrid() {
 
   if (error) {
     return (
-      <section className="py-2">
+      <section className="py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center py-8">
-            <p className="text-red-600 mb-4">{error}</p>
-            <Button onClick={() => window.location.reload()} className="bg-green-600 hover:bg-green-700">
+          <div className="text-center py-12">
+            <p className="text-red-600 mb-4 font-medium">{error}</p>
+            <Button 
+              onClick={() => window.location.reload()} 
+              className="bg-blue-600 hover:bg-blue-700 text-white font-medium"
+            >
               Try Again
             </Button>
           </div>
@@ -164,15 +171,17 @@ export function ProductGrid() {
 
   if (products.length === 0) {
     return (
-      <section className="py-2">
+      <section className="py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xl font-bold text-foreground">Latest Ads</h3>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-2xl font-bold text-gray-900">Latest Ads</h3>
           </div>
-          <div className="text-center py-8">
-            <p className="text-gray-600 mb-4">No ads posted yet. Be the first to post an ad!</p>
+          <div className="text-center py-12 bg-gray-50 rounded-xl">
+            <p className="text-gray-600 mb-4 font-medium">No ads posted yet. Be the first to post an ad!</p>
             <Link href="/sell" prefetch={false}>
-              <Button className="bg-green-600 hover:bg-green-700">Post Your First Ad</Button>
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white font-medium">
+                Post Your First Ad
+              </Button>
             </Link>
           </div>
         </div>
@@ -181,21 +190,26 @@ export function ProductGrid() {
   }
 
   return (
-    <section className="py-4">
+    <section className="py-6">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-2xl font-bold text-foreground">Latest Ads</h3>
-          <p className="text-sm text-gray-600">{products.length} ads found</p>
+          <h3 className="text-2xl font-bold text-gray-900">Latest Ads</h3>
+          <p className="text-sm text-gray-600 font-medium">{products.length} ads found</p>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
           {products.map((product) => (
-            <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
-              <Card className="group h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-lg hover:shadow-md transition-all duration-200 hover:border-gray-300">
+            <Link 
+              key={product.id} 
+              href={`/product/${product.id}`} 
+              className="block group"
+              prefetch={false}
+            >
+              <Card className="h-full flex flex-col overflow-hidden bg-white rounded-xl border border-gray-200 transition-all duration-300 hover:shadow-lg hover:border-gray-300">
                 <CardContent className="p-0 flex flex-col h-full">
-                  <div className="relative w-full h-48 overflow-hidden bg-gray-50">
+                  <div className="relative w-full aspect-square overflow-hidden bg-gray-50">
                     <img
-                      src={product.images?.[0] || "/placeholder.svg?height=200&width=300&query=product"}
+                      src={product.images?.[0] || "/placeholder.svg?height=300&width=300"}
                       alt={product.title}
                       loading="lazy"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -205,39 +219,67 @@ export function ProductGrid() {
                       size="icon"
                       variant="ghost"
                       aria-label="Toggle favorite"
-                      className="absolute top-3 right-3 bg-white/90 hover:bg-white shadow-sm h-8 w-8 p-0 rounded-full"
+                      className="absolute top-2 right-2 bg-white/90 hover:bg-white shadow-md h-8 w-8 p-0 rounded-full"
                       onClick={(e) => toggleFavorite(product.id, e)}
                     >
                       <Heart
                         className={`h-4 w-4 ${
-                          favorites.has(product.id) ? "fill-red-500 text-red-500" : "text-gray-600"
+                          favorites.has(product.id) 
+                            ? "fill-red-500 text-red-500" 
+                            : "text-gray-600 group-hover:text-red-500"
                         }`}
                       />
                     </Button>
 
                     {product.featured && (
-                      <Badge className="absolute top-3 left-3 bg-orange-500 text-white text-xs font-semibold px-2 py-1 rounded">
+                      <Badge className="absolute top-2 left-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-xs font-semibold px-2 py-1 rounded-md shadow-sm">
                         Featured
                       </Badge>
                     )}
+
+                    {product.condition && (
+                      <div className="absolute bottom-2 left-2">
+                        <Badge variant="secondary" className="text-xs bg-white/95 text-gray-800 font-medium">
+                          {product.condition}
+                        </Badge>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="p-4 flex flex-col flex-1">
-                    <p className="text-xl font-bold text-black mb-2">
-                      {formatPrice(product.price, product.price_type)}
-                    </p>
+                  <div className="p-3 flex flex-col flex-1">
+                    <div className="mb-2">
+                      <h4 className="text-lg font-bold text-gray-900 leading-tight line-clamp-2">
+                        {product.title}
+                      </h4>
+                    </div>
 
-                    <h4 className="text-sm font-medium text-gray-800 leading-5 line-clamp-2 mb-3 min-h-[2.5rem]">
-                      {product.title}
-                    </h4>
-
-                    <div className="text-xs text-gray-500 mt-auto space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="truncate font-medium">
-                          {product.city}, {product.province}
+                    <div className="mt-auto">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xl font-bold text-blue-600">
+                          {formatPrice(product.price, product.price_type)}
                         </span>
+                        {product.price_type === "amount" && (
+                          <Badge 
+                            variant="outline" 
+                            className="text-xs font-medium bg-blue-50 text-blue-700 border-blue-200"
+                          >
+                            Fixed Price
+                          </Badge>
+                        )}
                       </div>
-                      <div className="text-gray-400">{formatTimePosted(product.created_at)}</div>
+
+                      <div className="flex items-center justify-between text-xs text-gray-500">
+                        <div className="flex items-center">
+                          <MapPin className="h-3 w-3 mr-1" />
+                          <span className="truncate font-medium">
+                            {product.city}
+                          </span>
+                        </div>
+                        <div className="flex items-center">
+                          <Clock className="h-3 w-3 mr-1" />
+                          <span>{formatTimePosted(product.created_at)}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -247,14 +289,20 @@ export function ProductGrid() {
         </div>
 
         {hasMore && (
-          <div className="text-center mt-6">
+          <div className="text-center mt-8">
             <Button
               onClick={loadMore}
               disabled={isLoadingMore}
-              className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 text-sm font-medium rounded"
+              className="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium px-6 py-3 rounded-lg shadow-sm"
             >
-              {isLoadingMore ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {isLoadingMore ? "Loading..." : "Show More"}
+              {isLoadingMore ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Loading...
+                </>
+              ) : (
+                "Load More Ads"
+              )}
             </Button>
           </div>
         )}
