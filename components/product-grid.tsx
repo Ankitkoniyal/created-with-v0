@@ -181,59 +181,63 @@ export function ProductGrid() {
   }
 
   return (
-    <section className="py-0">
+    <section className="py-4">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xl font-bold text-foreground">Latest Ads</h3>
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-2xl font-bold text-foreground">Latest Ads</h3>
           <p className="text-sm text-gray-600">{products.length} ads found</p>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-4">
           {products.map((product) => (
             <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
-              <Card className="group h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded hover:shadow-lg transition-shadow duration-200">
+              <Card className="group h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-lg hover:shadow-md transition-all duration-200 hover:border-gray-300">
                 <CardContent className="p-0 flex flex-col h-full">
-                  <div className="relative w-full h-32 sm:h-36 overflow-hidden bg-gray-50">
+                  <div className="relative w-full h-48 overflow-hidden bg-gray-50">
                     <img
-                      src={product.images?.[0] || "/placeholder.svg?height=150&width=200&query=product"}
+                      src={product.images?.[0] || "/placeholder.svg?height=200&width=300&query=product"}
                       alt={product.title}
                       loading="lazy"
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
 
                     <Button
                       size="icon"
                       variant="ghost"
                       aria-label="Toggle favorite"
-                      className="absolute top-2 right-2 bg-white/80 hover:bg-white shadow-sm h-6 w-6 p-0 rounded-full"
+                      className="absolute top-3 right-3 bg-white/90 hover:bg-white shadow-sm h-8 w-8 p-0 rounded-full"
                       onClick={(e) => toggleFavorite(product.id, e)}
                     >
                       <Heart
-                        className={`h-3 w-3 ${
+                        className={`h-4 w-4 ${
                           favorites.has(product.id) ? "fill-red-500 text-red-500" : "text-gray-600"
                         }`}
                       />
                     </Button>
 
                     {product.featured && (
-                      <Badge className="absolute top-2 left-2 bg-yellow-400 text-black text-[9px] font-semibold px-1.5 py-0.5 rounded">
+                      <Badge className="absolute top-3 left-3 bg-orange-500 text-white text-xs font-semibold px-2 py-1 rounded">
                         Featured
                       </Badge>
                     )}
                   </div>
 
-                  <div className="p-2 flex flex-col flex-1">
-                    <p className="text-base font-bold text-black mb-1">
+                  <div className="p-4 flex flex-col flex-1">
+                    <p className="text-xl font-bold text-black mb-2">
                       {formatPrice(product.price, product.price_type)}
                     </p>
 
-                    <h4 className="text-xs font-normal text-gray-800 leading-tight line-clamp-1 mb-1">
+                    <h4 className="text-sm font-medium text-gray-800 leading-5 line-clamp-2 mb-3 min-h-[2.5rem]">
                       {product.title}
                     </h4>
 
-                    <div className="text-[10px] text-gray-500 uppercase tracking-wide mt-auto">
-                      <div className="truncate">{product.city}</div>
-                      <div className="truncate">{formatTimePosted(product.created_at)}</div>
+                    <div className="text-xs text-gray-500 mt-auto space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="truncate font-medium">
+                          {product.city}, {product.province}
+                        </span>
+                      </div>
+                      <div className="text-gray-400">{formatTimePosted(product.created_at)}</div>
                     </div>
                   </div>
                 </CardContent>
