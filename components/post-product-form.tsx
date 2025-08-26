@@ -647,14 +647,17 @@ export function PostProductForm() {
               <p className="text-sm text-muted-foreground">{formData.description.length}/1000 characters</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label htmlFor="category">Category *</label>
+                <label htmlFor="category" className="block text-sm font-medium text-gray-700">
+                  Category *
+                </label>
                 <select
                   id="category"
                   value={formData.category}
                   onChange={(e) => handleInputChange("category", e.target.value)}
-                  className="border-2 border-gray-200 focus:border-primary"
+                  className="w-full px-3 py-2 border-2 border-gray-200 rounded-md focus:border-primary focus:outline-none"
+                  required
                 >
                   <option value="">Select category</option>
                   {categories.map((category) => (
@@ -666,7 +669,9 @@ export function PostProductForm() {
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="subcategory">Subcategory</label>
+                <label htmlFor="subcategory" className="block text-sm font-medium text-gray-700">
+                  Subcategory
+                </label>
                 <select
                   id="subcategory"
                   value={formData.subcategory}
@@ -675,7 +680,7 @@ export function PostProductForm() {
                     !formData.category ||
                     !categories.find((cat) => cat.name === formData.category)?.subcategories.length
                   }
-                  className="border-2 border-gray-200 focus:border-primary"
+                  className="w-full px-3 py-2 border-2 border-gray-200 rounded-md focus:border-primary focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                 >
                   <option value="">Select subcategory</option>
                   {formData.category &&
@@ -688,7 +693,9 @@ export function PostProductForm() {
                       ))}
                 </select>
               </div>
+            </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <label htmlFor="condition">Condition *</label>
                 <select

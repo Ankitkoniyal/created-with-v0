@@ -33,10 +33,6 @@ export function ProfileSettings() {
     location: "",
     bio: "",
     mobile: "",
-    contactVisibility: {
-      showPhone: true,
-      showEmail: false,
-    },
     notifications: {
       email: true,
       sms: false,
@@ -72,10 +68,6 @@ export function ProfileSettings() {
           location: profileData?.location || user.user_metadata?.location || "Toronto, ON",
           bio: profileData?.bio || user.user_metadata?.bio || "New to the marketplace. Looking forward to great deals!",
           mobile: profileData?.phone || user.phone || "",
-          contactVisibility: {
-            showPhone: profileData?.show_phone ?? true,
-            showEmail: profileData?.show_email ?? false,
-          },
           notifications: {
             email: profileData?.email_notifications ?? true,
             sms: profileData?.sms_notifications ?? false,
@@ -165,8 +157,6 @@ export function ProfileSettings() {
         location: formData.location,
         bio: formData.bio,
         avatar_url: avatarUrl,
-        show_phone: formData.contactVisibility.showPhone,
-        show_email: formData.contactVisibility.showEmail,
         email_notifications: formData.notifications.email,
         sms_notifications: formData.notifications.sms,
         push_notifications: formData.notifications.push,
@@ -256,9 +246,14 @@ export function ProfileSettings() {
         return
       }
 
+      console.log("[v0] Image selected for upload:", file.name, file.size)
       setImageUpload(file)
       const url = URL.createObjectURL(file)
       setPreviewUrl(url)
+
+      if (!isEditing) {
+        setIsEditing(true)
+      }
     }
   }
 
@@ -292,14 +287,18 @@ export function ProfileSettings() {
                     : "U"}
                 </AvatarFallback>
               </Avatar>
-              <label htmlFor="avatar-upload">
-                <Button size="sm" className="absolute -bottom-2 -right-2 rounded-full h-8 w-8 p-0 cursor-pointer">
-                  <Camera className="h-4 w-4" />
+              <label htmlFor="avatar-upload" className="cursor-pointer">
+                <Button
+                  size="sm"
+                  className="absolute -bottom-2 -right-2 rounded-full h-10 w-10 p-0 shadow-lg hover:shadow-xl transition-shadow"
+                  type="button"
+                >
+                  <Camera className="h-5 w-5" />
                 </Button>
                 <input
                   id="avatar-upload"
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
                   className="hidden"
                   onChange={handleImageUpload}
                 />
@@ -407,54 +406,6 @@ export function ProfileSettings() {
               maxLength={500}
             />
             <p className="text-xs text-muted-foreground">{formData.bio.length}/500 characters</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Contact Visibility</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h4 className="font-medium">Show Phone Number</h4>
-              <p className="text-sm text-muted-foreground">Display your phone number on your ads for direct contact</p>
-            </div>
-            <Switch
-              checked={formData.contactVisibility.showPhone}
-              onCheckedChange={(checked) =>
-                setFormData({
-                  ...formData,
-                  contactVisibility: { ...formData.contactVisibility, showPhone: checked },
-                })
-              }
-            />
-          </div>
-
-          <Separator />
-
-          <div className="flex items-center justify-between">
-            <div>
-              <h4 className="font-medium">Show Email</h4>
-              <p className="text-sm text-muted-foreground">Display your email address on your ads for inquiries</p>
-            </div>
-            <Switch
-              checked={formData.contactVisibility.showEmail}
-              onCheckedChange={(checked) =>
-                setFormData({
-                  ...formData,
-                  contactVisibility: { ...formData.contactVisibility, showEmail: checked },
-                })
-              }
-            />
-          </div>
-
-          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-sm text-blue-800">
-              <strong>Privacy Note:</strong> When enabled, your contact information will be visible to all users viewing
-              your ads. Only logged-in users can see your full contact details.
-            </p>
           </div>
         </CardContent>
       </Card>
