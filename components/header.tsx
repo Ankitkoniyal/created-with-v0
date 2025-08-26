@@ -398,21 +398,6 @@ export function Header() {
                 />
               </Button>
             </div>
-
-            <div className="flex items-center gap-4">
-              <span className="text-sm font-medium text-gray-600">Popular Search:</span>
-              <div className="flex gap-2">
-                {["iPhone 15", "Honda Civic", "Apartment Toronto"].map((search) => (
-                  <Link
-                    key={search}
-                    href={`/search?q=${encodeURIComponent(search)}`}
-                    className="px-3 py-1 text-xs bg-white border border-green-200 text-green-700 rounded-full hover:bg-green-50 hover:border-green-300 transition-colors"
-                  >
-                    {search}
-                  </Link>
-                ))}
-              </div>
-            </div>
           </div>
         </div>
 
