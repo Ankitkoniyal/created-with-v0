@@ -15,7 +15,7 @@ interface Product {
   location: string
   city: string
   province: string
-  images: string[] // Fixed field name from image_urls to images to match database schema
+  image_urls: string[]
   category_id: number
   category: string
   condition: string
@@ -66,61 +66,19 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
         } else if (filters.category) {
           const categoryMapping: Record<string, string[]> = {
             Vehicles: [
-              "Cars",
-              "Motorcycles",
-              "Trucks",
-              "Buses",
-              "Bicycles",
-              "Scooters",
-              "Boats",
-              "RVs",
-              "ATVs",
-              "Parts & Accessories",
+              "Cars", "Motorcycles", "Trucks", "Buses", "Bicycles", "Scooters", "Boats", "RVs", "ATVs", "Parts & Accessories",
             ],
             Electronics: [
-              "TV",
-              "Fridge",
-              "Oven",
-              "AC",
-              "Cooler",
-              "Toaster",
-              "Fan",
-              "Washing Machine",
-              "Microwave",
-              "Computer",
-              "Laptop",
-              "Camera",
-              "Audio System",
+              "TV", "Fridge", "Oven", "AC", "Cooler", "Toaster", "Fan", "Washing Machine", "Microwave", "Computer", "Laptop", "Camera", "Audio System",
             ],
             Mobile: [
-              "Smartphones",
-              "Tablets",
-              "Accessories",
-              "Cases & Covers",
-              "Chargers",
-              "Headphones",
-              "Smart Watches",
-              "Power Banks",
+              "Smartphones", "Tablets", "Accessories", "Cases & Covers", "Chargers", "Headphones", "Smart Watches", "Power Banks",
             ],
             "Real Estate": [
-              "Houses",
-              "Apartments",
-              "Commercial",
-              "Land",
-              "Rental",
-              "Vacation Rentals",
-              "Office Space",
-              "Warehouse",
+              "Houses", "Apartments", "Commercial", "Land", "Rental", "Vacation Rentals", "Office Space", "Warehouse",
             ],
             Fashion: [
-              "Men's Clothing",
-              "Women's Clothing",
-              "Kids Clothing",
-              "Shoes",
-              "Bags",
-              "Jewelry",
-              "Watches",
-              "Accessories",
+              "Men's Clothing", "Women's Clothing", "Kids Clothing", "Shoes", "Bags", "Jewelry", "Watches", "Accessories",
             ],
             Pets: ["Dogs", "Cats", "Birds", "Fish", "Pet Food", "Pet Accessories", "Pet Care", "Pet Services"],
             Furniture: ["Sofa", "Bed", "Table", "Chair", "Wardrobe", "Desk", "Cabinet", "Dining Set", "Home Decor"],
@@ -128,22 +86,10 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
             Gaming: ["Video Games", "Consoles", "PC Gaming", "Mobile Games", "Gaming Accessories", "Board Games"],
             Books: ["Fiction", "Non-Fiction", "Educational", "Comics", "Magazines", "E-books", "Audiobooks"],
             Services: [
-              "Home Services",
-              "Repair",
-              "Cleaning",
-              "Tutoring",
-              "Photography",
-              "Event Planning",
-              "Transportation",
+              "Home Services", "Repair", "Cleaning", "Tutoring", "Photography", "Event Planning", "Transportation",
             ],
             Other: [
-              "Sports Equipment",
-              "Musical Instruments",
-              "Art & Crafts",
-              "Collectibles",
-              "Tools",
-              "Garden",
-              "Baby Items",
+              "Sports Equipment", "Musical Instruments", "Art & Crafts", "Collectibles", "Tools", "Garden", "Baby Items",
             ],
           }
           const subcategories = categoryMapping[filters.category] || []
@@ -297,7 +243,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
               <CardContent className={`p-0 ${viewMode === "list" ? "flex" : ""}`}>
                 <div className={`relative ${viewMode === "list" ? "w-48 flex-shrink-0" : ""}`}>
                   <img
-                    src={product.images?.[0] || "/placeholder.svg"} // Fixed field reference from image_urls to images
+                    src={product.image_urls?.[0] || "/placeholder.svg"}
                     alt={product.title}
                     width={viewMode === "list" ? 192 : 300}
                     height={viewMode === "list" ? 128 : 192}
