@@ -67,7 +67,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       return profileData
     } catch (error) {
-      console.error("Profile fetch exception:", error)
       const fallbackProfile = {
         id: userId,
         name: userData?.user_metadata?.full_name || userData?.email?.split("@")[0] || "User",

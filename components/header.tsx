@@ -103,41 +103,41 @@ export function Header() {
           process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         )
 
-        // Fetch favorites count
-        const { count: favoritesCount } = await supabase
-          .from("favorites")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", user.id)
-
-        // Fetch messages count (unread messages)
-        const { count: messagesCount } = await supabase
-          .from("messages")
-          .select("*", { count: "exact", head: true })
-          .eq("recipient_id", user.id)
-          .eq("is_read", false)
-
-        // For now, notifications count can be 0 (implement later when notification system is added)
-        const notificationsCount = 0
+        const [favoritesResult, messagesResult] = await Promise.all([
+          supabase.from("favorites").select("*", { count: "exact", head: true }).eq("user_id", user.id),
+          supabase
+            .from("messages")
+            .select("*", { count: "exact", head: true })
+            .eq("recipient_id", user.id)
+            .eq("is_read", false),
+        ])
 
         setNotificationCounts({
-          favorites: favoritesCount || 0,
-          messages: messagesCount || 0,
-          notifications: notificationsCount,
+          favorites: favoritesResult.count || 0,
+          messages: messagesResult.count || 0,
+          notifications: 0,
         })
       } catch (error) {
         console.error("Error fetching notification counts:", error)
-        // Keep default values on error
       }
     }
 
     fetchNotificationCounts()
 
-    // Refresh counts every 30 seconds
-    const interval = setInterval(fetchNotificationCounts, 30000)
+    const interval = setInterval(fetchNotificationCounts, 120000)
     return () => clearInterval(interval)
   }, [user?.id])
 
-  useEffect(() => {}, [user, profile])
+  useEffect(() => {
+    console.log(
+      "[v0] Header auth state - User:",
+      user ? user.email : "null",
+      "Profile:",
+      profile ? profile.name : "null",
+      "Authenticated:",
+      user && profile,
+    )
+  }, [user, profile])
 
   // Show loading state for header
   if (isLoading) {

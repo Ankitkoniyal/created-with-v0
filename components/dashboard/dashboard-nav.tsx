@@ -10,47 +10,6 @@ import { useState, useEffect } from "react"
 import { createBrowserClient } from "@supabase/ssr"
 import { useRouter } from "next/navigation"
 
-const navItems = [
-  {
-    title: "Overview",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "My Ads", // Updated from "My Listings" to "My Ads"
-    href: "/dashboard/listings",
-    icon: Package,
-    badge: "3",
-  },
-  {
-    title: "Favorites",
-    href: "/dashboard/favorites",
-    icon: Heart,
-    badge: "12",
-  },
-  {
-    title: "Messages",
-    href: "/dashboard/messages",
-    icon: MessageSquare,
-    badge: "2",
-  },
-  {
-    title: "Analytics",
-    href: "/dashboard/analytics",
-    icon: TrendingUp,
-  },
-  {
-    title: "Profile",
-    href: "/dashboard/profile",
-    icon: User,
-  },
-  {
-    title: "Settings",
-    href: "/dashboard/settings",
-    icon: Settings,
-  },
-]
-
 export function DashboardNav() {
   const pathname = usePathname()
   const router = useRouter()
@@ -71,40 +30,29 @@ export function DashboardNav() {
           process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         )
 
-        // Fetch user's ads count
-        const { count: adsCount } = await supabase
-          .from("products")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", user.id)
-
-        // Fetch favorites count
-        const { count: favoritesCount } = await supabase
-          .from("favorites")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", user.id)
-
-        // Fetch messages count (unread messages)
-        const { count: messagesCount } = await supabase
-          .from("messages")
-          .select("*", { count: "exact", head: true })
-          .eq("recipient_id", user.id)
-          .eq("is_read", false)
+        const [adsResult, favoritesResult, messagesResult] = await Promise.all([
+          supabase.from("products").select("*", { count: "exact", head: true }).eq("user_id", user.id),
+          supabase.from("favorites").select("*", { count: "exact", head: true }).eq("user_id", user.id),
+          supabase
+            .from("messages")
+            .select("*", { count: "exact", head: true })
+            .eq("recipient_id", user.id)
+            .eq("is_read", false),
+        ])
 
         setDashboardCounts({
-          myAds: adsCount || 0,
-          favorites: favoritesCount || 0,
-          messages: messagesCount || 0,
+          myAds: adsResult.count || 0,
+          favorites: favoritesResult.count || 0,
+          messages: messagesResult.count || 0,
         })
       } catch (error) {
         console.error("Error fetching dashboard counts:", error)
-        // Keep default values on error
       }
     }
 
     fetchDashboardCounts()
 
-    // Refresh counts every 30 seconds
-    const interval = setInterval(fetchDashboardCounts, 30000)
+    const interval = setInterval(fetchDashboardCounts, 120000)
     return () => clearInterval(interval)
   }, [user?.id])
 
@@ -181,9 +129,7 @@ export function DashboardNav() {
                 key={item.href}
                 variant={isActive ? "secondary" : "ghost"}
                 className="w-full justify-start"
-                onClick={() => {
-                  router.push(item.href)
-                }}
+                onClick={() => router.push(item.href)}
               >
                 <Icon className="h-4 w-4 mr-3" />
                 {item.title}

@@ -124,8 +124,7 @@ export function SearchFilters({ searchQuery }: SearchFiltersProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // Use local state only for a specific UI element (like the slider)
-  const [priceRange, setPriceRange] = useState([
+  const [priceRange, setPriceRange] = useState(() => [
     Number.parseInt(searchParams.get("minPrice") || "0"),
     Number.parseInt(searchParams.get("maxPrice") || "10000"),
   ])
@@ -137,9 +136,9 @@ export function SearchFilters({ searchQuery }: SearchFiltersProps) {
   const sortBy = searchParams.get("sortBy") || "relevance"
 
   const categoryFilters = useMemo(() => {
+    const searchParamsString = searchParams.toString()
     return Array.from(searchParams.entries()).reduce(
       (acc, [key, value]) => {
-        // Check if the key is a category-specific filter
         const isCategoryFilter = Object.values(categorySpecificFilters).some((catFilters) =>
           Object.keys(catFilters)
             .map((k) => k.toLowerCase().replace(/\s+/g, "_"))
@@ -152,9 +151,8 @@ export function SearchFilters({ searchQuery }: SearchFiltersProps) {
       },
       {} as Record<string, string[]>,
     )
-  }, [searchParams])
+  }, [searchParams.toString()]) // Use string representation for stable comparison
 
-  // Create a new URLSearchParams object based on the current URL
   const updateUrl = useCallback(
     (newParams: { [key: string]: string | null }) => {
       const params = new URLSearchParams(searchParams.toString())
@@ -169,7 +167,7 @@ export function SearchFilters({ searchQuery }: SearchFiltersProps) {
 
       router.push(`/search?${params.toString()}`, { scroll: false })
     },
-    [router, searchParams],
+    [router, searchParams.toString()], // Use string representation for stable comparison
   )
 
   const availableSubcategories = selectedCategory ? subcategories[selectedCategory] || [] : []

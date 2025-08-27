@@ -1,39 +1,35 @@
 "use client"
 
-import { useRef, useEffect } from "react"
+import { useRef, useEffect, type DependencyList, type EffectCallback } from "react"
 
-// Simple deep comparison function
-function isEqual(a: any, b: any): boolean {
+function deepEqual(a: any, b: any): boolean {
   if (a === b) return true
+
   if (a == null || b == null) return false
+
   if (typeof a !== typeof b) return false
 
-  if (typeof a === "object") {
-    const keysA = Object.keys(a)
-    const keysB = Object.keys(b)
+  if (typeof a !== "object") return false
 
-    if (keysA.length !== keysB.length) return false
+  const keysA = Object.keys(a)
+  const keysB = Object.keys(b)
 
-    for (const key of keysA) {
-      if (!keysB.includes(key)) return false
-      if (!isEqual(a[key], b[key])) return false
-    }
+  if (keysA.length !== keysB.length) return false
 
-    return true
+  for (const key of keysA) {
+    if (!keysB.includes(key)) return false
+    if (!deepEqual(a[key], b[key])) return false
   }
 
-  return false
+  return true
 }
 
-export function useDeepCompareEffect(callback: () => void | (() => void), dependencies: any[]) {
-  const currentDependenciesRef = useRef<any[]>()
+export function useDeepCompareEffect(callback: EffectCallback, dependencies: DependencyList) {
+  const currentDependenciesRef = useRef<DependencyList>()
 
-  if (!currentDependenciesRef.current || !isEqual(currentDependenciesRef.current, dependencies)) {
+  if (!deepEqual(currentDependenciesRef.current, dependencies)) {
     currentDependenciesRef.current = dependencies
   }
 
   useEffect(callback, [currentDependenciesRef.current])
 }
-
-// This hook provides deep comparison for useEffect dependencies to prevent infinite re-renders
-// when using complex objects like filters in dependency arrays

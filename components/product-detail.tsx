@@ -79,6 +79,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
   useEffect(() => {
     const checkFavoriteStatus = async () => {
       if (!user || !isValidUUID(product.id)) {
+        console.log("[v0] Skipping favorite check - invalid UUID or no user:", product.id)
         return
       }
 
@@ -125,6 +126,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
           console.error("Error removing favorite:", error)
           alert("Failed to remove from favorites")
         } else {
+          console.log("[v0] Removed from favorites:", product.id)
           setIsFavorited(false)
         }
       } else {
@@ -137,6 +139,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
           console.error("Error adding favorite:", error)
           alert("Failed to add to favorites")
         } else {
+          console.log("[v0] Added to favorites:", product.id)
           setIsFavorited(true)
         }
       }
@@ -157,6 +160,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
     )
 
     if (confirmed) {
+      console.log("[v0] Reporting ad:", product.id)
       alert("Thank you for your report. Our team will review this ad shortly.")
     }
   }

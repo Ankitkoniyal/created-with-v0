@@ -89,6 +89,8 @@ export function MessagesList() {
         if (error) {
           console.error("Error fetching conversations:", error)
         } else {
+          console.log("[v0] Fetched conversations:", data)
+
           // Group messages by conversation (product + participants)
           const conversationMap = new Map()
 
@@ -128,6 +130,8 @@ export function MessagesList() {
                 table: "messages",
               },
               (payload) => {
+                console.log("[v0] New message in conversations list:", payload)
+
                 // Check if this message involves the current user
                 if (payload.new.sender_id === user.id || payload.new.receiver_id === user.id) {
                   // Refresh conversations to get updated data

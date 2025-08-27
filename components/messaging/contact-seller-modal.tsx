@@ -42,6 +42,11 @@ export function ContactSellerModal({ product, seller, children }: ContactSellerM
 
   const handleSendMessage = async () => {
     if (!user) {
+      toast({
+        title: "Login Required",
+        description: "Please log in to contact sellers.",
+        variant: "destructive",
+      })
       router.push("/auth/login")
       return
     }
@@ -64,6 +69,16 @@ export function ContactSellerModal({ product, seller, children }: ContactSellerM
           title: "Error",
           description: "Failed to send message. Please try again.",
         })
+        return
+      }
+
+      if (productData.user_id === user.id) {
+        toast({
+          variant: "destructive",
+          title: "Cannot Contact Yourself",
+          description: "You cannot send messages to your own listings.",
+        })
+        setIsOpen(false)
         return
       }
 
@@ -92,7 +107,7 @@ export function ContactSellerModal({ product, seller, children }: ContactSellerM
         })
         setIsOpen(false)
 
-        const conversationId = `${product.id}-${productData.user_id}`
+        const conversationId = `${product.id}__${productData.user_id}`
         router.push(`/dashboard/messages/${conversationId}`)
       }
     } catch (error) {

@@ -274,14 +274,13 @@ export function PostProductForm() {
       } catch (error) {
         console.error("Error fetching product:", error)
         toast.error("Failed to load product data")
-        router.push("/dashboard/listings")
       } finally {
         setIsLoadingEditData(false)
       }
     }
 
     fetchExistingProduct()
-  }, [isEditMode, editId, user, router])
+  }, [isEditMode, editId, user]) // Removed router from dependencies to prevent infinite loops
 
   const handleInputChange = (field: keyof ProductFormData, value: string | boolean) => {
     setFormData((prev) => ({
@@ -296,51 +295,18 @@ export function PostProductForm() {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
 
-    const validFiles: File[] = []
-    const errors: string[] = []
-
-    files.forEach((file) => {
-      // Check file size
+    const validFiles = files.filter((file) => {
       if (file.size > 2 * 1024 * 1024) {
-        errors.push(`${file.name} is too large (max 2MB)`)
-        return
+        toast.error(`${file.name} is too large. Maximum size is 2MB per image.`)
+        return false
       }
-
-      // Check file type
-      if (!file.type.startsWith("image/")) {
-        errors.push(`${file.name} is not a valid image file`)
-        return
-      }
-
-      // Check for duplicate files
-      const isDuplicate = formData.images.some(
-        (existingFile) => existingFile.name === file.name && existingFile.size === file.size,
-      )
-
-      if (isDuplicate) {
-        errors.push(`${file.name} is already added`)
-        return
-      }
-
-      validFiles.push(file)
+      return true
     })
 
-    // Show errors if any
-    if (errors.length > 0) {
-      toast.error(errors.join(", "))
-    }
-
-    // Check total image limit
-    if (formData.images.length + validFiles.length > 5) {
-      toast.error(
-        `Cannot add ${validFiles.length} images. Maximum 5 images allowed (currently have ${formData.images.length})`,
-      )
-      return
-    }
-
-    if (validFiles.length > 0) {
+    if (formData.images.length + validFiles.length <= 5) {
       setFormData((prev) => ({ ...prev, images: [...prev.images, ...validFiles] }))
-      toast.success(`Added ${validFiles.length} image${validFiles.length > 1 ? "s" : ""}`)
+    } else {
+      toast.error("You can upload maximum 5 images.")
     }
   }
 
@@ -393,43 +359,33 @@ export function PostProductForm() {
     }
 
     setIsSubmitting(true)
-    setSubmitError(null)
 
     try {
-      const supabase = createClient()
-      const imageUrls: string[] = []
-      const uploadErrors: string[] = []
+      console.log(`[v0] Starting ${isEditMode ? "ad update" : "ad submission"} process`)
 
+      const supabase = createClient()
+      console.log("[v0] Supabase client created successfully")
+
+      const imageUrls: string[] = []
       if (formData.images.length > 0) {
-        for (let i = 0; i < formData.images.length; i++) {
-          const image = formData.images[i]
+        console.log("[v0] Uploading images:", formData.images.length)
+
+        for (const image of formData.images) {
           const fileExt = image.name.split(".").pop()
           const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
 
-          try {
-            const { data, error } = await supabase.storage.from("product-images").upload(fileName, image)
+          console.log("[v0] Uploading image:", fileName)
 
-            if (error) {
-              uploadErrors.push(`Failed to upload ${image.name}: ${error.message}`)
-              continue
-            }
+          const { data, error } = await supabase.storage.from("product-images").upload(fileName, image)
 
-            const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(fileName)
-            imageUrls.push(urlData.publicUrl)
-          } catch (uploadError) {
-            uploadErrors.push(
-              `Failed to upload ${image.name}: ${uploadError instanceof Error ? uploadError.message : "Unknown error"}`,
-            )
+          if (error) {
+            console.error("[v0] Image upload error:", error)
+            throw new Error(`Failed to upload image: ${error.message}`)
           }
-        }
 
-        // If some uploads failed, show warning but continue if at least one succeeded
-        if (uploadErrors.length > 0) {
-          if (imageUrls.length === 0) {
-            throw new Error(`All image uploads failed: ${uploadErrors.join(", ")}`)
-          } else {
-            toast.error(`Some images failed to upload: ${uploadErrors.join(", ")}`)
-          }
+          const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(fileName)
+          imageUrls.push(urlData.publicUrl)
+          console.log("[v0] Image uploaded successfully:", urlData.publicUrl)
         }
       }
 
@@ -437,10 +393,7 @@ export function PostProductForm() {
       const city = locationParts.city || formData.location.split(",")[0]?.trim() || ""
       const province = locationParts.province || formData.location.split(",")[1]?.trim() || ""
 
-      // Validate location data
-      if (!city || !province) {
-        throw new Error("Please select a valid city and province from the dropdown")
-      }
+      console.log("[v0] Preparing product data...")
 
       const selectedCategory = categories.find((cat) => cat.name === formData.category)
       const selectedSubcategory = selectedCategory?.subcategories.find((sub) => sub === formData.subcategory)
@@ -451,29 +404,29 @@ export function PostProductForm() {
         user_id: user.id,
         title: formData.title.trim(),
         description: formData.description.trim(),
-        price: formData.priceType === "amount" ? Math.max(0, Number.parseFloat(formData.price) || 0) : 0,
+        price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
         condition: mapConditionToDatabase(formData.condition),
-        location: `${formData.address.trim()}, ${city}`.trim(),
+        location: `${formData.address}, ${city}`.trim(),
         city: city,
         province: province,
-        category: primaryCategory, // Use the actual category name instead of just ID
+        ...(imageUrls.length > 0 && { images: imageUrls }),
         category_id: categoryIndex,
         brand: formData.brand.trim() || null,
         model: formData.model.trim() || null,
         tags: formData.tags.length > 0 ? formData.tags : null,
-        features: formData.features.length > 0 ? formData.features : null,
         youtube_url: formData.youtubeUrl.trim() || null,
         website_url: formData.websiteUrl.trim() || null,
-        postal_code: formData.postalCode.trim() || null,
         status: "active",
         updated_at: new Date().toISOString(),
         ...(!isEditMode && { created_at: new Date().toISOString() }),
-        ...(imageUrls.length > 0 && { images: imageUrls }),
       }
+
+      console.log("[v0] Product data prepared:", JSON.stringify(productData, null, 2))
 
       let data, error
 
       if (isEditMode) {
+        console.log("[v0] Updating existing product...")
         const result = await supabase
           .from("products")
           .update(productData)
@@ -485,37 +438,45 @@ export function PostProductForm() {
         data = result.data
         error = result.error
       } else {
+        console.log("[v0] Inserting new product...")
         const result = await supabase.from("products").insert(productData).select().single()
         data = result.data
         error = result.error
       }
 
       if (error) {
-        console.error("Database error:", error)
+        console.error("[v0] Database error details:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        })
 
         if (error.message.includes("row-level security") || error.message.includes("policy")) {
-          setSubmitError("You don't have permission to perform this action. Please contact support.")
+          setSubmitError(
+            "Database security policies need to be configured. Please contact your administrator to enable ad posting.",
+          )
           return
         } else if (error.message.includes("column") && error.message.includes("does not exist")) {
-          setSubmitError("Database configuration error. Please contact support.")
+          console.error("[v0] Missing database column:", error.message)
+          setSubmitError(`Database schema issue: ${error.message}. Please run the required database migrations.`)
           return
         } else if (error.message.includes("duplicate key") || error.message.includes("unique constraint")) {
-          setSubmitError("A similar listing already exists. Please modify your details and try again.")
-          return
-        } else if (error.message.includes("foreign key")) {
-          setSubmitError("Invalid category or location selected. Please refresh the page and try again.")
+          setSubmitError("A similar ad already exists. Please modify your listing and try again.")
           return
         } else {
-          setSubmitError(`Failed to ${isEditMode ? "update" : "create"} listing: ${error.message}`)
+          setSubmitError(`Failed to ${isEditMode ? "update" : "post"} your ad: ${error.message}. Please try again.`)
           return
         }
       }
 
-      const successMessage = isEditMode
-        ? "Your listing has been updated successfully!"
-        : "Your listing has been posted successfully!"
+      console.log(`[v0] Product ${isEditMode ? "updated" : "saved"} successfully:`, data)
 
-      toast.success(successMessage)
+      const successMessage = isEditMode
+        ? "Your ad has been updated successfully!"
+        : "Your ad has been posted successfully!"
+
+      console.log("[v0] Redirecting to success page with ID:", data.id)
       sessionStorage.setItem("adPostSuccess", successMessage)
 
       if (isEditMode) {
@@ -524,12 +485,17 @@ export function PostProductForm() {
         router.push(`/sell/success?id=${data.id}`)
       }
     } catch (error) {
-      console.error("Submission error:", error)
-      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred"
-      setSubmitError(errorMessage)
-      toast.error(errorMessage)
+      console.error("[v0] Submission error details:", {
+        error,
+        message: error instanceof Error ? error.message : "Unknown error",
+        stack: error instanceof Error ? error.stack : undefined,
+      })
+      setSubmitError(
+        `An unexpected error occurred: ${error instanceof Error ? error.message : "Unknown error"}. Please try again.`,
+      )
     } finally {
       setIsSubmitting(false)
+      console.log(`[v0] ${isEditMode ? "Ad update" : "Ad submission"} process completed`)
     }
   }
 

@@ -57,6 +57,7 @@ export function FavoritesContent() {
         if (error) {
           console.error("Error fetching favorites:", error)
         } else {
+          console.log("[v0] Fetched favorites:", data)
           setFavorites(data || [])
         }
       } catch (error) {
@@ -78,6 +79,7 @@ export function FavoritesContent() {
         console.error("Error removing favorite:", error)
         alert("Failed to remove from favorites")
       } else {
+        console.log("[v0] Removed favorite:", productId)
         setFavorites((prev) => prev.filter((fav) => fav.id !== favoriteId))
       }
     } catch (error) {
