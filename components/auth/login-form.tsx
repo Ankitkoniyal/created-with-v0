@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { toast } from "@/hooks/use-toast"
+import { loginSchema, sanitizeInput } from "@/lib/validation"
 
 export function LoginForm() {
   const router = useRouter()
@@ -23,6 +24,7 @@ export function LoginForm() {
   const [error, setError] = useState<string | null>(null)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [validationErrors, setValidationErrors] = useState<{ [key: string]: string }>({})
 
   const redirectedFrom = searchParams.get("redirectedFrom")
 
@@ -45,29 +47,23 @@ export function LoginForm() {
     e.preventDefault()
     setIsSubmitting(true)
     setError(null)
+    setValidationErrors({})
 
     const formData = new FormData(e.currentTarget)
-    const emailValue = formData.get("email") as string
+    const emailValue = sanitizeInput(formData.get("email") as string)
     const passwordValue = formData.get("password") as string
 
-    if (!emailValue || !passwordValue) {
-      setError("Please fill in all required fields")
-      setIsSubmitting(false)
-      return
-    }
-
-    if (!emailValue.includes("@")) {
-      setError("Please enter a valid email address")
-      setIsSubmitting(false)
-      return
-    }
-
     try {
+      const validatedData = loginSchema.parse({
+        email: emailValue,
+        password: passwordValue,
+      })
+
       if (rememberMe) {
         localStorage.setItem(
           "rememberedCredentials",
           JSON.stringify({
-            email: emailValue,
+            email: validatedData.email,
             rememberMe: true,
           }),
         )
@@ -75,7 +71,7 @@ export function LoginForm() {
         localStorage.removeItem("rememberedCredentials")
       }
 
-      const result = await login(emailValue, passwordValue)
+      const result = await login(validatedData.email, validatedData.password)
 
       if (result.error) {
         setError(result.error)
@@ -88,9 +84,16 @@ export function LoginForm() {
         })
         router.push(destination)
       }
-    } catch (err) {
-      console.error("Login error:", err)
-      setError("An unexpected error occurred. Please try again.")
+    } catch (validationError: any) {
+      if (validationError.errors) {
+        const errors: { [key: string]: string } = {}
+        validationError.errors.forEach((err: any) => {
+          errors[err.path[0]] = err.message
+        })
+        setValidationErrors(errors)
+      } else {
+        setError("Please check your input and try again.")
+      }
       setIsSubmitting(false)
     }
   }
@@ -121,11 +124,12 @@ export function LoginForm() {
                 placeholder="Enter your email"
                 className="pl-10"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => setEmail(sanitizeInput(e.target.value))}
                 required
                 disabled={isSubmitting}
               />
             </div>
+            {validationErrors.email && <p className="text-sm text-red-600">{validationErrors.email}</p>}
           </div>
 
           <div className="space-y-2">
@@ -142,7 +146,7 @@ export function LoginForm() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 disabled={isSubmitting}
-                minLength={6}
+                minLength={8}
               />
               <button
                 type="button"
@@ -153,6 +157,7 @@ export function LoginForm() {
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
+            {validationErrors.password && <p className="text-sm text-red-600">{validationErrors.password}</p>}
           </div>
 
           <div className="flex items-center justify-between">

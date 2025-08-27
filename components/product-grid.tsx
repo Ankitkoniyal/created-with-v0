@@ -283,30 +283,30 @@ export function ProductGrid() {
                     </div>
 
                     <div className="p-3 flex flex-col flex-1 space-y-1">
-                      <h4 className="text-lg font-bold text-gray-900 leading-5 line-clamp-2 group-hover:text-blue-600 transition-colors">
+                      <h4 className="text-lg font-bold text-gray-900 leading-6 line-clamp-2 group-hover:text-blue-600 transition-colors">
                         {product.title}
                       </h4>
 
                       <div className="flex items-center justify-between">
-                        <p className="text-xl font-bold text-green-800">
+                        <p className="text-2xl font-bold text-green-800">
                           {formatPrice(product.price, product.price_type)}
                         </p>
                         <div className="flex items-center space-x-1">
                           <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                          <span className="text-sm font-semibold text-gray-700">4.2</span>
+                          <span className="font-semibold text-gray-700">4.2</span>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between text-sm text-gray-500 pt-1">
+                      <div className="flex items-center justify-between text-sm text-gray-500 pt-1 border-t border-gray-100">
                         <div className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3 text-gray-400" />
-                          <span className="truncate text-xs font-medium">
+                          <MapPin className="h-4 w-4 text-gray-400" />
+                          <span className="truncate font-medium">
                             {product.city}, {product.province}
                           </span>
                         </div>
                         <div className="flex items-center gap-1 text-gray-400">
-                          <Clock className="h-3 w-3" />
-                          <span className="text-xs font-medium">{formatTimePosted(product.created_at)}</span>
+                          <Clock className="h-4 w-4" />
+                          <span className="font-medium">{formatTimePosted(product.created_at)}</span>
                         </div>
                       </div>
                     </div>
