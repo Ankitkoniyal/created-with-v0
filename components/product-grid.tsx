@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { LoadingSkeleton } from "@/components/loading-skeleton"
+import { useAsyncOperation } from "@/hooks/use-async-operation"
 
 interface Product {
   id: string
@@ -40,19 +42,21 @@ const PRODUCTS_PER_PAGE = 20
 export function ProductGrid() {
   const [products, setProducts] = useState<Product[]>([])
   const [page, setPage] = useState(0)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
-  const [error, setError] = useState<string | null>(null)
 
   const supabase = createClient()
 
-  const fetchProducts = async (currentPage: number) => {
-    const from = currentPage * PRODUCTS_PER_PAGE
-    const to = from + PRODUCTS_PER_PAGE - 1
+  const {
+    loading: isLoading,
+    error,
+    execute: fetchProducts,
+    retry,
+  } = useAsyncOperation(
+    async () => {
+      const from = 0 * PRODUCTS_PER_PAGE
+      const to = from + PRODUCTS_PER_PAGE - 1
 
-    try {
       const { data, error } = await supabase
         .from("products")
         .select(`
@@ -66,30 +70,55 @@ export function ProductGrid() {
         .order("created_at", { ascending: false })
         .range(from, to)
 
-      if (error) {
-        console.error("Error fetching products:", error)
-        setError("Failed to load ads")
-        return null
-      }
+      if (error) throw new Error(`Failed to load ads: ${error.message}`)
+
+      setProducts(data || [])
+      setHasMore((data || []).length === PRODUCTS_PER_PAGE)
       return data || []
-    } catch (err) {
-      console.error("Error fetching products:", err)
-      setError("Failed to load ads")
-      return null
-    }
-  }
+    },
+    {
+      retries: 3,
+      retryDelay: 1000,
+      onError: (error) => console.error("Error fetching products:", error),
+    },
+  )
+
+  const { loading: isLoadingMore, execute: loadMore } = useAsyncOperation(
+    async () => {
+      if (!hasMore) return []
+
+      const nextPage = page + 1
+      const from = nextPage * PRODUCTS_PER_PAGE
+      const to = from + PRODUCTS_PER_PAGE - 1
+
+      const { data, error } = await supabase
+        .from("products")
+        .select(`
+          *,
+          seller:profiles!user_id (
+            id,
+            full_name,
+            avatar_url
+          )
+        `)
+        .order("created_at", { ascending: false })
+        .range(from, to)
+
+      if (error) throw new Error(`Failed to load more ads: ${error.message}`)
+
+      setProducts((prev) => [...prev, ...(data || [])])
+      setPage(nextPage)
+      setHasMore((data || []).length === PRODUCTS_PER_PAGE)
+      return data || []
+    },
+    {
+      retries: 2,
+      retryDelay: 500,
+    },
+  )
 
   useEffect(() => {
-    const initialFetch = async () => {
-      setIsLoading(true)
-      const initialProducts = await fetchProducts(0)
-      if (initialProducts) {
-        setProducts(initialProducts)
-        setHasMore(initialProducts.length === PRODUCTS_PER_PAGE)
-      }
-      setIsLoading(false)
-    }
-    initialFetch()
+    fetchProducts()
   }, [])
 
   const toggleFavorite = (productId: string, e: React.MouseEvent) => {
@@ -100,19 +129,6 @@ export function ProductGrid() {
       next.has(productId) ? next.delete(productId) : next.add(productId)
       return next
     })
-  }
-
-  const loadMore = async () => {
-    if (isLoadingMore || !hasMore) return
-    setIsLoadingMore(true)
-    const nextPage = page + 1
-    const newProducts = await fetchProducts(nextPage)
-    if (newProducts) {
-      setProducts((prev) => [...prev, ...newProducts])
-      setPage(nextPage)
-      setHasMore(newProducts.length === PRODUCTS_PER_PAGE)
-    }
-    setIsLoadingMore(false)
   }
 
   const formatPrice = (price: number, priceType: string) => {
@@ -161,20 +177,8 @@ export function ProductGrid() {
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xl font-bold text-foreground">Latest Ads</h3>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-            {Array.from({ length: 12 }).map((_, i) => (
-              <Card
-                key={i}
-                className="h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-xl animate-pulse"
-              >
-                <div className="w-full h-40 sm:h-48 lg:h-52 bg-gray-200"></div>
-                <div className="p-3 flex flex-col flex-1">
-                  <div className="h-4 bg-gray-200 rounded mb-2"></div>
-                  <div className="h-3 bg-gray-200 rounded mb-1"></div>
-                  <div className="h-3 bg-gray-200 rounded"></div>
-                </div>
-              </Card>
-            ))}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            <LoadingSkeleton type="card" count={12} />
           </div>
         </div>
       </section>
@@ -187,9 +191,14 @@ export function ProductGrid() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center py-8">
             <p className="text-red-600 mb-4">{error}</p>
-            <Button onClick={() => window.location.reload()} className="bg-green-600 hover:bg-green-700">
-              Try Again
-            </Button>
+            <div className="space-x-2">
+              <Button onClick={retry} className="bg-green-600 hover:bg-green-700">
+                Try Again
+              </Button>
+              <Button variant="outline" onClick={() => window.location.reload()}>
+                Refresh Page
+              </Button>
+            </div>
           </div>
         </div>
       </section>
@@ -222,83 +231,82 @@ export function ProductGrid() {
           <p className="text-sm text-gray-600">{products.length} ads found</p>
         </div>
 
-        {/* Product Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {products.map((product) => {
             const conditionBadge = getConditionBadge(product.condition)
 
             return (
               <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
-                <Card className="group h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200">
+                <Card className="group h-full flex flex-col overflow-hidden border-0 bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
                   <CardContent className="p-0 flex flex-col h-full">
-                    <div className="relative w-full h-48 overflow-hidden bg-gray-50 rounded-t-lg">
+                    <div className="relative w-full h-64 overflow-hidden bg-gray-50 rounded-2xl">
                       <img
-                        src={product.images?.[0] || "/placeholder.svg?height=200&width=300&query=product"}
+                        src={product.images?.[0] || "/placeholder.svg?height=300&width=400&query=product"}
                         alt={product.title}
                         loading="lazy"
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                       />
 
-                      <Badge className="absolute top-2 left-2 bg-black/70 text-white text-xs font-medium px-2 py-1 rounded">
-                        AD{product.id.slice(-8).toUpperCase()}
-                      </Badge>
-
-                      <Badge
-                        className={`absolute top-2 right-2 text-xs font-medium px-2 py-1 rounded ${conditionBadge.className}`}
-                      >
-                        {conditionBadge.text}
-                      </Badge>
-
-                      {isNegotiable(product.price_type) && (
-                        <Badge className="absolute top-10 right-2 bg-blue-500 text-white text-xs font-medium px-2 py-1 rounded">
-                          Negotiable
+                      <div className="absolute top-3 left-3">
+                        <Badge className="bg-white/90 backdrop-blur-sm text-gray-700 text-xs font-medium px-3 py-1 rounded-full shadow-sm">
+                          AD{product.id.slice(-8).toUpperCase()}
                         </Badge>
-                      )}
+                      </div>
 
-                      {/* Favorite Button */}
+                      <div className="absolute top-3 right-3 flex flex-col gap-2">
+                        <Badge
+                          className={`text-xs font-medium px-3 py-1 rounded-full shadow-sm ${conditionBadge.className}`}
+                        >
+                          {conditionBadge.text}
+                        </Badge>
+
+                        {isNegotiable(product.price_type) && (
+                          <Badge className="bg-blue-500 text-white text-xs font-medium px-3 py-1 rounded-full shadow-sm">
+                            Negotiable
+                          </Badge>
+                        )}
+                      </div>
+
                       <Button
                         size="icon"
                         variant="ghost"
                         aria-label="Toggle favorite"
-                        className="absolute bottom-2 right-2 bg-white/90 hover:bg-white shadow-sm h-8 w-8 p-0 rounded-full"
+                        className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-sm hover:bg-white shadow-md h-10 w-10 p-0 rounded-full border-0"
                         onClick={(e) => toggleFavorite(product.id, e)}
                       >
                         <Heart
-                          className={`h-4 w-4 ${
+                          className={`h-5 w-5 ${
                             favorites.has(product.id) ? "fill-red-500 text-red-500" : "text-gray-600"
                           }`}
                         />
                       </Button>
                     </div>
 
-                    <div className="p-3 flex flex-col flex-1 space-y-2">
-                      <h4 className="text-base font-semibold text-gray-900 leading-5 line-clamp-2 hover:text-blue-600 transition-colors">
+                    <div className="p-3 flex flex-col flex-1 space-y-1">
+                      <h4 className="text-lg font-bold text-gray-900 leading-5 line-clamp-2 group-hover:text-blue-600 transition-colors">
                         {product.title}
                       </h4>
 
-                      <p className="text-xl font-bold text-gray-900">
-                        {formatPrice(product.price, product.price_type)}
-                      </p>
-
-                      <div className="flex items-center space-x-2 text-sm text-gray-600">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xl font-bold text-green-800">
+                          {formatPrice(product.price, product.price_type)}
+                        </p>
                         <div className="flex items-center space-x-1">
-                          <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                          <span className="font-medium">4.2</span>
+                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                          <span className="text-sm font-semibold text-gray-700">4.2</span>
                         </div>
-                        <span className="text-gray-400">•</span>
-                        <span className="truncate">{product.seller?.full_name || "Anonymous"}</span>
                       </div>
 
-                      <div className="flex items-center justify-between text-xs text-gray-500 mt-auto pt-2">
+                      <div className="flex items-center justify-between text-sm text-gray-500 pt-1">
                         <div className="flex items-center gap-1">
                           <MapPin className="h-3 w-3 text-gray-400" />
-                          <span className="truncate">
+                          <span className="truncate text-xs font-medium">
                             {product.city}, {product.province}
                           </span>
                         </div>
                         <div className="flex items-center gap-1 text-gray-400">
                           <Clock className="h-3 w-3" />
-                          <span>{formatTimePosted(product.created_at)}</span>
+                          <span className="text-xs font-medium">{formatTimePosted(product.created_at)}</span>
                         </div>
                       </div>
                     </div>

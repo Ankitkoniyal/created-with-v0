@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react"
 import type React from "react"
 
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,9 +11,11 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
+import { toast } from "@/hooks/use-toast"
 
 export function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { login } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
@@ -22,14 +24,15 @@ export function LoginForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
 
+  const redirectedFrom = searchParams.get("redirectedFrom")
+
   useEffect(() => {
     const savedCredentials = localStorage.getItem("rememberedCredentials")
     if (savedCredentials) {
       try {
-        const { email: savedEmail, password: savedPassword, rememberMe: savedRememberMe } = JSON.parse(savedCredentials)
+        const { email: savedEmail, rememberMe: savedRememberMe } = JSON.parse(savedCredentials)
         if (savedRememberMe) {
           setEmail(savedEmail || "")
-          setPassword(savedPassword || "")
           setRememberMe(true)
         }
       } catch (error) {
@@ -47,13 +50,24 @@ export function LoginForm() {
     const emailValue = formData.get("email") as string
     const passwordValue = formData.get("password") as string
 
+    if (!emailValue || !passwordValue) {
+      setError("Please fill in all required fields")
+      setIsSubmitting(false)
+      return
+    }
+
+    if (!emailValue.includes("@")) {
+      setError("Please enter a valid email address")
+      setIsSubmitting(false)
+      return
+    }
+
     try {
       if (rememberMe) {
         localStorage.setItem(
           "rememberedCredentials",
           JSON.stringify({
             email: emailValue,
-            password: passwordValue,
             rememberMe: true,
           }),
         )
@@ -67,7 +81,12 @@ export function LoginForm() {
         setError(result.error)
         setIsSubmitting(false)
       } else {
-        router.push("/dashboard")
+        const destination = redirectedFrom || "/dashboard"
+        toast({
+          title: "Welcome back!",
+          description: "You have been successfully logged in.",
+        })
+        router.push(destination)
       }
     } catch (err) {
       console.error("Login error:", err)
@@ -80,6 +99,7 @@ export function LoginForm() {
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
         <CardTitle className="text-2xl font-bold text-center">Sign In</CardTitle>
+        {redirectedFrom && <p className="text-sm text-muted-foreground text-center">Please sign in to continue</p>}
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -91,7 +111,7 @@ export function LoginForm() {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">Email *</Label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -103,12 +123,13 @@ export function LoginForm() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                disabled={isSubmitting}
               />
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">Password *</Label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -120,11 +141,14 @@ export function LoginForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                disabled={isSubmitting}
+                minLength={6}
               />
               <button
                 type="button"
                 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 onClick={() => setShowPassword(!showPassword)}
+                disabled={isSubmitting}
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
@@ -138,18 +162,26 @@ export function LoginForm() {
                 checked={rememberMe}
                 onCheckedChange={(checked) => setRememberMe(checked as boolean)}
                 className="border-2 border-gray-300 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
+                disabled={isSubmitting}
               />
               <Label htmlFor="remember" className="text-sm cursor-pointer font-medium">
                 Remember me
               </Label>
             </div>
-            <Button variant="link" className="p-0 h-auto text-sm">
+            <Button variant="link" className="p-0 h-auto text-sm" disabled={isSubmitting}>
               Forgot password?
             </Button>
           </div>
 
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? "Signing In..." : "Sign In"}
+          <Button type="submit" className="w-full" disabled={isSubmitting || !email || !password}>
+            {isSubmitting ? (
+              <div className="flex items-center">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Signing In...
+              </div>
+            ) : (
+              "Sign In"
+            )}
           </Button>
         </form>
       </CardContent>
