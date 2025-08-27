@@ -5,10 +5,11 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Heart, Search, Trash2 } from "lucide-react"
+import { Heart, Search, Trash2, RefreshCw, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
+import { toast } from "@/hooks/use-toast"
 
 interface FavoriteProduct {
   id: string
@@ -29,46 +30,66 @@ export function FavoritesContent() {
   const [favorites, setFavorites] = useState<FavoriteProduct[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
+  const [error, setError] = useState<string | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
+
+  const fetchFavorites = async (showRetryToast = false) => {
+    if (!user) return
+
+    try {
+      setError(null)
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("favorites")
+        .select(`
+          id,
+          product_id,
+          created_at,
+          products (
+            id,
+            title,
+            price,
+            images,
+            condition,
+            created_at
+          )
+        `)
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        throw error
+      }
+
+      setFavorites(data || [])
+      if (showRetryToast) {
+        toast({
+          title: "Success",
+          description: "Favorites loaded successfully",
+        })
+      }
+    } catch (error: any) {
+      console.error("Error fetching favorites:", error)
+      setError(error.message || "Failed to load favorites")
+      toast({
+        title: "Error",
+        description: "Failed to load favorites. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const fetchFavorites = async () => {
-      if (!user) return
-
-      try {
-        const supabase = createClient()
-        const { data, error } = await supabase
-          .from("favorites")
-          .select(`
-            id,
-            product_id,
-            created_at,
-            products (
-              id,
-              title,
-              price,
-              images,
-              condition,
-              created_at
-            )
-          `)
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-
-        if (error) {
-          console.error("Error fetching favorites:", error)
-        } else {
-          console.log("[v0] Fetched favorites:", data)
-          setFavorites(data || [])
-        }
-      } catch (error) {
-        console.error("Error:", error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
     fetchFavorites()
   }, [user])
+
+  const handleRetry = () => {
+    setLoading(true)
+    setRetryCount((prev) => prev + 1)
+    fetchFavorites(true)
+  }
 
   const removeFavorite = async (favoriteId: string, productId: string) => {
     try {
@@ -76,15 +97,23 @@ export function FavoritesContent() {
       const { error } = await supabase.from("favorites").delete().eq("id", favoriteId).eq("user_id", user?.id)
 
       if (error) {
-        console.error("Error removing favorite:", error)
-        alert("Failed to remove from favorites")
-      } else {
-        console.log("[v0] Removed favorite:", productId)
-        setFavorites((prev) => prev.filter((fav) => fav.id !== favoriteId))
+        throw error
       }
-    } catch (error) {
-      console.error("Error:", error)
-      alert("Failed to remove from favorites")
+
+      const originalFavorites = [...favorites]
+      setFavorites((prev) => prev.filter((fav) => fav.id !== favoriteId))
+
+      toast({
+        title: "Success",
+        description: "Removed from favorites",
+      })
+    } catch (error: any) {
+      console.error("Error removing favorite:", error)
+      toast({
+        title: "Error",
+        description: "Failed to remove from favorites. Please try again.",
+        variant: "destructive",
+      })
     }
   }
 
@@ -103,6 +132,24 @@ export function FavoritesContent() {
             <p className="text-muted-foreground">Loading your favorites...</p>
           </div>
         </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardContent className="p-12 text-center">
+            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">Failed to load favorites</h3>
+            <p className="text-muted-foreground mb-4">{error}</p>
+            <Button onClick={handleRetry} className="flex items-center gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Try Again
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     )
   }
@@ -158,7 +205,7 @@ export function FavoritesContent() {
                       {product.title}
                     </h4>
                   </Link>
-                  <p className="text-2xl font-bold text-primary mb-2">${product.price}</p>
+                  <p className="text-2xl font-bold text-primary mb-2">₹{product.price}</p>
 
                   <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
                     <span>{product.condition}</span>

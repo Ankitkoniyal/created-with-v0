@@ -10,7 +10,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, Mail, Lock, User, AlertCircle, Phone, CheckCircle } from "lucide-react"
 import { signUp } from "@/lib/actions/auth"
 import { useRouter } from "next/navigation"
-import { signupSchema, sanitizeInput } from "@/lib/validation"
 
 const initialState = {
   error: null,
@@ -21,40 +20,25 @@ export function SignupForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [agreeToTerms, setAgreeToTerms] = useState(false)
   const [state, formAction] = useActionState(signUp, initialState)
-  const [validationErrors, setValidationErrors] = useState<{ [key: string]: string }>({})
   const router = useRouter()
 
   useEffect(() => {
+    console.log("[v0] Signup form state changed:", state)
     if (state?.success) {
       setTimeout(() => {
         router.push("/")
-      }, 2000)
+      }, 2000) // 2 second delay to show success message
     }
   }, [state, router])
 
   const handleFormAction = async (formData: FormData) => {
-    setValidationErrors({})
-
-    const formValues = {
-      fullName: sanitizeInput(formData.get("fullName") as string),
-      email: sanitizeInput(formData.get("email") as string),
-      phone: sanitizeInput((formData.get("phone") as string) || ""),
-      password: formData.get("password") as string,
-    }
-
-    try {
-      signupSchema.parse(formValues)
-      return formAction(formData)
-    } catch (validationError: any) {
-      if (validationError.errors) {
-        const errors: { [key: string]: string } = {}
-        validationError.errors.forEach((err: any) => {
-          errors[err.path[0]] = err.message
-        })
-        setValidationErrors(errors)
-      }
-      return
-    }
+    console.log("[v0] Signup form submitted with data:", {
+      fullName: formData.get("fullName"),
+      email: formData.get("email"),
+      phone: formData.get("phone"),
+      password: "***hidden***",
+    })
+    return formAction(formData)
   }
 
   return (
@@ -85,7 +69,7 @@ export function SignupForm() {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="fullName">Full Name *</Label>
+            <Label htmlFor="fullName">Full Name</Label>
             <div className="relative">
               <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -95,19 +79,16 @@ export function SignupForm() {
                 placeholder="Enter your full name"
                 className="pl-10"
                 required
-                maxLength={100}
               />
             </div>
-            {validationErrors.fullName && <p className="text-sm text-red-600">{validationErrors.fullName}</p>}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="email">Email *</Label>
+            <Label htmlFor="email">Email</Label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input id="email" name="email" type="email" placeholder="Enter your email" className="pl-10" required />
             </div>
-            {validationErrors.email && <p className="text-sm text-red-600">{validationErrors.email}</p>}
           </div>
 
           <div className="space-y-2">
@@ -116,20 +97,19 @@ export function SignupForm() {
               <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input id="phone" name="phone" type="tel" placeholder="Enter your phone number" className="pl-10" />
             </div>
-            {validationErrors.phone && <p className="text-sm text-red-600">{validationErrors.phone}</p>}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">Password *</Label>
+            <Label htmlFor="password">Password</Label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 id="password"
                 name="password"
                 type={showPassword ? "text" : "password"}
-                placeholder="Create a strong password (min. 8 characters)"
+                placeholder="Create a password (min. 6 characters)"
                 className="pl-10 pr-10"
-                minLength={8}
+                minLength={6}
                 required
               />
               <button
@@ -140,10 +120,6 @@ export function SignupForm() {
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
-            {validationErrors.password && <p className="text-sm text-red-600">{validationErrors.password}</p>}
-            <p className="text-xs text-muted-foreground">
-              Password must contain uppercase, lowercase, number and special character
-            </p>
           </div>
 
           <div className="flex items-start space-x-3 p-3 border rounded-lg bg-gray-50">

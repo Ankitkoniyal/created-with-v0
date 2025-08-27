@@ -5,7 +5,6 @@ import "./globals.css"
 import { AuthProvider } from "@/hooks/use-auth"
 import { Header } from "@/components/header"
 import { Toaster } from "@/components/ui/toaster"
-import { ErrorBoundary } from "@/components/error-boundary"
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -35,13 +34,11 @@ html {
         `}</style>
       </head>
       <body className={dmSans.className}>
-        <ErrorBoundary>
-          <AuthProvider>
-            <Header />
-            {children}
-            <Toaster />
-          </AuthProvider>
-        </ErrorBoundary>
+        <AuthProvider>
+          <Header />
+          {children}
+          <Toaster />
+        </AuthProvider>
       </body>
     </html>
   )

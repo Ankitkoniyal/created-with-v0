@@ -1,19 +1,18 @@
 "use client"
 
 import React from "react"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { AlertTriangle, RefreshCw } from "lucide-react"
 
 interface ErrorBoundaryState {
   hasError: boolean
   error?: Error
-  errorInfo?: React.ErrorInfo
 }
 
 interface ErrorBoundaryProps {
   children: React.ReactNode
-  fallback?: React.ComponentType<{ error: Error; retry: () => void }>
+  fallback?: React.ComponentType<{ error?: Error; retry: () => void }>
 }
 
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
@@ -28,37 +27,29 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("Error caught by boundary:", error, errorInfo)
-    this.setState({ error, errorInfo })
   }
 
   retry = () => {
-    this.setState({ hasError: false, error: undefined, errorInfo: undefined })
+    this.setState({ hasError: false, error: undefined })
   }
 
   render() {
     if (this.state.hasError) {
       if (this.props.fallback) {
         const FallbackComponent = this.props.fallback
-        return <FallbackComponent error={this.state.error!} retry={this.retry} />
+        return <FallbackComponent error={this.state.error} retry={this.retry} />
       }
 
       return (
-        <Card className="mx-auto max-w-md">
+        <Card className="w-full max-w-md mx-auto mt-8">
           <CardContent className="p-6 text-center">
             <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">Something went wrong</h3>
-            <p className="text-muted-foreground mb-4">
-              We encountered an unexpected error. Please try refreshing the page.
-            </p>
-            <div className="space-y-2">
-              <Button onClick={this.retry} className="w-full">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Try Again
-              </Button>
-              <Button variant="outline" onClick={() => window.location.reload()} className="w-full">
-                Refresh Page
-              </Button>
-            </div>
+            <p className="text-gray-600 mb-4">We encountered an unexpected error. Please try refreshing the page.</p>
+            <Button onClick={this.retry} className="flex items-center gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Try Again
+            </Button>
           </CardContent>
         </Card>
       )
@@ -68,23 +59,15 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 }
 
-// Hook for functional components
-export function useErrorBoundary() {
-  const [error, setError] = React.useState<Error | null>(null)
-
-  const resetError = React.useCallback(() => {
-    setError(null)
-  }, [])
-
-  const captureError = React.useCallback((error: Error) => {
-    setError(error)
-  }, [])
-
-  React.useEffect(() => {
-    if (error) {
-      throw error
-    }
-  }, [error])
-
-  return { captureError, resetError }
+export function withErrorBoundary<P extends object>(
+  Component: React.ComponentType<P>,
+  fallback?: React.ComponentType<{ error?: Error; retry: () => void }>,
+) {
+  return function WrappedComponent(props: P) {
+    return (
+      <ErrorBoundary fallback={fallback}>
+        <Component {...props} />
+      </ErrorBoundary>
+    )
+  }
 }

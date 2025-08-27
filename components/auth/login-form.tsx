@@ -12,7 +12,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { toast } from "@/hooks/use-toast"
-import { loginSchema, sanitizeInput } from "@/lib/validation"
+import { loginSchema } from "@/lib/validation/schemas"
+import { sanitizeText } from "@/lib/security/sanitization"
 
 export function LoginForm() {
   const router = useRouter()
@@ -24,7 +25,7 @@ export function LoginForm() {
   const [error, setError] = useState<string | null>(null)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [validationErrors, setValidationErrors] = useState<{ [key: string]: string }>({})
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
 
   const redirectedFrom = searchParams.get("redirectedFrom")
 
@@ -50,12 +51,12 @@ export function LoginForm() {
     setValidationErrors({})
 
     const formData = new FormData(e.currentTarget)
-    const emailValue = sanitizeInput(formData.get("email") as string)
+    const emailValue = formData.get("email") as string
     const passwordValue = formData.get("password") as string
 
     try {
       const validatedData = loginSchema.parse({
-        email: emailValue,
+        email: sanitizeText(emailValue),
         password: passwordValue,
       })
 
@@ -86,7 +87,7 @@ export function LoginForm() {
       }
     } catch (validationError: any) {
       if (validationError.errors) {
-        const errors: { [key: string]: string } = {}
+        const errors: Record<string, string> = {}
         validationError.errors.forEach((err: any) => {
           errors[err.path[0]] = err.message
         })
@@ -124,7 +125,7 @@ export function LoginForm() {
                 placeholder="Enter your email"
                 className="pl-10"
                 value={email}
-                onChange={(e) => setEmail(sanitizeInput(e.target.value))}
+                onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={isSubmitting}
               />
