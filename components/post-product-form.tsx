@@ -250,26 +250,46 @@ export function PostProductForm() {
         }
 
         if (data) {
+          let priceType: "amount" | "free" | "contact" | "swap" = "amount"
+          if (data.price === 0) {
+            priceType = data.price_type === "free" ? "free" : "contact"
+          } else if (data.price_type) {
+            priceType = data.price_type
+          }
+
+          const locationParts = data.location ? data.location.split(",") : []
+          const address = locationParts.length > 0 ? locationParts[0].trim() : ""
+          const cityProvince =
+            data.city && data.province
+              ? `${data.city}, ${data.province}`
+              : locationParts.length > 1
+                ? locationParts.slice(1).join(",").trim()
+                : ""
+
           setFormData({
             title: data.title || "",
             description: data.description || "",
             price: data.price ? data.price.toString() : "",
-            priceType: data.price > 0 ? "amount" : "contact",
+            priceType: priceType,
             category: data.category || "",
             subcategory: data.subcategory || "",
             condition: data.condition || "",
             brand: data.brand || "",
             model: data.model || "",
-            address: data.location?.split(",")[0]?.trim() || "",
-            location: `${data.city}, ${data.province}` || "",
+            address: address,
+            location: cityProvince,
             postalCode: data.postal_code || "",
             youtubeUrl: data.youtube_url || "",
             websiteUrl: data.website_url || "",
             showMobileNumber: data.show_mobile_number ?? true,
-            tags: data.tags || [],
-            images: [], // Will be handled separately for existing images
-            features: data.features || [],
+            tags: Array.isArray(data.tags) ? data.tags : [],
+            images: Array.isArray(data.images) ? data.images : [],
+            features: Array.isArray(data.features) ? data.features : [],
           })
+
+          if (data.title && data.description && data.category) {
+            setCurrentStep(2)
+          }
         }
       } catch (error) {
         console.error("Error fetching product:", error)

@@ -222,87 +222,83 @@ export function ProductGrid() {
           <p className="text-sm text-gray-600">{products.length} ads found</p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        {/* Product Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {products.map((product) => {
             const conditionBadge = getConditionBadge(product.condition)
 
             return (
               <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
-                <Card className="group h-full flex flex-col overflow-hidden border-0 bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
+                <Card className="group h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200">
                   <CardContent className="p-0 flex flex-col h-full">
-                    <div className="relative w-full h-64 overflow-hidden bg-gray-50 rounded-2xl">
+                    <div className="relative w-full h-48 overflow-hidden bg-gray-50 rounded-t-lg">
                       <img
-                        src={product.images?.[0] || "/placeholder.svg?height=300&width=400&query=product"}
+                        src={product.images?.[0] || "/placeholder.svg?height=200&width=300&query=product"}
                         alt={product.title}
                         loading="lazy"
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
 
-                      <div className="absolute top-3 left-3">
-                        <Badge className="bg-white/90 backdrop-blur-sm text-gray-700 text-xs font-medium px-3 py-1 rounded-full shadow-sm">
-                          AD{product.id.slice(-8).toUpperCase()}
+                      <Badge className="absolute top-2 left-2 bg-black/70 text-white text-xs font-medium px-2 py-1 rounded">
+                        AD{product.id.slice(-8).toUpperCase()}
+                      </Badge>
+
+                      <Badge
+                        className={`absolute top-2 right-2 text-xs font-medium px-2 py-1 rounded ${conditionBadge.className}`}
+                      >
+                        {conditionBadge.text}
+                      </Badge>
+
+                      {isNegotiable(product.price_type) && (
+                        <Badge className="absolute top-10 right-2 bg-blue-500 text-white text-xs font-medium px-2 py-1 rounded">
+                          Negotiable
                         </Badge>
-                      </div>
+                      )}
 
-                      <div className="absolute top-3 right-3 flex flex-col gap-2">
-                        <Badge
-                          className={`text-xs font-medium px-3 py-1 rounded-full shadow-sm ${conditionBadge.className}`}
-                        >
-                          {conditionBadge.text}
-                        </Badge>
-
-                        {isNegotiable(product.price_type) && (
-                          <Badge className="bg-blue-500 text-white text-xs font-medium px-3 py-1 rounded-full shadow-sm">
-                            Negotiable
-                          </Badge>
-                        )}
-                      </div>
-
+                      {/* Favorite Button */}
                       <Button
                         size="icon"
                         variant="ghost"
                         aria-label="Toggle favorite"
-                        className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-sm hover:bg-white shadow-md h-10 w-10 p-0 rounded-full border-0"
+                        className="absolute bottom-2 right-2 bg-white/90 hover:bg-white shadow-sm h-8 w-8 p-0 rounded-full"
                         onClick={(e) => toggleFavorite(product.id, e)}
                       >
                         <Heart
-                          className={`h-5 w-5 ${
+                          className={`h-4 w-4 ${
                             favorites.has(product.id) ? "fill-red-500 text-red-500" : "text-gray-600"
                           }`}
                         />
                       </Button>
                     </div>
 
-                    <div className="p-4 flex flex-col flex-1 space-y-3">
-                      <h4 className="text-lg font-bold text-gray-900 leading-6 line-clamp-2 group-hover:text-blue-600 transition-colors">
+                    <div className="p-3 flex flex-col flex-1 space-y-2">
+                      <h4 className="text-base font-semibold text-gray-900 leading-5 line-clamp-2 hover:text-blue-600 transition-colors">
                         {product.title}
                       </h4>
 
-                      <p className="text-2xl font-bold text-blue-600">
+                      <p className="text-xl font-bold text-gray-900">
                         {formatPrice(product.price, product.price_type)}
                       </p>
 
-                      <div className="flex items-center space-x-2 text-sm">
+                      <div className="flex items-center space-x-2 text-sm text-gray-600">
                         <div className="flex items-center space-x-1">
-                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                          <span className="font-semibold text-gray-700">4.2</span>
+                          <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                          <span className="font-medium">4.2</span>
                         </div>
                         <span className="text-gray-400">•</span>
-                        <span className="text-gray-600 font-medium truncate">
-                          {product.seller?.full_name || "Anonymous"}
-                        </span>
+                        <span className="truncate">{product.seller?.full_name || "Anonymous"}</span>
                       </div>
 
-                      <div className="flex items-center justify-between text-sm text-gray-500 mt-auto pt-2 border-t border-gray-100">
+                      <div className="flex items-center justify-between text-xs text-gray-500 mt-auto pt-2">
                         <div className="flex items-center gap-1">
-                          <MapPin className="h-4 w-4 text-gray-400" />
-                          <span className="truncate font-medium">
+                          <MapPin className="h-3 w-3 text-gray-400" />
+                          <span className="truncate">
                             {product.city}, {product.province}
                           </span>
                         </div>
                         <div className="flex items-center gap-1 text-gray-400">
-                          <Clock className="h-4 w-4" />
-                          <span className="font-medium">{formatTimePosted(product.created_at)}</span>
+                          <Clock className="h-3 w-3" />
+                          <span>{formatTimePosted(product.created_at)}</span>
                         </div>
                       </div>
                     </div>

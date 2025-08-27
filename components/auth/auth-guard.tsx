@@ -17,18 +17,17 @@ export function AuthGuard({ children, requireAuth = true }: AuthGuardProps) {
   const searchParams = useSearchParams()
 
   useEffect(() => {
+    // Only redirect if not loading, authentication required, and not authenticated
     if (!isLoading && requireAuth && (!user || !profile)) {
       const currentPath = window.location.pathname + window.location.search
 
-      // Don't redirect if already on auth pages
       if (
         !currentPath.includes("/auth/login") &&
         !currentPath.includes("/auth/signup") &&
         !currentPath.includes("/auth/callback")
       ) {
-        // Clear any existing redirectedFrom to prevent loops
-        const cleanPath = currentPath.replace(/[?&]redirectedFrom=[^&]*/, "")
-        router.push(`/auth/login?redirectedFrom=${encodeURIComponent(cleanPath)}`)
+        console.log("[v0] Redirecting unauthenticated user from:", currentPath)
+        router.push(`/auth/login?redirectedFrom=${encodeURIComponent(currentPath)}`)
       }
     }
   }, [user, profile, isLoading, requireAuth, router])
@@ -45,13 +44,7 @@ export function AuthGuard({ children, requireAuth = true }: AuthGuardProps) {
   }
 
   if (requireAuth && (!user || !profile)) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-muted-foreground mb-4">Redirecting to login...</p>
-        </div>
-      </div>
-    )
+    return null
   }
 
   return <>{children}</>

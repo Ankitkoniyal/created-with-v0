@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { MessageSquare, Shield, Star } from "lucide-react"
+import { MessageSquare, Shield, Star, LogIn } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
@@ -40,9 +40,38 @@ export function ContactSellerModal({ product, seller, children }: ContactSellerM
   const [isOpen, setIsOpen] = useState(false)
   const [isSending, setIsSending] = useState(false)
 
+  const handleOpenModal = () => {
+    if (!user) {
+      toast({
+        title: "Login Required",
+        description: "Please log in to contact sellers",
+        action: (
+          <Button
+            size="sm"
+            onClick={() => router.push("/auth/login?redirectedFrom=" + encodeURIComponent(window.location.pathname))}
+          >
+            <LogIn className="h-4 w-4 mr-1" />
+            Login
+          </Button>
+        ),
+      })
+      return
+    }
+    setIsOpen(true)
+  }
+
   const handleSendMessage = async () => {
     if (!user) {
-      router.push("/auth/login")
+      router.push("/auth/login?redirectedFrom=" + encodeURIComponent(window.location.pathname))
+      return
+    }
+
+    if (!message.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Message Required",
+        description: "Please enter a message before sending.",
+      })
       return
     }
 
@@ -67,6 +96,16 @@ export function ContactSellerModal({ product, seller, children }: ContactSellerM
         return
       }
 
+      if (productData.user_id === user.id) {
+        toast({
+          variant: "destructive",
+          title: "Cannot Send Message",
+          description: "You cannot send a message to yourself.",
+        })
+        setIsOpen(false)
+        return
+      }
+
       const { data, error } = await supabase
         .from("messages")
         .insert({
@@ -74,6 +113,7 @@ export function ContactSellerModal({ product, seller, children }: ContactSellerM
           sender_id: user.id,
           receiver_id: productData.user_id,
           message: message.trim(),
+          is_read: false, // Explicitly set message as unread
         })
         .select()
         .single()
@@ -91,6 +131,7 @@ export function ContactSellerModal({ product, seller, children }: ContactSellerM
           description: "Your message has been sent to the seller.",
         })
         setIsOpen(false)
+        setMessage(`Hi! I'm interested in your ${product.title}. Is it still available?`) // Reset message
 
         const conversationId = `${product.id}-${productData.user_id}`
         router.push(`/dashboard/messages/${conversationId}`)
@@ -109,7 +150,9 @@ export function ContactSellerModal({ product, seller, children }: ContactSellerM
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogTrigger asChild onClick={handleOpenModal}>
+        {children}
+      </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center">
@@ -167,7 +210,9 @@ export function ContactSellerModal({ product, seller, children }: ContactSellerM
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               rows={4}
+              maxLength={500} // Added character limit for better UX
             />
+            <p className="text-xs text-muted-foreground text-right">{message.length}/500 characters</p>
           </div>
 
           <div className="flex space-x-2">
@@ -178,10 +223,6 @@ export function ContactSellerModal({ product, seller, children }: ContactSellerM
               {isSending ? "Sending..." : "Send Message"}
             </Button>
           </div>
-
-          {!user && (
-            <p className="text-xs text-muted-foreground text-center">You need to be logged in to contact sellers</p>
-          )}
         </div>
       </DialogContent>
     </Dialog>
