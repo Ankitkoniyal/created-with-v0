@@ -52,7 +52,7 @@ export function DashboardNav() {
 
     fetchDashboardCounts()
 
-    const interval = setInterval(fetchDashboardCounts, 120000)
+    const interval = setInterval(fetchDashboardCounts, 300000)
     return () => clearInterval(interval)
   }, [user?.id])
 

@@ -2,11 +2,18 @@
 
 import { useRef, useEffect } from "react"
 
-// Simple deep comparison function (you can also use lodash.isEqual)
 function isEqual(a: any, b: any): boolean {
   if (a === b) return true
-  if (a == null || b == null) return false
+  if (a == null || b == null) return a === b
   if (typeof a !== typeof b) return false
+
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false
+    for (let i = 0; i < a.length; i++) {
+      if (!isEqual(a[i], b[i])) return false
+    }
+    return true
+  }
 
   if (typeof a === "object") {
     const keysA = Object.keys(a)
@@ -28,9 +35,11 @@ function isEqual(a: any, b: any): boolean {
 export function useDeepCompareEffect(callback: () => void | (() => void), dependencies: any[]) {
   const currentDependenciesRef = useRef<any[]>()
 
-  if (!isEqual(currentDependenciesRef.current, dependencies)) {
-    currentDependenciesRef.current = dependencies
+  const hasChanged = !isEqual(currentDependenciesRef.current, dependencies)
+
+  if (hasChanged) {
+    currentDependenciesRef.current = [...dependencies] // Create a copy to prevent mutation issues
   }
 
-  useEffect(callback, [currentDependenciesRef.current])
+  useEffect(callback, hasChanged ? [currentDependenciesRef.current] : [currentDependenciesRef.current])
 }

@@ -274,13 +274,14 @@ export function PostProductForm() {
       } catch (error) {
         console.error("Error fetching product:", error)
         toast.error("Failed to load product data")
+        router.push("/dashboard/listings")
       } finally {
         setIsLoadingEditData(false)
       }
     }
 
     fetchExistingProduct()
-  }, [isEditMode, editId, user]) // Removed router from dependencies to prevent infinite loops
+  }, [isEditMode, editId, user, router])
 
   const handleInputChange = (field: keyof ProductFormData, value: string | boolean) => {
     setFormData((prev) => ({

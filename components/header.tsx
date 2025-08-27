@@ -90,7 +90,6 @@ export function Header() {
 
   const handleCategorySelect = (category: string) => {
     // Implement category selection logic here
-    console.log("Category selected:", category)
   }
 
   useEffect(() => {
@@ -124,20 +123,9 @@ export function Header() {
 
     fetchNotificationCounts()
 
-    const interval = setInterval(fetchNotificationCounts, 120000)
+    const interval = setInterval(fetchNotificationCounts, 300000)
     return () => clearInterval(interval)
   }, [user?.id])
-
-  useEffect(() => {
-    console.log(
-      "[v0] Header auth state - User:",
-      user ? user.email : "null",
-      "Profile:",
-      profile ? profile.name : "null",
-      "Authenticated:",
-      user && profile,
-    )
-  }, [user, profile])
 
   // Show loading state for header
   if (isLoading) {

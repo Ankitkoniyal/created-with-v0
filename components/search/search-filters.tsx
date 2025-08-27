@@ -136,22 +136,20 @@ export function SearchFilters({ searchQuery }: SearchFiltersProps) {
   const sortBy = searchParams.get("sortBy") || "relevance"
 
   const categoryFilters = useMemo(() => {
-    const searchParamsString = searchParams.toString()
-    return Array.from(searchParams.entries()).reduce(
-      (acc, [key, value]) => {
-        const isCategoryFilter = Object.values(categorySpecificFilters).some((catFilters) =>
-          Object.keys(catFilters)
-            .map((k) => k.toLowerCase().replace(/\s+/g, "_"))
-            .includes(key),
-        )
-        if (isCategoryFilter) {
-          acc[key] = [value]
-        }
-        return acc
-      },
-      {} as Record<string, string[]>,
-    )
-  }, [searchParams.toString()]) // Use string representation for stable comparison
+    const filters: Record<string, string[]> = {}
+    for (const [key, value] of searchParams.entries()) {
+      // Check if the key is a category-specific filter
+      const isCategoryFilter = Object.values(categorySpecificFilters).some((catFilters) =>
+        Object.keys(catFilters)
+          .map((k) => k.toLowerCase().replace(/\s+/g, "_"))
+          .includes(key),
+      )
+      if (isCategoryFilter) {
+        filters[key] = [value]
+      }
+    }
+    return filters
+  }, [searchParams])
 
   const updateUrl = useCallback(
     (newParams: { [key: string]: string | null }) => {
@@ -167,7 +165,7 @@ export function SearchFilters({ searchQuery }: SearchFiltersProps) {
 
       router.push(`/search?${params.toString()}`, { scroll: false })
     },
-    [router, searchParams.toString()], // Use string representation for stable comparison
+    [router, searchParams.toString()], // Use toString() to create stable dependency
   )
 
   const availableSubcategories = selectedCategory ? subcategories[selectedCategory] || [] : []

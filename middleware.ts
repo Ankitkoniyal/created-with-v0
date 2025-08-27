@@ -6,8 +6,6 @@ export async function middleware(request: NextRequest) {
     request,
   })
 
-  // With Fluid compute, don't put this client in a global environment
-  // variable. Always create a new one on each request.
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -27,30 +25,33 @@ export async function middleware(request: NextRequest) {
     },
   )
 
-  // Do not run code between createServerClient and
-  // supabase.auth.getUser(). A simple mistake could make it very hard to debug
-  // issues with users being randomly logged out.
+  try {
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser()
 
-  // IMPORTANT: If you remove getUser() and you use server-side rendering
-  // with the Supabase client, your users may be randomly logged out.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+    if (error) {
+      console.error("Middleware auth error:", error)
+      // Clear invalid session
+      await supabase.auth.signOut()
+    }
 
-  // IMPORTANT: You *must* return the supabaseResponse object as it is.
+    const protectedRoutes = ["/dashboard", "/sell", "/profile"]
+    const isProtectedRoute = protectedRoutes.some((route) => request.nextUrl.pathname.startsWith(route))
+
+    if (isProtectedRoute && !user && !error) {
+      const redirectUrl = new URL("/auth/login", request.url)
+      redirectUrl.searchParams.set("redirectedFrom", request.nextUrl.pathname + request.nextUrl.search)
+      return NextResponse.redirect(redirectUrl)
+    }
+  } catch (error) {
+    console.error("Middleware error:", error)
+  }
+
   return supabaseResponse
 }
 
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - images - .svg, .png, .jpg, .jpeg, .gif, .webp
-     * Feel free to modify this pattern to include more paths.
-     */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 }
