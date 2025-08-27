@@ -23,7 +23,6 @@ export function SignupForm() {
   const router = useRouter()
 
   useEffect(() => {
-    console.log("[v0] Signup form state changed:", state)
     if (state?.success) {
       setTimeout(() => {
         router.push("/")
@@ -32,12 +31,6 @@ export function SignupForm() {
   }, [state, router])
 
   const handleFormAction = async (formData: FormData) => {
-    console.log("[v0] Signup form submitted with data:", {
-      fullName: formData.get("fullName"),
-      email: formData.get("email"),
-      phone: formData.get("phone"),
-      password: "***hidden***",
-    })
     return formAction(formData)
   }
 

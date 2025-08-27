@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useDeepCompareEffect } from "@/hooks/use-deep-compare-effect"
+import { useDeepCompareEffect } from "@/hooks/use-deep-compare-effect-fix"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Heart, MapPin, Eye, Grid3X3, List, Package, Loader2 } from "lucide-react"
@@ -15,7 +15,7 @@ interface Product {
   location: string
   city: string
   province: string
-  image_urls: string[]
+  images: string[] // Fixed field name from image_urls to images
   category_id: number
   category: string
   condition: string
@@ -45,17 +45,25 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [hasMore, setHasMore] = useState(true)
+  const [currentPage, setCurrentPage] = useState(0)
 
   useDeepCompareEffect(() => {
     const fetchProducts = async () => {
       setLoading(true)
       setError(null)
+      setCurrentPage(0)
 
       try {
         const supabase = createClient()
-        let query = supabase.from("products").select("*").order("created_at", { ascending: false })
+        let query = supabase
+          .from("products")
+          .select("*")
+          .eq("status", "active") // Only show active products
+          .order("created_at", { ascending: false })
+          .range(0, 49) // Limit to 50 results initially
 
-        if (searchQuery) {
+        if (searchQuery.trim()) {
           query = query.or(
             `title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,category.ilike.%${searchQuery}%`,
           )
@@ -63,48 +71,18 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
 
         if (filters.subcategory && filters.subcategory !== "all") {
           query = query.eq("category", filters.subcategory)
-        } else if (filters.category) {
-          const categoryMapping: Record<string, string[]> = {
-            Vehicles: [
-              "Cars", "Motorcycles", "Trucks", "Buses", "Bicycles", "Scooters", "Boats", "RVs", "ATVs", "Parts & Accessories",
-            ],
-            Electronics: [
-              "TV", "Fridge", "Oven", "AC", "Cooler", "Toaster", "Fan", "Washing Machine", "Microwave", "Computer", "Laptop", "Camera", "Audio System",
-            ],
-            Mobile: [
-              "Smartphones", "Tablets", "Accessories", "Cases & Covers", "Chargers", "Headphones", "Smart Watches", "Power Banks",
-            ],
-            "Real Estate": [
-              "Houses", "Apartments", "Commercial", "Land", "Rental", "Vacation Rentals", "Office Space", "Warehouse",
-            ],
-            Fashion: [
-              "Men's Clothing", "Women's Clothing", "Kids Clothing", "Shoes", "Bags", "Jewelry", "Watches", "Accessories",
-            ],
-            Pets: ["Dogs", "Cats", "Birds", "Fish", "Pet Food", "Pet Accessories", "Pet Care", "Pet Services"],
-            Furniture: ["Sofa", "Bed", "Table", "Chair", "Wardrobe", "Desk", "Cabinet", "Dining Set", "Home Decor"],
-            Jobs: ["Full Time", "Part Time", "Freelance", "Internship", "Remote Work", "Contract", "Temporary"],
-            Gaming: ["Video Games", "Consoles", "PC Gaming", "Mobile Games", "Gaming Accessories", "Board Games"],
-            Books: ["Fiction", "Non-Fiction", "Educational", "Comics", "Magazines", "E-books", "Audiobooks"],
-            Services: [
-              "Home Services", "Repair", "Cleaning", "Tutoring", "Photography", "Event Planning", "Transportation",
-            ],
-            Other: [
-              "Sports Equipment", "Musical Instruments", "Art & Crafts", "Collectibles", "Tools", "Garden", "Baby Items",
-            ],
-          }
-          const subcategories = categoryMapping[filters.category] || []
-          if (subcategories.length > 0) {
-            query = query.in("category", subcategories)
-          }
+        } else if (filters.category && filters.category !== "all") {
+          // Use direct category matching instead of complex mapping
+          query = query.ilike("category", `%${filters.category}%`)
         }
 
         const minPrice = Number.parseInt(filters.minPrice) || 0
-        const maxPrice = Number.parseInt(filters.maxPrice) || Number.MAX_SAFE_INTEGER
+        const maxPrice = Number.parseInt(filters.maxPrice) || 0
 
         if (minPrice > 0) {
           query = query.gte("price", minPrice)
         }
-        if (maxPrice < Number.MAX_SAFE_INTEGER) {
+        if (maxPrice > 0 && maxPrice < Number.MAX_SAFE_INTEGER) {
           query = query.lte("price", maxPrice)
         }
 
@@ -112,7 +90,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
           query = query.eq("condition", filters.condition.toLowerCase())
         }
 
-        if (filters.location) {
+        if (filters.location.trim()) {
           query = query.or(
             `city.ilike.%${filters.location}%,province.ilike.%${filters.location}%,location.ilike.%${filters.location}%`,
           )
@@ -123,25 +101,26 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
             query = query.order("created_at", { ascending: false })
             break
           case "price-low":
-            query = query.order("price", { ascending: true })
+            query = query.order("price", { ascending: true }).order("created_at", { ascending: false })
             break
           case "price-high":
-            query = query.order("price", { ascending: false })
+            query = query.order("price", { ascending: false }).order("created_at", { ascending: false })
             break
           case "distance":
-            query = query.order("city", { ascending: true })
+            query = query.order("city", { ascending: true }).order("created_at", { ascending: false })
             break
           default:
             query = query.order("created_at", { ascending: false })
         }
 
-        const { data, error: fetchError } = await query.limit(50)
+        const { data, error: fetchError } = await query
 
         if (fetchError) {
           console.error("Error fetching products:", fetchError)
           setError("Failed to load products. Please try again.")
         } else {
           setProducts(data || [])
+          setHasMore((data || []).length === 50)
         }
       } catch (err) {
         console.error("Search error:", err)
@@ -154,7 +133,53 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
     fetchProducts()
   }, [searchQuery, filters])
 
-  if (loading) {
+  const loadMore = async () => {
+    if (!hasMore || loading) return
+
+    setLoading(true)
+    try {
+      const supabase = createClient()
+      const nextPage = currentPage + 1
+      const startRange = nextPage * 50
+      const endRange = startRange + 49
+
+      let query = supabase
+        .from("products")
+        .select("*")
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+        .range(startRange, endRange)
+
+      // Apply same filters as initial search
+      if (searchQuery.trim()) {
+        query = query.or(
+          `title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,category.ilike.%${searchQuery}%`,
+        )
+      }
+
+      if (filters.subcategory && filters.subcategory !== "all") {
+        query = query.eq("category", filters.subcategory)
+      } else if (filters.category && filters.category !== "all") {
+        query = query.ilike("category", `%${filters.category}%`)
+      }
+
+      const { data, error: fetchError } = await query
+
+      if (fetchError) {
+        console.error("Error loading more products:", fetchError)
+      } else {
+        setProducts((prev) => [...prev, ...(data || [])])
+        setHasMore((data || []).length === 50)
+        setCurrentPage(nextPage)
+      }
+    } catch (err) {
+      console.error("Load more error:", err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (loading && products.length === 0) {
     return (
       <Card>
         <CardContent className="p-12 text-center">
@@ -243,7 +268,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
               <CardContent className={`p-0 ${viewMode === "list" ? "flex" : ""}`}>
                 <div className={`relative ${viewMode === "list" ? "w-48 flex-shrink-0" : ""}`}>
                   <img
-                    src={product.image_urls?.[0] || "/placeholder.svg"}
+                    src={product.images?.[0] || "/placeholder.svg"}
                     alt={product.title}
                     width={viewMode === "list" ? 192 : 300}
                     height={viewMode === "list" ? 128 : 192}
@@ -294,6 +319,26 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
           </Link>
         ))}
       </div>
+
+      {hasMore && (
+        <div className="flex justify-center pt-6">
+          <Button
+            onClick={loadMore}
+            disabled={loading}
+            variant="outline"
+            className="hover:bg-green-100 hover:text-green-700 bg-transparent"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Loading more...
+              </>
+            ) : (
+              "Load More Products"
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

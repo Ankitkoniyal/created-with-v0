@@ -96,7 +96,7 @@ export function DashboardNav() {
           messages: messagesCount || 0,
         })
       } catch (error) {
-        console.log("[v0] Error fetching dashboard counts:", error)
+        console.error("Error fetching dashboard counts:", error)
         // Keep default values on error
       }
     }
@@ -182,7 +182,6 @@ export function DashboardNav() {
                 variant={isActive ? "secondary" : "ghost"}
                 className="w-full justify-start"
                 onClick={() => {
-                  console.log("[v0] Navigating to:", item.href)
                   router.push(item.href)
                 }}
               >

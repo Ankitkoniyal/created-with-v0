@@ -41,13 +41,12 @@ export function RelatedProducts({ currentProductId, category }: RelatedProductsP
           .order("created_at", { ascending: false })
 
         if (error) {
-          console.error("[v0] Error fetching related products:", error.message)
+          console.error("Error fetching related products:", error.message)
         } else {
-          console.log("[v0] Fetched related products:", data?.length || 0)
           setRelatedProducts(data || [])
         }
       } catch (error) {
-        console.error("[v0] Error fetching related products:", error)
+        console.error("Error fetching related products:", error)
       } finally {
         setLoading(false)
       }

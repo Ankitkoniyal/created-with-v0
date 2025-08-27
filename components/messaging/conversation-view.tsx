@@ -152,7 +152,6 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
         if (messagesError || productError || participantError) {
           console.error("Error fetching conversation:", { messagesError, productError, participantError })
         } else {
-          console.log("[v0] Fetched conversation data:", { messages, product, participant })
           setConversationData({
             product,
             participant,
@@ -170,8 +169,6 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
                 filter: `product_id=eq.${productId}`,
               },
               async (payload) => {
-                console.log("[v0] New message received:", payload)
-
                 const { data: newMessage, error } = await supabase
                   .from("messages")
                   .select(`
@@ -247,7 +244,6 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
         console.error("Error deleting conversation:", error)
         alert("Failed to delete conversation")
       } else {
-        console.log("[v0] Conversation deleted")
         window.location.href = "/dashboard/messages"
       }
     } catch (error) {
@@ -282,7 +278,6 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
         console.error("Error blocking user:", error)
         alert("Failed to block user")
       } else {
-        console.log("[v0] User blocked")
         alert(`${conversationData.participant.full_name} has been blocked`)
         window.location.href = "/dashboard/messages"
       }
@@ -318,7 +313,6 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
         console.error("Error reporting conversation:", error)
         alert("Failed to report conversation")
       } else {
-        console.log("[v0] Conversation reported")
         alert("Thank you for your report. We'll review it shortly.")
       }
     } catch (error) {
@@ -364,7 +358,6 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
         console.error("Error sending message:", error)
         alert("Failed to send message")
       } else {
-        console.log("[v0] Message sent:", data)
         setConversationData((prev) =>
           prev
             ? {

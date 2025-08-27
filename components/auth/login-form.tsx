@@ -23,18 +23,10 @@ export function LoginForm() {
   const [password, setPassword] = useState("")
 
   useEffect(() => {
-    const savedCredentials = localStorage.getItem("rememberedCredentials")
-    if (savedCredentials) {
-      try {
-        const { email: savedEmail, password: savedPassword, rememberMe: savedRememberMe } = JSON.parse(savedCredentials)
-        if (savedRememberMe) {
-          setEmail(savedEmail || "")
-          setPassword(savedPassword || "")
-          setRememberMe(true)
-        }
-      } catch (error) {
-        console.error("Error loading saved credentials:", error)
-      }
+    const savedEmail = localStorage.getItem("rememberedEmail")
+    if (savedEmail) {
+      setEmail(savedEmail)
+      setRememberMe(true)
     }
   }, [])
 
@@ -49,16 +41,9 @@ export function LoginForm() {
 
     try {
       if (rememberMe) {
-        localStorage.setItem(
-          "rememberedCredentials",
-          JSON.stringify({
-            email: emailValue,
-            password: passwordValue,
-            rememberMe: true,
-          }),
-        )
+        localStorage.setItem("rememberedEmail", emailValue)
       } else {
-        localStorage.removeItem("rememberedCredentials")
+        localStorage.removeItem("rememberedEmail")
       }
 
       const result = await login(emailValue, passwordValue)
@@ -140,7 +125,7 @@ export function LoginForm() {
                 className="border-2 border-gray-300 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
               />
               <Label htmlFor="remember" className="text-sm cursor-pointer font-medium">
-                Remember me
+                Remember email
               </Label>
             </div>
             <Button variant="link" className="p-0 h-auto text-sm">

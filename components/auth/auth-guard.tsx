@@ -26,7 +26,6 @@ export function AuthGuard({ children, requireAuth = true }: AuthGuardProps) {
         !currentPath.includes("/auth/signup") &&
         !currentPath.includes("/auth/callback")
       ) {
-        console.log("[v0] Redirecting unauthenticated user from:", currentPath)
         router.push(`/auth/login?redirectedFrom=${encodeURIComponent(currentPath)}`)
       }
     }
