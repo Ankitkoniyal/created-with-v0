@@ -144,14 +144,8 @@ export function ProductGrid() {
         return { text: "New", className: "bg-green-500 text-white" }
       case "like new":
         return { text: "Like New", className: "bg-green-400 text-white" }
-      case "good":
-        return { text: "Second Hand", className: "bg-gray-500 text-white" }
-      case "fair":
-        return { text: "Second Hand", className: "bg-gray-500 text-white" }
-      case "poor":
-        return { text: "Second Hand", className: "bg-gray-500 text-white" }
       default:
-        return { text: "Second Hand", className: "bg-gray-500 text-white" }
+        return null // Removed Second Hand badges completely
     }
   }
 
@@ -233,34 +227,35 @@ export function ProductGrid() {
         </div>
 
         <TooltipProvider>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {" "}
+            {/* Reduced gap from 6 to 4 for more compact layout */}
             {products.map((product) => {
               const conditionBadge = getConditionBadge(product.condition)
 
               return (
                 <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
-                  <Card className="group h-full flex flex-col overflow-hidden border-0 bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
+                  <Card className="group h-full flex flex-col overflow-hidden border-0 bg-white rounded-xl shadow-sm">
+                    {" "}
+                    {/* Removed hover effects and reduced border radius */}
                     <CardContent className="p-0 flex flex-col h-full">
-                      <div className="relative w-full h-64 overflow-hidden bg-gray-50 rounded-2xl">
+                      <div className="relative w-full aspect-square overflow-hidden bg-gray-50 rounded-xl">
+                        {" "}
+                        {/* Changed to aspect-square for square images */}
                         <img
-                          src={product.images?.[0] || "/placeholder.svg?height=300&width=400&query=product"}
+                          src={product.images?.[0] || "/placeholder.svg?height=300&width=300&query=product"}
                           alt={product.title}
                           loading="lazy"
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                          className="w-full h-full object-cover" // Removed hover scale effect
                         />
-
-                        <div className="absolute top-3 left-3">
-                          <Badge className="bg-white/90 backdrop-blur-sm text-gray-700 text-xs font-medium px-3 py-1 rounded-full shadow-sm">
-                            AD{product.id.slice(-8).toUpperCase()}
-                          </Badge>
-                        </div>
-
                         <div className="absolute top-3 right-3 flex flex-col gap-2">
-                          <Badge
-                            className={`text-xs font-medium px-3 py-1 rounded-full shadow-sm ${conditionBadge.className}`}
-                          >
-                            {conditionBadge.text}
-                          </Badge>
+                          {conditionBadge && ( // Only show New and Like New badges
+                            <Badge
+                              className={`text-xs font-medium px-3 py-1 rounded-full shadow-sm ${conditionBadge.className}`}
+                            >
+                              {conditionBadge.text}
+                            </Badge>
+                          )}
 
                           {isNegotiable(product.price_type) && (
                             <Badge className="bg-blue-500 text-white text-xs font-medium px-3 py-1 rounded-full shadow-sm">
@@ -268,7 +263,6 @@ export function ProductGrid() {
                             </Badge>
                           )}
                         </div>
-
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
@@ -292,12 +286,17 @@ export function ProductGrid() {
                       </div>
 
                       <div className="p-3 flex flex-col flex-1 space-y-1">
-                        <h4 className="text-lg font-bold text-gray-900 leading-5 line-clamp-2 group-hover:text-blue-600 transition-colors">
+                        {" "}
+                        {/* Kept compact padding */}
+                        <h4 className="text-base font-semibold text-gray-900 leading-5 line-clamp-2">
+                          {" "}
+                          {/* Removed hover color change and reduced font size */}
                           {product.title}
                         </h4>
-
                         <div className="flex items-center justify-between">
-                          <p className="text-xl font-bold text-green-800">
+                          <p className="text-lg font-bold text-green-800">
+                            {" "}
+                            {/* Reduced price font size */}
                             {formatPrice(product.price, product.price_type)}
                           </p>
                           <Tooltip>
@@ -312,14 +311,13 @@ export function ProductGrid() {
                             </TooltipContent>
                           </Tooltip>
                         </div>
-
-                        <div className="flex items-center justify-between text-sm text-gray-500 pt-1">
+                        <div className="flex items-center justify-between text-sm text-gray-500">
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <div className="flex items-center gap-1 cursor-help">
                                 <MapPin className="h-3 w-3 text-gray-400" />
                                 <span className="truncate text-xs font-medium">
-                                  {product.city}, {product.province}
+                                  {product.province} {/* Show only province for shorter location */}
                                 </span>
                               </div>
                             </TooltipTrigger>
