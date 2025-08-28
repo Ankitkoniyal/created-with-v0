@@ -134,7 +134,7 @@ export function ProductGrid() {
   const formatPrice = (price: number, priceType: string) => {
     if (priceType === "free") return "Free"
     if (priceType === "contact") return "Contact for Price"
-    return `₹${price.toLocaleString()}`
+    return `$${price.toLocaleString()}`
   }
 
   const getConditionBadge = (condition: string) => {
