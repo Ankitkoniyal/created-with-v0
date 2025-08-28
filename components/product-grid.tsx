@@ -1,15 +1,12 @@
 "use client"
 
 import type React from "react"
-
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Heart } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useState } from "react"
-// import { createClient } from "@/lib/supabase/client"
-import { useAuth } from "@/hooks/use-auth"
 
 const allProducts = [
   {
@@ -279,23 +276,17 @@ const allProducts = [
 ]
 
 export function ProductGrid() {
-  const { user } = useAuth()
   const [visibleCount, setVisibleCount] = useState(20)
   const [isLoading, setIsLoading] = useState(false)
   const [favorites, setFavorites] = useState<Set<number>>(new Set())
 
-  const toggleFavorite = async (productId: number, e: React.MouseEvent) => {
+  const toggleFavorite = (productId: number, e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-
     setFavorites((prev) => {
-      const newSet = new Set(prev)
-      if (newSet.has(productId)) {
-        newSet.delete(productId)
-      } else {
-        newSet.add(productId)
-      }
-      return newSet
+      const next = new Set(prev)
+      next.has(productId) ? next.delete(productId) : next.add(productId)
+      return next
     })
   }
 
@@ -304,7 +295,6 @@ export function ProductGrid() {
 
   const loadMore = () => {
     setIsLoading(true)
-    // Simulate loading delay
     setTimeout(() => {
       setVisibleCount((prev) => Math.min(prev + 12, allProducts.length))
       setIsLoading(false)
@@ -312,56 +302,66 @@ export function ProductGrid() {
   }
 
   return (
-    <section className="py-12">
+    <section className="py-2">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-2xl font-bold text-foreground">Latest Ads</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xl font-bold text-foreground">Latest Ads</h3>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+        {/* Exactly 6 per row on large screens; comfortable spacing */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
           {visibleProducts.map((product) => (
-            <Link key={product.id} href={`/product/${product.id}`}>
-              <Card className="group cursor-pointer hover:shadow-lg transition-all duration-200 h-full flex flex-col overflow-hidden border border-gray-300 bg-white rounded-none">
+            <Link key={product.id} href={`/product/${product.id}`} className="block">
+              <Card className="group h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-md hover:shadow-md transition-all duration-150">
                 <CardContent className="p-0 flex flex-col h-full">
-                  <div className="relative w-full aspect-[3/2] overflow-hidden bg-gray-50">
+                  {/* ✅ Option 1: fixed heights + object-cover (no white bars) */}
+                  <div className="relative w-full h-40 sm:h-48 lg:h-52 overflow-hidden bg-gray-50">
                     <img
                       src={product.image || "/placeholder.svg"}
                       alt={product.title}
-                      className="w-full h-full object-cover object-center"
+                      loading="lazy"
+                      className="w-full h-full object-cover"
                     />
+
                     <Button
-                      size="sm"
+                      size="icon"
                       variant="ghost"
-                      className="absolute top-1.5 right-1.5 bg-white hover:bg-gray-50 shadow-sm p-1 h-6 w-6 z-10 rounded-none"
+                      aria-label="Toggle favorite"
+                      className="absolute top-1 right-1 bg-white/90 hover:bg-gray-100 shadow-sm h-5 w-5 p-0"
                       onClick={(e) => toggleFavorite(product.id, e)}
                     >
                       <Heart
-                        className={`h-3 w-3 ${favorites.has(product.id) ? "fill-red-500 text-red-500" : "text-gray-600"}`}
+                        className={`h-3 w-3 ${
+                          favorites.has(product.id) ? "fill-red-500 text-red-500" : "text-gray-700"
+                        }`}
                       />
                     </Button>
+
                     {product.featured && (
-                      <Badge className="absolute top-1.5 left-1.5 bg-yellow-500 text-black text-xs font-semibold px-1 py-0.5 uppercase tracking-wide rounded-none">
+                      <Badge className="absolute top-1 left-1 bg-yellow-400 text-black text-[10px] font-semibold px-1 py-0.5 rounded">
                         Featured
                       </Badge>
                     )}
                   </div>
 
-                  <div className="p-1 flex flex-col flex-1 bg-white">
-                    <div className="flex items-start justify-between mb-1 px-2">
+                  <div className="p-2 flex flex-col flex-1">
+                    <div className="flex items-start justify-between mb-1">
                       <p className="text-sm font-bold text-black">{product.price}</p>
-                      <div className="flex items-center gap-1">
-                        <span className="text-yellow-500 text-xs">★</span>
+                      <div className="flex items-center gap-0.5">
+                        <span className="text-yellow-500 text-xs" aria-hidden>
+                          ★
+                        </span>
                         <span className="text-xs text-gray-700">{product.rating}</span>
                       </div>
                     </div>
 
-                    <h4 className="text-xs text-gray-700 leading-tight line-clamp-2 mb-1 min-h-[1.5rem] px-2">
+                    <h4 className="text-xs text-gray-700 leading-tight line-clamp-2 mb-1 min-h-[2rem]">
                       {product.title}
                     </h4>
 
-                    <div className="flex items-center justify-between text-xs text-gray-500 uppercase tracking-wide mt-auto px-2">
-                      <span className="font-medium truncate">{product.location}</span>
-                      <span className="text-xs whitespace-nowrap ml-1">{product.timePosted}</span>
+                    <div className="flex items-center justify-between text-[11px] text-gray-500 uppercase tracking-wide mt-auto">
+                      <span className="truncate">{product.location}</span>
+                      <span className="whitespace-nowrap">{product.timePosted}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -371,11 +371,11 @@ export function ProductGrid() {
         </div>
 
         {hasMore && (
-          <div className="text-center">
+          <div className="text-center mt-6">
             <Button
               onClick={loadMore}
               disabled={isLoading}
-              className="bg-green-600 hover:bg-green-700 text-white px-8 py-2 text-sm font-medium"
+              className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 text-sm font-medium rounded"
             >
               {isLoading ? "Loading..." : "Show More"}
             </Button>

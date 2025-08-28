@@ -1,9 +1,7 @@
 "use client"
 
 import React from "react"
-
 import { useState } from "react"
-import { useActionState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,13 +16,25 @@ export function LoginForm() {
   const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
-  const [state, formAction] = useActionState(signIn, { error: null })
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
 
-  React.useEffect(() => {
-    if (state?.success) {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setIsLoading(true)
+    setError(null)
+
+    const formData = new FormData(event.currentTarget)
+    const result = await signIn({}, formData)
+
+    if (result.success) {
       router.push("/dashboard")
+    } else {
+      setError(result.error)
     }
-  }, [state?.success, router])
+
+    setIsLoading(false)
+  }
 
   return (
     <Card>
@@ -32,11 +42,11 @@ export function LoginForm() {
         <CardTitle>Sign In</CardTitle>
       </CardHeader>
       <CardContent>
-        <form action={formAction} className="space-y-4">
-          {state?.error && (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{state.error}</AlertDescription>
+              <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
 
@@ -97,8 +107,8 @@ export function LoginForm() {
             </Button>
           </div>
 
-          <Button type="submit" className="w-full">
-            Sign In
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? "Signing In..." : "Sign In"}
           </Button>
         </form>
       </CardContent>

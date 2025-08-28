@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { DM_Sans } from "next/font/google"
 import "./globals.css"
 import { AuthProvider } from "@/hooks/use-auth"
+import { Header } from "@/components/header" // Keep this import
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -32,7 +33,10 @@ html {
         `}</style>
       </head>
       <body className={dmSans.className}>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <Header /> {/* This will show on EVERY page */}
+          {children}
+        </AuthProvider>
       </body>
     </html>
   )

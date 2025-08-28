@@ -127,7 +127,7 @@ export function Header() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="All Canada" className="font-semibold">
-                        All Canada
+                      Canada
                       </SelectItem>
                       {CANADIAN_LOCATIONS.map((location) => (
                         <div key={location.province}>
@@ -171,11 +171,7 @@ export function Header() {
 
           {/* Navigation */}
           <nav className="hidden md:flex items-center space-x-4 flex-shrink-0">
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/" className="text-green-800 hover:text-green-900 font-medium">
-                Home
-              </Link>
-            </Button>
+            
             {user && (
               <>
                 <Button variant="ghost" size="sm" className="relative">
@@ -248,7 +244,7 @@ export function Header() {
                 >
                   <Link href="/sell">
                     <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></span>
-                    <span className="relative z-10 flex items-center gap-2">
+                    <span className="relative z-10 flex items-center gap-1">
                       <span className="font-extrabold">SELL NOW</span>
                     </span>
                   </Link>
@@ -292,7 +288,7 @@ export function Header() {
                 className="flex items-center gap-2 text-green-800 hover:text-green-900 hover:bg-green-100 font-semibold px-6 py-2 rounded-lg transition-all duration-200"
                 onClick={() => setShowMegaMenu(!showMegaMenu)}
               >
-                <span>Buy Now</span>
+                <span>All Categories</span>
                 <ChevronDown
                   className={`h-4 w-4 transition-transform duration-200 ${showMegaMenu ? "rotate-180" : ""}`}
                 />
