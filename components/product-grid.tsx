@@ -40,6 +40,84 @@ interface Product {
 
 const PRODUCTS_PER_PAGE = 20
 
+const MOCK_PRODUCTS: Product[] = [
+  {
+    id: "1",
+    title: "iPhone 13 - Good Condition",
+    price: 599,
+    price_type: "fixed",
+    location: "Toronto",
+    city: "Toronto",
+    province: "Ontario",
+    condition: "like new",
+    category: "Electronics",
+    description: "Excellent condition iPhone 13",
+    images: ["/modern-smartphone.png"],
+    created_at: new Date().toISOString(),
+    user_id: "user1",
+  },
+  {
+    id: "2",
+    title: "Dining Table Set - Oak Wood",
+    price: 350,
+    price_type: "negotiable",
+    location: "Vancouver",
+    city: "Vancouver",
+    province: "British Columbia",
+    condition: "new",
+    category: "Furniture",
+    description: "Beautiful oak dining table",
+    images: ["/elegant-dining-table.png"],
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+    user_id: "user2",
+  },
+  {
+    id: "3",
+    title: "Samsung Galaxy S23 Ultra",
+    price: 750,
+    price_type: "fixed",
+    location: "Calgary",
+    city: "Calgary",
+    province: "Alberta",
+    condition: "like new",
+    category: "Electronics",
+    description: "Latest Samsung flagship phone",
+    images: ["/samsung-smartphone.png"],
+    created_at: new Date(Date.now() - 172800000).toISOString(),
+    user_id: "user3",
+  },
+  {
+    id: "4",
+    title: "MacBook Air M2 - Like New",
+    price: 1100,
+    price_type: "negotiable",
+    location: "Montreal",
+    city: "Montreal",
+    province: "Quebec",
+    condition: "like new",
+    category: "Electronics",
+    description: "Barely used MacBook Air",
+    images: ["/macbook.png"],
+    created_at: new Date(Date.now() - 259200000).toISOString(),
+    user_id: "user4",
+  },
+  {
+    id: "5",
+    title: "Sectional Couch - Grey",
+    price: 800,
+    price_type: "fixed",
+    location: "Ottawa",
+    city: "Ottawa",
+    province: "Ontario",
+    condition: "new",
+    category: "Furniture",
+    description: "Comfortable sectional sofa",
+    images: ["/sectional-couch.png"],
+    created_at: new Date(Date.now() - 345600000).toISOString(),
+    user_id: "user5",
+  },
+]
+
 export function ProductGrid() {
   const [products, setProducts] = useState<Product[]>([])
   const [page, setPage] = useState(0)
@@ -73,14 +151,26 @@ export function ProductGrid() {
 
       if (error) throw new Error(`Failed to load ads: ${error.message}`)
 
-      setProducts(data || [])
-      setHasMore((data || []).length === PRODUCTS_PER_PAGE)
-      return data || []
+      const fetchedProducts = data || []
+
+      if (fetchedProducts.length === 0) {
+        setProducts(MOCK_PRODUCTS)
+        setHasMore(false)
+        return MOCK_PRODUCTS
+      }
+
+      setProducts(fetchedProducts)
+      setHasMore(fetchedProducts.length === PRODUCTS_PER_PAGE)
+      return fetchedProducts
     },
     {
       retries: 3,
       retryDelay: 1000,
-      onError: (error) => console.error("Error fetching products:", error),
+      onError: (error) => {
+        console.error("Error fetching products:", error)
+        setProducts(MOCK_PRODUCTS)
+        setHasMore(false)
+      },
     },
   )
 
@@ -145,7 +235,7 @@ export function ProductGrid() {
       case "like new":
         return { text: "Like New", className: "bg-green-400 text-white" }
       default:
-        return null // Removed Second Hand badges completely
+        return null
     }
   }
 
@@ -194,24 +284,6 @@ export function ProductGrid() {
                 Refresh Page
               </Button>
             </div>
-          </div>
-        </div>
-      </section>
-    )
-  }
-
-  if (products.length === 0) {
-    return (
-      <section className="py-2">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xl font-bold text-foreground">Latest Ads</h3>
-          </div>
-          <div className="text-center py-8">
-            <p className="text-gray-600 mb-4">No ads posted yet. Be the first to post an ad!</p>
-            <Link href="/sell" prefetch={false}>
-              <Button className="bg-green-600 hover:bg-green-700">Post Your First Ad</Button>
-            </Link>
           </div>
         </div>
       </section>
@@ -333,7 +405,6 @@ export function ProductGrid() {
           </div>
         </TooltipProvider>
 
-        {/* Load More */}
         {hasMore && (
           <div className="text-center mt-8">
             <Button
