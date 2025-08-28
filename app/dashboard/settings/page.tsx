@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
-import { Bell, Shield, Eye, Trash2, Download, AlertTriangle, Loader2 } from "lucide-react"
+import { Bell, Eye, Trash2, Download, AlertTriangle, Loader2 } from "lucide-react"
 import { DashboardNav } from "@/components/dashboard/dashboard-nav"
 import { AuthGuard } from "@/components/auth/auth-guard"
 import { useState, useEffect } from "react"
@@ -27,12 +27,6 @@ export default function SettingsPage() {
     weeklyDigest: true,
   })
 
-  const [privacy, setPrivacy] = useState({
-    showPhone: false,
-    showEmail: false,
-    allowSearchEngines: true,
-  })
-
   useEffect(() => {
     const loadSettings = async () => {
       if (!user) return
@@ -41,7 +35,7 @@ export default function SettingsPage() {
         const supabase = createClient()
         const { data, error } = await supabase
           .from("profiles")
-          .select("email_notifications, sms_notifications, push_notifications, show_phone, show_email")
+          .select("email_notifications, sms_notifications, push_notifications")
           .eq("id", user.id)
           .single()
 
@@ -52,12 +46,6 @@ export default function SettingsPage() {
             smsMessages: data.sms_notifications ?? false,
             pushNotifications: data.push_notifications ?? true,
             weeklyDigest: true,
-          })
-
-          setPrivacy({
-            showPhone: data.show_phone ?? false,
-            showEmail: data.show_email ?? false,
-            allowSearchEngines: true,
           })
         }
       } catch (error) {
@@ -82,8 +70,6 @@ export default function SettingsPage() {
           email_notifications: notifications.emailMessages,
           sms_notifications: notifications.smsMessages,
           push_notifications: notifications.pushNotifications,
-          show_phone: privacy.showPhone,
-          show_email: privacy.showEmail,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "id" },
@@ -110,11 +96,6 @@ export default function SettingsPage() {
 
   const handleNotificationChange = (key: string, value: boolean) => {
     setNotifications({ ...notifications, [key]: value })
-    setTimeout(saveSettings, 500) // Auto-save after 500ms
-  }
-
-  const handlePrivacyChange = (key: string, value: boolean) => {
-    setPrivacy({ ...privacy, [key]: value })
     setTimeout(saveSettings, 500) // Auto-save after 500ms
   }
 
@@ -145,7 +126,7 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-3xl font-bold text-foreground mb-2">Settings</h1>
-                <p className="text-muted-foreground">Manage your account preferences and privacy settings</p>
+                <p className="text-sm text-muted-foreground">Manage your account preferences and privacy settings</p>
               </div>
               {isSaving && (
                 <Badge variant="outline" className="flex items-center">
@@ -236,54 +217,6 @@ export default function SettingsPage() {
                   </CardContent>
                 </Card>
 
-                {/* Privacy Settings */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center">
-                      <Shield className="h-5 w-5 mr-2" />
-                      Privacy Settings
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="font-medium">Show Phone Number</h4>
-                        <p className="text-sm text-muted-foreground">Display your phone number on ads</p>
-                      </div>
-                      <Switch
-                        checked={privacy.showPhone}
-                        onCheckedChange={(checked) => handlePrivacyChange("showPhone", checked)}
-                      />
-                    </div>
-
-                    <Separator />
-
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="font-medium">Show Email Address</h4>
-                        <p className="text-sm text-muted-foreground">Display your email on ads</p>
-                      </div>
-                      <Switch
-                        checked={privacy.showEmail}
-                        onCheckedChange={(checked) => handlePrivacyChange("showEmail", checked)}
-                      />
-                    </div>
-
-                    <Separator />
-
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="font-medium">Allow Search Engines</h4>
-                        <p className="text-sm text-muted-foreground">Allow search engines to index your ads</p>
-                      </div>
-                      <Switch
-                        checked={privacy.allowSearchEngines}
-                        onCheckedChange={(checked) => setPrivacy({ ...privacy, allowSearchEngines: checked })}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-
                 {/* Account Management */}
                 <Card>
                   <CardHeader>
@@ -311,7 +244,7 @@ export default function SettingsPage() {
                         <h4 className="font-medium">Account Status</h4>
                         <div className="flex items-center space-x-2 mt-1">
                           <Badge variant="secondary" className="flex items-center">
-                            <Shield className="h-3 w-3 mr-1" />
+                            <Eye className="h-3 w-3 mr-1" />
                             Verified
                           </Badge>
                           <span className="text-sm text-muted-foreground">Member since Dec 2024</span>
