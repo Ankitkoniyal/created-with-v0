@@ -3,12 +3,14 @@ import { DashboardNav } from "@/components/dashboard/dashboard-nav"
 import { AuthGuard } from "@/components/auth/auth-guard"
 
 interface ConversationPageProps {
-  params: {
+  params: Promise<{
     conversationId: string
-  }
+  }>
 }
 
-export default function ConversationPage({ params }: ConversationPageProps) {
+export default async function ConversationPage({ params }: ConversationPageProps) {
+  const { conversationId } = await params
+
   return (
     <AuthGuard requireAuth={true}>
       <div className="min-h-screen bg-background">
@@ -18,7 +20,7 @@ export default function ConversationPage({ params }: ConversationPageProps) {
               <DashboardNav />
             </div>
             <div className="lg:col-span-3">
-              <ConversationView conversationId={params.conversationId} />
+              <ConversationView conversationId={conversationId} />
             </div>
           </div>
         </div>
