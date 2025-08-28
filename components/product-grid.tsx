@@ -227,29 +227,23 @@ export function ProductGrid() {
         </div>
 
         <TooltipProvider>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {" "}
-            {/* Reduced gap from 6 to 4 for more compact layout */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             {products.map((product) => {
               const conditionBadge = getConditionBadge(product.condition)
 
               return (
                 <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
                   <Card className="group h-full flex flex-col overflow-hidden border-0 bg-white rounded-xl shadow-sm">
-                    {" "}
-                    {/* Removed hover effects and reduced border radius */}
                     <CardContent className="p-0 flex flex-col h-full">
                       <div className="relative w-full aspect-square overflow-hidden bg-gray-50 rounded-xl">
-                        {" "}
-                        {/* Changed to aspect-square for square images */}
                         <img
                           src={product.images?.[0] || "/placeholder.svg?height=300&width=300&query=product"}
                           alt={product.title}
                           loading="lazy"
-                          className="w-full h-full object-cover" // Removed hover scale effect
+                          className="w-full h-full object-cover"
                         />
                         <div className="absolute top-3 right-3 flex flex-col gap-2">
-                          {conditionBadge && ( // Only show New and Like New badges
+                          {conditionBadge && (
                             <Badge
                               className={`text-xs font-medium px-3 py-1 rounded-full shadow-sm ${conditionBadge.className}`}
                             >
@@ -286,17 +280,11 @@ export function ProductGrid() {
                       </div>
 
                       <div className="p-3 flex flex-col flex-1 space-y-1">
-                        {" "}
-                        {/* Kept compact padding */}
                         <h4 className="text-base font-semibold text-gray-900 leading-5 line-clamp-2">
-                          {" "}
-                          {/* Removed hover color change and reduced font size */}
                           {product.title}
                         </h4>
                         <div className="flex items-center justify-between">
                           <p className="text-lg font-bold text-green-800">
-                            {" "}
-                            {/* Reduced price font size */}
                             {formatPrice(product.price, product.price_type)}
                           </p>
                           <Tooltip>
@@ -316,9 +304,7 @@ export function ProductGrid() {
                             <TooltipTrigger asChild>
                               <div className="flex items-center gap-1 cursor-help">
                                 <MapPin className="h-3 w-3 text-gray-400" />
-                                <span className="truncate text-xs font-medium">
-                                  {product.province} {/* Show only province for shorter location */}
-                                </span>
+                                <span className="truncate text-xs font-medium">{product.province}</span>
                               </div>
                             </TooltipTrigger>
                             <TooltipContent>
