@@ -5,9 +5,9 @@ import { createClient } from "@/lib/supabase/client"
 import { notFound } from "next/navigation"
 
 interface ProductPageProps {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 async function getProduct(id: string) {
@@ -154,7 +154,8 @@ async function getProduct(id: string) {
 }
 
 export default async function ProductPage({ params }: ProductPageProps) {
-  const product = await getProduct(params.id)
+  const { id } = await params
+  const product = await getProduct(id)
 
   if (!product) {
     notFound()

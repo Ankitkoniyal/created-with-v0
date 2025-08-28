@@ -33,16 +33,33 @@ interface Product {
   status: string
 }
 
-export default function SellerProfilePage({ params }: { params: { sellerId: string } }) {
+interface SellerPageProps {
+  params: Promise<{
+    sellerId: string
+  }>
+}
+
+export default function SellerProfilePage({ params }: SellerPageProps) {
   const [seller, setSeller] = useState<SellerProfile | null>(null)
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("ads")
   const [showContactModal, setShowContactModal] = useState(false)
+  const [sellerId, setSellerId] = useState<string>("")
   const { user } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
+    const getParams = async () => {
+      const resolvedParams = await params
+      setSellerId(resolvedParams.sellerId)
+    }
+    getParams()
+  }, [params])
+
+  useEffect(() => {
+    if (!sellerId) return
+
     const fetchSellerData = async () => {
       try {
         const supabase = createClient()
@@ -50,7 +67,7 @@ export default function SellerProfilePage({ params }: { params: { sellerId: stri
         const { data: sellerData, error: sellerError } = await supabase
           .from("profiles")
           .select("*")
-          .eq("id", params.sellerId)
+          .eq("id", sellerId)
           .single()
 
         if (sellerError) {
@@ -63,7 +80,7 @@ export default function SellerProfilePage({ params }: { params: { sellerId: stri
         const { data: productsData, error: productsError } = await supabase
           .from("products")
           .select("*")
-          .eq("user_id", params.sellerId)
+          .eq("user_id", sellerId)
           .eq("status", "active")
           .order("created_at", { ascending: false })
 
@@ -80,7 +97,7 @@ export default function SellerProfilePage({ params }: { params: { sellerId: stri
     }
 
     fetchSellerData()
-  }, [params.sellerId])
+  }, [sellerId])
 
   const handleContactSeller = () => {
     if (!user) {
@@ -88,7 +105,7 @@ export default function SellerProfilePage({ params }: { params: { sellerId: stri
       return
     }
 
-    if (user.id === params.sellerId) {
+    if (user.id === sellerId) {
       return
     }
 
@@ -180,10 +197,10 @@ export default function SellerProfilePage({ params }: { params: { sellerId: stri
               <Button
                 className="bg-primary hover:bg-green-600"
                 onClick={handleContactSeller}
-                disabled={user?.id === params.sellerId}
+                disabled={user?.id === sellerId}
               >
                 <MessageSquare className="h-4 w-4 mr-2" />
-                {user?.id === params.sellerId ? "Your Profile" : "Contact Seller"}
+                {user?.id === sellerId ? "Your Profile" : "Contact Seller"}
               </Button>
               <div className="text-center text-sm text-muted-foreground">{products.length} active ads</div>
             </div>
