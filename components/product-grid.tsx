@@ -10,6 +10,7 @@ import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { LoadingSkeleton } from "@/components/loading-skeleton"
 import { useAsyncOperation } from "@/hooks/use-async-operation"
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 
 interface Product {
   id: string
@@ -231,91 +232,122 @@ export function ProductGrid() {
           <p className="text-sm text-gray-600">{products.length} ads found</p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {products.map((product) => {
-            const conditionBadge = getConditionBadge(product.condition)
+        <TooltipProvider>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {products.map((product) => {
+              const conditionBadge = getConditionBadge(product.condition)
 
-            return (
-              <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
-                <Card className="group h-full flex flex-col overflow-hidden border-0 bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
-                  <CardContent className="p-0 flex flex-col h-full">
-                    <div className="relative w-full h-64 overflow-hidden bg-gray-50 rounded-2xl">
-                      <img
-                        src={product.images?.[0] || "/placeholder.svg?height=300&width=400&query=product"}
-                        alt={product.title}
-                        loading="lazy"
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                      />
-
-                      <div className="absolute top-3 left-3">
-                        <Badge className="bg-white/90 backdrop-blur-sm text-gray-700 text-xs font-medium px-3 py-1 rounded-full shadow-sm">
-                          AD{product.id.slice(-8).toUpperCase()}
-                        </Badge>
-                      </div>
-
-                      <div className="absolute top-3 right-3 flex flex-col gap-2">
-                        <Badge
-                          className={`text-xs font-medium px-3 py-1 rounded-full shadow-sm ${conditionBadge.className}`}
-                        >
-                          {conditionBadge.text}
-                        </Badge>
-
-                        {isNegotiable(product.price_type) && (
-                          <Badge className="bg-blue-500 text-white text-xs font-medium px-3 py-1 rounded-full shadow-sm">
-                            Negotiable
-                          </Badge>
-                        )}
-                      </div>
-
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        aria-label="Toggle favorite"
-                        className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-sm hover:bg-white shadow-md h-10 w-10 p-0 rounded-full border-0"
-                        onClick={(e) => toggleFavorite(product.id, e)}
-                      >
-                        <Heart
-                          className={`h-5 w-5 ${
-                            favorites.has(product.id) ? "fill-red-500 text-red-500" : "text-gray-600"
-                          }`}
+              return (
+                <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
+                  <Card className="group h-full flex flex-col overflow-hidden border-0 bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
+                    <CardContent className="p-0 flex flex-col h-full">
+                      <div className="relative w-full h-64 overflow-hidden bg-gray-50 rounded-2xl">
+                        <img
+                          src={product.images?.[0] || "/placeholder.svg?height=300&width=400&query=product"}
+                          alt={product.title}
+                          loading="lazy"
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                         />
-                      </Button>
-                    </div>
 
-                    <div className="p-3 flex flex-col flex-1 space-y-1">
-                      <h4 className="text-lg font-bold text-gray-900 leading-5 line-clamp-2 group-hover:text-blue-600 transition-colors">
-                        {product.title}
-                      </h4>
-
-                      <div className="flex items-center justify-between">
-                        <p className="text-xl font-bold text-green-800">
-                          {formatPrice(product.price, product.price_type)}
-                        </p>
-                        <div className="flex items-center space-x-1">
-                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                          <span className="text-sm font-semibold text-gray-700">4.2</span>
+                        <div className="absolute top-3 left-3">
+                          <Badge className="bg-white/90 backdrop-blur-sm text-gray-700 text-xs font-medium px-3 py-1 rounded-full shadow-sm">
+                            AD{product.id.slice(-8).toUpperCase()}
+                          </Badge>
                         </div>
+
+                        <div className="absolute top-3 right-3 flex flex-col gap-2">
+                          <Badge
+                            className={`text-xs font-medium px-3 py-1 rounded-full shadow-sm ${conditionBadge.className}`}
+                          >
+                            {conditionBadge.text}
+                          </Badge>
+
+                          {isNegotiable(product.price_type) && (
+                            <Badge className="bg-blue-500 text-white text-xs font-medium px-3 py-1 rounded-full shadow-sm">
+                              Negotiable
+                            </Badge>
+                          )}
+                        </div>
+
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              aria-label="Toggle favorite"
+                              className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-sm hover:bg-white shadow-md h-10 w-10 p-0 rounded-full border-0"
+                              onClick={(e) => toggleFavorite(product.id, e)}
+                            >
+                              <Heart
+                                className={`h-5 w-5 ${
+                                  favorites.has(product.id) ? "fill-red-500 text-red-500" : "text-gray-600"
+                                }`}
+                              />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{favorites.has(product.id) ? "Remove from favorites" : "Add to favorites"}</p>
+                          </TooltipContent>
+                        </Tooltip>
                       </div>
 
-                      <div className="flex items-center justify-between text-sm text-gray-500 pt-1">
-                        <div className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3 text-gray-400" />
-                          <span className="truncate text-xs font-medium">
-                            {product.city}, {product.province}
-                          </span>
+                      <div className="p-3 flex flex-col flex-1 space-y-1">
+                        <h4 className="text-lg font-bold text-gray-900 leading-5 line-clamp-2 group-hover:text-blue-600 transition-colors">
+                          {product.title}
+                        </h4>
+
+                        <div className="flex items-center justify-between">
+                          <p className="text-xl font-bold text-green-800">
+                            {formatPrice(product.price, product.price_type)}
+                          </p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex items-center space-x-1 cursor-help">
+                                <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                                <span className="text-sm font-semibold text-gray-700">4.2</span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Seller rating (4.2/5 stars)</p>
+                            </TooltipContent>
+                          </Tooltip>
                         </div>
-                        <div className="flex items-center gap-1 text-gray-400">
-                          <Clock className="h-3 w-3" />
-                          <span className="text-xs font-medium">{formatTimePosted(product.created_at)}</span>
+
+                        <div className="flex items-center justify-between text-sm text-gray-500 pt-1">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex items-center gap-1 cursor-help">
+                                <MapPin className="h-3 w-3 text-gray-400" />
+                                <span className="truncate text-xs font-medium">
+                                  {product.city}, {product.province}
+                                </span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Item location</p>
+                            </TooltipContent>
+                          </Tooltip>
+
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex items-center gap-1 text-gray-400 cursor-help">
+                                <Clock className="h-3 w-3" />
+                                <span className="text-xs font-medium">{formatTimePosted(product.created_at)}</span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Posted on {new Date(product.created_at).toLocaleDateString()}</p>
+                            </TooltipContent>
+                          </Tooltip>
                         </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            )
-          })}
-        </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              )
+            })}
+          </div>
+        </TooltipProvider>
 
         {/* Load More */}
         {hasMore && (

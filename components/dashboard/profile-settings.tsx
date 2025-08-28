@@ -107,27 +107,37 @@ export function ProfileSettings() {
         const fileName = `${user.id}/avatar.${fileExt}`
 
         try {
+          console.log("[v0] Starting image upload to:", fileName)
+
           const { data: uploadData, error: uploadError } = await supabase.storage
             .from("avatars")
             .upload(fileName, imageUpload, { upsert: true })
 
-          if (!uploadError) {
+          if (!uploadError && uploadData) {
             const {
               data: { publicUrl },
             } = supabase.storage.from("avatars").getPublicUrl(fileName)
             avatarUrl = publicUrl
+            console.log("[v0] Image uploaded successfully:", publicUrl)
+
+            toast({
+              title: "Image Uploaded",
+              description: "Profile picture updated successfully!",
+            })
           } else {
+            console.error("[v0] Upload error:", uploadError)
             toast({
               variant: "destructive",
               title: "Image Upload Failed",
-              description: "Profile updated but image upload failed. Please try uploading the image again.",
+              description: uploadError?.message || "Failed to upload image. Please try again.",
             })
           }
         } catch (imageError) {
+          console.error("[v0] Image upload exception:", imageError)
           toast({
             variant: "destructive",
             title: "Image Upload Failed",
-            description: "Profile updated but image upload failed. Please check your connection and try again.",
+            description: "Network error during upload. Please check your connection and try again.",
           })
         }
       }
@@ -273,12 +283,22 @@ export function ProfileSettings() {
         toast({
           variant: "destructive",
           title: "File Too Large",
-          description: "Image must be less than 2MB",
+          description: "Image must be less than 2MB. Please choose a smaller image.",
         })
         return
       }
 
-      console.log("[v0] Image selected for upload:", file.name, file.size)
+      const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
+      if (!allowedTypes.includes(file.type)) {
+        toast({
+          variant: "destructive",
+          title: "Invalid File Type",
+          description: "Please upload a JPEG, PNG, or WebP image.",
+        })
+        return
+      }
+
+      console.log("[v0] Image selected for upload:", file.name, file.size, file.type)
       setImageUpload(file)
       const url = URL.createObjectURL(file)
       setPreviewUrl(url)
@@ -286,6 +306,11 @@ export function ProfileSettings() {
       if (!isEditing) {
         setIsEditing(true)
       }
+
+      toast({
+        title: "Image Selected",
+        description: "Click 'Save Changes' to upload your new profile picture.",
+      })
     }
   }
 

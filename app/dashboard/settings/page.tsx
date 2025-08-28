@@ -243,10 +243,17 @@ export default function SettingsPage() {
                       <div>
                         <h4 className="font-medium">Account Status</h4>
                         <div className="flex items-center space-x-2 mt-1">
-                          <Badge variant="secondary" className="flex items-center">
-                            <Eye className="h-3 w-3 mr-1" />
-                            Verified
-                          </Badge>
+                          {user?.email_verified ? (
+                            <Badge variant="secondary" className="flex items-center">
+                              <Eye className="h-3 w-3 mr-1" />
+                              Verified
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="flex items-center text-orange-600 border-orange-200">
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              Unverified
+                            </Badge>
+                          )}
                           <span className="text-sm text-muted-foreground">Member since Dec 2024</span>
                         </div>
                       </div>
