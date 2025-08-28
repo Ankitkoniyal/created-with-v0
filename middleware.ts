@@ -1,32 +1,14 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
+import { logger } from "@/lib/logger"
+import { performanceMonitor } from "@/lib/performance-monitor"
 
 export async function middleware(request: NextRequest) {
+  const startTime = Date.now()
+
   let supabaseResponse = NextResponse.next({
     request,
   })
-
-  const response = NextResponse.next()
-
-  // Security headers
-  response.headers.set("X-Content-Type-Options", "nosniff")
-  response.headers.set("X-Frame-Options", "DENY")
-  response.headers.set("X-XSS-Protection", "1; mode=block")
-  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin")
-  response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-
-  // Content Security Policy
-  const csp = [
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: https:",
-    "font-src 'self'",
-    "connect-src 'self' https://*.supabase.co",
-    "frame-ancestors 'none'",
-  ].join("; ")
-
-  response.headers.set("Content-Security-Policy", csp)
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -53,26 +35,45 @@ export async function middleware(request: NextRequest) {
       error,
     } = await supabase.auth.getUser()
 
-    if (error) {
-      console.error("Middleware auth error:", error)
-      await supabase.auth.signOut()
+    if (error && error.message !== "Auth session missing!") {
+      logger.warn("Middleware auth error", { error: error.message, path: request.nextUrl.pathname })
+
+      if (error.message.includes("invalid") || error.message.includes("expired")) {
+        await supabase.auth.signOut()
+        logger.info("Cleared invalid session", { path: request.nextUrl.pathname })
+      }
     }
 
     const protectedRoutes = ["/dashboard", "/sell", "/profile"]
     const isProtectedRoute = protectedRoutes.some((route) => request.nextUrl.pathname.startsWith(route))
 
-    if (isProtectedRoute && !user && !error) {
+    if (isProtectedRoute && !user) {
       const redirectUrl = new URL("/auth/login", request.url)
       redirectUrl.searchParams.set("redirectedFrom", request.nextUrl.pathname + request.nextUrl.search)
+
+      logger.info("Redirecting unauthenticated user", {
+        from: request.nextUrl.pathname,
+        to: "/auth/login",
+      })
+
       return NextResponse.redirect(redirectUrl)
     }
-  } catch (error) {
-    console.error("Middleware error:", error)
-  }
 
-  Object.entries(response.headers.entries()).forEach(([key, value]) => {
-    supabaseResponse.headers.set(key, value)
-  })
+    const responseTime = Date.now() - startTime
+    performanceMonitor.recordMetric("middleware_request", responseTime, user?.id, {
+      path: request.nextUrl.pathname,
+      method: request.method,
+      userAgent: request.headers.get("user-agent")?.slice(0, 100),
+    })
+
+    supabaseResponse.headers.set("X-Response-Time", `${responseTime}ms`)
+  } catch (error) {
+    logger.error("Middleware error", error as Error, {
+      path: request.nextUrl.pathname,
+      method: request.method,
+      userAgent: request.headers.get("user-agent")?.slice(0, 100),
+    })
+  }
 
   return supabaseResponse
 }

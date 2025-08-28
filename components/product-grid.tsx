@@ -3,12 +3,13 @@
 import type React from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Heart, Loader2, MapPin, Clock, Star, RefreshCw, AlertCircle } from "lucide-react"
+import { Heart, Loader2, MapPin, Clock, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { toast } from "@/hooks/use-toast"
+import { LoadingSkeleton } from "@/components/loading-skeleton"
+import { useAsyncOperation } from "@/hooks/use-async-operation"
 
 interface Product {
   id: string
@@ -41,21 +42,21 @@ const PRODUCTS_PER_PAGE = 20
 export function ProductGrid() {
   const [products, setProducts] = useState<Product[]>([])
   const [page, setPage] = useState(0)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
-  const [error, setError] = useState<string | null>(null)
-  const [retryCount, setRetryCount] = useState(0)
 
   const supabase = createClient()
 
-  const fetchProducts = async (currentPage: number, showRetryToast = false) => {
-    const from = currentPage * PRODUCTS_PER_PAGE
-    const to = from + PRODUCTS_PER_PAGE - 1
+  const {
+    loading: isLoading,
+    error,
+    execute: fetchProducts,
+    retry,
+  } = useAsyncOperation(
+    async () => {
+      const from = 0 * PRODUCTS_PER_PAGE
+      const to = from + PRODUCTS_PER_PAGE - 1
 
-    try {
-      setError(null)
       const { data, error } = await supabase
         .from("products")
         .select(`
@@ -69,60 +70,56 @@ export function ProductGrid() {
         .order("created_at", { ascending: false })
         .range(from, to)
 
-      if (error) {
-        throw error
-      }
+      if (error) throw new Error(`Failed to load ads: ${error.message}`)
 
-      if (showRetryToast) {
-        toast({
-          title: "Success",
-          description: "Products loaded successfully",
-        })
-      }
-
+      setProducts(data || [])
+      setHasMore((data || []).length === PRODUCTS_PER_PAGE)
       return data || []
-    } catch (err: any) {
-      console.error("Error fetching products:", err)
-      const errorMessage = err.message || "Failed to load ads"
-      setError(errorMessage)
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      })
-      return null
-    }
-  }
+    },
+    {
+      retries: 3,
+      retryDelay: 1000,
+      onError: (error) => console.error("Error fetching products:", error),
+    },
+  )
+
+  const { loading: isLoadingMore, execute: loadMore } = useAsyncOperation(
+    async () => {
+      if (!hasMore) return []
+
+      const nextPage = page + 1
+      const from = nextPage * PRODUCTS_PER_PAGE
+      const to = from + PRODUCTS_PER_PAGE - 1
+
+      const { data, error } = await supabase
+        .from("products")
+        .select(`
+          *,
+          seller:profiles!user_id (
+            id,
+            full_name,
+            avatar_url
+          )
+        `)
+        .order("created_at", { ascending: false })
+        .range(from, to)
+
+      if (error) throw new Error(`Failed to load more ads: ${error.message}`)
+
+      setProducts((prev) => [...prev, ...(data || [])])
+      setPage(nextPage)
+      setHasMore((data || []).length === PRODUCTS_PER_PAGE)
+      return data || []
+    },
+    {
+      retries: 2,
+      retryDelay: 500,
+    },
+  )
 
   useEffect(() => {
-    const initialFetch = async () => {
-      setIsLoading(true)
-      const initialProducts = await fetchProducts(0)
-      if (initialProducts) {
-        setProducts(initialProducts)
-        setHasMore(initialProducts.length === PRODUCTS_PER_PAGE)
-      }
-      setIsLoading(false)
-    }
-    initialFetch()
+    fetchProducts()
   }, [])
-
-  const handleRetry = async () => {
-    setIsLoading(true)
-    setRetryCount((prev) => prev + 1)
-
-    // Exponential backoff delay
-    const delay = Math.min(1000 * Math.pow(2, retryCount), 10000)
-    await new Promise((resolve) => setTimeout(resolve, delay))
-
-    const initialProducts = await fetchProducts(0, true)
-    if (initialProducts) {
-      setProducts(initialProducts)
-      setHasMore(initialProducts.length === PRODUCTS_PER_PAGE)
-      setPage(0)
-    }
-    setIsLoading(false)
-  }
 
   const toggleFavorite = (productId: string, e: React.MouseEvent) => {
     e.preventDefault()
@@ -132,19 +129,6 @@ export function ProductGrid() {
       next.has(productId) ? next.delete(productId) : next.add(productId)
       return next
     })
-  }
-
-  const loadMore = async () => {
-    if (isLoadingMore || !hasMore) return
-    setIsLoadingMore(true)
-    const nextPage = page + 1
-    const newProducts = await fetchProducts(nextPage)
-    if (newProducts) {
-      setProducts((prev) => [...prev, ...newProducts])
-      setPage(nextPage)
-      setHasMore(newProducts.length === PRODUCTS_PER_PAGE)
-    }
-    setIsLoadingMore(false)
   }
 
   const formatPrice = (price: number, priceType: string) => {
@@ -193,20 +177,8 @@ export function ProductGrid() {
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xl font-bold text-foreground">Latest Ads</h3>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-            {Array.from({ length: 12 }).map((_, i) => (
-              <Card
-                key={i}
-                className="h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-xl animate-pulse"
-              >
-                <div className="w-full h-40 sm:h-48 lg:h-52 bg-gray-200"></div>
-                <div className="p-3 flex flex-col flex-1">
-                  <div className="h-4 bg-gray-200 rounded mb-2"></div>
-                  <div className="h-3 bg-gray-200 rounded mb-1"></div>
-                  <div className="h-3 bg-gray-200 rounded"></div>
-                </div>
-              </Card>
-            ))}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            <LoadingSkeleton type="card" count={12} />
           </div>
         </div>
       </section>
@@ -217,23 +189,17 @@ export function ProductGrid() {
     return (
       <section className="py-2">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <Card>
-            <CardContent className="p-12 text-center">
-              <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Failed to load ads</h3>
-              <p className="text-gray-600 mb-4">{error}</p>
-              <div className="flex gap-2 justify-center">
-                <Button onClick={handleRetry} className="flex items-center gap-2">
-                  <RefreshCw className="h-4 w-4" />
-                  Try Again
-                </Button>
-                <Button variant="outline" onClick={() => window.location.reload()}>
-                  Refresh Page
-                </Button>
-              </div>
-              {retryCount > 0 && <p className="text-sm text-gray-500 mt-2">Retry attempt: {retryCount}</p>}
-            </CardContent>
-          </Card>
+          <div className="text-center py-8">
+            <p className="text-red-600 mb-4">{error}</p>
+            <div className="space-x-2">
+              <Button onClick={retry} className="bg-green-600 hover:bg-green-700">
+                Try Again
+              </Button>
+              <Button variant="outline" onClick={() => window.location.reload()}>
+                Refresh Page
+              </Button>
+            </div>
+          </div>
         </div>
       </section>
     )
@@ -316,31 +282,31 @@ export function ProductGrid() {
                       </Button>
                     </div>
 
-                    <div className="p-3 flex flex-col flex-1 space-y-2">
-                      <h4 className="text-lg font-bold text-gray-900 leading-6 line-clamp-2 group-hover:text-blue-600 transition-colors">
+                    <div className="p-3 flex flex-col flex-1 space-y-1">
+                      <h4 className="text-lg font-bold text-gray-900 leading-5 line-clamp-2 group-hover:text-blue-600 transition-colors">
                         {product.title}
                       </h4>
 
                       <div className="flex items-center justify-between">
-                        <p className="text-2xl font-bold text-green-700">
+                        <p className="text-xl font-bold text-green-800">
                           {formatPrice(product.price, product.price_type)}
                         </p>
                         <div className="flex items-center space-x-1">
                           <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                          <span className="font-semibold text-gray-700">4.2</span>
+                          <span className="text-sm font-semibold text-gray-700">4.2</span>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between text-sm text-gray-500 mt-auto pt-1 border-t border-gray-100">
+                      <div className="flex items-center justify-between text-sm text-gray-500 pt-1">
                         <div className="flex items-center gap-1">
-                          <MapPin className="h-4 w-4 text-gray-400" />
-                          <span className="truncate font-medium">
+                          <MapPin className="h-3 w-3 text-gray-400" />
+                          <span className="truncate text-xs font-medium">
                             {product.city}, {product.province}
                           </span>
                         </div>
                         <div className="flex items-center gap-1 text-gray-400">
-                          <Clock className="h-4 w-4" />
-                          <span className="font-medium">{formatTimePosted(product.created_at)}</span>
+                          <Clock className="h-3 w-3" />
+                          <span className="text-xs font-medium">{formatTimePosted(product.created_at)}</span>
                         </div>
                       </div>
                     </div>
