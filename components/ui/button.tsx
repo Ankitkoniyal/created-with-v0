@@ -9,15 +9,15 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
+        default: "bg-green-800 text-white shadow-xs hover:bg-green-900",
         destructive:
-          "bg-primary text-white shadow-xs hover:bg-primary/90 focus-visible:ring-primary/20 dark:focus-visible:ring-primary/40",
+          "bg-red-600 text-white shadow-xs hover:bg-red-700 focus-visible:ring-red-600/20 dark:focus-visible:ring-red-600/40",
         outline:
-          "border border-primary bg-background shadow-xs hover:bg-primary hover:text-primary-foreground text-primary dark:bg-input/30 dark:border-primary dark:hover:bg-primary dark:hover:text-primary-foreground",
+          "border border-green-800 bg-background shadow-xs hover:bg-green-800 hover:text-white text-green-800 dark:bg-input/30 dark:border-green-800 dark:hover:bg-green-800 dark:hover:text-white",
         secondary:
-          "bg-primary/10 text-primary shadow-xs hover:bg-primary hover:text-primary-foreground border border-primary/20",
-        ghost: "hover:bg-primary/10 hover:text-primary text-primary dark:hover:bg-primary/20",
-        link: "text-primary underline-offset-4 hover:underline hover:text-primary/80",
+          "bg-green-800/10 text-green-800 shadow-xs hover:bg-green-800 hover:text-white border border-green-800/20",
+        ghost: "hover:bg-green-800/10 hover:text-green-800 text-green-800 dark:hover:bg-green-800/20",
+        link: "text-green-800 underline-offset-4 hover:underline hover:text-green-900",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",

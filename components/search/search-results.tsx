@@ -227,7 +227,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
           <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-foreground mb-2">Search Error</h3>
           <p className="text-muted-foreground mb-4">{error}</p>
-          <Button onClick={() => window.location.reload()} className="bg-green-800 hover:bg-green-900">
+          <Button onClick={() => window.location.reload()} className="bg-green-900 hover:bg-green-950">
             Try Again
           </Button>
         </CardContent>
@@ -244,7 +244,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
           <p className="text-muted-foreground mb-4">
             Try adjusting your search terms or filters to find what you're looking for.
           </p>
-          <Button asChild className="bg-green-800 hover:bg-green-900">
+          <Button asChild className="bg-green-900 hover:bg-green-950">
             <Link href="/search">Clear Search</Link>
           </Button>
         </CardContent>
@@ -268,7 +268,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
             size="sm"
             onClick={() => setViewMode("grid")}
             className={
-              viewMode === "grid" ? "bg-green-800 hover:bg-green-900" : "hover:bg-green-100 hover:text-green-700"
+              viewMode === "grid" ? "bg-green-900 hover:bg-green-950" : "hover:bg-green-100 hover:text-green-700"
             }
           >
             <Grid3X3 className="h-4 w-4" />
@@ -278,7 +278,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
             size="sm"
             onClick={() => setViewMode("list")}
             className={
-              viewMode === "list" ? "bg-green-800 hover:bg-green-900" : "hover:bg-green-100 hover:text-green-700"
+              viewMode === "list" ? "bg-green-900 hover:bg-green-950" : "hover:bg-green-100 hover:text-green-700"
             }
           >
             <List className="h-4 w-4" />
