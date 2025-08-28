@@ -149,16 +149,12 @@ export function ProductGrid() {
         .order("created_at", { ascending: false })
         .range(from, to)
 
-      if (error) throw new Error(`Failed to load ads: ${error.message}`)
-
-      const fetchedProducts = data || []
-
-      if (fetchedProducts.length === 0) {
-        setProducts(MOCK_PRODUCTS)
-        setHasMore(false)
-        return MOCK_PRODUCTS
+      if (error) {
+        console.error("Supabase error:", error)
+        throw new Error(`Database connection failed: ${error.message}`)
       }
 
+      const fetchedProducts = data || []
       setProducts(fetchedProducts)
       setHasMore(fetchedProducts.length === PRODUCTS_PER_PAGE)
       return fetchedProducts
@@ -168,8 +164,6 @@ export function ProductGrid() {
       retryDelay: 1000,
       onError: (error) => {
         console.error("Error fetching products:", error)
-        setProducts(MOCK_PRODUCTS)
-        setHasMore(false)
       },
     },
   )
@@ -262,8 +256,8 @@ export function ProductGrid() {
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xl font-bold text-foreground">Latest Ads</h3>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            <LoadingSkeleton type="card" count={12} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <LoadingSkeleton type="card" count={15} />
           </div>
         </div>
       </section>
@@ -274,9 +268,10 @@ export function ProductGrid() {
     return (
       <section className="py-2">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center py-8">
-            <p className="text-red-600 mb-4">{error}</p>
-            <div className="space-x-2">
+          <div className="text-center py-12">
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">Unable to Load Ads</h3>
+            <p className="text-gray-600 mb-6">We're having trouble connecting to the database. Please try again.</p>
+            <div className="space-x-3">
               <Button onClick={retry} className="bg-green-600 hover:bg-green-700">
                 Try Again
               </Button>
@@ -284,6 +279,22 @@ export function ProductGrid() {
                 Refresh Page
               </Button>
             </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (products.length === 0) {
+    return (
+      <section className="py-2">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center py-12">
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">No Ads Found</h3>
+            <p className="text-gray-600 mb-6">Be the first to post an ad in your area!</p>
+            <Button asChild className="bg-green-600 hover:bg-green-700">
+              <Link href="/post">Post Your First Ad</Link>
+            </Button>
           </div>
         </div>
       </section>
