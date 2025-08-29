@@ -71,8 +71,8 @@ export function Header(): ReactElement {
   const { user, profile, logout, isLoading } = useAuth()
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
-  const [selectedLocation, setSelectedLocation] = useState("All Canada")
-  const [locationInput, setLocationInput] = useState("All Canada")
+  const [selectedLocation, setSelectedLocation] = useState("")
+  const [locationInput, setLocationInput] = useState("")
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false)
   const [filteredLocations, setFilteredLocations] = useState<string[]>([])
   const locationInputRef = useRef<HTMLInputElement>(null)
@@ -84,7 +84,7 @@ export function Header(): ReactElement {
   })
 
   const allLocations = useState(() => {
-    const locations = ["All Canada"]
+    const locations: string[] = []
     CANADIAN_LOCATIONS.forEach((location) => {
       locations.push(location.province)
       location.cities.forEach((city) => {
@@ -113,12 +113,18 @@ export function Header(): ReactElement {
     setSelectedLocation(location)
     setShowLocationSuggestions(false)
     locationInputRef.current?.blur()
+
+    const params = new URLSearchParams(window.location.search)
+    params.set("location", location)
+    if (searchQuery) {
+      params.set("q", searchQuery)
+    }
+    router.push(`/search?${params.toString()}`)
   }
 
   const handleLocationFocus = () => {
-    if (locationInput.trim() !== "") {
-      handleLocationInputChange(locationInput)
-    }
+    setLocationInput("")
+    setShowLocationSuggestions(false)
   }
 
   const handleLocationBlur = () => {
@@ -129,7 +135,14 @@ export function Header(): ReactElement {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    // Implement search logic here
+    const params = new URLSearchParams()
+    if (searchQuery.trim()) {
+      params.set("q", searchQuery.trim())
+    }
+    if (selectedLocation) {
+      params.set("location", selectedLocation)
+    }
+    router.push(`/search?${params.toString()}`)
   }
 
   const handleLogout = () => {
@@ -222,7 +235,7 @@ export function Header(): ReactElement {
                   <Input
                     ref={locationInputRef}
                     type="text"
-                    placeholder="Enter city or province..."
+                    placeholder="City or Location"
                     className="border-0 bg-transparent shadow-none focus:ring-0 focus-visible:ring-0 w-full text-xs sm:text-sm"
                     value={locationInput}
                     onChange={(e) => handleLocationInputChange(e.target.value)}
