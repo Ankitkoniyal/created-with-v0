@@ -1,7 +1,9 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+
+import type { ReactElement } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   Search,
   Heart,
@@ -25,7 +27,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
@@ -66,17 +67,65 @@ const CATEGORIES = [
   "Vehicles",
 ]
 
-export function Header() {
+export function Header(): ReactElement {
   const { user, profile, logout, isLoading } = useAuth()
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedLocation, setSelectedLocation] = useState("All Canada")
+  const [locationInput, setLocationInput] = useState("All Canada")
+  const [showLocationSuggestions, setShowLocationSuggestions] = useState(false)
+  const [filteredLocations, setFilteredLocations] = useState<string[]>([])
+  const locationInputRef = useRef<HTMLInputElement>(null)
   const [showMegaMenu, setShowMegaMenu] = useState(false)
   const [notificationCounts, setNotificationCounts] = useState({
     favorites: 0,
     messages: 0,
     notifications: 0,
   })
+
+  const allLocations = useState(() => {
+    const locations = ["All Canada"]
+    CANADIAN_LOCATIONS.forEach((location) => {
+      locations.push(location.province)
+      location.cities.forEach((city) => {
+        locations.push(`${city}, ${location.province}`)
+      })
+    })
+    return locations
+  })[0]
+
+  const handleLocationInputChange = (value: string) => {
+    setLocationInput(value)
+    if (value.trim() === "") {
+      setFilteredLocations([])
+      setShowLocationSuggestions(false)
+      return
+    }
+
+    const filtered = allLocations.filter((location) => location.toLowerCase().includes(value.toLowerCase())).slice(0, 8)
+
+    setFilteredLocations(filtered)
+    setShowLocationSuggestions(filtered.length > 0)
+  }
+
+  const handleLocationSelect = (location: string) => {
+    setLocationInput(location)
+    setSelectedLocation(location)
+    setShowLocationSuggestions(false)
+    locationInputRef.current?.blur()
+  }
+
+  const handleLocationFocus = () => {
+    if (locationInput.trim() !== "") {
+      handleLocationInputChange(locationInput)
+    }
+  }
+
+  const handleLocationBlur = () => {
+    setTimeout(() => {
+      setShowLocationSuggestions(false)
+    }, 200)
+  }
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -127,27 +176,23 @@ export function Header() {
     return () => clearInterval(interval)
   }, [user?.id])
 
-  // Show loading state for header
   if (isLoading) {
     return (
       <header className="sticky top-0 z-50 bg-background border-b border-border">
         <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            {/* Logo */}
             <div className="flex items-center flex-shrink-0">
               <Link href="/">
                 <h1 className="text-2xl sm:text-3xl font-bold text-black cursor-pointer">M</h1>
               </Link>
             </div>
 
-            {/* Loading placeholder for search */}
             <div className="flex-1 max-w-4xl mx-2 sm:mx-4 lg:mx-8">
               <div className="flex items-center bg-white border-2 border-gray-200 rounded-full shadow-lg h-12">
                 <div className="flex-1 h-4 bg-gray-200 rounded mx-4 animate-pulse"></div>
               </div>
             </div>
 
-            {/* Loading placeholder for nav */}
             <div className="hidden md:flex items-center space-x-4 flex-shrink-0">
               <div className="h-8 w-8 rounded-full bg-gray-200 animate-pulse"></div>
             </div>
@@ -157,14 +202,12 @@ export function Header() {
     )
   }
 
-  // Check if user is authenticated (both Supabase user and profile exist)
   const isAuthenticated = user && profile
 
   return (
     <header className="sticky top-0 z-50 bg-background border-b border-border">
       <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
           <div className="flex items-center flex-shrink-0">
             <Link href="/">
               <h1 className="text-2xl sm:text-3xl font-bold text-black cursor-pointer">M</h1>
@@ -174,34 +217,36 @@ export function Header() {
           <div className="flex-1 max-w-4xl mx-2 sm:mx-4 lg:mx-8">
             <form onSubmit={handleSearch} className="relative">
               <div className="flex items-center bg-white border-2 border-gray-200 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:border-gray-300">
-                {/* Location Selector */}
-                <div className="flex items-center border-r border-gray-200 px-3 flex-1">
-                  <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-                    <SelectTrigger className="border-0 bg-transparent shadow-none focus:ring-0 w-full text-xs sm:text-sm">
-                      <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-1 text-green-600" />
-                      <SelectValue placeholder="Location" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="All Canada" className="font-semibold">
-                        All Canada
-                      </SelectItem>
-                      {CANADIAN_LOCATIONS.map((location) => (
-                        <div key={location.province}>
-                          <SelectItem value={location.province} className="font-semibold">
-                            {location.province}
-                          </SelectItem>
-                          {location.cities.map((city) => (
-                            <SelectItem key={city} value={`${city}, ${location.province}`} className="pl-6">
-                              {city}
-                            </SelectItem>
-                          ))}
-                        </div>
+                <div className="flex items-center border-r border-gray-200 px-3 flex-1 relative">
+                  <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-2 text-green-600 flex-shrink-0" />
+                  <Input
+                    ref={locationInputRef}
+                    type="text"
+                    placeholder="Enter city or province..."
+                    className="border-0 bg-transparent shadow-none focus:ring-0 focus-visible:ring-0 w-full text-xs sm:text-sm"
+                    value={locationInput}
+                    onChange={(e) => handleLocationInputChange(e.target.value)}
+                    onFocus={handleLocationFocus}
+                    onBlur={handleLocationBlur}
+                  />
+
+                  {showLocationSuggestions && filteredLocations.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 z-50 max-h-64 overflow-y-auto">
+                      {filteredLocations.map((location, index) => (
+                        <button
+                          key={index}
+                          type="button"
+                          className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm border-b border-gray-100 last:border-b-0 flex items-center"
+                          onClick={() => handleLocationSelect(location)}
+                        >
+                          <MapPin className="h-3 w-3 mr-2 text-green-600 flex-shrink-0" />
+                          <span className="truncate">{location}</span>
+                        </button>
                       ))}
-                    </SelectContent>
-                  </Select>
+                    </div>
+                  )}
                 </div>
 
-                {/* Search Input */}
                 <div className="flex-2 flex items-center px-4">
                   <Search className="h-4 w-4 text-green-600 mr-3" />
                   <Input
@@ -213,7 +258,6 @@ export function Header() {
                   />
                 </div>
 
-                {/* Search Button */}
                 <Button
                   type="submit"
                   size="sm"
@@ -225,7 +269,6 @@ export function Header() {
             </form>
           </div>
 
-          {/* Navigation */}
           <nav className="hidden md:flex items-center space-x-4 flex-shrink-0">
             <Button variant="ghost" size="sm" asChild>
               <Link href="/" className="text-green-800 hover:text-green-900 font-medium">
@@ -357,7 +400,6 @@ export function Header() {
             )}
           </nav>
 
-          {/* Mobile menu */}
           <Button variant="ghost" size="sm" className="md:hidden flex-shrink-0">
             <Menu className="h-4 w-4" />
           </Button>
