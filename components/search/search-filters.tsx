@@ -25,73 +25,6 @@ const categories = [
   "Other",
 ]
 
-const subcategories: Record<string, string[]> = {
-  Electronics: [
-    "TV",
-    "Fridge",
-    "Oven",
-    "AC",
-    "Cooler",
-    "Toaster",
-    "Fan",
-    "Washing Machine",
-    "Microwave",
-    "Computer",
-    "Laptop",
-    "Camera",
-    "Audio System",
-  ],
-  Vehicles: [
-    "Cars",
-    "Motorcycles",
-    "Trucks",
-    "Buses",
-    "Bicycles",
-    "Scooters",
-    "Boats",
-    "RVs",
-    "ATVs",
-    "Parts & Accessories",
-  ],
-  Mobile: [
-    "Smartphones",
-    "Tablets",
-    "Accessories",
-    "Cases & Covers",
-    "Chargers",
-    "Headphones",
-    "Smart Watches",
-    "Power Banks",
-  ],
-  "Real Estate": [
-    "Houses",
-    "Apartments",
-    "Commercial",
-    "Land",
-    "Rental",
-    "Vacation Rentals",
-    "Office Space",
-    "Warehouse",
-  ],
-  Fashion: [
-    "Men's Clothing",
-    "Women's Clothing",
-    "Kids Clothing",
-    "Shoes",
-    "Bags",
-    "Jewelry",
-    "Watches",
-    "Accessories",
-  ],
-  Pets: ["Dogs", "Cats", "Birds", "Fish", "Pet Food", "Pet Accessories", "Pet Care", "Pet Services"],
-  Furniture: ["Sofa", "Bed", "Table", "Chair", "Wardrobe", "Desk", "Cabinet", "Dining Set", "Home Decor"],
-  Jobs: ["Full Time", "Part Time", "Freelance", "Internship", "Remote Work", "Contract", "Temporary"],
-  Gaming: ["Video Games", "Consoles", "PC Gaming", "Mobile Games", "Gaming Accessories", "Board Games"],
-  Books: ["Fiction", "Non-Fiction", "Educational", "Comics", "Magazines", "E-books", "Audiobooks"],
-  Services: ["Home Services", "Repair", "Cleaning", "Tutoring", "Photography", "Event Planning", "Transportation"],
-  Other: ["Sports Equipment", "Musical Instruments", "Art & Crafts", "Collectibles", "Tools", "Garden", "Baby Items"],
-}
-
 const categorySpecificFilters = {
   Vehicles: {
     "Vehicle Type": ["Car", "Truck", "SUV", "Motorcycle", "Van", "Bus"],
@@ -168,7 +101,6 @@ export function SearchFilters({ searchQuery }: SearchFiltersProps) {
     [router, searchParams.toString()], // Use toString() to create stable dependency
   )
 
-  const availableSubcategories = selectedCategory ? subcategories[selectedCategory] || [] : []
   const categoryOptions = categorySpecificFilters[selectedCategory as keyof typeof categorySpecificFilters] || {}
 
   const clearFilters = useCallback(() => {
@@ -229,36 +161,7 @@ export function SearchFilters({ searchQuery }: SearchFiltersProps) {
           </>
         )}
 
-        {selectedCategory && !selectedSubcategory && availableSubcategories.length > 0 && (
-          <>
-            <div className="space-y-4">
-              <Label className="text-base font-semibold text-gray-800 flex items-center">
-                Select {selectedCategory} Subcategory
-              </Label>
-              <div className="grid grid-cols-2 gap-3">
-                {availableSubcategories.map((subcategory) => (
-                  <button
-                    key={subcategory}
-                    onClick={() => updateUrl({ subcategory: subcategory })}
-                    className="p-3 text-left border-2 border-gray-200 rounded-lg hover:border-green-400 hover:bg-green-50 transition-all duration-200 text-sm font-medium"
-                  >
-                    {subcategory}
-                  </button>
-                ))}
-              </div>
-              <Button
-                variant="outline"
-                onClick={() => updateUrl({ subcategory: "all" })}
-                className="w-full border-2 border-green-200 hover:border-green-400 hover:bg-green-50"
-              >
-                Show All {selectedCategory}
-              </Button>
-            </div>
-            <Separator className="bg-green-200" />
-          </>
-        )}
-
-        {selectedCategory && (selectedSubcategory || availableSubcategories.length === 0) && (
+        {selectedCategory && (
           <>
             {Object.keys(categoryOptions).length > 0 && (
               <>

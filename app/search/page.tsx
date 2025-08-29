@@ -3,6 +3,7 @@
 import { useMemo } from "react"
 import { SearchResults } from "@/components/search/search-results"
 import { SearchFilters } from "@/components/search/search-filters"
+import { SubcategoryNav } from "@/components/subcategory-nav"
 import { Breadcrumb } from "@/components/breadcrumb"
 
 interface SearchPageProps {
@@ -64,6 +65,9 @@ export default function SearchPage({ searchParams }: SearchPageProps) {
             <SearchFilters currentFilters={filters} searchQuery={query} />
           </div>
           <div className="lg:col-span-3">
+            {filters.category && (
+              <SubcategoryNav category={filters.category} selectedSubcategory={filters.subcategory} />
+            )}
             <SearchResults searchQuery={query} filters={filters} />
           </div>
         </div>
