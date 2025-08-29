@@ -3,7 +3,7 @@ import { Upload, Link, Video } from "lucide-react"
 
 export function HeroSection() {
   return (
-    <section className="relative w-full py-20 px-4 overflow-hidden bg-gray-950">
+    <section className="relative w-full py-15 px-4 overflow-hidden bg-gray-950">
       <div className="absolute inset-0 z-0 opacity-20">
         <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-green-800 via-transparent to-transparent animate-pulse-slow"></div>
         <div className="absolute bottom-0 right-0 w-3/4 h-3/4 bg-[radial-gradient(ellipse_at_bottom,_var(--tw-gradient-stops))] from-green-700 via-transparent to-transparent animate-pulse-slow delay-500"></div>
@@ -12,7 +12,7 @@ export function HeroSection() {
       <div className="relative max-w-6xl mx-auto text-center z-10">
         {/* Main Heading */}
         <h1 className="text-4xl sm:text-6xl md:text-7xl font-extrabold tracking-tight text-white drop-shadow-lg leading-tight mb-4 animate-fade-in-up">
-          Canada's Fastest Growing <span className="text-green-400 block sm:inline-block">Ads Marketplace</span>
+          Canada's Fastest Growing <span className="text-green-800 block sm:inline-block">Ads Marketplace</span>
         </h1>
         
         {/* Subtitle */}
@@ -23,7 +23,7 @@ export function HeroSection() {
         {/* Feature Sections with Improved Design */}
         <div className="flex flex-col md:flex-row justify-center items-center gap-6 max-w-4xl mx-auto mb-12">
           <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 flex-1 text-left border border-white/20 hover:bg-white/20 transition-all duration-300 transform hover:-translate-y-1 hover:shadow-2xl animate-fade-in delay-300">
-            <Upload className="w-8 h-8 text-green-400 mb-2" />
+            <Upload className="w-8 h-6 text-green-400 mb-2" />
             <h3 className="font-bold text-lg text-white">Unlimited Ads (Free)</h3>
             <p className="text-sm text-gray-300">Publish as many ads as you need to grow your business.</p>
           </div>
