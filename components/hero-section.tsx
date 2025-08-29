@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 
 export function HeroSection() {
   return (
-    <section className="relative w-full py-8 sm:py-10 px-4 overflow-hidden bg-gray-950">
+    <section className="relative w-full py-14 sm:py-16 px-4 overflow-hidden bg-gray-950">
       <div className="absolute inset-0 z-0 opacity-20">
         <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-green-800 via-transparent to-transparent animate-pulse-slow"></div>
         <div className="absolute bottom-0 right-0 w-3/4 h-3/4 bg-[radial-gradient(ellipse_at_bottom,_var(--tw-gradient-stops))] from-green-700 via-transparent to-transparent animate-pulse-slow delay-500"></div>
@@ -13,28 +13,25 @@ export function HeroSection() {
 
       <div className="relative max-w-6xl mx-auto text-center z-10">
         {/* Main Heading */}
-        <h1 className="text-4xl sm:text-6xl md:text-7xl font-extrabold tracking-tight text-white leading-tight mb-6">
-          {"Canada's Fastest Growing "}
-          <span className="inline-block align-middle rounded-full border border-white px-3 py-1 text-green-900 bg-white/90">
-            Ads Marketplace
-          </span>
+        <h1 className="text-4xl sm:text-6xl md:text-7xl font-extrabold tracking-tight text-white leading-tight mb-8">
+          {"Canada's Fastest Growing Ads Marketplace"}
         </h1>
 
         {/* Feature Sections */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-8">
-          <div className="bg-white rounded-lg p-4 text-center shadow-sm">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto mb-10">
+          <div className="bg-white rounded-lg p-6 text-center shadow-sm">
             <Upload className="w-8 h-8 text-green-900 mb-3 mx-auto" />
             <h3 className="font-semibold text-base text-gray-900">Unlimited Ads (Free)</h3>
             <p className="text-sm text-gray-600">Publish as many ads as you need to grow your business.</p>
           </div>
 
-          <div className="bg-white rounded-lg p-4 text-center shadow-sm">
+          <div className="bg-white rounded-lg p-6 text-center shadow-sm">
             <LinkIcon className="w-8 h-8 text-green-900 mb-3 mx-auto" />
             <h3 className="font-semibold text-base text-gray-900">Website URL (Free)</h3>
             <p className="text-sm text-gray-600">Drive traffic to your site with a direct link.</p>
           </div>
 
-          <div className="bg-white rounded-lg p-4 text-center shadow-sm">
+          <div className="bg-white rounded-lg p-6 text-center shadow-sm">
             <Video className="w-8 h-8 text-green-900 mb-3 mx-auto" />
             <h3 className="font-semibold text-base text-gray-900">YouTube Video (Free)</h3>
             <p className="text-sm text-gray-600">Showcase your products or services with a video.</p>
@@ -44,9 +41,9 @@ export function HeroSection() {
         {/* CTA Button */}
         <Button
           asChild
-          variant="outline"
+          variant="default"
           size="lg"
-          className="border-white text-green-900 bg-transparent hover:bg-white/10 px-8 h-10 text-base rounded-full"
+          className="bg-green-900 text-white hover:bg-green-950 px-8 h-12 text-base rounded-md"
         >
           <NextLink href="/post-ad">Post Free Ads Now</NextLink>
         </Button>
