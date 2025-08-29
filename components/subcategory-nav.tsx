@@ -3,73 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useCallback } from "react"
-
-const subcategories: Record<string, string[]> = {
-  Electronics: [
-    "TV",
-    "Fridge",
-    "Oven",
-    "AC",
-    "Cooler",
-    "Toaster",
-    "Fan",
-    "Washing Machine",
-    "Microwave",
-    "Computer",
-    "Laptop",
-    "Camera",
-    "Audio System",
-  ],
-  Vehicles: [
-    "Cars",
-    "Motorcycles",
-    "Trucks",
-    "Buses",
-    "Bicycles",
-    "Scooters",
-    "Boats",
-    "RVs",
-    "ATVs",
-    "Parts & Accessories",
-  ],
-  Mobile: [
-    "Smartphones",
-    "Tablets",
-    "Accessories",
-    "Cases & Covers",
-    "Chargers",
-    "Headphones",
-    "Smart Watches",
-    "Power Banks",
-  ],
-  "Real Estate": [
-    "Houses",
-    "Apartments",
-    "Commercial",
-    "Land",
-    "Rental",
-    "Vacation Rentals",
-    "Office Space",
-    "Warehouse",
-  ],
-  Fashion: [
-    "Men's Clothing",
-    "Women's Clothing",
-    "Kids Clothing",
-    "Shoes",
-    "Bags",
-    "Jewelry",
-    "Watches",
-    "Accessories",
-  ],
-  Pets: ["Dogs", "Cats", "Birds", "Fish", "Pet Food", "Pet Accessories", "Pet Care", "Pet Services"],
-  Furniture: ["Sofa", "Bed", "Table", "Chair", "Wardrobe", "Desk", "Cabinet", "Dining Set", "Home Decor"],
-  Jobs: ["Full Time", "Part Time", "Freelance", "Internship", "Remote Work", "Contract", "Temporary"],
-  Gaming: ["Video Games", "Consoles", "PC Gaming", "Mobile Games", "Gaming Accessories", "Board Games"],
-  Books: ["Fiction", "Non-Fiction", "Educational", "Comics", "Magazines", "E-books", "Audiobooks"],
-  Services: ["Home Services", "Repair", "Cleaning", "Tutoring", "Photography", "Event Planning", "Transportation"],
-  Other: ["Sports Equipment", "Musical Instruments", "Art & Crafts", "Collectibles", "Tools", "Garden", "Baby Items"],
-}
+import { getSubcategoriesByCategory } from "@/lib/categories"
 
 interface SubcategoryNavProps {
   category: string
@@ -84,7 +18,7 @@ export function SubcategoryNav({ category, selectedSubcategory }: SubcategoryNav
     (subcategory: string | null) => {
       const params = new URLSearchParams(searchParams.toString())
 
-      if (subcategory === null) {
+      if (subcategory === null || subcategory === "all") {
         params.delete("subcategory")
       } else {
         params.set("subcategory", subcategory)
@@ -95,7 +29,7 @@ export function SubcategoryNav({ category, selectedSubcategory }: SubcategoryNav
     [router, searchParams],
   )
 
-  const availableSubcategories = subcategories[category] || []
+  const availableSubcategories = getSubcategoriesByCategory(category)
 
   if (!category || availableSubcategories.length === 0) {
     return null

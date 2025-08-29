@@ -9,51 +9,9 @@ import { Slider } from "@/components/ui/slider"
 import { X, Filter, DollarSign, ArrowUpDown } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useCallback, useState, useMemo } from "react"
+import { getAllCategoryNames, getFiltersByCategory, getCategoryByName } from "@/lib/categories"
 
-const categories = [
-  "Vehicles",
-  "Electronics",
-  "Mobile",
-  "Real Estate",
-  "Fashion",
-  "Pets",
-  "Furniture",
-  "Jobs",
-  "Gaming",
-  "Books",
-  "Services",
-  "Other",
-]
-
-const categorySpecificFilters = {
-  Vehicles: {
-    "Vehicle Type": ["Car", "Truck", "SUV", "Motorcycle", "Van", "Bus"],
-    "Fuel Type": ["Petrol", "Diesel", "Electric", "Hybrid"],
-    Transmission: ["Manual", "Automatic"],
-    Condition: ["New", "Used", "Refurbished"],
-  },
-  Electronics: {
-    Brand: ["Apple", "Samsung", "Sony", "LG", "Dell", "HP"],
-    Type: ["Mobile", "Laptop", "Desktop", "TV", "Camera"],
-    Condition: ["New", "Used", "Refurbished"],
-  },
-  "Real Estate": {
-    "Property Type": ["Apartment", "House", "Villa", "Commercial"],
-    Bedrooms: ["1 BHK", "2 BHK", "3 BHK", "4+ BHK"],
-    Furnishing: ["Furnished", "Semi-Furnished", "Unfurnished"],
-  },
-  Fashion: {
-    Gender: ["Men", "Women", "Kids", "Unisex"],
-    Size: ["XS", "S", "M", "L", "XL", "XXL"],
-    Condition: ["New", "Used"],
-  },
-}
-
-interface SearchFiltersProps {
-  searchQuery: string
-}
-
-export function SearchFilters({ searchQuery }: SearchFiltersProps) {
+const SearchFilters = ({ searchQuery }: { searchQuery: string }) => {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -70,19 +28,23 @@ export function SearchFilters({ searchQuery }: SearchFiltersProps) {
 
   const categoryFilters = useMemo(() => {
     const filters: Record<string, string[]> = {}
-    for (const [key, value] of searchParams.entries()) {
-      // Check if the key is a category-specific filter
-      const isCategoryFilter = Object.values(categorySpecificFilters).some((catFilters) =>
-        Object.keys(catFilters)
-          .map((k) => k.toLowerCase().replace(/\s+/g, "_"))
-          .includes(key),
-      )
-      if (isCategoryFilter) {
-        filters[key] = [value]
+    const categoryData = getCategoryByName(selectedCategory)
+
+    if (categoryData) {
+      for (const [key, value] of searchParams.entries()) {
+        // Check if the key is a category-specific filter
+        const filterKey = key.toLowerCase().replace(/\s+/g, "_")
+        const isValidFilter = Object.keys(categoryData.filters).some(
+          (filterName) => filterName.toLowerCase().replace(/\s+/g, "_") === filterKey,
+        )
+
+        if (isValidFilter) {
+          filters[key] = [value]
+        }
       }
     }
     return filters
-  }, [searchParams])
+  }, [searchParams, selectedCategory])
 
   const updateUrl = useCallback(
     (newParams: { [key: string]: string | null }) => {
@@ -98,10 +60,10 @@ export function SearchFilters({ searchQuery }: SearchFiltersProps) {
 
       router.push(`/search?${params.toString()}`, { scroll: false })
     },
-    [router, searchParams.toString()], // Use toString() to create stable dependency
+    [router, searchParams.toString()],
   )
 
-  const categoryOptions = categorySpecificFilters[selectedCategory as keyof typeof categorySpecificFilters] || {}
+  const categoryOptions = selectedCategory ? getFiltersByCategory(selectedCategory) : {}
 
   const clearFilters = useCallback(() => {
     const params = new URLSearchParams()
@@ -120,7 +82,7 @@ export function SearchFilters({ searchQuery }: SearchFiltersProps) {
 
   return (
     <div className="bg-gradient-to-br from-green-50 to-white border border-green-200 rounded-xl shadow-lg">
-      <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-4 rounded-t-xl">
+      <div className="bg-gradient-to-r from-green-900 to-green-800 text-white p-4 rounded-t-xl">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <Filter className="h-5 w-5" />
@@ -146,7 +108,7 @@ export function SearchFilters({ searchQuery }: SearchFiltersProps) {
             <div className="space-y-4">
               <Label className="text-base font-semibold text-gray-800 flex items-center">Select Category</Label>
               <div className="grid grid-cols-2 gap-3">
-                {categories.map((category) => (
+                {getAllCategoryNames().map((category) => (
                   <button
                     key={category}
                     onClick={() => updateUrl({ category: category, subcategory: null })}
@@ -175,12 +137,13 @@ export function SearchFilters({ searchQuery }: SearchFiltersProps) {
                       <div key={filterType} className="flex-1 min-w-[200px] space-y-2">
                         <Label className="text-sm font-medium text-gray-700">{filterType}</Label>
                         <Select
-                          value={categoryFilters[filterType]?.[0] || "all"}
+                          value={categoryFilters[filterType.toLowerCase().replace(/\s+/g, "_")]?.[0] || "all"}
                           onValueChange={(value) => {
+                            const filterKey = filterType.toLowerCase().replace(/\s+/g, "_")
                             if (value === "all") {
-                              updateUrl({ [filterType.toLowerCase().replace(/\s+/g, "_")]: null })
+                              updateUrl({ [filterKey]: null })
                             } else {
-                              updateUrl({ [filterType.toLowerCase().replace(/\s+/g, "_")]: value })
+                              updateUrl({ [filterKey]: value })
                             }
                           }}
                         >
@@ -326,7 +289,7 @@ export function SearchFilters({ searchQuery }: SearchFiltersProps) {
               updateUrl({ location: locationInput.value || null })
             }
           }}
-          className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200"
+          className="w-full bg-gradient-to-r from-green-900 to-green-800 hover:from-green-950 hover:to-green-900 text-white font-semibold py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200"
         >
           Apply Filters
         </Button>
@@ -334,3 +297,6 @@ export function SearchFilters({ searchQuery }: SearchFiltersProps) {
     </div>
   )
 }
+
+export { SearchFilters }
+export default SearchFilters

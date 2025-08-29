@@ -2,7 +2,7 @@
 
 import { useMemo } from "react"
 import { SearchResults } from "@/components/search/search-results"
-import { SearchFilters } from "@/components/search/search-filters"
+import SearchFilters from "@/components/search/search-filters"
 import { SubcategoryNav } from "@/components/subcategory-nav"
 import { Breadcrumb } from "@/components/breadcrumb"
 

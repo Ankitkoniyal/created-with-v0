@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Heart, MapPin, Eye, Grid3X3, List, Package, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
+import { getCategoryMapping } from "@/lib/categories"
 
 interface Product {
   id: string
@@ -64,88 +65,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
         if (filters.subcategory && filters.subcategory !== "all") {
           query = query.eq("category", filters.subcategory)
         } else if (filters.category) {
-          const categoryMapping: Record<string, string[]> = {
-            Vehicles: [
-              "Cars",
-              "Motorcycles",
-              "Trucks",
-              "Buses",
-              "Bicycles",
-              "Scooters",
-              "Boats",
-              "RVs",
-              "ATVs",
-              "Parts & Accessories",
-            ],
-            Electronics: [
-              "TV",
-              "Fridge",
-              "Oven",
-              "AC",
-              "Cooler",
-              "Toaster",
-              "Fan",
-              "Washing Machine",
-              "Microwave",
-              "Computer",
-              "Laptop",
-              "Camera",
-              "Audio System",
-            ],
-            Mobile: [
-              "Smartphones",
-              "Tablets",
-              "Accessories",
-              "Cases & Covers",
-              "Chargers",
-              "Headphones",
-              "Smart Watches",
-              "Power Banks",
-            ],
-            "Real Estate": [
-              "Houses",
-              "Apartments",
-              "Commercial",
-              "Land",
-              "Rental",
-              "Vacation Rentals",
-              "Office Space",
-              "Warehouse",
-            ],
-            Fashion: [
-              "Men's Clothing",
-              "Women's Clothing",
-              "Kids Clothing",
-              "Shoes",
-              "Bags",
-              "Jewelry",
-              "Watches",
-              "Accessories",
-            ],
-            Pets: ["Dogs", "Cats", "Birds", "Fish", "Pet Food", "Pet Accessories", "Pet Care", "Pet Services"],
-            Furniture: ["Sofa", "Bed", "Table", "Chair", "Wardrobe", "Desk", "Cabinet", "Dining Set", "Home Decor"],
-            Jobs: ["Full Time", "Part Time", "Freelance", "Internship", "Remote Work", "Contract", "Temporary"],
-            Gaming: ["Video Games", "Consoles", "PC Gaming", "Mobile Games", "Gaming Accessories", "Board Games"],
-            Books: ["Fiction", "Non-Fiction", "Educational", "Comics", "Magazines", "E-books", "Audiobooks"],
-            Services: [
-              "Home Services",
-              "Repair",
-              "Cleaning",
-              "Tutoring",
-              "Photography",
-              "Event Planning",
-              "Transportation",
-            ],
-            Other: [
-              "Sports Equipment",
-              "Musical Instruments",
-              "Art & Crafts",
-              "Collectibles",
-              "Tools",
-              "Garden",
-              "Baby Items",
-            ],
-          }
+          const categoryMapping = getCategoryMapping()
           const subcategories = categoryMapping[filters.category] || []
           if (subcategories.length > 0) {
             query = query.in("category", subcategories)
