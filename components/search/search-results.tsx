@@ -267,9 +267,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
             variant={viewMode === "grid" ? "default" : "outline"}
             size="sm"
             onClick={() => setViewMode("grid")}
-            className={
-              viewMode === "grid" ? "bg-green-900 hover:bg-green-950" : "hover:bg-green-100 hover:text-green-700"
-            }
+            className={viewMode === "grid" ? "bg-green-900 hover:bg-green-950" : "hover:bg-green-900 hover:text-white"}
           >
             <Grid3X3 className="h-4 w-4" />
           </Button>
@@ -277,9 +275,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
             variant={viewMode === "list" ? "default" : "outline"}
             size="sm"
             onClick={() => setViewMode("list")}
-            className={
-              viewMode === "list" ? "bg-green-900 hover:bg-green-950" : "hover:bg-green-100 hover:text-green-700"
-            }
+            className={viewMode === "list" ? "bg-green-900 hover:bg-green-950" : "hover:bg-green-900 hover:text-white"}
           >
             <List className="h-4 w-4" />
           </Button>
@@ -309,7 +305,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="absolute top-2 right-2 bg-background/80 hover:bg-green-100 hover:text-green-700"
+                    className="absolute top-2 right-2 bg-background/80 hover:bg-green-900 hover:text-white"
                     onClick={(e) => {
                       e.preventDefault()
                       e.stopPropagation()

@@ -20,6 +20,8 @@ import {
   Copy,
   Check,
   Tag,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react"
 import { ContactSellerModal } from "@/components/messaging/contact-seller-modal"
 import { createClient } from "@/lib/supabase/client"
@@ -226,6 +228,18 @@ export function ProductDetail({ product }: ProductDetailProps) {
     setShowMobileNumber(true)
   }
 
+  const nextImage = () => {
+    if (product.images && product.images.length > 0) {
+      setSelectedImage((prev) => (prev + 1) % product.images.length)
+    }
+  }
+
+  const prevImage = () => {
+    if (product.images && product.images.length > 0) {
+      setSelectedImage((prev) => (prev - 1 + product.images.length) % product.images.length)
+    }
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="lg:col-span-2">
@@ -235,8 +249,29 @@ export function ProductDetail({ product }: ProductDetailProps) {
               <img
                 src={product.images?.[selectedImage] || "/placeholder.svg"}
                 alt={product.title}
-                className="w-full h-80 object-cover rounded-t-lg"
+                className="w-full h-96 object-contain bg-gray-50 rounded-t-lg"
               />
+
+              {product.images && product.images.length > 1 && (
+                <>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={prevImage}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white shadow-md h-10 w-10 rounded-full"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={nextImage}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white shadow-md h-10 w-10 rounded-full"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </Button>
+                </>
+              )}
             </div>
 
             <div className="p-3">
@@ -246,7 +281,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                     key={index}
                     onClick={() => setSelectedImage(index)}
                     className={`flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden border-2 ${
-                      selectedImage === index ? "border-primary" : "border-border"
+                      selectedImage === index ? "border-green-900" : "border-border"
                     }`}
                   >
                     <img
@@ -282,7 +317,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                   size="sm"
                   variant="outline"
                   onClick={toggleFavorite}
-                  className="text-primary hover:bg-green-100 hover:text-green-700 border-primary/20 bg-transparent"
+                  className="text-green-900 hover:bg-green-900 hover:text-white border-green-900/20 bg-transparent"
                 >
                   <Heart className={`h-4 w-4 mr-1 ${isFavorited ? "fill-red-500 text-red-500" : ""}`} />
                   {isFavorited ? "Saved" : "Save"}
@@ -291,7 +326,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                   size="sm"
                   variant="outline"
                   onClick={handleShare}
-                  className="text-primary hover:bg-green-100 hover:text-green-700 border-primary/20 bg-transparent"
+                  className="text-green-900 hover:bg-green-900 hover:text-white border-green-900/20 bg-transparent"
                 >
                   <Share2 className="h-4 w-4 mr-1" />
                   Share
@@ -316,7 +351,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                           variant="ghost"
                           size="sm"
                           onClick={shareToWhatsApp}
-                          className="w-full justify-start text-left hover:bg-green-100 hover:text-green-700"
+                          className="w-full justify-start text-left hover:bg-green-900 hover:text-white"
                         >
                           <div className="w-5 h-5 mr-3 bg-green-500 rounded-full flex items-center justify-center">
                             <span className="text-white text-xs font-bold">W</span>
@@ -327,7 +362,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                           variant="ghost"
                           size="sm"
                           onClick={shareToFacebook}
-                          className="w-full justify-start text-left hover:bg-green-100 hover:text-green-700"
+                          className="w-full justify-start text-left hover:bg-green-900 hover:text-white"
                         >
                           <div className="w-5 h-5 mr-3 bg-blue-600 rounded-full flex items-center justify-center">
                             <span className="text-white text-xs font-bold">f</span>
@@ -338,7 +373,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                           variant="ghost"
                           size="sm"
                           onClick={shareToTikTok}
-                          className="w-full justify-start text-left hover:bg-green-100 hover:text-green-700"
+                          className="w-full justify-start text-left hover:bg-green-900 hover:text-white"
                         >
                           <div className="w-5 h-5 mr-3 bg-black rounded-full flex items-center justify-center">
                             <span className="text-white text-xs font-bold">T</span>
@@ -349,7 +384,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                           variant="ghost"
                           size="sm"
                           onClick={shareToEmail}
-                          className="w-full justify-start text-left hover:bg-green-100 hover:text-green-700"
+                          className="w-full justify-start text-left hover:bg-green-900 hover:text-white"
                         >
                           <div className="w-5 h-5 mr-3 bg-gray-600 rounded-full flex items-center justify-center">
                             <span className="text-white text-xs font-bold">@</span>
@@ -360,7 +395,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                           variant="ghost"
                           size="sm"
                           onClick={copyLink}
-                          className="w-full justify-start text-left hover:bg-green-100 hover:text-green-700"
+                          className="w-full justify-start text-left hover:bg-green-900 hover:text-white"
                         >
                           {linkCopied ? (
                             <Check className="w-5 h-5 mr-3 text-green-600" />
@@ -408,11 +443,11 @@ export function ProductDetail({ product }: ProductDetailProps) {
                   totalReviews: product.seller.totalReviews,
                 }}
               >
-                <Button className="w-full bg-primary hover:bg-green-600">Chat with Seller</Button>
+                <Button className="w-full bg-green-900 hover:bg-green-950">Chat with Seller</Button>
               </ContactSellerModal>
               <Button
                 variant="outline"
-                className="w-full bg-transparent hover:bg-green-100 hover:text-green-700 flex items-center justify-center"
+                className="w-full bg-transparent hover:bg-green-900 hover:text-white flex items-center justify-center"
                 onClick={handleShowMobile}
               >
                 <Phone className="h-4 w-4 mr-2" />
@@ -557,14 +592,14 @@ export function ProductDetail({ product }: ProductDetailProps) {
             <div className="space-y-2 mt-3">
               <Button
                 variant="outline"
-                className="w-full bg-transparent hover:bg-green-100 hover:text-green-700"
+                className="w-full bg-transparent hover:bg-green-900 hover:text-white"
                 onClick={() => (window.location.href = `/seller/${product.seller.id || "unknown"}`)}
               >
                 View Seller Profile
               </Button>
               <Button
                 variant="outline"
-                className="w-full bg-transparent hover:bg-green-100 hover:text-green-700"
+                className="w-full bg-transparent hover:bg-green-900 hover:text-white"
                 onClick={handleViewAllAds}
               >
                 See All Ads
@@ -586,7 +621,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                     <div className="flex items-center space-x-3 p-3 bg-red-50 rounded-lg border border-red-100">
                       <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
                         <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+                          <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
                         </svg>
                       </div>
                       <div className="flex-1">
