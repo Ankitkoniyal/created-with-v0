@@ -87,9 +87,20 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
         }
 
         if (filters.location) {
-          const escapeForOr = (val: string) => val.replace(/[,()]/g, (m) => `\\${m}`)
-          const loc = escapeForOr(filters.location.trim())
-          query = query.or(`city.ilike.%${loc}%,province.ilike.%${loc}%,location.ilike.%${loc}%`)
+          const raw = filters.location.trim()
+
+          if (raw.includes(",")) {
+            const [cityPart, provincePart] = raw.split(",").map((s) => s.trim())
+            if (cityPart) {
+              query = query.ilike("city", `%${cityPart}%`)
+            }
+            if (provincePart) {
+              query = query.ilike("province", `%${provincePart}%`)
+            }
+          } else {
+            const safe = raw.replace(/[()]/g, "") // guard against parentheses affecting the logic parser
+            query = query.or(`city.ilike.%${safe}%,province.ilike.%${safe}%,location.ilike.%${safe}%`)
+          }
         }
 
         switch (filters.sortBy) {
