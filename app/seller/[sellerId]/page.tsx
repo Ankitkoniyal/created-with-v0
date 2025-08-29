@@ -195,7 +195,7 @@ export default function SellerProfilePage({ params }: SellerPageProps) {
 
             <div className="flex flex-col space-y-2">
               <Button
-                className="bg-primary hover:bg-green-600"
+                className="bg-green-900 hover:bg-green-950"
                 onClick={handleContactSeller}
                 disabled={user?.id === sellerId}
               >

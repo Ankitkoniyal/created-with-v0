@@ -272,7 +272,7 @@ export function ProductGrid() {
             <h3 className="text-xl font-semibold text-gray-900 mb-2">Unable to Load Ads</h3>
             <p className="text-gray-600 mb-6">We're having trouble connecting to the database. Please try again.</p>
             <div className="space-x-3">
-              <Button onClick={retry} className="bg-green-900 hover:bg-green-950">
+              <Button onClick={retry} className="bg-green-600 hover:bg-green-700">
                 Try Again
               </Button>
               <Button variant="outline" onClick={() => window.location.reload()}>
@@ -292,7 +292,7 @@ export function ProductGrid() {
           <div className="text-center py-12">
             <h3 className="text-xl font-semibold text-gray-900 mb-2">No Ads Found</h3>
             <p className="text-gray-600 mb-6">Be the first to post an ad in your area!</p>
-            <Button asChild className="bg-green-900 hover:bg-green-950">
+            <Button asChild className="bg-green-600 hover:bg-green-700">
               <Link href="/post">Post Your First Ad</Link>
             </Button>
           </div>
@@ -421,7 +421,7 @@ export function ProductGrid() {
             <Button
               onClick={loadMore}
               disabled={isLoadingMore}
-              className="bg-green-900 hover:bg-green-950 text-white px-8 py-3 text-sm font-medium rounded-lg"
+              className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 text-sm font-medium rounded-lg"
             >
               {isLoadingMore ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               {isLoadingMore ? "Loading..." : "Show More"}
