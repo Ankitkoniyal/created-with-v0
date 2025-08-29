@@ -3,7 +3,7 @@ import { Upload, Link, Video } from "lucide-react"
 
 export function HeroSection() {
   return (
-    <section className="relative w-full py-12 px-4 overflow-hidden bg-gray-950">
+    <section className="relative w-full py-8 px-4 overflow-hidden bg-gray-950">
       <div className="absolute inset-0 z-0 opacity-20">
         <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-green-800 via-transparent to-transparent animate-pulse-slow"></div>
         <div className="absolute bottom-0 right-0 w-3/4 h-3/4 bg-[radial-gradient(ellipse_at_bottom,_var(--tw-gradient-stops))] from-green-700 via-transparent to-transparent animate-pulse-slow delay-500"></div>
@@ -36,8 +36,8 @@ export function HeroSection() {
           </div>
         </div>
 
-        {/* CTA Button - more attractive and functional */}
-        <a href="/post-ad" className="inline-block bg-gradient-to-r from-green-500 to-green-600 text-white font-extrabold py-5 px-16 rounded-full text-2xl tracking-wide shadow-xl hover:shadow-green-500/50 transition-all duration-300 transform hover:scale-105 active:scale-95 animate-pulse-slow">
+        {/* Updated CTA Button */}
+        <a href="/post-ad" className="inline-block bg-green-900 text-white font-semibold py-3 px-8 rounded-full border-2 border-white hover:bg-green-700 hover:border-green-300 transition-colors duration-300">
           Post Free Ads Now!
         </a>
       </div>
