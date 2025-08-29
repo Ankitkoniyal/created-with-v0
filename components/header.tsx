@@ -113,13 +113,6 @@ export function Header(): ReactElement {
     setSelectedLocation(location)
     setShowLocationSuggestions(false)
     locationInputRef.current?.blur()
-
-    const params = new URLSearchParams(window.location.search)
-    params.set("location", location)
-    if (searchQuery) {
-      params.set("q", searchQuery)
-    }
-    router.push(`/search?${params.toString()}`)
   }
 
   const handleLocationFocus = () => {
