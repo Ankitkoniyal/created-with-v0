@@ -93,7 +93,7 @@ const SearchFilters = ({ searchQuery }: { searchQuery: string }) => {
               variant="ghost"
               size="sm"
               onClick={clearFilters}
-              className="text-white hover:bg-white/20 hover:text-white border border-white/30"
+              className="text-white hover:bg-white/20 hover:text-green-900 border border-white/30"
             >
               <X className="h-4 w-4 mr-1" />
               Clear All
