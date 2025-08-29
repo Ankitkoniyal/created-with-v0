@@ -87,9 +87,9 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
         }
 
         if (filters.location) {
-          query = query.or(
-            `city.ilike.%${filters.location}%,province.ilike.%${filters.location}%,location.ilike.%${filters.location}%`,
-          )
+          const escapeForOr = (val: string) => val.replace(/[,()]/g, (m) => `\\${m}`)
+          const loc = escapeForOr(filters.location.trim())
+          query = query.or(`city.ilike.%${loc}%,province.ilike.%${loc}%,location.ilike.%${loc}%`)
         }
 
         switch (filters.sortBy) {

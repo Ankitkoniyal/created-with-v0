@@ -33,7 +33,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 import { MegaMenu } from "@/components/mega-menu"
-import { createBrowserClient } from "@supabase/ssr"
+import { createClient } from "@/lib/supabase/client"
 
 const CANADIAN_LOCATIONS = [
   { province: "Alberta", cities: ["Calgary", "Edmonton", "Red Deer", "Lethbridge"] },
@@ -152,17 +152,14 @@ export function Header(): ReactElement {
 
     const fetchNotificationCounts = async () => {
       try {
-        const supabase = createBrowserClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        )
+        const supabase = createClient()
 
         const [favoritesResult, messagesResult] = await Promise.all([
           supabase.from("favorites").select("*", { count: "exact", head: true }).eq("user_id", user.id),
           supabase
             .from("messages")
             .select("*", { count: "exact", head: true })
-            .eq("recipient_id", user.id)
+            .eq("receiver_id", user.id)
             .eq("is_read", false),
         ])
 
@@ -264,11 +261,7 @@ export function Header(): ReactElement {
                   />
                 </div>
 
-                <Button
-                  type="submit"
-                  size="sm"
-                  className="bg-green-900 hover:bg-green-950 text-white rounded-full px-6 py-2 mr-2 shadow-md hover:shadow-lg transition-all duration-200"
-                >
+                <Button type="submit" size="sm" className="rounded-full px-6 py-2 mr-2 shadow-md hover:shadow-lg">
                   Search
                 </Button>
               </div>
