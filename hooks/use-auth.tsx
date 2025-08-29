@@ -33,6 +33,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const supabase = createClient()
 
+  // If Supabase is not configured, expose disabled auth with helpful messages.
+  const authNotConfigured = !supabase
+
   const fetchProfile = async (userId: string, userData: User): Promise<Profile> => {
     try {
       const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
@@ -86,12 +89,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true
 
+    if (authNotConfigured) {
+      setIsLoading(false)
+      return
+    }
+
     const initializeAuth = async () => {
       try {
         const {
           data: { session },
           error: sessionError,
-        } = await supabase.auth.getSession()
+        } = await supabase!.auth.getSession()
 
         if (!mounted) {
           return
@@ -147,7 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase!.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return
 
       if (event === "SIGNED_IN" && session?.user) {
@@ -179,13 +187,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mounted = false
       subscription.unsubscribe()
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const login = async (email: string, password: string) => {
+    if (authNotConfigured) return { error: "Authentication is not configured. Please try again later." }
     try {
       setIsLoading(true)
 
-      const { error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase!.auth.signInWithPassword({
         email,
         password,
       })
@@ -212,6 +221,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signup = async (email: string, password: string, name: string, phone: string) => {
+    if (authNotConfigured) return { error: "Authentication is not configured. Please try again later." }
     try {
       setIsLoading(true)
       const redirectUrl =
@@ -220,7 +230,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           ? `${window.location.origin}/auth/callback`
           : "http://localhost:3000/auth/callback")
 
-      const { error } = await supabase.auth.signUp({
+      const { error } = await supabase!.auth.signUp({
         email,
         password,
         options: {
@@ -245,8 +255,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = async () => {
+    if (authNotConfigured) return
     setIsLoading(true)
-    await supabase.auth.signOut()
+    await supabase!.auth.signOut()
   }
 
   return (
