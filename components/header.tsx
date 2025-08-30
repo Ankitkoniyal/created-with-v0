@@ -277,7 +277,7 @@ export function Header(): ReactElement {
             {isAuthenticated && (
               <>
                 <Button variant="ghost" size="sm" className="relative" asChild>
-                  <Link href="/dashboard/favorites">
+                  <Link href="/dashboard/favorites" aria-label="Favorites">
                     <Heart className="h-4 w-4 text-green-800" />
                     {notificationCounts.favorites > 0 && (
                       <Badge variant="secondary" className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs">
@@ -287,7 +287,7 @@ export function Header(): ReactElement {
                   </Link>
                 </Button>
                 <Button variant="ghost" size="sm" className="relative" asChild>
-                  <Link href="/dashboard/messages">
+                  <Link href="/dashboard/messages" aria-label="Messages">
                     <MessageCircle className="h-4 w-4 text-green-800" />
                     {notificationCounts.messages > 0 && (
                       <Badge variant="secondary" className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs">
@@ -296,13 +296,15 @@ export function Header(): ReactElement {
                     )}
                   </Link>
                 </Button>
-                <Button variant="ghost" size="sm" className="relative">
-                  <Bell className="h-4 w-4 text-green-800" />
-                  {notificationCounts.notifications > 0 && (
-                    <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs">
-                      {notificationCounts.notifications}
-                    </Badge>
-                  )}
+                <Button variant="ghost" size="sm" className="relative" asChild>
+                  <Link href="/notifications" aria-label="Notifications">
+                    <Bell className="h-4 w-4 text-green-800" />
+                    {notificationCounts.notifications > 0 && (
+                      <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs">
+                        {notificationCounts.notifications}
+                      </Badge>
+                    )}
+                  </Link>
                 </Button>
               </>
             )}

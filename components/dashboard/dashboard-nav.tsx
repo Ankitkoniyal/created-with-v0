@@ -7,7 +7,7 @@ import { LayoutDashboard, Package, Heart, User, Settings, MessageSquare, Trendin
 import { usePathname } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 import { useState, useEffect } from "react"
-import { createBrowserClient } from "@supabase/ssr"
+import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 
 export function DashboardNav() {
@@ -25,10 +25,7 @@ export function DashboardNav() {
 
     const fetchDashboardCounts = async () => {
       try {
-        const supabase = createBrowserClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        )
+        const supabase = createClient()
 
         const [adsResult, favoritesResult, messagesResult] = await Promise.all([
           supabase.from("products").select("*", { count: "exact", head: true }).eq("user_id", user.id),
@@ -36,7 +33,7 @@ export function DashboardNav() {
           supabase
             .from("messages")
             .select("*", { count: "exact", head: true })
-            .eq("recipient_id", user.id)
+            .eq("receiver_id", user.id)
             .eq("is_read", false),
         ])
 
@@ -51,7 +48,6 @@ export function DashboardNav() {
     }
 
     fetchDashboardCounts()
-
     const interval = setInterval(fetchDashboardCounts, 300000)
     return () => clearInterval(interval)
   }, [user?.id])
