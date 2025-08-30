@@ -154,7 +154,7 @@ export function Header(): ReactElement {
       try {
         const supabase = createClient()
         if (!supabase) {
-          // Supabase not configured; skip quietly
+          // Supabase not configured; skip quietly so header still renders
           return
         }
 

@@ -19,6 +19,10 @@ export function createClient(): SupabaseClient | null {
     process.env.NEXT_PUBLIC_webspaceSUPABASE_ANON_KEY ||
     (typeof window !== "undefined" ? window.__supabase?.key : undefined)
 
+  // We support URL/KEY from NEXT_PUBLIC_*, workspace-prefixed NEXT_PUBLIC_webspaceSUPABASE_*,
+  // and as a last resort from window.__supabase injected in app/layout.tsx.
+  // If none are present we return null (callers should guard accordingly).
+
   if (!url || !anon) {
     if (typeof window !== "undefined") {
       console.error(
