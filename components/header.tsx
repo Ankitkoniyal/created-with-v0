@@ -153,6 +153,10 @@ export function Header(): ReactElement {
     const fetchNotificationCounts = async () => {
       try {
         const supabase = createClient()
+        if (!supabase) {
+          // Supabase not configured; skip quietly
+          return
+        }
 
         const [favoritesResult, messagesResult] = await Promise.all([
           supabase.from("favorites").select("*", { count: "exact", head: true }).eq("user_id", user.id),
@@ -314,13 +318,10 @@ export function Header(): ReactElement {
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                       <Avatar className="h-8 w-8">
-                        <AvatarImage
-                          src={profile?.avatar_url || "/placeholder.svg"}
-                          alt={profile?.full_name || "User"}
-                        />
+                        <AvatarImage src={profile?.avatar_url || "/placeholder.svg"} alt={profile?.name || "User"} />
                         <AvatarFallback>
-                          {profile?.full_name && typeof profile.full_name === "string"
-                            ? profile.full_name
+                          {profile?.name && typeof profile.name === "string"
+                            ? profile.name
                                 .split(" ")
                                 .map((n) => n[0])
                                 .join("")
@@ -332,7 +333,7 @@ export function Header(): ReactElement {
                   <DropdownMenuContent className="w-56" align="end" forceMount>
                     <DropdownMenuLabel className="font-normal">
                       <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none">{profile?.full_name || "User"}</p>
+                        <p className="text-sm font-medium leading-none">{profile?.name || "User"}</p>
                         <p className="text-xs leading-none text-muted-foreground">{profile?.email}</p>
                       </div>
                     </DropdownMenuLabel>

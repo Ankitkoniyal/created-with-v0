@@ -1,16 +1,28 @@
 import { createClient as createSupabaseClient, type SupabaseClient } from "@supabase/supabase-js"
 
+declare global {
+  interface Window {
+    __supabase?: { url?: string; key?: string }
+  }
+}
+
 let supabaseBrowser: SupabaseClient | null = null
 
 export function createClient(): SupabaseClient | null {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const url =
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_webspaceSUPABASE_URL ||
+    (typeof window !== "undefined" ? window.__supabase?.url : undefined)
 
-  // If env vars are missing, do NOT throw during render; return null and let callers guard.
+  const anon =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_webspaceSUPABASE_ANON_KEY ||
+    (typeof window !== "undefined" ? window.__supabase?.key : undefined)
+
   if (!url || !anon) {
     if (typeof window !== "undefined") {
       console.error(
-        "[Supabase] Missing NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY. Set them in Project Settings.",
+        "[Supabase] Missing public env vars. Set NEXT_PUBLIC_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_ANON_KEY in Project Settings.",
       )
     }
     return null

@@ -236,6 +236,8 @@ export function ProductDetail({ product }: ProductDetailProps) {
                 src={product.images?.[selectedImage] || "/placeholder.svg"}
                 alt={product.title}
                 className="w-full h-80 object-contain bg-gray-50 rounded-t-lg"
+                loading="lazy"
+                decoding="async"
               />
               {product.images && product.images.length > 1 && (
                 <>
@@ -273,6 +275,8 @@ export function ProductDetail({ product }: ProductDetailProps) {
                       src={image || "/placeholder.svg"}
                       alt={`${product.title} ${index + 1}`}
                       className="w-full h-full object-cover"
+                      loading="lazy"
+                      decoding="async"
                     />
                   </button>
                 ))}
