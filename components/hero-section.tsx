@@ -15,7 +15,7 @@ export function HeroSection() {
         {/* Main Heading */}
         <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white leading-tight mb-8 whitespace-normal md:whitespace-nowrap">
           {"Canada's Fastest Growing "}
-          <span className="inline-block border border-white/80 text-green-900 rounded px-2 py-0.5 align-middle">
+          <span className="text-green-900" style={{ WebkitTextStroke: "1px white", textStroke: "1px white" }}>
             {"Ads Marketplace"}
           </span>
         </h1>
