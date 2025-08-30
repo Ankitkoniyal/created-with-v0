@@ -42,6 +42,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
 
+    const syncServerSession = async (event: string, session: any | null) => {
+      try {
+        await fetch("/auth/set", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            event,
+            // Only send what's needed to set cookies safely
+            access_token: session?.access_token || null,
+            refresh_token: session?.refresh_token || null,
+          }),
+        })
+      } catch (e) {
+        // Swallow errors to avoid breaking the UI
+        // console.log("[v0] Failed to sync server session", e)
+      }
+    }
+
     const initializeAuth = async () => {
       try {
         const {
@@ -66,6 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         if (session?.user) {
+          syncServerSession("SIGNED_IN", session)
           setUser(session.user)
           try {
             const profileData = await fetchProfile(session.user.id, session.user, s)
@@ -96,6 +115,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       data: { subscription },
     } = s.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return
+
+      syncServerSession(event, session ?? null)
 
       if (event === "SIGNED_IN" && session?.user) {
         setUser(session.user)
