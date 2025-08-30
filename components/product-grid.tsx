@@ -126,6 +126,20 @@ export function ProductGrid() {
 
   const supabase = createClient()
 
+  const [shouldFetch, setShouldFetch] = useState(true)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const p = window.location.pathname
+      const allow =
+        p === "/" ||
+        p.startsWith("/search") ||
+        p.startsWith("/category") ||
+        p.startsWith("/seller") ||
+        p.startsWith("/product")
+      setShouldFetch(allow)
+    }
+  }, [])
+
   const {
     loading: isLoading,
     error,
@@ -133,6 +147,13 @@ export function ProductGrid() {
     retry,
   } = useAsyncOperation(
     async () => {
+      if (!supabase) {
+        throw new Error(
+          "Supabase client not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+        )
+      }
+      if (!shouldFetch) return []
+
       const from = 0 * PRODUCTS_PER_PAGE
       const to = from + PRODUCTS_PER_PAGE - 1
 
@@ -160,8 +181,8 @@ export function ProductGrid() {
       return fetchedProducts
     },
     {
-      retries: 3,
-      retryDelay: 1000,
+      retries: 1,
+      retryDelay: 800,
       onError: (error) => {
         console.error("Error fetching products:", error)
       },
@@ -171,6 +192,8 @@ export function ProductGrid() {
   const { loading: isLoadingMore, execute: loadMore } = useAsyncOperation(
     async () => {
       if (!hasMore) return []
+      if (!supabase) throw new Error("Supabase client not configured.")
+      if (!shouldFetch) return []
 
       const nextPage = page + 1
       const from = nextPage * PRODUCTS_PER_PAGE
@@ -197,14 +220,16 @@ export function ProductGrid() {
       return data || []
     },
     {
-      retries: 2,
-      retryDelay: 500,
+      retries: 1,
+      retryDelay: 600,
     },
   )
 
   useEffect(() => {
-    fetchProducts()
-  }, [])
+    if (shouldFetch) {
+      fetchProducts()
+    }
+  }, [shouldFetch])
 
   const toggleFavorite = (productId: string, e: React.MouseEvent) => {
     e.preventDefault()
@@ -249,6 +274,10 @@ export function ProductGrid() {
     return posted.toLocaleDateString()
   }
 
+  if (!shouldFetch) {
+    return null
+  }
+
   if (isLoading) {
     return (
       <section className="py-2">
@@ -265,16 +294,26 @@ export function ProductGrid() {
   }
 
   if (error) {
+    const isConfigError = typeof error?.message === "string" && error.message.toLowerCase().includes("not configured")
+
     return (
       <section className="py-2">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center py-12">
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">Unable to Load Ads</h3>
-            <p className="text-gray-600 mb-6">We're having trouble connecting to the database. Please try again.</p>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              {isConfigError ? "Supabase Not Configured" : "Unable to Load Ads"}
+            </h3>
+            <p className="text-gray-600 mb-6">
+              {isConfigError
+                ? "Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Project Settings to show ads."
+                : "We're having trouble connecting to the database. Please try again."}
+            </p>
             <div className="space-x-3">
-              <Button onClick={retry} className="bg-green-600 hover:bg-green-700">
-                Try Again
-              </Button>
+              {!isConfigError && (
+                <Button onClick={retry} className="bg-green-600 hover:bg-green-700">
+                  Try Again
+                </Button>
+              )}
               <Button variant="outline" onClick={() => window.location.reload()}>
                 Refresh Page
               </Button>
