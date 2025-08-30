@@ -13,28 +13,31 @@ export function HeroSection() {
 
       <div className="relative max-w-6xl mx-auto text-center z-10">
         {/* Main Heading */}
-        <h1 className="text-4xl sm:text-6xl md:text-7xl font-extrabold tracking-tight text-white leading-tight mb-8">
-          {"Canada's Fastest Growing Ads Marketplace"}
+        <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white leading-tight mb-8 whitespace-normal md:whitespace-nowrap">
+          {"Canada's Fastest Growing "}
+          <span className="inline-block border border-white/80 text-green-900 rounded px-2 py-0.5 align-middle">
+            {"Ads Marketplace"}
+          </span>
         </h1>
 
         {/* Feature Sections */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto mb-10">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-10 max-w-4xl mx-auto mb-10">
           <div className="bg-white rounded-lg p-4 text-center shadow-sm">
             <Upload className="w-6 h-6 text-green-900 mb-2 mx-auto" />
             <h3 className="font-semibold text-sm text-gray-900">Unlimited Ads (Free)</h3>
             <p className="text-xs text-gray-600">Publish as many ads as you need to grow your business.</p>
           </div>
 
-          <div className="bg-white rounded-lg p-6 text-center shadow-sm">
-            <LinkIcon className="w-8 h-8 text-green-900 mb-3 mx-auto" />
-            <h3 className="font-semibold text-base text-gray-900">Website URL (Free)</h3>
-            <p className="text-sm text-gray-600">Drive traffic to your site with a direct link.</p>
+          <div className="bg-white rounded-lg p-4 text-center shadow-sm">
+            <LinkIcon className="w-6 h-6 text-green-900 mb-2 mx-auto" />
+            <h3 className="font-semibold text-sm text-gray-900">Website URL (Free)</h3>
+            <p className="text-xs text-gray-600">Drive traffic to your site with a direct link.</p>
           </div>
 
-          <div className="bg-white rounded-lg p-6 text-center shadow-sm">
-            <Video className="w-8 h-8 text-green-900 mb-3 mx-auto" />
-            <h3 className="font-semibold text-base text-gray-900">YouTube Video (Free)</h3>
-            <p className="text-sm text-gray-600">Showcase your products or services with a video.</p>
+          <div className="bg-white rounded-lg p-4 text-center shadow-sm">
+            <Video className="w-6 h-6 text-green-900 mb-2 mx-auto" />
+            <h3 className="font-semibold text-sm text-gray-900">YouTube Video (Free)</h3>
+            <p className="text-xs text-gray-600">Showcase your products or services with a video.</p>
           </div>
         </div>
 
