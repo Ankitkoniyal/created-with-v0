@@ -235,6 +235,12 @@ export function PostProductForm() {
       setIsLoadingEditData(true)
       try {
         const supabase = createClient()
+        if (!supabase) {
+          console.error("[v0] Supabase client unavailable. Skipping edit data fetch.")
+          toast.error("Service temporarily unavailable. Please try again in a moment.")
+          router.push("/dashboard/listings")
+          return
+        }
         const { data, error } = await supabase
           .from("products")
           .select("*")
@@ -365,6 +371,14 @@ export function PostProductForm() {
       console.log(`[v0] Starting ${isEditMode ? "ad update" : "ad submission"} process`)
 
       const supabase = createClient()
+      if (!supabase) {
+        console.error("[v0] Supabase client unavailable. Aborting submission.")
+        setSubmitError(
+          "Service temporarily unavailable. Please refresh the page or try again shortly. If this persists, contact support.",
+        )
+        return
+      }
+
       console.log("[v0] Supabase client created successfully")
 
       const imageUrls: string[] = []

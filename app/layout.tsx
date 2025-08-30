@@ -33,27 +33,28 @@ html {
   --font-sans: ${dmSans.variable};
 }
         `}</style>
+        {/* Only inject window.__supabase when both URL and KEY are present to avoid auth-js fetch with empty values */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
               (function () {
                 if (typeof window === 'undefined') return;
-                // Only set once to avoid clobbering
                 if (!window.__supabase) {
-                  window.__supabase = {
-                    url: ${JSON.stringify(
-                      process.env.NEXT_PUBLIC_SUPABASE_URL ||
-                        process.env.NEXT_PUBLIC_webspaceSUPABASE_URL ||
-                        process.env.SUPABASE_URL ||
-                        "",
-                    )},
-                    key: ${JSON.stringify(
-                      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-                        process.env.NEXT_PUBLIC_webspaceSUPABASE_ANON_KEY ||
-                        process.env.SUPABASE_ANON_KEY ||
-                        "",
-                    )},
-                  };
+                  var url = ${JSON.stringify(
+                    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+                      process.env.NEXT_PUBLIC_webspaceSUPABASE_URL ||
+                      process.env.SUPABASE_URL ||
+                      "",
+                  )};
+                  var key = ${JSON.stringify(
+                    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+                      process.env.NEXT_PUBLIC_webspaceSUPABASE_ANON_KEY ||
+                      process.env.SUPABASE_ANON_KEY ||
+                      "",
+                  )};
+                  if (url && key) {
+                    window.__supabase = { url: url, key: key };
+                  }
                 }
               })();
             `,

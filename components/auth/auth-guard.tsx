@@ -17,21 +17,19 @@ export function AuthGuard({ children, requireAuth = true }: AuthGuardProps) {
   const searchParams = useSearchParams()
 
   useEffect(() => {
-    if (!isLoading && requireAuth && (!user || !profile)) {
+    if (!isLoading && requireAuth && !user) {
       const currentPath = window.location.pathname + window.location.search
 
-      // Don't redirect if already on auth pages
       if (
         !currentPath.includes("/auth/login") &&
         !currentPath.includes("/auth/signup") &&
         !currentPath.includes("/auth/callback")
       ) {
-        // Clear any existing redirectedFrom to prevent loops
         const cleanPath = currentPath.replace(/[?&]redirectedFrom=[^&]*/, "")
         router.push(`/auth/login?redirectedFrom=${encodeURIComponent(cleanPath)}`)
       }
     }
-  }, [user, profile, isLoading, requireAuth, router])
+  }, [user, isLoading, requireAuth, router])
 
   if (isLoading) {
     return (
@@ -44,7 +42,7 @@ export function AuthGuard({ children, requireAuth = true }: AuthGuardProps) {
     )
   }
 
-  if (requireAuth && (!user || !profile)) {
+  if (requireAuth && !user) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
