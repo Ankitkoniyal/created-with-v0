@@ -10,8 +10,17 @@ export async function middleware(request: NextRequest) {
     request,
   })
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  // Prefer server envs; fall back to public only if needed.
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  // If config is missing, do NOT enforce auth (prevents redirect loop); let client-side guard handle it.
+  if (!supabaseUrl || !supabaseAnonKey) {
+    logger.warn("Middleware: Supabase env missing, skipping auth enforcement", {
+      path: request.nextUrl.pathname,
+    })
+    return supabaseResponse
+  }
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
@@ -41,6 +50,16 @@ export async function middleware(request: NextRequest) {
         await supabase.auth.signOut()
         logger.info("Cleared invalid session", { path: request.nextUrl.pathname })
       }
+    }
+
+    // Allow auth pages even if authenticated state is in flux.
+    const isAuthRoute =
+      request.nextUrl.pathname.startsWith("/auth/login") || request.nextUrl.pathname.startsWith("/auth/signup")
+
+    // Optional: if already logged in and visiting auth pages, send to home.
+    if (user && isAuthRoute) {
+      const home = new URL("/", request.url)
+      return NextResponse.redirect(home)
     }
 
     const protectedRoutes = ["/dashboard", "/sell", "/profile"]

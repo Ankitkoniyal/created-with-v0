@@ -90,6 +90,7 @@ export function LoginForm() {
           description: "You have been successfully logged in.",
         })
         router.push(destination)
+        router.refresh() // ensure SSR reads the new auth cookies
       }
     } catch (err) {
       console.error("Login error:", err)

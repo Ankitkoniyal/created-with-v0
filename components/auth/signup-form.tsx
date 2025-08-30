@@ -51,7 +51,7 @@ export function SignupForm() {
     }
 
     setSuccess("Account created successfully. Please check your email to confirm your address.")
-    setTimeout(() => router.push("/"), 1500)
+    setTimeout(() => router.push("/auth/login"), 1200)
   }
 
   return (
