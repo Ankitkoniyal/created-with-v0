@@ -16,8 +16,13 @@ export async function GET() {
         {
           status: "unhealthy",
           timestamp: new Date().toISOString(),
+          uptime: process.uptime(),
           checks: {
             database: { status: "fail", error: error.message, responseTime: dbResponseTime },
+            memory: {
+              used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+              total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
+            },
           },
         },
         { status: 503 },
@@ -41,7 +46,18 @@ export async function GET() {
       {
         status: "unhealthy",
         timestamp: new Date().toISOString(),
-        error: error instanceof Error ? error.message : "Unknown error",
+        uptime: process.uptime?.() ?? 0,
+        checks: {
+          database: {
+            status: "fail",
+            responseTime: 0,
+            error: error instanceof Error ? error.message : "Unknown error",
+          },
+          memory: {
+            used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+            total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
+          },
+        },
       },
       { status: 503 },
     )
