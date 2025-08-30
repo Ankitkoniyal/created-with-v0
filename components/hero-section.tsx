@@ -19,10 +19,10 @@ export function HeroSection() {
 
         {/* Feature Sections */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto mb-10">
-          <div className="bg-white rounded-lg p-6 text-center shadow-sm">
-            <Upload className="w-8 h-8 text-green-900 mb-3 mx-auto" />
-            <h3 className="font-semibold text-base text-gray-900">Unlimited Ads (Free)</h3>
-            <p className="text-sm text-gray-600">Publish as many ads as you need to grow your business.</p>
+          <div className="bg-white rounded-lg p-4 text-center shadow-sm">
+            <Upload className="w-6 h-6 text-green-900 mb-2 mx-auto" />
+            <h3 className="font-semibold text-sm text-gray-900">Unlimited Ads (Free)</h3>
+            <p className="text-xs text-gray-600">Publish as many ads as you need to grow your business.</p>
           </div>
 
           <div className="bg-white rounded-lg p-6 text-center shadow-sm">
@@ -38,12 +38,11 @@ export function HeroSection() {
           </div>
         </div>
 
-        {/* CTA Button */}
         <Button
           asChild
           variant="default"
-          size="lg"
-          className="bg-green-900 text-white hover:bg-green-950 px-8 h-12 text-base rounded-md"
+          size="md"
+          className="bg-green-900 text-white hover:bg-green-950 px-6 h-10 text-sm rounded-md border border-white/80"
         >
           <NextLink href="/post-ad">Post Free Ads Now</NextLink>
         </Button>
