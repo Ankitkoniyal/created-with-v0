@@ -15,7 +15,13 @@ export function HeroSection() {
         {/* Main Heading */}
         <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white leading-tight mb-8 whitespace-normal md:whitespace-nowrap">
           {"Canada's Fastest Growing "}
-          <span className="text-green-900" style={{ WebkitTextStroke: "1px white", textStroke: "1px white" }}>
+          <span
+            className="text-green-900"
+            style={{
+              // subtle multi-layer white shadow to create a 3D/embossed feel without any outline border
+              textShadow: "0 1px 0 rgba(255,255,255,0.95), 0 2px 0 rgba(255,255,255,0.6), 0 3px 2px rgba(0,0,0,0.2)",
+            }}
+          >
             {"Ads Marketplace"}
           </span>
         </h1>
