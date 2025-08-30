@@ -31,7 +31,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const supabase = createClient()
+  const supabase = (() => {
+    try {
+      return createClient()
+    } catch {
+      return null
+    }
+  })()
 
   // If Supabase is not configured, expose disabled auth with helpful messages.
   const authNotConfigured = !supabase
@@ -268,7 +274,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext)
   if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider")
+    return {
+      user: null,
+      profile: null,
+      login: async () => ({ error: "Authentication is not available right now. Please try again later." }),
+      signup: async () => ({ error: "Authentication is not available right now. Please try again later." }),
+      logout: async () => {},
+      isLoading: false,
+    }
   }
   return context
 }
