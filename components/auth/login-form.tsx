@@ -63,6 +63,8 @@ export function LoginForm() {
     }
 
     try {
+      console.log("[v0] Login attempt for email:", emailValue)
+
       if (rememberMe) {
         localStorage.setItem(
           "rememberedCredentials",
@@ -76,6 +78,7 @@ export function LoginForm() {
       }
 
       const result = await login(emailValue, passwordValue)
+      console.log("[v0] Login result:", result)
 
       if (result.error) {
         setError(result.error)

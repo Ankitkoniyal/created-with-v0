@@ -16,6 +16,14 @@ export async function signIn(prevState: any, formData: FormData) {
     return { error: "Email and password are required", success: false, redirect: null }
   }
 
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return {
+      error: "Authentication service is not configured. Please contact support.",
+      success: false,
+      redirect: null,
+    }
+  }
+
   const cookieStore = cookies()
 
   const supabase = createServerClient(
@@ -49,6 +57,7 @@ export async function signIn(prevState: any, formData: FormData) {
     const result = { success: true, redirect: "/dashboard", error: null }
     return result
   } catch (error: any) {
+    console.error("Signin error:", error)
     if (error.message && error.message.includes("Unexpected token")) {
       return { error: "Authentication service error. Please try again.", success: false, redirect: null }
     }
@@ -68,6 +77,10 @@ export async function signUp(prevState: any, formData: FormData) {
 
   if (!email || !password) {
     return { error: "Email and password are required" }
+  }
+
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return { error: "Authentication service is not configured. Please contact support." }
   }
 
   const cookieStore = cookies()
@@ -113,6 +126,7 @@ export async function signUp(prevState: any, formData: FormData) {
 
     return { success: "Check your email to confirm your account." }
   } catch (error: any) {
+    console.error("Signup error:", error)
     if (error.message && error.message.includes("Unexpected token")) {
       return { error: "Authentication service error. Please check your email format and try again." }
     }
