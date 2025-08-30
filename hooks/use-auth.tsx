@@ -44,12 +44,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const syncServerSession = async (event: string, session: any | null) => {
       try {
+        if (!session?.access_token || !session?.refresh_token) {
+          const { data } = await s.auth.getSession()
+          session = data?.session ?? session
+        }
         await fetch("/auth/set", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             event,
-            // Only send what's needed to set cookies safely
             access_token: session?.access_token || null,
             refresh_token: session?.refresh_token || null,
           }),
@@ -84,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         if (session?.user) {
-          syncServerSession("SIGNED_IN", session)
+          await syncServerSession("SIGNED_IN", session)
           setUser(session.user)
           try {
             const profileData = await fetchProfile(session.user.id, session.user, s)
@@ -116,7 +119,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } = s.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return
 
-      syncServerSession(event, session ?? null)
+      if (!session?.access_token || !session?.refresh_token) {
+        const { data } = await s.auth.getSession()
+        session = data?.session ?? session
+      }
+      await syncServerSession(event, session ?? null)
 
       if (event === "SIGNED_IN" && session?.user) {
         setUser(session.user)
@@ -160,6 +167,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return { error: "Too many login attempts. Please wait a few minutes before trying again." }
         }
         return { error: error.message }
+      }
+      try {
+        const { data } = await s.auth.getSession()
+        const sess = data?.session
+        if (sess) {
+          await fetch("/auth/set", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              event: "SIGNED_IN",
+              access_token: sess.access_token || null,
+              refresh_token: sess.refresh_token || null,
+            }),
+          })
+        }
+      } catch {
+        // ignore, onAuthStateChange will also sync
       }
       return {}
     } catch {
