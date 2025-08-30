@@ -1,6 +1,9 @@
-@import 'tailwindcss';
-@import 'tw-animate-css';
+/* Disable non-resolvable package import to prevent LightningCSS fetch failure */
+/* Keeping Tailwind v4 import; disabling tw-animate-css which LightningCSS can't resolve/fetch */
+@import "tailwindcss";
+/* @import 'tw-animate-css'; */
 
+/* The rest of your theme and base layers remain unchanged */
 @custom-variant dark (&:is(.dark *));
 
 :root {
