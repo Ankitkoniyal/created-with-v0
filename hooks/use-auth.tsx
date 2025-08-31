@@ -27,6 +27,10 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+const withTimeout = async <T,>(p: Promise<T>, ms: number, onTimeoutValue: T): Promise<T> => {
+  return await Promise.race([p, new Promise<T>((resolve) => setTimeout(() => resolve(onTimeoutValue), ms))])
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -58,16 +62,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return
         }
 
-        await fetch("/auth/set", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          cache: "no-store",
-          body: JSON.stringify({
-            event,
-            access_token: session?.access_token || null,
-            refresh_token: session?.refresh_token || null,
+        await withTimeout(
+          fetch("/auth/set", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            cache: "no-store",
+            body: JSON.stringify({
+              event,
+              access_token: session?.access_token || null,
+              refresh_token: session?.refresh_token || null,
+            }),
           }),
-        })
+          1200,
+          undefined as any,
+        )
       } catch {
         // swallow to avoid breaking UI
       }
@@ -233,17 +241,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true)
       console.log("[v0] Login attempt for email:", email)
-      const { data, error } = await s.auth.signInWithPassword({ email, password })
+
+      const { data, error } = await withTimeout(s.auth.signInWithPassword({ email, password }), 10000, {
+        data: null as any,
+        error: new Error("network_timeout") as any,
+      })
+
       if (error) {
         setIsLoading(false)
-        if (error.message.includes("Invalid login credentials")) {
+        const msg = String(error.message || "")
+        if (msg === "network_timeout") {
+          return { error: "Network timeout. Please check your connection and try again." }
+        }
+        if (msg.includes("Invalid login credentials")) {
           return { error: "Invalid email or password. Please check your credentials and try again." }
-        } else if (error.message.includes("Email not confirmed")) {
+        } else if (msg.includes("Email not confirmed")) {
           return { error: "Please check your email and click the confirmation link before signing in." }
-        } else if (error.message.includes("Too many requests")) {
+        } else if (msg.includes("Too many requests")) {
           return { error: "Too many login attempts. Please wait a few minutes before trying again." }
         }
-        return { error: error.message }
+        return { error: msg || "Unable to sign in. Please try again." }
       }
 
       let sess = data?.session || null
@@ -267,27 +284,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .single()
 
           if (profileError || !profileData) {
-            // User exists in auth but not in profiles table - they were deleted from database
             console.log("[v0] User authenticated but profile missing - user was deleted from database")
             await clearAllSessionData(s)
             setIsLoading(false)
             return {
-              error: "This account has been deactivated. Please contact support if you believe this is an error.",
+              error: "This account has been deactivated. Please contact support or sign up again.",
             }
           }
         } catch (profileCheckError) {
           console.error("[v0] Profile check failed:", profileCheckError)
           await clearAllSessionData(s)
           setIsLoading(false)
-          return {
-            error: "Unable to verify account status. Please try again later.",
-          }
+          return { error: "Unable to verify account status. Please try again later." }
         }
       }
 
       if (sess?.access_token && sess?.refresh_token) {
-        try {
-          await fetch("/auth/set", {
+        void withTimeout(
+          fetch("/auth/set", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             cache: "no-store",
@@ -296,10 +310,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               access_token: sess.access_token,
               refresh_token: sess.refresh_token,
             }),
-          })
-        } catch {
-          // ignore; onAuthStateChange will also sync as a backup
-        }
+          }),
+          1200,
+          undefined as any,
+        )
       }
 
       if (sess?.user) setUser(sess.user)
@@ -400,22 +414,22 @@ const fetchProfile = async (userId: string, userData: User, s = createClient()):
   }
 }
 
-// Helper function to clear all session data
 const clearAllSessionData = async (s: any) => {
   try {
-    // Clear server-side cookies
-    await fetch("/auth/set", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      cache: "no-store",
-      body: JSON.stringify({ event: "SIGNED_OUT" }),
-    })
+    await withTimeout(
+      fetch("/auth/set", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({ event: "SIGNED_OUT" }),
+      }),
+      1200,
+      undefined as any,
+    )
   } catch {}
 
-  // Sign out from Supabase (clears localStorage)
-  await s.auth.signOut()
+  await withTimeout(s.auth.signOut(), 2000, undefined as any)
 
-  // Clear any remaining localStorage items
   if (typeof window !== "undefined") {
     try {
       const keys = Object.keys(localStorage)

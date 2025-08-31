@@ -78,9 +78,31 @@ export function LoginForm() {
         localStorage.removeItem("rememberedCredentials")
       }
 
-      const timeoutMs = 15000
+      try {
+        const existsResult = (await Promise.race([
+          fetch("/api/auth/exists", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            cache: "no-store",
+            body: JSON.stringify({ email: emailValue }),
+          }).then((r) => r.json()),
+          new Promise<{ ok: boolean; exists: boolean }>((resolve) =>
+            setTimeout(() => resolve({ ok: true, exists: true }), 4000),
+          ),
+        ])) as any
+
+        if (existsResult?.ok === true && existsResult?.exists === false) {
+          setError("No account found for this email. Please sign up first.")
+          setIsSubmitting(false)
+          return
+        }
+      } catch {
+        // ignore – soft-allow
+      }
+
+      const timeoutMs = 10000 // shorter, clearer timeout
       const timeout = new Promise<{ error: string }>((resolve) =>
-        setTimeout(() => resolve({ error: "Login timed out. Please try again." }), timeoutMs),
+        setTimeout(() => resolve({ error: "Network timeout. Please check your connection and try again." }), timeoutMs),
       )
 
       const result = (await Promise.race([login(emailValue, passwordValue), timeout])) as { error?: string }
@@ -88,12 +110,14 @@ export function LoginForm() {
 
       if (result?.error) {
         const msg = result.error.toLowerCase()
-        if (msg.includes("timed out")) {
-          setError("Login timed out. Please try again.")
+        if (msg.includes("timeout")) {
+          setError("Network timeout. Please check your connection and try again.")
         } else if (msg.includes("invalid") && msg.includes("password")) {
           setError("Incorrect email or password.")
-        } else if (msg.includes("removed") || msg.includes("deactivated") || msg.includes("deleted")) {
+        } else if (msg.includes("deactivated") || msg.includes("removed") || msg.includes("deleted")) {
           setError("This account has been removed. Please contact support or sign up again.")
+        } else if (msg.includes("verify") || msg.includes("confirmation")) {
+          setError("Please verify your email address before signing in.")
         } else {
           setError(result.error)
         }
