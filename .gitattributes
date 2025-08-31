@@ -1,0 +1,3 @@
+pnpm-lock.yaml merge=ours
+package-lock.json merge=ours
+yarn.lock merge=ours
