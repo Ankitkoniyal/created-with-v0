@@ -78,31 +78,63 @@ export function LoginForm() {
         localStorage.removeItem("rememberedCredentials")
       }
 
+      // Soft pre-check can remain, but never block a valid login.
+      try {
+        const existsResult = (await Promise.race([
+          fetch("/api/auth/exists", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            cache: "no-store",
+            body: JSON.stringify({ email: emailValue }),
+          }).then((r) => r.json()),
+          // Fallback after 4s - soft-allow
+          new Promise<{ ok: boolean; exists: boolean }>((resolve) =>
+            setTimeout(() => resolve({ ok: true, exists: true }), 4000),
+          ),
+        ])) as any
+
+        if (existsResult?.ok === true && existsResult?.exists === false) {
+          setError("No account found for this email. Please sign up first.")
+          setIsSubmitting(false)
+          return
+        }
+      } catch {
+        // ignore – soft-allow
+      }
+
+      // IMPORTANT: remove artificial timeout that caused false "Network timeout" errors.
       const result = (await login(emailValue, passwordValue)) as { error?: string }
       console.log("[v0] Login result:", result)
 
       if (result?.error) {
         const msg = result.error.toLowerCase()
-        if (msg.includes("timeout")) {
-          setError("Network timeout. Please check your connection and try again.")
-        } else if (msg.includes("invalid") && msg.includes("password")) {
+        if (msg.includes("invalid") && msg.includes("password")) {
           setError("Incorrect email or password.")
         } else if (msg.includes("deactivated") || msg.includes("removed") || msg.includes("deleted")) {
           setError("This account has been removed. Please contact support or sign up again.")
         } else if (msg.includes("verify") || msg.includes("confirmation")) {
           setError("Please verify your email address before signing in.")
         } else {
+          // Show server-provided error without claiming timeout
           setError(result.error)
         }
         setIsSubmitting(false)
       } else {
+        // Fire-and-forget: ensure profile exists on the server using current session cookies
+        fetch("/api/profile/ensure", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          cache: "no-store",
+          body: JSON.stringify({}),
+        }).catch(() => {})
+
         const destination = redirectedFrom || "/dashboard"
         setSuccessOpen(true)
         setTimeout(() => {
           setSuccessOpen(false)
           router.push(destination)
           router.refresh()
-        }, 1800)
+        }, 1400)
       }
     } catch (err) {
       console.error("Login error:", err)

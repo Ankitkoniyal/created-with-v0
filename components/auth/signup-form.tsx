@@ -52,11 +52,21 @@ export function SignupForm() {
       return
     }
 
+    // In most setups, signUp sends a confirmation email and does not create a session yet.
+    // If a session is present (providers/password with auto-confirm), ensure profile now (non-blocking).
+    fetch("/api/profile/ensure", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({ fullName, phone }),
+    }).catch(() => {})
+
     setSuccessOpen(true)
     setTimeout(() => {
       setSuccessOpen(false)
+      // Redirect to homepage after showing a readable success message
       router.push("/")
-    }, 2500)
+    }, 3000)
   }
 
   return (
@@ -169,7 +179,7 @@ export function SignupForm() {
       <SuccessOverlay
         open={successOpen}
         title="Account created"
-        message="Please check your inbox to confirm your email. Redirecting to the homepage…"
+        message="Please check your inbox to confirm your email."
         onClose={() => setSuccessOpen(false)}
         actionLabel="Okay"
       />
