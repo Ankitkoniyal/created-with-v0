@@ -134,7 +134,7 @@ export function LoginForm() {
           setSuccessOpen(false)
           router.push(destination)
           router.refresh()
-        }, 1400)
+        }, 2000) // was ~1.4s; give users time to read
       }
     } catch (err) {
       console.error("Login error:", err)

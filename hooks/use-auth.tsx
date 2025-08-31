@@ -120,25 +120,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           setUser(session.user)
           try {
-            const profileData = await fetchProfile(session.user.id, session.user, s)
+            let profileData = await fetchProfile(session.user.id, session.user, s)
+            // if missing, try to ensure and refetch; do NOT clear session on first missing profile
             if (!profileData) {
-              console.log("[v0] Profile not found for user:", session.user.email, "- clearing all session data")
-              await clearAllSessionData(s)
-              if (mounted) {
-                setUser(null)
-                setProfile(null)
-                setIsLoading(false)
-              }
-              return
+              await withTimeout(
+                fetch("/api/profile/ensure", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  cache: "no-store",
+                  body: JSON.stringify({}),
+                }),
+                1500,
+                undefined as any,
+              )
+              profileData = await fetchProfile(session.user.id, session.user, s)
             }
             if (mounted) setProfile(profileData)
           } catch (profileError) {
             console.error("Profile fetch error:", profileError)
-            await clearAllSessionData(s)
-            if (mounted) {
-              setUser(null)
-              setProfile(null)
-            }
           }
         } else {
           setUser(null)
@@ -196,25 +195,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (event === "SIGNED_IN" && session?.user) {
             setUser(session.user)
             try {
+              await withTimeout(
+                fetch("/api/profile/ensure", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  cache: "no-store",
+                  body: JSON.stringify({}),
+                }),
+                1500,
+                undefined as any,
+              )
               const profileData = await fetchProfile(session.user.id, session.user, s)
-              if (!profileData) {
-                console.log("[v0] User authenticated but profile missing - user was deleted from database")
-                await clearAllSessionData(s)
-                if (mounted) {
-                  setUser(null)
-                  setProfile(null)
-                  setIsLoading(false)
-                }
-                return
-              }
               if (mounted) setProfile(profileData)
             } catch (profileError) {
               console.error("Profile fetch error after sign in:", profileError)
-              await clearAllSessionData(s)
-              if (mounted) {
-                setUser(null)
-                setProfile(null)
-              }
             }
             setIsLoading(false)
           } else if (event === "SIGNED_OUT") {
@@ -249,7 +243,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(true)
       console.log("[v0] Login attempt for email:", email)
 
-      const { data, error } = await withTimeout(s.auth.signInWithPassword({ email, password }), 10000, {
+      const { data, error } = await withTimeout(s.auth.signInWithPassword({ email, password }), 5000, {
         data: null as any,
         error: new Error("network_timeout") as any,
       })
@@ -275,39 +269,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { data: gs } = await s.auth.getSession()
         if (gs?.session) sess = gs.session
       }
-
       if (sess?.user && (!sess?.access_token || !sess?.refresh_token)) {
         await clearAllSessionData(s)
         setIsLoading(false)
         return { error: "Login failed. Please try again." }
       }
 
-      if (sess?.user) {
-        try {
-          const { data: profileData, error: profileError } = await s
-            .from("profiles")
-            .select("*")
-            .eq("id", sess.user.id)
-            .single()
-
-          if (profileError || !profileData) {
-            console.log("[v0] User authenticated but profile missing - user was deleted from database")
-            await clearAllSessionData(s)
-            setIsLoading(false)
-            return {
-              error: "This account has been deactivated. Please contact support or sign up again.",
-            }
-          }
-        } catch (profileCheckError) {
-          console.error("[v0] Profile check failed:", profileCheckError)
-          await clearAllSessionData(s)
-          setIsLoading(false)
-          return { error: "Unable to verify account status. Please try again later." }
-        }
-      }
-
       if (sess?.access_token && sess?.refresh_token) {
-        void withTimeout(
+        await withTimeout(
           fetch("/auth/set", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -318,12 +287,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               refresh_token: sess.refresh_token,
             }),
           }),
-          1200,
+          1500,
+          undefined as any,
+        )
+        await withTimeout(
+          fetch("/api/profile/ensure", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            cache: "no-store",
+            body: JSON.stringify({}),
+          }),
+          1500,
           undefined as any,
         )
       }
 
-      if (sess?.user) setUser(sess.user)
+      if (sess?.user) {
+        setUser(sess.user)
+        try {
+          const { data: profileData } = await s.from("profiles").select("*").eq("id", sess.user.id).single()
+          if (profileData) {
+            setProfile({
+              id: profileData.id,
+              name: profileData.full_name || sess.user.email?.split("@")[0] || "User",
+              email: profileData.email || sess.user.email || "",
+              phone: profileData.phone || "",
+              avatar_url: profileData.avatar_url || "",
+              bio: profileData.bio || "",
+              location: profileData.location || "",
+              verified: profileData.verified || false,
+              created_at: profileData.created_at,
+            })
+          }
+        } catch {}
+      }
       setIsLoading(false)
       return {}
     } catch {
