@@ -118,33 +118,15 @@ const MOCK_PRODUCTS: Product[] = [
   },
 ]
 
-export function ProductGrid() {
+export function ProductGrid({ products: overrideProducts }: { products?: Product[] }) {
   const [productsState, setProductsState] = useState<Product[]>([]) // kept for compatibility; no longer primary source
   const [page, setPage] = useState(0)
   const [hasMoreState, setHasMoreState] = useState(true)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
   const [shouldFetch, setShouldFetch] = useState(false)
 
+  const hasOverride = Array.isArray(overrideProducts)
   const fetcher = (url: string) => fetch(url, { cache: "no-store" }).then((r) => r.json())
-
-  const getKey = (index: number, prev: any) => {
-    if (index === 0) return `/api/products?limit=${PRODUCTS_PER_PAGE}`
-    if (!prev?.next) return null
-    const n = prev.next
-    return `/api/products?limit=${PRODUCTS_PER_PAGE}&afterCreatedAt=${encodeURIComponent(
-      n.afterCreatedAt,
-    )}&afterId=${encodeURIComponent(n.afterId)}`
-  }
-
-  const { data, error, size, setSize, isValidating, mutate } = useSWRInfinite(getKey, fetcher, {
-    revalidateOnFocus: false,
-    revalidateFirstPage: false,
-  })
-
-  const isLoading = !data && !error
-  const products: Product[] = (data ? data.flatMap((p: any) => p?.products || []) : []) as Product[]
-  const hasMore = Boolean(data && data[data.length - 1]?.next)
-  const isLoadingMore = isValidating && !!data
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -159,9 +141,34 @@ export function ProductGrid() {
     }
   }, [])
 
-  const toggleFavorite = (productId: string, e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
+  const swrEnabled = !hasOverride && shouldFetch
+
+  const getKey = (index: number, prev: any) => {
+    if (!swrEnabled) return null
+    if (index === 0) return `/api/products?limit=${PRODUCTS_PER_PAGE}`
+    if (!prev?.next) return null
+    const n = prev.next
+    return `/api/products?limit=${PRODUCTS_PER_PAGE}&afterCreatedAt=${encodeURIComponent(
+      n.afterCreatedAt,
+    )}&afterId=${encodeURIComponent(n.afterId)}`
+  }
+
+  const { data, error, size, setSize, isValidating, mutate } = useSWRInfinite(getKey, fetcher, {
+    revalidateOnFocus: false,
+    revalidateFirstPage: false,
+  })
+
+  const isLoading = swrEnabled && !data && !error
+  const productsFetched: Product[] = (data ? data.flatMap((p: any) => p?.products || []) : []) as Product[]
+  const productsToRender: Product[] = hasOverride ? (overrideProducts as Product[]) : productsFetched
+  const hasMore = swrEnabled ? Boolean(data && data[data.length - 1]?.next) : false
+  const isLoadingMore = swrEnabled && isValidating && !!data
+
+  const toggleFavorite = (productId: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
     setFavorites((prev) => {
       const next = new Set(prev)
       next.has(productId) ? next.delete(productId) : next.add(productId)
@@ -169,13 +176,14 @@ export function ProductGrid() {
     })
   }
 
-  const formatPrice = (price: number, priceType: string) => {
+  const formatPrice = (price?: number, priceType?: string) => {
     if (priceType === "free") return "Free"
     if (priceType === "contact") return "Contact for Price"
-    return `$${price.toLocaleString()}`
+    if (typeof price === "number") return `$${price.toLocaleString()}`
+    return "Contact for Price"
   }
 
-  const getConditionBadge = (condition: string) => {
+  const getConditionBadge = (condition?: string) => {
     switch (condition?.toLowerCase()) {
       case "new":
         return { text: "New", className: "bg-green-500 text-white" }
@@ -186,11 +194,12 @@ export function ProductGrid() {
     }
   }
 
-  const isNegotiable = (priceType: string) => {
+  const isNegotiable = (priceType?: string) => {
     return priceType === "negotiable" || priceType === "contact"
   }
 
-  const formatTimePosted = (createdAt: string) => {
+  const formatTimePosted = (createdAt?: string) => {
+    if (!createdAt) return ""
     const now = new Date()
     const posted = new Date(createdAt)
     const diffInHours = Math.floor((now.getTime() - posted.getTime()) / (1000 * 60 * 60))
@@ -202,7 +211,7 @@ export function ProductGrid() {
     return posted.toLocaleDateString()
   }
 
-  if (!shouldFetch) {
+  if (!hasOverride && !shouldFetch) {
     return null
   }
 
@@ -221,7 +230,7 @@ export function ProductGrid() {
     )
   }
 
-  if (error) {
+  if (!hasOverride && error) {
     return (
       <section className="py-2">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -242,7 +251,7 @@ export function ProductGrid() {
     )
   }
 
-  if (products.length === 0) {
+  if (productsToRender.length === 0) {
     return (
       <section className="py-2">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -263,13 +272,15 @@ export function ProductGrid() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-2xl font-bold text-foreground">Latest Ads</h3>
-          <p className="text-sm text-gray-600">{products.length} ads found</p>
+          <p className="text-sm text-gray-600">{productsToRender.length} ads found</p>
         </div>
 
         <TooltipProvider>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {products.map((product) => {
+            {productsToRender.map((product) => {
               const conditionBadge = getConditionBadge(product.condition)
+              const primaryImage = product.images?.[0] || "/diverse-products-still-life.png"
+              const provinceOrLocation = product.province || product.location || ""
 
               return (
                 <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
@@ -277,7 +288,7 @@ export function ProductGrid() {
                     <CardContent className="p-0 flex flex-col h-full">
                       <div className="relative w-full aspect-square overflow-hidden bg-gray-50 rounded-xl">
                         <Image
-                          src={product.images?.[0] || "/placeholder.svg?height=300&width=300&query=product"}
+                          src={primaryImage || "/placeholder.svg"}
                           alt={product.title}
                           fill
                           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 33vw, 20vw"
@@ -327,7 +338,7 @@ export function ProductGrid() {
                         </h4>
                         <div className="flex items-center justify-between">
                           <p className="text-lg font-bold text-green-800">
-                            {formatPrice(product.price, product.price_type)}
+                            {formatPrice(product.price as any, (product as any).price_type)}
                           </p>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -346,7 +357,7 @@ export function ProductGrid() {
                             <TooltipTrigger asChild>
                               <div className="flex items-center gap-1 cursor-help">
                                 <MapPin className="h-3 w-3 text-gray-400" />
-                                <span className="truncate text-xs font-medium">{product.province}</span>
+                                <span className="truncate text-xs font-medium">{provinceOrLocation}</span>
                               </div>
                             </TooltipTrigger>
                             <TooltipContent>
@@ -358,11 +369,15 @@ export function ProductGrid() {
                             <TooltipTrigger asChild>
                               <div className="flex items-center gap-1 text-gray-400 cursor-help">
                                 <Clock className="h-3 w-3" />
-                                <span className="text-xs font-medium">{formatTimePosted(product.created_at)}</span>
+                                <span className="text-xs font-medium">
+                                  {formatTimePosted(product.created_at as any)}
+                                </span>
                               </div>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p>Posted on {new Date(product.created_at).toLocaleDateString()}</p>
+                              <p>
+                                Posted on {product.created_at ? new Date(product.created_at).toLocaleDateString() : "—"}
+                              </p>
                             </TooltipContent>
                           </Tooltip>
                         </div>

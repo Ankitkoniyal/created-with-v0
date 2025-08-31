@@ -118,7 +118,7 @@ export function DashboardNav() {
         <nav className="space-y-2">
           {navItemsDynamic.map((item) => {
             const Icon = item.icon
-            const isActive = pathname === item.href
+            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
 
             return (
               <Button
@@ -126,6 +126,8 @@ export function DashboardNav() {
                 variant={isActive ? "secondary" : "ghost"}
                 className="w-full justify-start"
                 onClick={() => router.push(item.href)}
+                aria-current={isActive ? "page" : undefined}
+                role="link"
               >
                 <Icon className="h-4 w-4 mr-3" />
                 {item.title}
