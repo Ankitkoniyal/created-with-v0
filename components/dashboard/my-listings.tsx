@@ -34,30 +34,85 @@ export function MyListings() {
   const [statusFilter, setStatusFilter] = useState("all")
 
   useEffect(() => {
-    const fetchUserListings = async () => {
-      if (!user) return
+    let cancelled = false
+
+    async function sleep(ms: number) {
+      return new Promise((res) => setTimeout(res, ms))
+    }
+
+    async function fetchJSONWithRetry(url: string, init?: RequestInit, retries = 1) {
+      const doFetch = async () => {
+        const res = await fetch(url, {
+          ...init,
+          cache: "no-store",
+          headers: {
+            accept: "application/json",
+            ...(init?.headers || {}),
+          },
+        })
+        // If rate-limited, bubble up a specific error to retry once
+        if (res.status === 429) {
+          const txt = await res.text().catch(() => "Too Many Requests")
+          const err = new Error(`429: ${txt}`)
+          ;(err as any).rateLimited = true
+          throw err
+        }
+        // Always try to parse as JSON; if server accidentally sends text, guard it
+        const ctype = res.headers.get("content-type") || ""
+        if (!res.ok) {
+          const body = ctype.includes("application/json") ? await res.json().catch(() => ({})) : await res.text()
+          throw new Error(typeof body === "string" ? body : body?.error || "Request failed")
+        }
+        if (ctype.includes("application/json")) {
+          return res.json()
+        }
+        // Fallback: wrap plain text in JSON
+        const txt = await res.text()
+        try {
+          return JSON.parse(txt)
+        } catch {
+          return { listings: [], error: txt }
+        }
+      }
 
       try {
-        const supabase = createClient()
-        const { data, error } = await supabase
-          .from("products")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-
-        if (error) {
-          console.error("Error fetching listings:", error)
-        } else {
-          setListings(data || [])
+        return await doFetch()
+      } catch (e: any) {
+        if (retries > 0 && e?.rateLimited) {
+          await sleep(600) // short backoff
+          return fetchJSONWithRetry(url, init, retries - 1)
         }
-      } catch (error) {
-        console.error("Error:", error)
-      } finally {
+        throw e
+      }
+    }
+
+    const fetchUserListings = async () => {
+      if (!user) {
         setLoading(false)
+        return
+      }
+      try {
+        const data = await fetchJSONWithRetry(`/api/my-listings?limit=50`)
+        if (!cancelled) {
+          if (data?.listings && Array.isArray(data.listings)) {
+            setListings(data.listings as Product[])
+          } else {
+            console.error("Error fetching listings:", data?.error || "unknown error")
+            setListings([])
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching listings:", err)
+        if (!cancelled) setListings([])
+      } finally {
+        if (!cancelled) setLoading(false)
       }
     }
 
     fetchUserListings()
+    return () => {
+      cancelled = true
+    }
   }, [user])
 
   const filteredListings = listings.filter((listing) => {
