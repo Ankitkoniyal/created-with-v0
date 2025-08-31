@@ -61,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await fetch("/auth/set", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          cache: "no-store",
           body: JSON.stringify({
             event,
             access_token: session?.access_token || null,
@@ -184,12 +185,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: error.message }
       }
 
-      const sess = data?.session
+      let sess = data?.session || null
+      if (!sess?.access_token || !sess?.refresh_token) {
+        const { data: gs } = await s.auth.getSession()
+        if (gs?.session) sess = gs.session
+      }
+
       if (sess?.access_token && sess?.refresh_token) {
         try {
           await fetch("/auth/set", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
+            cache: "no-store",
             body: JSON.stringify({
               event: "SIGNED_IN",
               access_token: sess.access_token,
