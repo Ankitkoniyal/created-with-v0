@@ -117,7 +117,34 @@ export function MessagesList() {
             }
           })
 
-          setConversations(Array.from(conversationMap.values()))
+          const conversationsList = Array.from(conversationMap.values())
+          setConversations(conversationsList)
+
+          const subscription = supabase
+            .channel("messages_list")
+            .on(
+              "postgres_changes",
+              {
+                event: "INSERT",
+                schema: "public",
+                table: "messages",
+              },
+              (payload) => {
+                console.log("[v0] New message in conversations list:", payload)
+
+                // Check if this message involves the current user
+                if (payload.new.sender_id === user.id || payload.new.receiver_id === user.id) {
+                  // Refresh conversations to get updated data
+                  fetchConversations()
+                }
+              },
+            )
+            .subscribe()
+
+          // Cleanup subscription on unmount
+          return () => {
+            subscription.unsubscribe()
+          }
         }
       } catch (error) {
         console.error("Error:", error)

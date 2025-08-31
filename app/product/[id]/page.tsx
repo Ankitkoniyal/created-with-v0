@@ -1,157 +1,161 @@
 import { ProductDetail } from "@/components/product-detail"
 import { RelatedProducts } from "@/components/related-products"
 import { Breadcrumb } from "@/components/breadcrumb"
+import { createClient } from "@/lib/supabase/client"
+import { notFound } from "next/navigation"
 
 interface ProductPageProps {
-  params: {
+  params: Promise<{
     id: string
+  }>
+}
+
+async function getProduct(id: string) {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+  if (!uuidRegex.test(id)) {
+    return null
+  }
+
+  const supabase = createClient()
+
+  try {
+    const { data: products, error } = await supabase.from("products").select("*").eq("id", id)
+
+    if (error) {
+      console.error("Database error fetching product:", error.message)
+      return null
+    }
+
+    if (!products || products.length === 0) {
+      console.error("Product not found:", id)
+      return null
+    }
+
+    const product = products[0]
+
+    let profileData = null
+    if (product.user_id) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name, avatar_url, created_at")
+        .eq("id", product.user_id)
+        .single()
+
+      profileData = profile
+    }
+
+    let parsedTags = null
+    if (product.tags) {
+      try {
+        parsedTags = Array.isArray(product.tags) ? product.tags : JSON.parse(product.tags)
+      } catch (error) {
+        console.error("Error parsing tags:", error)
+        parsedTags = []
+      }
+    }
+
+    let parsedFeatures = null
+    if (product.features) {
+      try {
+        parsedFeatures = Array.isArray(product.features) ? product.features : JSON.parse(product.features)
+      } catch (error) {
+        console.error("Error parsing features:", error)
+        parsedFeatures = []
+      }
+    }
+
+    const extractUrls = (description: string) => {
+      const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/g
+      const websiteRegex = /(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:\/[^\s]*)?/g
+
+      const youtubeMatches = description.match(youtubeRegex) || []
+      const websiteMatches = description.match(websiteRegex) || []
+
+      // Filter out YouTube URLs from website matches
+      const filteredWebsiteMatches = websiteMatches.filter(
+        (url) => !url.includes("youtube.com") && !url.includes("youtu.be"),
+      )
+
+      // Remove URLs from description
+      let cleanDescription = description
+      youtubeMatches.forEach((url) => {
+        cleanDescription = cleanDescription.replace(url, "").trim()
+      })
+      filteredWebsiteMatches.forEach((url) => {
+        cleanDescription = cleanDescription.replace(url, "").trim()
+      })
+
+      return {
+        youtubeUrl: youtubeMatches[0] || null,
+        websiteUrl: filteredWebsiteMatches[0] || null,
+        cleanDescription: cleanDescription.replace(/\s+/g, " ").trim(),
+      }
+    }
+
+    const { youtubeUrl, websiteUrl, cleanDescription } = extractUrls(product.description || "")
+
+    const generateAdId = (productId: string, createdAt: string) => {
+      const date = new Date(createdAt)
+      const year = date.getFullYear()
+      const month = (date.getMonth() + 1).toString().padStart(2, "0")
+      const day = date.getDate().toString().padStart(2, "0")
+
+      // Use first 4 characters of product ID for consistency
+      const idSuffix = productId.replace(/-/g, "").substring(0, 4).toUpperCase()
+
+      return `AD${year}${month}${day}${idSuffix}`
+    }
+
+    return {
+      id: product.id,
+      title: product.title,
+      price: `$${product.price.toLocaleString()}`,
+      location: product.city && product.province ? `${product.city}, ${product.province}` : product.location,
+      images: product.images || ["/placeholder.svg"], // Use images field from database
+      description: cleanDescription,
+      youtube_url: product.youtube_url || youtubeUrl, // Use database field first, fallback to extracted
+      website_url: product.website_url || websiteUrl, // Use database field first, fallback to extracted
+      category: product.category || "Other",
+      subcategory: product.subcategory || null,
+      condition: product.condition || "Used",
+      brand: product.brand || null, // Use database field directly
+      model: product.model || null, // Use database field directly
+      tags: parsedTags, // Include parsed tags from database
+      postedDate: product.created_at,
+      views: product.views || 0,
+      adId: generateAdId(product.id, product.created_at),
+      seller: {
+        id: product.user_id, // Include seller ID for profile navigation
+        name: profileData?.full_name || "Anonymous Seller",
+        rating: 4.5,
+        totalReviews: 0,
+        memberSince: profileData?.created_at ? new Date(profileData.created_at).getFullYear().toString() : "2024",
+        verified: true,
+        responseTime: "Usually responds within 2 hours",
+      },
+      features: parsedFeatures || [], // Include parsed features from database
+      storage: product.storage || null,
+      color: product.color || null,
+      featured: false,
+    }
+  } catch (error) {
+    console.error("Unexpected error fetching product:", error)
+    return null
   }
 }
 
-const mockProducts = [
-  {
-    id: "1",
-    title: "iPhone 14 Pro Max - Excellent Condition",
-    price: "$899",
-    location: "TORONTO, ON",
-    images: ["/iphone-14-pro-max.png", "/iphone-14-pro-max-back.png", "/iphone-14-pro-max-side.png"],
-    description:
-      "iPhone 14 Pro Max in excellent condition. Barely used, comes with original box and charger. No scratches or dents. Perfect working condition.",
-    category: "Electronics",
-    condition: "Excellent",
-    brand: "Apple",
-    model: "iPhone 14 Pro Max",
-    storage: "256GB",
-    color: "Space Black",
-    postedDate: "2024-01-10",
-    views: 245,
-    seller: {
-      name: "John Smith",
-      rating: 4.8,
-      totalReviews: 127,
-      memberSince: "2020",
-      verified: true,
-      responseTime: "Usually responds within 1 hour",
-    },
-    features: ["Face ID", "5G Capable", "Wireless Charging", "Water Resistant"],
-    featured: true,
-  },
-  {
-    id: "2",
-    title: "2019 Honda Civic - Low Mileage",
-    price: "$18,500",
-    location: "VANCOUVER, BC",
-    images: ["/honda-civic.png", "/honda-civic-interior.png", "/honda-civic-engine.png"],
-    description:
-      "2019 Honda Civic in excellent condition with low mileage. Well maintained, regular oil changes, non-smoker vehicle. Great fuel economy.",
-    category: "Vehicles",
-    condition: "Good",
-    brand: "Honda",
-    model: "Civic",
-    storage: "N/A",
-    color: "Blue",
-    postedDate: "2024-01-08",
-    views: 189,
-    seller: {
-      name: "Sarah Johnson",
-      rating: 4.6,
-      totalReviews: 89,
-      memberSince: "2019",
-      verified: true,
-      responseTime: "Usually responds within 2 hours",
-    },
-    features: ["Low Mileage", "Fuel Efficient", "Bluetooth", "Backup Camera"],
-    featured: true,
-  },
-  {
-    id: "3",
-    title: "Modern Sofa Set - Like New",
-    price: "$650",
-    location: "MONTREAL, QC",
-    images: ["/modern-sofa.png"],
-    description:
-      "Beautiful modern sofa set in like-new condition. Perfect for any living room. Comfortable and stylish.",
-    category: "Furniture",
-    condition: "Like New",
-    brand: "IKEA",
-    model: "Modern Sofa",
-    storage: "N/A",
-    color: "Grey",
-    postedDate: "2024-01-15",
-    views: 156,
-    seller: {
-      name: "Mike Chen",
-      rating: 4.9,
-      totalReviews: 203,
-      memberSince: "2021",
-      verified: true,
-      responseTime: "Usually responds within 30 minutes",
-    },
-    features: ["Comfortable", "Modern Design", "Easy to Clean", "Durable"],
-    featured: false,
-  },
-  {
-    id: "4",
-    title: "Gaming Laptop - RTX 3070",
-    price: "$1,200",
-    location: "CALGARY, AB",
-    images: ["/gaming-laptop.png"],
-    description:
-      "High-performance gaming laptop with RTX 3070 graphics card. Perfect for gaming and professional work.",
-    category: "Electronics",
-    condition: "Good",
-    brand: "ASUS",
-    model: "ROG Strix",
-    storage: "1TB SSD",
-    color: "Black",
-    postedDate: "2024-01-14",
-    views: 234,
-    seller: {
-      name: "Alex Rodriguez",
-      rating: 4.7,
-      totalReviews: 156,
-      memberSince: "2020",
-      verified: true,
-      responseTime: "Usually responds within 1 hour",
-    },
-    features: ["RTX 3070", "16GB RAM", "1TB SSD", "RGB Keyboard"],
-    featured: false,
-  },
-]
-
-const getFallbackProduct = (id: string) => ({
-  id,
-  title: "Product Not Available",
-  price: "$0",
-  location: "CANADA",
-  images: ["/placeholder.svg"],
-  description: "This product is currently not available. Please check back later or browse other items.",
-  category: "Other",
-  condition: "N/A",
-  brand: "N/A",
-  model: "N/A",
-  storage: "N/A",
-  color: "N/A",
-  postedDate: "2024-01-01",
-  views: 0,
-  seller: {
-    name: "Marketplace",
-    rating: 5.0,
-    totalReviews: 1,
-    memberSince: "2024",
-    verified: true,
-    responseTime: "Usually responds within 24 hours",
-  },
-  features: ["Coming Soon"],
-  featured: false,
-})
-
 export default async function ProductPage({ params }: ProductPageProps) {
-  const product = mockProducts.find((p) => p.id === params.id) || getFallbackProduct(params.id)
+  const { id } = await params
+  const product = await getProduct(id)
+
+  if (!product) {
+    notFound()
+  }
 
   const breadcrumbItems = [
     { label: "Home", href: "/" },
-    { label: product.category, href: `/category/${product.category.toLowerCase()}` },
+    { label: product.category, href: `/search?category=${encodeURIComponent(product.category)}` },
     { label: product.title, href: `/product/${product.id}` },
   ]
 

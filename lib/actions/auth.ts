@@ -1,38 +1,67 @@
 "use server"
 
-import { createServerActionClient } from "@supabase/auth-helpers-nextjs"
+import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
 export async function signIn(prevState: any, formData: FormData) {
   if (!formData) {
-    return { error: "Form data is missing" }
+    return { error: "Form data is missing", success: false, redirect: null }
   }
 
   const email = formData.get("email")
   const password = formData.get("password")
 
   if (!email || !password) {
-    return { error: "Email and password are required" }
+    return { error: "Email and password are required", success: false, redirect: null }
+  }
+
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return {
+      error: "Authentication service is not configured. Please contact support.",
+      success: false,
+      redirect: null,
+    }
   }
 
   const cookieStore = cookies()
-  const supabase = createServerActionClient({ cookies: () => cookieStore })
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+        set(name: string, value: string, options: any) {
+          cookieStore.set({ name, value, ...options })
+        },
+        remove(name: string, options: any) {
+          cookieStore.set({ name, value: "", ...options })
+        },
+      },
+    },
+  )
 
   try {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: email.toString(),
       password: password.toString(),
     })
 
     if (error) {
-      return { error: error.message }
+      return { error: error.message, success: false, redirect: null }
     }
 
-    return { success: true }
-  } catch (error) {
-    console.error("Login error:", error)
-    return { error: "An unexpected error occurred. Please try again." }
+    const result = { success: true, redirect: "/dashboard", error: null }
+    return result
+  } catch (error: any) {
+    console.error("Signin error:", error)
+    if (error.message && error.message.includes("Unexpected token")) {
+      return { error: "Authentication service error. Please try again.", success: false, redirect: null }
+    }
+    return { error: "An unexpected error occurred. Please try again.", success: false, redirect: null }
   }
 }
 
@@ -50,16 +79,40 @@ export async function signUp(prevState: any, formData: FormData) {
     return { error: "Email and password are required" }
   }
 
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return { error: "Authentication service is not configured. Please contact support." }
+  }
+
   const cookieStore = cookies()
-  const supabase = createServerActionClient({ cookies: () => cookieStore })
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+        set(name: string, value: string, options: any) {
+          cookieStore.set({ name, value, ...options })
+        },
+        remove(name: string, options: any) {
+          cookieStore.set({ name, value: "", ...options })
+        },
+      },
+    },
+  )
 
   try {
+    const redirectUrl =
+      process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ||
+      `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/auth/callback`
+
     const { error } = await supabase.auth.signUp({
       email: email.toString(),
       password: password.toString(),
       options: {
-        emailRedirectTo:
-          process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+        emailRedirectTo: redirectUrl,
         data: {
           full_name: fullName?.toString() || "",
           phone: phone?.toString() || "",
@@ -72,15 +125,35 @@ export async function signUp(prevState: any, formData: FormData) {
     }
 
     return { success: "Check your email to confirm your account." }
-  } catch (error) {
-    console.error("Sign up error:", error)
+  } catch (error: any) {
+    console.error("Signup error:", error)
+    if (error.message && error.message.includes("Unexpected token")) {
+      return { error: "Authentication service error. Please check your email format and try again." }
+    }
     return { error: "An unexpected error occurred. Please try again." }
   }
 }
 
 export async function signOut() {
   const cookieStore = cookies()
-  const supabase = createServerActionClient({ cookies: () => cookieStore })
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+        set(name: string, value: string, options: any) {
+          cookieStore.set({ name, value, ...options })
+        },
+        remove(name: string, options: any) {
+          cookieStore.set({ name, value: "", ...options })
+        },
+      },
+    },
+  )
 
   await supabase.auth.signOut()
   redirect("/auth/login")

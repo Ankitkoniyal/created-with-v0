@@ -34,7 +34,7 @@ export function CategoryNav() {
   return (
     <section className="py-8 border-b border-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h3 className="text-2xl font-bold text-foreground mb-6">Categories</h3>
+        <h3 className="text-2xl font-bold text-foreground mb-6">Browse Categories</h3>
         <div className="grid grid-cols-6 md:grid-cols-8 lg:grid-cols-12 gap-2 lg:gap-3">
           {categories.map((category) => {
             const Icon = category.icon

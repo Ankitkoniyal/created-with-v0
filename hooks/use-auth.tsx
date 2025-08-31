@@ -27,104 +27,346 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+const withTimeout = async <T,>(p: Promise<T>, ms: number, onTimeoutValue: T): Promise<T> => {
+  return await Promise.race([p, new Promise<T>((resolve) => setTimeout(() => resolve(onTimeoutValue), ms))])
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const supabase = createClient()
 
   useEffect(() => {
-    // Get initial session
-    const getInitialSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      setUser(session?.user ?? null)
+    let mounted = true
 
-      if (session?.user) {
-        await fetchProfile(session.user.id)
-      }
+    // Create a fresh client inside effect (ensures window.__supabase is available)
+    const s = createClient()
+    if (!s) {
       setIsLoading(false)
+      return
     }
 
-    getInitialSession()
+    const syncServerSession = async (event: string, session: any | null) => {
+      try {
+        // If session is missing tokens, try to hydrate once
+        if (!session?.access_token || !session?.refresh_token) {
+          const { data } = await s.auth.getSession()
+          session = data?.session ?? session
+        }
 
-    // Listen for auth changes
+        // Guard: do NOT post unless we have both tokens for setSession to succeed
+        if (
+          (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") &&
+          (!session?.access_token || !session?.refresh_token)
+        ) {
+          return
+        }
+
+        await withTimeout(
+          fetch("/auth/set", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            cache: "no-store",
+            body: JSON.stringify({
+              event,
+              access_token: session?.access_token || null,
+              refresh_token: session?.refresh_token || null,
+            }),
+          }),
+          1200,
+          undefined as any,
+        )
+      } catch {
+        // swallow to avoid breaking UI
+      }
+    }
+
+    const initializeAuth = async () => {
+      try {
+        const {
+          data: { session },
+          error: sessionError,
+        } = await s.auth.getSession()
+
+        if (!mounted) return
+
+        if (sessionError) {
+          if (
+            sessionError.message?.includes("refresh_token_not_found") ||
+            sessionError.message?.includes("Invalid Refresh Token")
+          ) {
+            await clearAllSessionData(s)
+            if (mounted) {
+              setUser(null)
+              setProfile(null)
+              setIsLoading(false)
+            }
+            return
+          }
+          throw sessionError
+        }
+
+        if (session?.user && (!session?.access_token || !session?.refresh_token)) {
+          await clearAllSessionData(s)
+          if (mounted) {
+            setUser(null)
+            setProfile(null)
+            setIsLoading(false)
+          }
+          return
+        }
+
+        if (session?.user) {
+          console.log("[v0] Found existing session for user:", session.user.email)
+          if (session.access_token && session.refresh_token) {
+            await syncServerSession("SIGNED_IN", session)
+          }
+          setUser(session.user)
+          try {
+            const profileData = await fetchProfile(session.user.id, session.user, s)
+            if (!profileData) {
+              console.log("[v0] Profile not found for user:", session.user.email, "- clearing all session data")
+              await clearAllSessionData(s)
+              if (mounted) {
+                setUser(null)
+                setProfile(null)
+                setIsLoading(false)
+              }
+              return
+            }
+            if (mounted) setProfile(profileData)
+          } catch (profileError) {
+            console.error("Profile fetch error:", profileError)
+            await clearAllSessionData(s)
+            if (mounted) {
+              setUser(null)
+              setProfile(null)
+            }
+          }
+        } else {
+          setUser(null)
+          setProfile(null)
+        }
+
+        if (mounted) setIsLoading(false)
+      } catch (error) {
+        console.error("Auth initialization error:", error)
+        if (mounted) {
+          setUser(null)
+          setProfile(null)
+          setIsLoading(false)
+        }
+      }
+    }
+
+    initializeAuth()
+
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setUser(session?.user ?? null)
+    } = s.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return
 
-      if (session?.user) {
-        await fetchProfile(session.user.id)
-      } else {
-        setProfile(null)
+      try {
+        if (!session?.access_token || !session?.refresh_token) {
+          const { data } = await s.auth.getSession()
+          session = data?.session ?? session
+        }
+
+        if (event === "TOKEN_REFRESHED" && (!session?.access_token || !session?.refresh_token)) {
+          await clearAllSessionData(s)
+          if (mounted) {
+            setUser(null)
+            setProfile(null)
+            setIsLoading(false)
+          }
+          return
+        }
+
+        if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session?.access_token && session?.refresh_token) {
+          await syncServerSession(event, session)
+        } else if (event === "SIGNED_OUT") {
+          await syncServerSession(event, null)
+        }
+
+        if (event === "SIGNED_IN" && session?.user) {
+          setUser(session.user)
+          try {
+            const profileData = await fetchProfile(session.user.id, session.user, s)
+            if (!profileData) {
+              console.log("[v0] User authenticated but profile missing - user was deleted from database")
+              await clearAllSessionData(s)
+              if (mounted) {
+                setUser(null)
+                setProfile(null)
+                setIsLoading(false)
+              }
+              return
+            }
+            if (mounted) setProfile(profileData)
+          } catch (profileError) {
+            console.error("Profile fetch error after sign in:", profileError)
+            await clearAllSessionData(s)
+            if (mounted) {
+              setUser(null)
+              setProfile(null)
+            }
+          }
+          setIsLoading(false)
+        } else if (event === "SIGNED_OUT") {
+          setUser(null)
+          setProfile(null)
+          setIsLoading(false)
+        } else if (event === "TOKEN_REFRESHED") {
+          if (session?.user && mounted) setUser(session.user)
+        }
+      } catch (e) {
+        await clearAllSessionData(s)
+        if (mounted) {
+          setUser(null)
+          setProfile(null)
+          setIsLoading(false)
+        }
       }
-      setIsLoading(false)
     })
 
-    return () => subscription.unsubscribe()
-  }, [])
-
-  const fetchProfile = async (userId: string) => {
-    try {
-      const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
-
-      if (error) {
-        console.error("Error fetching profile:", error)
-        return
-      }
-
-      setProfile(data)
-    } catch (error) {
-      console.error("Error fetching profile:", error)
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
     }
-  }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const login = async (email: string, password: string) => {
+    const s = createClient()
+    if (!s) return { error: "Authentication is not configured. Please try again later." }
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      setIsLoading(true)
+      console.log("[v0] Login attempt for email:", email)
+
+      const { data, error } = await withTimeout(s.auth.signInWithPassword({ email, password }), 10000, {
+        data: null as any,
+        error: new Error("network_timeout") as any,
       })
 
       if (error) {
-        return { error: error.message }
+        setIsLoading(false)
+        const msg = String(error.message || "")
+        if (msg === "network_timeout") {
+          return { error: "Network timeout. Please check your connection and try again." }
+        }
+        if (msg.includes("Invalid login credentials")) {
+          return { error: "Invalid email or password. Please check your credentials and try again." }
+        } else if (msg.includes("Email not confirmed")) {
+          return { error: "Please check your email and click the confirmation link before signing in." }
+        } else if (msg.includes("Too many requests")) {
+          return { error: "Too many login attempts. Please wait a few minutes before trying again." }
+        }
+        return { error: msg || "Unable to sign in. Please try again." }
       }
 
+      let sess = data?.session || null
+      if (!sess?.access_token || !sess?.refresh_token) {
+        const { data: gs } = await s.auth.getSession()
+        if (gs?.session) sess = gs.session
+      }
+
+      if (sess?.user && (!sess?.access_token || !sess?.refresh_token)) {
+        await clearAllSessionData(s)
+        setIsLoading(false)
+        return { error: "Login failed. Please try again." }
+      }
+
+      if (sess?.user) {
+        try {
+          const { data: profileData, error: profileError } = await s
+            .from("profiles")
+            .select("*")
+            .eq("id", sess.user.id)
+            .single()
+
+          if (profileError || !profileData) {
+            console.log("[v0] User authenticated but profile missing - user was deleted from database")
+            await clearAllSessionData(s)
+            setIsLoading(false)
+            return {
+              error: "This account has been deactivated. Please contact support or sign up again.",
+            }
+          }
+        } catch (profileCheckError) {
+          console.error("[v0] Profile check failed:", profileCheckError)
+          await clearAllSessionData(s)
+          setIsLoading(false)
+          return { error: "Unable to verify account status. Please try again later." }
+        }
+      }
+
+      if (sess?.access_token && sess?.refresh_token) {
+        void withTimeout(
+          fetch("/auth/set", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            cache: "no-store",
+            body: JSON.stringify({
+              event: "SIGNED_IN",
+              access_token: sess.access_token,
+              refresh_token: sess.refresh_token,
+            }),
+          }),
+          1200,
+          undefined as any,
+        )
+      }
+
+      if (sess?.user) setUser(sess.user)
+      setIsLoading(false)
       return {}
-    } catch (error) {
-      return { error: "An unexpected error occurred" }
+    } catch {
+      setIsLoading(false)
+      return { error: "Network error: Unable to connect to authentication service" }
     }
   }
 
   const signup = async (email: string, password: string, name: string, phone: string) => {
+    const s = createClient()
+    if (!s) return { error: "Authentication is not configured. Please try again later." }
     try {
-      const { error } = await supabase.auth.signUp({
+      setIsLoading(true)
+      const redirectUrl =
+        process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ||
+        (typeof window !== "undefined"
+          ? `${window.location.origin}/auth/callback`
+          : "http://localhost:3000/auth/callback")
+
+      const { error } = await s.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo:
-            process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/auth/callback`,
-          data: {
-            name,
-            phone,
-          },
+          emailRedirectTo: redirectUrl,
+          data: { full_name: name, phone },
         },
       })
-
       if (error) {
+        setIsLoading(false)
         return { error: error.message }
       }
-
       return {}
-    } catch (error) {
+    } catch {
+      setIsLoading(false)
       return { error: "An unexpected error occurred" }
     }
   }
 
   const logout = async () => {
-    await supabase.auth.signOut()
+    const s = createClient()
+    if (!s) return
+    setIsLoading(true)
+    try {
+      await fetch("/auth/set", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event: "SIGNED_OUT" }),
+      })
+    } catch {}
+    await s.auth.signOut()
   }
 
   return (
@@ -135,7 +377,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext)
   if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider")
+    return {
+      user: null,
+      profile: null,
+      login: async () => ({ error: "Authentication is not available right now. Please try again later." }),
+      signup: async () => ({ error: "Authentication is not available right now. Please try again later." }),
+      logout: async () => {},
+      isLoading: false,
+    }
   }
   return context
+}
+
+const fetchProfile = async (userId: string, userData: User, s = createClient()): Promise<Profile | null> => {
+  try {
+    if (!s) {
+      return null
+    }
+    const { data, error } = await s.from("profiles").select("*").eq("id", userId).single()
+    if (error || !data) {
+      return null
+    }
+    return {
+      id: data.id,
+      name: data.full_name || userData?.email?.split("@")[0] || "User",
+      email: data.email || userData?.email || "",
+      phone: data.phone || "",
+      avatar_url: data.avatar_url || "",
+      bio: data.bio || "",
+      location: data.location || "",
+      verified: data.verified || false,
+      created_at: data.created_at,
+    }
+  } catch {
+    return null
+  }
+}
+
+const clearAllSessionData = async (s: any) => {
+  try {
+    await withTimeout(
+      fetch("/auth/set", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({ event: "SIGNED_OUT" }),
+      }),
+      1200,
+      undefined as any,
+    )
+  } catch {}
+
+  await withTimeout(s.auth.signOut(), 2000, undefined as any)
+
+  if (typeof window !== "undefined") {
+    try {
+      const keys = Object.keys(localStorage)
+      keys.forEach((key) => {
+        if (key.includes("supabase") || key.includes("auth")) {
+          localStorage.removeItem(key)
+        }
+      })
+    } catch {}
+  }
 }

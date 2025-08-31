@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Eye, MessageSquare, Edit, Trash2, Search, Plus, MoreHorizontal, Package } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
 
@@ -18,7 +19,7 @@ interface Product {
   price: number
   status: string
   views: number
-  images: string[]
+  images: string[] // Fixed field name from image_urls to images to match database schema
   category: string
   created_at: string
   user_id: string
@@ -26,37 +27,92 @@ interface Product {
 
 export function MyListings() {
   const { user } = useAuth()
+  const router = useRouter()
   const [listings, setListings] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
 
   useEffect(() => {
-    const fetchUserListings = async () => {
-      if (!user) return
+    let cancelled = false
+
+    async function sleep(ms: number) {
+      return new Promise((res) => setTimeout(res, ms))
+    }
+
+    async function fetchJSONWithRetry(url: string, init?: RequestInit, retries = 1) {
+      const doFetch = async () => {
+        const res = await fetch(url, {
+          ...init,
+          cache: "no-store",
+          headers: {
+            accept: "application/json",
+            ...(init?.headers || {}),
+          },
+        })
+        // If rate-limited, bubble up a specific error to retry once
+        if (res.status === 429) {
+          const txt = await res.text().catch(() => "Too Many Requests")
+          const err = new Error(`429: ${txt}`)
+          ;(err as any).rateLimited = true
+          throw err
+        }
+        // Always try to parse as JSON; if server accidentally sends text, guard it
+        const ctype = res.headers.get("content-type") || ""
+        if (!res.ok) {
+          const body = ctype.includes("application/json") ? await res.json().catch(() => ({})) : await res.text()
+          throw new Error(typeof body === "string" ? body : body?.error || "Request failed")
+        }
+        if (ctype.includes("application/json")) {
+          return res.json()
+        }
+        // Fallback: wrap plain text in JSON
+        const txt = await res.text()
+        try {
+          return JSON.parse(txt)
+        } catch {
+          return { listings: [], error: txt }
+        }
+      }
 
       try {
-        const supabase = createClient()
-        const { data, error } = await supabase
-          .from("products")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-
-        if (error) {
-          console.error("Error fetching listings:", error)
-        } else {
-          console.log("[v0] Fetched user listings:", data)
-          setListings(data || [])
+        return await doFetch()
+      } catch (e: any) {
+        if (retries > 0 && e?.rateLimited) {
+          await sleep(600) // short backoff
+          return fetchJSONWithRetry(url, init, retries - 1)
         }
-      } catch (error) {
-        console.error("Error:", error)
-      } finally {
+        throw e
+      }
+    }
+
+    const fetchUserListings = async () => {
+      if (!user) {
         setLoading(false)
+        return
+      }
+      try {
+        const data = await fetchJSONWithRetry(`/api/my-listings?limit=50`)
+        if (!cancelled) {
+          if (data?.listings && Array.isArray(data.listings)) {
+            setListings(data.listings as Product[])
+          } else {
+            console.error("Error fetching listings:", data?.error || "unknown error")
+            setListings([])
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching listings:", err)
+        if (!cancelled) setListings([])
+      } finally {
+        if (!cancelled) setLoading(false)
       }
     }
 
     fetchUserListings()
+    return () => {
+      cancelled = true
+    }
   }, [user])
 
   const filteredListings = listings.filter((listing) => {
@@ -79,8 +135,7 @@ export function MyListings() {
   }
 
   const handleEditAd = (id: string) => {
-    console.log("[v0] Editing ad:", id)
-    // Navigate to edit page
+    router.push(`/sell?edit=${id}`)
   }
 
   const handleDeleteAd = async (id: string) => {
@@ -94,8 +149,8 @@ export function MyListings() {
         console.error("Error deleting ad:", error)
         alert("Failed to delete ad")
       } else {
-        console.log("[v0] Deleted ad:", id)
         setListings((prev) => prev.filter((listing) => listing.id !== id))
+        alert("Ad deleted successfully")
       }
     } catch (error) {
       console.error("Error:", error)
@@ -112,8 +167,8 @@ export function MyListings() {
         console.error("Error updating ad:", error)
         alert("Failed to update ad")
       } else {
-        console.log("[v0] Marked ad as sold:", id)
         setListings((prev) => prev.map((listing) => (listing.id === id ? { ...listing, status: "sold" } : listing)))
+        alert("Ad marked as sold")
       }
     } catch (error) {
       console.error("Error:", error)
@@ -134,8 +189,8 @@ export function MyListings() {
         console.error("Error updating ad:", error)
         alert("Failed to update ad")
       } else {
-        console.log("[v0] Marked ad as active:", id)
         setListings((prev) => prev.map((listing) => (listing.id === id ? { ...listing, status: "active" } : listing)))
+        alert("Ad marked as active")
       }
     } catch (error) {
       console.error("Error:", error)
@@ -196,7 +251,7 @@ export function MyListings() {
           <Card key={listing.id} className="overflow-hidden">
             <div className="relative">
               <img
-                src={listing.images?.[0] || "/placeholder.svg"}
+                src={listing.images?.[0] || "/placeholder.svg"} // Fixed field name from image_urls to images
                 alt={listing.title}
                 className="w-full h-48 object-cover"
               />

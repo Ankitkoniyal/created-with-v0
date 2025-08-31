@@ -1,11 +1,16 @@
+"use client"
+
+import { useMemo } from "react"
 import { SearchResults } from "@/components/search/search-results"
-import { SearchFilters } from "@/components/search/search-filters"
+import SearchFilters from "@/components/search/search-filters"
+import { SubcategoryNav } from "@/components/subcategory-nav"
 import { Breadcrumb } from "@/components/breadcrumb"
 
 interface SearchPageProps {
   searchParams: {
     q?: string
     category?: string
+    subcategory?: string
     minPrice?: string
     maxPrice?: string
     condition?: string
@@ -16,14 +21,27 @@ interface SearchPageProps {
 
 export default function SearchPage({ searchParams }: SearchPageProps) {
   const query = searchParams.q || ""
-  const filters = {
-    category: searchParams.category || "",
-    minPrice: searchParams.minPrice || "",
-    maxPrice: searchParams.maxPrice || "",
-    condition: searchParams.condition || "",
-    location: searchParams.location || "",
-    sortBy: searchParams.sortBy || "relevance",
-  }
+
+  const filters = useMemo(
+    () => ({
+      category: searchParams.category || "",
+      subcategory: searchParams.subcategory || "",
+      minPrice: searchParams.minPrice || "",
+      maxPrice: searchParams.maxPrice || "",
+      condition: searchParams.condition || "",
+      location: searchParams.location || "",
+      sortBy: searchParams.sortBy || "relevance",
+    }),
+    [
+      searchParams.category,
+      searchParams.subcategory,
+      searchParams.minPrice,
+      searchParams.maxPrice,
+      searchParams.condition,
+      searchParams.location,
+      searchParams.sortBy,
+    ],
+  )
 
   const breadcrumbItems = [
     { label: "Home", href: "/" },
@@ -47,6 +65,9 @@ export default function SearchPage({ searchParams }: SearchPageProps) {
             <SearchFilters currentFilters={filters} searchQuery={query} />
           </div>
           <div className="lg:col-span-3">
+            {filters.category && (
+              <SubcategoryNav category={filters.category} selectedSubcategory={filters.subcategory} />
+            )}
             <SearchResults searchQuery={query} filters={filters} />
           </div>
         </div>

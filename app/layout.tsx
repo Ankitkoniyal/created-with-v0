@@ -3,7 +3,10 @@ import type { Metadata } from "next"
 import { DM_Sans } from "next/font/google"
 import "./globals.css"
 import { AuthProvider } from "@/hooks/use-auth"
-import { Header } from "@/components/header" // Keep this import
+import { Header } from "@/components/header"
+import { Toaster } from "@/components/ui/toaster"
+import { ErrorBoundary } from "@/components/error-boundary"
+import { WebVitalsClient } from "@/components/metrics/web-vitals-client"
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -31,12 +34,35 @@ html {
   --font-sans: ${dmSans.variable};
 }
         `}</style>
+        {/* Only inject window.__supabase when both URL and KEY are present to avoid auth-js fetch with empty values */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function () {
+                if (typeof window === 'undefined') return;
+                if (!window.__supabase) {
+                  var url = ${JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "")};
+                  var key = ${JSON.stringify(
+                    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "",
+                  )};
+                  if (url && key) {
+                    window.__supabase = { url: url, key: key };
+                  }
+                }
+              })();
+            `,
+          }}
+        />
       </head>
       <body className={dmSans.className}>
-        <AuthProvider>
-          <Header /> {/* This will show on EVERY page */}
-          {children}
-        </AuthProvider>
+        <ErrorBoundary>
+          <AuthProvider>
+            <Header />
+            {children}
+            <Toaster />
+            <WebVitalsClient />
+          </AuthProvider>
+        </ErrorBoundary>
       </body>
     </html>
   )

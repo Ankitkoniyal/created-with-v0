@@ -1,15 +1,30 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js"
+import { createBrowserClient, type SupabaseClient } from "@supabase/ssr"
 
-// Your Supabase project credentials
-const supabaseUrl = "https://gkaeeayfwrgekssmtuzn.supabase.co"
-const supabaseAnonKey =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdrYWVlYXlmd3JnZWtzc210dXpuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUxODIwMTQsImV4cCI6MjA3MDc1ODAxNH0.NXf2FIeZuAyACwTgnd6CI0u_-EhoE_GI4mJaDwC7yOA"
+declare global {
+  interface Window {
+    __supabase?: { url?: string; key?: string }
+  }
+}
 
-// Check if Supabase environment variables are available
-export const isSupabaseConfigured = true
+let supabaseBrowser: SupabaseClient | null = null
 
-// Create a singleton instance of the Supabase client
-export const supabase = createSupabaseClient(supabaseUrl, supabaseAnonKey)
+export function createClient(): SupabaseClient | null {
+  const url =
+    (typeof window !== "undefined" ? window.__supabase?.url : undefined) || process.env.NEXT_PUBLIC_SUPABASE_URL
 
-// Export createClient for compatibility
-export const createClient = () => supabase
+  const anon =
+    (typeof window !== "undefined" ? window.__supabase?.key : undefined) || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!url || !anon) {
+    if (typeof window !== "undefined") {
+      console.error(
+        "[Supabase] Missing public env vars. Set NEXT_PUBLIC_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_ANON_KEY in Project Settings.",
+      )
+    }
+    return null
+  }
+
+  if (supabaseBrowser) return supabaseBrowser
+  supabaseBrowser = createBrowserClient(url, anon)
+  return supabaseBrowser
+}

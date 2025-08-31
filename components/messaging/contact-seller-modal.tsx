@@ -9,10 +9,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { MessageSquare, Shield, Star } from "lucide-react"
+import { MessageSquare, Shield, Star, AlertTriangle } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
+import { useToast } from "@/hooks/use-toast"
 
 interface ContactSellerModalProps {
   product: {
@@ -34,6 +35,7 @@ interface ContactSellerModalProps {
 export function ContactSellerModal({ product, seller, children }: ContactSellerModalProps) {
   const { user } = useAuth()
   const router = useRouter()
+  const { toast } = useToast()
   const [message, setMessage] = useState(`Hi! I'm interested in your ${product.title}. Is it still available?`)
   const [isOpen, setIsOpen] = useState(false)
   const [isSending, setIsSending] = useState(false)
@@ -57,7 +59,11 @@ export function ContactSellerModal({ product, seller, children }: ContactSellerM
 
       if (productError) {
         console.error("Error fetching product:", productError)
-        alert("Failed to send message")
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to send message. Please try again.",
+        })
         return
       }
 
@@ -74,18 +80,28 @@ export function ContactSellerModal({ product, seller, children }: ContactSellerM
 
       if (error) {
         console.error("Error sending message:", error)
-        alert("Failed to send message")
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to send message. Please try again.",
+        })
       } else {
-        console.log("[v0] Message sent:", data)
+        toast({
+          title: "Message sent!",
+          description: "Your message has been sent to the seller.",
+        })
         setIsOpen(false)
 
-        // Redirect to the conversation
         const conversationId = `${product.id}-${productData.user_id}`
         router.push(`/dashboard/messages/${conversationId}`)
       }
     } catch (error) {
       console.error("Error:", error)
-      alert("Failed to send message")
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to send message. Please check your connection and try again.",
+      })
     } finally {
       setIsSending(false)
     }
@@ -103,7 +119,13 @@ export function ContactSellerModal({ product, seller, children }: ContactSellerM
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Product Info */}
+          <div className="flex items-center space-x-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+            <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+            <p className="text-xs text-amber-700">
+              <strong>Safety Reminder:</strong> Meet in public places and inspect items before payment.
+            </p>
+          </div>
+
           <div className="flex items-center space-x-3 p-3 bg-muted rounded-lg">
             <img
               src={product.image || "/placeholder.svg"}
@@ -116,7 +138,6 @@ export function ContactSellerModal({ product, seller, children }: ContactSellerM
             </div>
           </div>
 
-          {/* Seller Info */}
           <div className="flex items-center space-x-3">
             <Avatar>
               <AvatarImage src={seller.avatar || "/placeholder.svg"} />
@@ -145,7 +166,6 @@ export function ContactSellerModal({ product, seller, children }: ContactSellerM
             </div>
           </div>
 
-          {/* Message Input */}
           <div className="space-y-2">
             <Label htmlFor="message">Your Message</Label>
             <Textarea
@@ -157,7 +177,6 @@ export function ContactSellerModal({ product, seller, children }: ContactSellerM
             />
           </div>
 
-          {/* Actions */}
           <div className="flex space-x-2">
             <Button variant="outline" onClick={() => setIsOpen(false)} className="flex-1">
               Cancel
