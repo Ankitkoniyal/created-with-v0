@@ -7,6 +7,9 @@ type Product = {
   price: number | null
   primary_image: string | null
   created_at: string
+  price_type?: string | null
+  province?: string | null
+  images?: string[]
 }
 
 function getSupabaseServer() {
@@ -25,6 +28,7 @@ function getSupabaseServer() {
 }
 
 export async function GET(req: Request) {
+  const start = Date.now()
   const { searchParams } = new URL(req.url)
   const limit = Math.min(Number.parseInt(searchParams.get("limit") || "12", 10) || 12, 50)
   // keyset cursor: created_at,id
@@ -39,21 +43,29 @@ export async function GET(req: Request) {
   // Build query with lean select; adjust column names if your schema differs
   let query = supabase
     .from("products")
-    .select("id,title,price,primary_image,created_at", { count: "exact" })
+    .select("id,title,price,primary_image,created_at,price_type,province", { count: "exact" })
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
 
   if (afterCreatedAt && afterId) {
     // emulate keyset by filtering less-than the last seen tuple
-    query = query.lt("created_at", afterCreatedAt).or(`created_at.eq.${afterCreatedAt},id.lt.${afterId}`)
+    query = query.or(`created_at.lt.${afterCreatedAt},and(created_at.eq.${afterCreatedAt},id.lt.${afterId})`)
   }
 
   const { data, error } = await query.limit(limit)
+  const ms = Date.now() - start
   if (error) {
+    console.log("[v0] /api/products error", { ms, error: error.message })
     return NextResponse.json({ products: [], error: error.message }, { status: 200 })
   }
+  console.log("[v0] /api/products ok", { ms, count: data?.length ?? 0, slow: ms > 400 })
 
-  const products: Product[] = (data || []) as any
+  const rows = (data || []) as Product[]
+  const products = rows.map((r) => ({
+    ...r,
+    images: r.primary_image ? [r.primary_image] : [],
+  }))
+
   const last = products[products.length - 1]
   const next = products.length === limit && last ? { afterCreatedAt: last.created_at, afterId: last.id } : null
 

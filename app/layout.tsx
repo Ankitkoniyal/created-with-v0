@@ -6,6 +6,7 @@ import { AuthProvider } from "@/hooks/use-auth"
 import { Header } from "@/components/header"
 import { Toaster } from "@/components/ui/toaster"
 import { ErrorBoundary } from "@/components/error-boundary"
+import { WebVitalsClient } from "@/components/metrics/web-vitals-client"
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -67,6 +68,7 @@ html {
             <Header />
             {children}
             <Toaster />
+            <WebVitalsClient />
           </AuthProvider>
         </ErrorBoundary>
       </body>
