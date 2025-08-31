@@ -103,10 +103,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(session.user)
           try {
             const profileData = await fetchProfile(session.user.id, session.user, s)
+            if (!profileData) {
+              try {
+                await fetch("/auth/set", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  cache: "no-store",
+                  body: JSON.stringify({ event: "SIGNED_OUT" }),
+                })
+              } catch {}
+              await s.auth.signOut()
+              if (mounted) {
+                setUser(null)
+                setProfile(null)
+                setIsLoading(false)
+              }
+              return
+            }
             if (mounted) setProfile(profileData)
           } catch (profileError) {
             console.error("Profile fetch error:", profileError)
-            if (mounted) setProfile(null)
+            try {
+              await fetch("/auth/set", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                cache: "no-store",
+                body: JSON.stringify({ event: "SIGNED_OUT" }),
+              })
+            } catch {}
+            await s.auth.signOut()
+            if (mounted) {
+              setUser(null)
+              setProfile(null)
+            }
           }
         } else {
           setUser(null)
@@ -146,10 +175,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session.user)
         try {
           const profileData = await fetchProfile(session.user.id, session.user, s)
+          if (!profileData) {
+            try {
+              await fetch("/auth/set", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                cache: "no-store",
+                body: JSON.stringify({ event: "SIGNED_OUT" }),
+              })
+            } catch {}
+            await s.auth.signOut()
+            if (mounted) {
+              setUser(null)
+              setProfile(null)
+              setIsLoading(false)
+            }
+            return
+          }
           if (mounted) setProfile(profileData)
         } catch (profileError) {
           console.error("Profile fetch error after sign in:", profileError)
-          if (mounted) setProfile(null)
+          try {
+            await fetch("/auth/set", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              cache: "no-store",
+              body: JSON.stringify({ event: "SIGNED_OUT" }),
+            })
+          } catch {}
+          await s.auth.signOut()
+          if (mounted) {
+            setUser(null)
+            setProfile(null)
+          }
         }
         setIsLoading(false)
       } else if (event === "SIGNED_OUT") {
@@ -308,38 +366,15 @@ export function useAuth() {
   return context
 }
 
-const fetchProfile = async (userId: string, userData: User, s = createClient()): Promise<Profile> => {
+const fetchProfile = async (userId: string, userData: User, s = createClient()): Promise<Profile | null> => {
   try {
     if (!s) {
-      // Supabase not configured, return a graceful fallback profile
-      return {
-        id: userId,
-        name: userData?.user_metadata?.full_name || userData?.email?.split("@")[0] || "User",
-        email: userData?.email || "",
-        phone: userData?.user_metadata?.phone || "",
-        avatar_url: userData?.user_metadata?.avatar_url || "",
-        bio: "",
-        location: "",
-        verified: false,
-        created_at: new Date().toISOString(),
-      }
+      return null
     }
-
     const { data, error } = await s.from("profiles").select("*").eq("id", userId).single()
     if (error || !data) {
-      return {
-        id: userId,
-        name: userData?.user_metadata?.full_name || userData?.email?.split("@")[0] || "User",
-        email: userData?.email || "",
-        phone: userData?.user_metadata?.phone || "",
-        avatar_url: userData?.user_metadata?.avatar_url || "",
-        bio: "",
-        location: "",
-        verified: false,
-        created_at: new Date().toISOString(),
-      }
+      return null
     }
-
     return {
       id: data.id,
       name: data.full_name || userData?.email?.split("@")[0] || "User",
@@ -352,16 +387,6 @@ const fetchProfile = async (userId: string, userData: User, s = createClient()):
       created_at: data.created_at,
     }
   } catch {
-    return {
-      id: userId,
-      name: userData?.user_metadata?.full_name || userData?.email?.split("@")[0] || "User",
-      email: userData?.email || "",
-      phone: userData?.user_metadata?.phone || "",
-      avatar_url: userData?.user_metadata?.avatar_url || "",
-      bio: "",
-      location: "",
-      verified: false,
-      created_at: new Date().toISOString(),
-    }
+    return null
   }
 }
