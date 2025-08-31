@@ -191,6 +191,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (gs?.session) sess = gs.session
       }
 
+      if (sess?.user) {
+        try {
+          const { data: profileData, error: profileError } = await s
+            .from("profiles")
+            .select("*")
+            .eq("id", sess.user.id)
+            .single()
+
+          if (profileError || !profileData) {
+            // User exists in auth but not in profiles table - they were deleted from database
+            console.log("[v0] User authenticated but profile missing - user was deleted from database")
+            await s.auth.signOut()
+            setIsLoading(false)
+            return {
+              error: "This account has been deactivated. Please contact support if you believe this is an error.",
+            }
+          }
+        } catch (profileCheckError) {
+          console.error("[v0] Profile check failed:", profileCheckError)
+          await s.auth.signOut()
+          setIsLoading(false)
+          return {
+            error: "Unable to verify account status. Please try again later.",
+          }
+        }
+      }
+
       if (sess?.access_token && sess?.refresh_token) {
         try {
           await fetch("/auth/set", {
