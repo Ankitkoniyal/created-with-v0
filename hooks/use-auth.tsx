@@ -98,6 +98,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           throw sessionError
         }
 
+        if (session?.user && (!session?.access_token || !session?.refresh_token)) {
+          await clearAllSessionData(s)
+          if (mounted) {
+            setUser(null)
+            setProfile(null)
+            setIsLoading(false)
+          }
+          return
+        }
+
         if (session?.user) {
           console.log("[v0] Found existing session for user:", session.user.email)
           if (session.access_token && session.refresh_token) {
@@ -148,47 +158,66 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } = s.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return
 
-      if (!session?.access_token || !session?.refresh_token) {
-        const { data } = await s.auth.getSession()
-        session = data?.session ?? session
-      }
+      try {
+        if (!session?.access_token || !session?.refresh_token) {
+          const { data } = await s.auth.getSession()
+          session = data?.session ?? session
+        }
 
-      if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session?.access_token && session?.refresh_token) {
-        await syncServerSession(event, session)
-      } else if (event === "SIGNED_OUT") {
-        await syncServerSession(event, null)
-      }
-
-      if (event === "SIGNED_IN" && session?.user) {
-        setUser(session.user)
-        try {
-          const profileData = await fetchProfile(session.user.id, session.user, s)
-          if (!profileData) {
-            console.log("[v0] User authenticated but profile missing - user was deleted from database")
-            await clearAllSessionData(s)
-            if (mounted) {
-              setUser(null)
-              setProfile(null)
-              setIsLoading(false)
-            }
-            return
-          }
-          if (mounted) setProfile(profileData)
-        } catch (profileError) {
-          console.error("Profile fetch error after sign in:", profileError)
+        if (event === "TOKEN_REFRESHED" && (!session?.access_token || !session?.refresh_token)) {
           await clearAllSessionData(s)
           if (mounted) {
             setUser(null)
             setProfile(null)
+            setIsLoading(false)
           }
+          return
         }
-        setIsLoading(false)
-      } else if (event === "SIGNED_OUT") {
-        setUser(null)
-        setProfile(null)
-        setIsLoading(false)
-      } else if (event === "TOKEN_REFRESHED") {
-        if (session?.user && mounted) setUser(session.user)
+
+        if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session?.access_token && session?.refresh_token) {
+          await syncServerSession(event, session)
+        } else if (event === "SIGNED_OUT") {
+          await syncServerSession(event, null)
+        }
+
+        if (event === "SIGNED_IN" && session?.user) {
+          setUser(session.user)
+          try {
+            const profileData = await fetchProfile(session.user.id, session.user, s)
+            if (!profileData) {
+              console.log("[v0] User authenticated but profile missing - user was deleted from database")
+              await clearAllSessionData(s)
+              if (mounted) {
+                setUser(null)
+                setProfile(null)
+                setIsLoading(false)
+              }
+              return
+            }
+            if (mounted) setProfile(profileData)
+          } catch (profileError) {
+            console.error("Profile fetch error after sign in:", profileError)
+            await clearAllSessionData(s)
+            if (mounted) {
+              setUser(null)
+              setProfile(null)
+            }
+          }
+          setIsLoading(false)
+        } else if (event === "SIGNED_OUT") {
+          setUser(null)
+          setProfile(null)
+          setIsLoading(false)
+        } else if (event === "TOKEN_REFRESHED") {
+          if (session?.user && mounted) setUser(session.user)
+        }
+      } catch (e) {
+        await clearAllSessionData(s)
+        if (mounted) {
+          setUser(null)
+          setProfile(null)
+          setIsLoading(false)
+        }
       }
     })
 
@@ -221,6 +250,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!sess?.access_token || !sess?.refresh_token) {
         const { data: gs } = await s.auth.getSession()
         if (gs?.session) sess = gs.session
+      }
+
+      if (sess?.user && (!sess?.access_token || !sess?.refresh_token)) {
+        await clearAllSessionData(s)
+        setIsLoading(false)
+        return { error: "Login failed. Please try again." }
       }
 
       if (sess?.user) {

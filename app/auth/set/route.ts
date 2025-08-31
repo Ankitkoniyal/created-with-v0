@@ -46,6 +46,7 @@ export async function POST(req: NextRequest) {
         await supabase.auth.setSession({ access_token, refresh_token })
         return res
       }
+      await supabase.auth.signOut()
       return new NextResponse(JSON.stringify({ ok: false, event, reason: "missing_tokens" }), {
         status: 200,
         headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
