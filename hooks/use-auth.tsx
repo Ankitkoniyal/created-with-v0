@@ -87,16 +87,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             sessionError.message?.includes("refresh_token_not_found") ||
             sessionError.message?.includes("Invalid Refresh Token")
           ) {
-            await s.auth.signOut()
-            setUser(null)
-            setProfile(null)
-            setIsLoading(false)
+            await clearAllSessionData(s)
+            if (mounted) {
+              setUser(null)
+              setProfile(null)
+              setIsLoading(false)
+            }
             return
           }
           throw sessionError
         }
 
         if (session?.user) {
+          console.log("[v0] Found existing session for user:", session.user.email)
           if (session.access_token && session.refresh_token) {
             await syncServerSession("SIGNED_IN", session)
           }
@@ -104,15 +107,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           try {
             const profileData = await fetchProfile(session.user.id, session.user, s)
             if (!profileData) {
-              try {
-                await fetch("/auth/set", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  cache: "no-store",
-                  body: JSON.stringify({ event: "SIGNED_OUT" }),
-                })
-              } catch {}
-              await s.auth.signOut()
+              console.log("[v0] Profile not found for user:", session.user.email, "- clearing all session data")
+              await clearAllSessionData(s)
               if (mounted) {
                 setUser(null)
                 setProfile(null)
@@ -123,15 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (mounted) setProfile(profileData)
           } catch (profileError) {
             console.error("Profile fetch error:", profileError)
-            try {
-              await fetch("/auth/set", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                cache: "no-store",
-                body: JSON.stringify({ event: "SIGNED_OUT" }),
-              })
-            } catch {}
-            await s.auth.signOut()
+            await clearAllSessionData(s)
             if (mounted) {
               setUser(null)
               setProfile(null)
@@ -176,15 +164,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const profileData = await fetchProfile(session.user.id, session.user, s)
           if (!profileData) {
-            try {
-              await fetch("/auth/set", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                cache: "no-store",
-                body: JSON.stringify({ event: "SIGNED_OUT" }),
-              })
-            } catch {}
-            await s.auth.signOut()
+            console.log("[v0] User authenticated but profile missing - user was deleted from database")
+            await clearAllSessionData(s)
             if (mounted) {
               setUser(null)
               setProfile(null)
@@ -195,15 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (mounted) setProfile(profileData)
         } catch (profileError) {
           console.error("Profile fetch error after sign in:", profileError)
-          try {
-            await fetch("/auth/set", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              cache: "no-store",
-              body: JSON.stringify({ event: "SIGNED_OUT" }),
-            })
-          } catch {}
-          await s.auth.signOut()
+          await clearAllSessionData(s)
           if (mounted) {
             setUser(null)
             setProfile(null)
@@ -230,6 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!s) return { error: "Authentication is not configured. Please try again later." }
     try {
       setIsLoading(true)
+      console.log("[v0] Login attempt for email:", email)
       const { data, error } = await s.auth.signInWithPassword({ email, password })
       if (error) {
         setIsLoading(false)
@@ -260,7 +234,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (profileError || !profileData) {
             // User exists in auth but not in profiles table - they were deleted from database
             console.log("[v0] User authenticated but profile missing - user was deleted from database")
-            await s.auth.signOut()
+            await clearAllSessionData(s)
             setIsLoading(false)
             return {
               error: "This account has been deactivated. Please contact support if you believe this is an error.",
@@ -268,7 +242,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         } catch (profileCheckError) {
           console.error("[v0] Profile check failed:", profileCheckError)
-          await s.auth.signOut()
+          await clearAllSessionData(s)
           setIsLoading(false)
           return {
             error: "Unable to verify account status. Please try again later.",
@@ -388,5 +362,33 @@ const fetchProfile = async (userId: string, userData: User, s = createClient()):
     }
   } catch {
     return null
+  }
+}
+
+// Helper function to clear all session data
+const clearAllSessionData = async (s: any) => {
+  try {
+    // Clear server-side cookies
+    await fetch("/auth/set", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({ event: "SIGNED_OUT" }),
+    })
+  } catch {}
+
+  // Sign out from Supabase (clears localStorage)
+  await s.auth.signOut()
+
+  // Clear any remaining localStorage items
+  if (typeof window !== "undefined") {
+    try {
+      const keys = Object.keys(localStorage)
+      keys.forEach((key) => {
+        if (key.includes("supabase") || key.includes("auth")) {
+          localStorage.removeItem(key)
+        }
+      })
+    } catch {}
   }
 }
