@@ -75,7 +75,12 @@ export function LoginForm() {
           body: JSON.stringify({ email: emailValue }),
         })
         if (res.ok) {
-          const data = (await res.json()) as { exists?: boolean }
+          let data: any = null
+          try {
+            data = await res.json()
+          } catch {
+            // ignore parse error; proceed with login attempt
+          }
           if (data && data.exists === false) {
             setIsSubmitting(false)
             setError("No account found for this email. Please sign up first.")

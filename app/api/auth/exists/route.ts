@@ -5,25 +5,45 @@ export async function POST(req: NextRequest) {
   try {
     const { email } = (await req.json()) as { email?: string }
     if (!email || typeof email !== "string") {
-      return NextResponse.json({ error: "Invalid email" }, { status: 400 })
+      return NextResponse.json(
+        { ok: false, error: "Invalid email" },
+        { status: 400, headers: { "Cache-Control": "no-store" } },
+      )
     }
 
     const url = process.env.SUPABASE_URL
     const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    // If server isn't configured to check, SOFT-ALLOW so real sign-in decides outcome.
     if (!url || !serviceRole) {
-      // Server not configured; respond gracefully so client can fallback
-      return NextResponse.json({ error: "Server not configured" }, { status: 200 })
+      return NextResponse.json(
+        { ok: true, exists: true, reason: "not_configured" },
+        { status: 200, headers: { "Cache-Control": "no-store" } },
+      )
     }
 
-    const admin = createClient(url, serviceRole, { auth: { persistSession: false } })
+    const admin = createClient(url, serviceRole, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
     const { data, error } = await admin.auth.admin.getUserByEmail(email)
+
     if (error) {
-      // Treat errors as "not found" to avoid leaking details
-      return NextResponse.json({ exists: false }, { status: 200 })
+      // Network/admin error → do NOT block; let password sign-in decide
+      return NextResponse.json(
+        { ok: true, exists: true, reason: "check_failed" },
+        { status: 200, headers: { "Cache-Control": "no-store" } },
+      )
     }
-    return NextResponse.json({ exists: !!data?.user }, { status: 200 })
-  } catch {
-    // Network/parse issues: return a benign response
-    return NextResponse.json({ exists: false }, { status: 200 })
+
+    return NextResponse.json(
+      { ok: true, exists: Boolean(data?.user) },
+      { status: 200, headers: { "Cache-Control": "no-store" } },
+    )
+  } catch (_err) {
+    // Parse/network error → do NOT block
+    return NextResponse.json(
+      { ok: true, exists: true, reason: "exception_soft_allow" },
+      { status: 200, headers: { "Cache-Control": "no-store" } },
+    )
   }
 }
