@@ -25,6 +25,9 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const publicUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || ""
+  const publicAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || ""
+
   return (
     <html lang="en">
       <head>
@@ -34,17 +37,16 @@ html {
   --font-sans: ${dmSans.variable};
 }
         `}</style>
-        {/* Only inject window.__supabase when both URL and KEY are present to avoid auth-js fetch with empty values */}
+        {publicUrl && <meta name="supabase-url" content={publicUrl} />}
+        {publicAnon && <meta name="supabase-anon" content={publicAnon} />}
         <script
           dangerouslySetInnerHTML={{
             __html: `
               (function () {
                 if (typeof window === 'undefined') return;
                 if (!window.__supabase) {
-                  var url = ${JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "")};
-                  var key = ${JSON.stringify(
-                    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "",
-                  )};
+                  var url = ${JSON.stringify(publicUrl)};
+                  var key = ${JSON.stringify(publicAnon)};
                   if (url && key) {
                     window.__supabase = { url: url, key: key };
                   }

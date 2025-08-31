@@ -7,19 +7,29 @@ declare global {
 }
 
 let supabaseBrowser: SupabaseClient | null = null
+let warnedMissingConfig = false
 
 export function createClient(): SupabaseClient | null {
-  const url =
-    (typeof window !== "undefined" ? window.__supabase?.url : undefined) || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const fromWindow = typeof window !== "undefined" ? window.__supabase : undefined
 
-  const anon =
-    (typeof window !== "undefined" ? window.__supabase?.key : undefined) || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const fromMeta = (() => {
+    if (typeof document === "undefined")
+      return { url: undefined as string | undefined, key: undefined as string | undefined }
+    const url = document.querySelector('meta[name="supabase-url"]')?.getAttribute("content") || undefined
+    const key = document.querySelector('meta[name="supabase-anon"]')?.getAttribute("content") || undefined
+    return { url, key }
+  })()
+
+  const url = fromWindow?.url || fromMeta.url || process.env.NEXT_PUBLIC_SUPABASE_URL
+
+  const anon = fromWindow?.key || fromMeta.key || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!url || !anon) {
-    if (typeof window !== "undefined") {
-      console.error(
-        "[Supabase] Missing public env vars. Set NEXT_PUBLIC_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_ANON_KEY in Project Settings.",
+    if (!warnedMissingConfig && typeof window !== "undefined") {
+      console.warn(
+        "[Supabase] Public config not found; client auth disabled on this page. If needed, inject config in layout.",
       )
+      warnedMissingConfig = true
     }
     return null
   }
