@@ -249,7 +249,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(true)
       console.log("[v0] Login attempt for email:", email)
 
-      const { data, error } = await withTimeout(s.auth.signInWithPassword({ email, password }), 10000, {
+      const { data, error } = await withTimeout(s.auth.signInWithPassword({ email, password }), 20000, {
         data: null as any,
         error: new Error("network_timeout") as any,
       })

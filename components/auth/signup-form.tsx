@@ -55,8 +55,8 @@ export function SignupForm() {
     setSuccessOpen(true)
     setTimeout(() => {
       setSuccessOpen(false)
-      router.push("/auth/login")
-    }, 1200)
+      router.push("/")
+    }, 2500)
   }
 
   return (
@@ -169,7 +169,7 @@ export function SignupForm() {
       <SuccessOverlay
         open={successOpen}
         title="Account created"
-        message="Please check your inbox to confirm your email."
+        message="Please check your inbox to confirm your email. Redirecting to the homepage…"
         onClose={() => setSuccessOpen(false)}
         actionLabel="Okay"
       />
