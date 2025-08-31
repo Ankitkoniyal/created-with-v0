@@ -10,25 +10,28 @@ let supabaseBrowser: SupabaseClient | null = null
 let warnedMissingConfig = false
 
 export function createClient(): SupabaseClient | null {
+  // Prefer runtime-injected config from layout
   const fromWindow = typeof window !== "undefined" ? window.__supabase : undefined
 
+  // Fallback to meta tags rendered in app/layout.tsx
   const fromMeta = (() => {
-    if (typeof document === "undefined")
+    if (typeof document === "undefined") {
       return { url: undefined as string | undefined, key: undefined as string | undefined }
+    }
     const url = document.querySelector('meta[name="supabase-url"]')?.getAttribute("content") || undefined
     const key = document.querySelector('meta[name="supabase-anon"]')?.getAttribute("content") || undefined
     return { url, key }
   })()
 
+  // As a last resort, use public NEXT_PUBLIC_* if present
   const url = fromWindow?.url || fromMeta.url || process.env.NEXT_PUBLIC_SUPABASE_URL
 
   const anon = fromWindow?.key || fromMeta.key || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!url || !anon) {
     if (!warnedMissingConfig && typeof window !== "undefined") {
-      console.warn(
-        "[Supabase] Public config not found; client auth disabled on this page. If needed, inject config in layout.",
-      )
+      // Only warn once; do not throw or spam the console
+      console.warn("[Supabase] Public config not found; client features are disabled on this page.")
       warnedMissingConfig = true
     }
     return null
