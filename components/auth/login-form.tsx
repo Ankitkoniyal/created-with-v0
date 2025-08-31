@@ -48,8 +48,8 @@ export function LoginForm() {
     setError(null)
 
     const formData = new FormData(e.currentTarget)
-    const emailValue = formData.get("email") as string
-    const passwordValue = formData.get("password") as string
+    const emailValue = (formData.get("email") as string)?.trim()
+    const passwordValue = (formData.get("password") as string) || ""
 
     if (!emailValue || !passwordValue) {
       setError("Please fill in all required fields")
@@ -66,32 +66,6 @@ export function LoginForm() {
     try {
       console.log("[v0] Login attempt for email:", emailValue)
 
-      // Fail-fast: check if this email exists in Supabase Auth before trying to sign in
-      try {
-        const res = await fetch("/api/auth/exists", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          cache: "no-store",
-          body: JSON.stringify({ email: emailValue }),
-        })
-        if (res.ok) {
-          let data: any = null
-          try {
-            data = await res.json()
-          } catch {
-            // ignore parse error; proceed with login attempt
-          }
-          if (data && data.exists === false) {
-            setIsSubmitting(false)
-            setError("No account found for this email. Please sign up first.")
-            return
-          }
-        }
-        // If endpoint is unavailable or returns non-200, proceed to normal login attempt
-      } catch (existsErr) {
-        console.warn("[v0] /api/auth/exists check failed; proceeding with login", existsErr)
-      }
-
       if (rememberMe) {
         localStorage.setItem(
           "rememberedCredentials",
@@ -104,24 +78,33 @@ export function LoginForm() {
         localStorage.removeItem("rememberedCredentials")
       }
 
-      // Guard: never let the UI hang indefinitely if a network or SDK call stalls
       const timeoutMs = 15000
       const timeout = new Promise<{ error: string }>((resolve) =>
         setTimeout(() => resolve({ error: "Login timed out. Please try again." }), timeoutMs),
       )
+
       const result = (await Promise.race([login(emailValue, passwordValue), timeout])) as { error?: string }
       console.log("[v0] Login result:", result)
 
       if (result?.error) {
-        setError(result.error)
+        const msg = result.error.toLowerCase()
+        if (msg.includes("timed out")) {
+          setError("Login timed out. Please try again.")
+        } else if (msg.includes("invalid") && msg.includes("password")) {
+          setError("Incorrect email or password.")
+        } else if (msg.includes("removed") || msg.includes("deactivated") || msg.includes("deleted")) {
+          setError("This account has been removed. Please contact support or sign up again.")
+        } else {
+          setError(result.error)
+        }
         setIsSubmitting(false)
       } else {
         const destination = redirectedFrom || "/dashboard"
-        setSuccessOpen(true) // show overlay
+        setSuccessOpen(true)
         setTimeout(() => {
           setSuccessOpen(false)
           router.push(destination)
-          router.refresh() // ensure SSR reads the new auth cookies
+          router.refresh()
         }, 1200)
       }
     } catch (err) {
@@ -141,7 +124,7 @@ export function LoginForm() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <Alert variant="destructive">
+              <Alert variant="destructive" role="alert" aria-live="assertive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
