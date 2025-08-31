@@ -27,7 +27,6 @@ interface ProductFormData {
   model: string
   address: string
   location: string
-  postalCode: string
   youtubeUrl: string
   websiteUrl: string
   showMobileNumber: boolean
@@ -215,7 +214,6 @@ export function PostProductForm() {
     model: "",
     address: "",
     location: "",
-    postalCode: "",
     youtubeUrl: "",
     websiteUrl: "",
     showMobileNumber: true,
@@ -269,7 +267,6 @@ export function PostProductForm() {
             model: data.model || "",
             address: data.location?.split(",")[0]?.trim() || "",
             location: `${data.city}, ${data.province}` || "",
-            postalCode: data.postal_code || "",
             youtubeUrl: data.youtube_url || "",
             websiteUrl: data.website_url || "",
             showMobileNumber: data.show_mobile_number ?? true,
@@ -518,7 +515,7 @@ export function PostProductForm() {
   const isStep1Valid = formData.images.length > 0
   const isStep2Valid =
     formData.title && formData.category && formData.condition && (formData.priceType !== "amount" || formData.price)
-  const isStep3Valid = formData.description && formData.address && formData.location && formData.postalCode
+  const isStep3Valid = formData.description && formData.address && formData.location
   const canProceed =
     currentStep === 1 ? isStep1Valid : currentStep === 2 ? isStep2Valid : currentStep === 3 ? isStep3Valid : true
 
@@ -610,34 +607,7 @@ export function PostProductForm() {
         {currentStep === 2 && (
           <div className="space-y-6">
             <div className="space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="title">Product Title *</label>
-                <input
-                  id="title"
-                  placeholder="e.g., iPhone 14 Pro Max - Excellent Condition"
-                  value={formData.title}
-                  onChange={(e) => handleInputChange("title", e.target.value)}
-                  maxLength={100}
-                  className="border-2 border-gray-200 focus:border-primary"
-                />
-                <p className="text-sm text-muted-foreground">{formData.title.length}/100 characters</p>
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="description">Description *</label>
-                <textarea
-                  id="description"
-                  placeholder="Describe your product in detail. Include any defects, usage history, and why you're selling."
-                  rows={6}
-                  value={formData.description}
-                  onChange={(e) => handleInputChange("description", e.target.value)}
-                  maxLength={1000}
-                  className="border-2 border-gray-200 focus:border-primary"
-                />
-                <p className="text-sm text-muted-foreground">{formData.description.length}/1000 characters</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label htmlFor="category" className="block text-sm font-medium text-gray-700">
                     Category *
@@ -685,14 +655,14 @@ export function PostProductForm() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label htmlFor="condition">Condition *</label>
                   <select
                     id="condition"
                     value={formData.condition}
                     onChange={(e) => handleInputChange("condition", e.target.value)}
-                    className="border-2 border-gray-200 focus:border-primary"
+                    className="w-full border-2 border-gray-200 focus:border-primary"
                   >
                     <option value="">Select condition</option>
                     {conditions.map((condition) => (
@@ -710,12 +680,12 @@ export function PostProductForm() {
                     placeholder="e.g., Apple, Samsung, Honda"
                     value={formData.brand}
                     onChange={(e) => handleInputChange("brand", e.target.value)}
-                    className="border-2 border-gray-200 focus:border-primary"
+                    className="w-full border-2 border-gray-200 focus:border-primary"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label htmlFor="model">Model</label>
                   <input
@@ -723,7 +693,7 @@ export function PostProductForm() {
                     placeholder="e.g., iPhone 14 Pro Max, Galaxy S23"
                     value={formData.model}
                     onChange={(e) => handleInputChange("model", e.target.value)}
-                    className="border-2 border-gray-200 focus:border-primary"
+                    className="w-full border-2 border-gray-200 focus:border-primary"
                   />
                 </div>
 
@@ -733,7 +703,7 @@ export function PostProductForm() {
                     id="priceType"
                     value={formData.priceType}
                     onChange={(e) => handleInputChange("priceType", e.target.value)}
-                    className="border-2 border-gray-200 focus:border-primary"
+                    className="w-full border-2 border-gray-200 focus:border-primary"
                   >
                     <option value="amount">Set Price</option>
                     <option value="free">Free</option>
@@ -743,7 +713,7 @@ export function PostProductForm() {
                 </div>
 
                 {formData.priceType === "amount" && (
-                  <div className="space-y-2">
+                  <div className="space-y-2 sm:col-span-2">
                     <label htmlFor="price">Price (CAD) *</label>
                     <input
                       id="price"
@@ -751,14 +721,12 @@ export function PostProductForm() {
                       placeholder="0.00"
                       value={formData.price}
                       onChange={(e) => handleInputChange("price", e.target.value)}
-                      className="border-2 border-gray-200 focus:border-primary"
+                      className="w-full border-2 border-gray-200 focus:border-primary"
                       min="0"
                       step="0.01"
                     />
                   </div>
                 )}
-
-                <div className="space-y-2"></div>
               </div>
             </div>
           </div>
@@ -768,7 +736,7 @@ export function PostProductForm() {
           <div className="space-y-6">
             <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
               <label className="text-base font-semibold">Additional Links (Optional)</label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label htmlFor="youtubeUrl">YouTube Video Link</label>
                   <input
@@ -776,7 +744,7 @@ export function PostProductForm() {
                     placeholder="https://youtube.com/watch?v=..."
                     value={formData.youtubeUrl}
                     onChange={(e) => handleInputChange("youtubeUrl", e.target.value)}
-                    className="border-2 border-gray-200 focus:border-primary"
+                    className="w-full border-2 border-gray-200 focus:border-primary"
                   />
                   <p className="text-xs text-muted-foreground">Add a YouTube video showcasing your product</p>
                 </div>
@@ -788,7 +756,7 @@ export function PostProductForm() {
                     placeholder="https://example.com"
                     value={formData.websiteUrl}
                     onChange={(e) => handleInputChange("websiteUrl", e.target.value)}
-                    className="border-2 border-gray-200 focus:border-primary"
+                    className="w-full border-2 border-gray-200 focus:border-primary"
                   />
                   <p className="text-xs text-muted-foreground">Link to your website or product page</p>
                 </div>
@@ -896,54 +864,40 @@ export function PostProductForm() {
                 Location Details *
               </label>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label htmlFor="address">Street Address *</label>
                   <input
                     id="address"
                     placeholder="e.g., 123 Main Street"
-                    className="border-2 border-gray-200 focus:border-primary"
+                    className="w-full border-2 border-gray-200 focus:border-primary"
                     value={formData.address}
                     onChange={(e) => handleInputChange("address", e.target.value)}
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label htmlFor="location">City/Province *</label>
-                    <select
-                      id="location"
-                      value={formData.location}
-                      onChange={(e) => handleInputChange("location", e.target.value)}
-                      className="border-2 border-gray-200 focus:border-primary"
-                    >
-                      <option value="">Select city/province</option>
-                      {CANADIAN_LOCATIONS.map((location) => (
-                        <optgroup key={location.province} label={location.province}>
-                          <option value={location.province} className="font-semibold">
-                            {location.province}
+                <div className="space-y-2">
+                  <label htmlFor="location">City/Province *</label>
+                  <select
+                    id="location"
+                    value={formData.location}
+                    onChange={(e) => handleInputChange("location", e.target.value)}
+                    className="w-full border-2 border-gray-200 focus:border-primary"
+                  >
+                    <option value="">Select city/province</option>
+                    {CANADIAN_LOCATIONS.map((location) => (
+                      <optgroup key={location.province} label={location.province}>
+                        <option value={location.province} className="font-semibold">
+                          {location.province}
+                        </option>
+                        {location.cities.map((city) => (
+                          <option key={city} value={`${city}, ${location.province}`} className="pl-6">
+                            {city}
                           </option>
-                          {location.cities.map((city) => (
-                            <option key={city} value={`${city}, ${location.province}`} className="pl-6">
-                              {city}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label htmlFor="postalCode">Postal Code *</label>
-                    <input
-                      id="postalCode"
-                      placeholder="e.g., M5V 3A8"
-                      className="border-2 border-gray-200 focus:border-primary"
-                      value={formData.postalCode}
-                      onChange={(e) => handleInputChange("postalCode", e.target.value.toUpperCase())}
-                      maxLength={7}
-                    />
-                  </div>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
                 </div>
               </div>
             </div>
@@ -991,9 +945,6 @@ export function PostProductForm() {
                     <span className="text-muted-foreground">Location:</span>{" "}
                     {formData.address && `${formData.address}, `}
                     {formData.location}
-                  </p>
-                  <p>
-                    <span className="text-muted-foreground">Postal Code:</span> {formData.postalCode}
                   </p>
                   {formData.youtubeUrl && (
                     <p>
