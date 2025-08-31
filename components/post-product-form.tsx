@@ -2,6 +2,7 @@
 
 import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "react-toastify"
+import { Stepper } from "@/components/sell/stepper"
 
 import type React from "react"
 
@@ -12,7 +13,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useSearchParams } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
-import { X, Camera, MapPin, Tag, AlertCircle } from "lucide-react"
+import { X, MapPin, Tag, AlertCircle } from "lucide-react"
 
 interface ProductFormData {
   title: string
@@ -201,7 +202,7 @@ export function PostProductForm() {
   const searchParams = useSearchParams()
   const editId = searchParams.get("edit")
   const isEditMode = !!editId
-  const [currentStep, setCurrentStep] = useState(1)
+  const [currentStep, setCurrentStep] = useState<number>(1)
   const [formData, setFormData] = useState<ProductFormData>({
     title: "",
     description: "",
@@ -518,6 +519,8 @@ export function PostProductForm() {
   const isStep2Valid =
     formData.title && formData.category && formData.condition && (formData.priceType !== "amount" || formData.price)
   const isStep3Valid = formData.description && formData.address && formData.location && formData.postalCode
+  const canProceed =
+    currentStep === 1 ? isStep1Valid : currentStep === 2 ? isStep2Valid : currentStep === 3 ? isStep3Valid : true
 
   if (isLoadingEditData) {
     return (
@@ -531,482 +534,424 @@ export function PostProductForm() {
   }
 
   return (
-    <div className="space-y-6 bg-green-50 p-6 rounded-lg">
-      {submitError && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{submitError}</AlertDescription>
-        </Alert>
-      )}
+    <div className="rounded-xl border bg-card">
+      <div className="p-6">
+        {submitError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{submitError}</AlertDescription>
+          </Alert>
+        )}
 
-      <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold">{isEditMode ? "Edit Your Listing" : "Create New Listing"}</h2>
-        <p className="text-muted-foreground">
-          {isEditMode ? "Update your product details" : "Fill in the details to post your ad"}
-        </p>
-      </div>
+        <div className="text-center mb-6">
+          <h2 className="text-2xl font-bold">{isEditMode ? "Edit Your Listing" : "Create New Listing"}</h2>
+          <p className="text-muted-foreground">
+            {isEditMode ? "Update your product details" : "Fill in the details to post your ad"}
+          </p>
+        </div>
 
-      <div className="flex items-center justify-center space-x-4 mb-8">
-        {[1, 2, 3, 4].map((step) => (
-          <div key={step} className="flex items-center">
-            <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                currentStep >= step ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-              }`}
-            >
-              {step}
-            </div>
-            {step < 4 && <div className={`w-12 h-0.5 mx-2 ${currentStep > step ? "bg-primary" : "bg-muted"}`} />}
-          </div>
-        ))}
-      </div>
+        <div className="mb-6">
+          <Stepper current={currentStep} total={4} />
+        </div>
 
-      {currentStep === 1 && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-center space-x-4 mb-8">
-            {[1, 2, 3, 4].map((step) => (
-              <div key={step} className="flex items-center">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                    currentStep >= step ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {step}
-                </div>
-                {step < 4 && <div className={`w-12 h-0.5 mx-2 ${currentStep > step ? "bg-primary" : "bg-muted"}`} />}
-              </div>
-            ))}
-          </div>
-
-          <div className="space-y-4">
+        {currentStep === 1 && (
+          <div className="space-y-6">
             <p className="text-muted-foreground">
               Add up to 5 photos (max 2MB each). The first photo will be your main image.
             </p>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {formData.images.map((image, index) => (
-                <div key={index} className="relative group">
-                  <img
-                    src={URL.createObjectURL(image) || "/placeholder.svg"}
-                    alt={`Product ${index + 1}`}
-                    className="w-full h-32 object-cover rounded-lg border"
-                  />
-                  <button
-                    size="sm"
-                    variant="destructive"
-                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => removeImage(index)}
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                  {index === 0 && <Badge className="absolute bottom-2 left-2 text-xs">Main</Badge>}
-                </div>
-              ))}
-
-              {formData.images.length < 5 && (
-                <label className="border-2 border-dashed border-muted-foreground/25 rounded-lg h-32 flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 transition-colors">
-                  <Camera className="h-8 w-8 text-muted-foreground mb-2" />
-                  <span className="text-sm text-muted-foreground">Add Photo</span>
-                  <span className="text-xs text-muted-foreground">Max 2MB</span>
-                  <input type="file" multiple accept="image/*" className="hidden" onChange={handleImageUpload} />
-                </label>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {currentStep === 2 && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-center space-x-4 mb-8">
-            {[1, 2, 3, 4].map((step) => (
-              <div key={step} className="flex items-center">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                    currentStep >= step ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {step}
-                </div>
-                {step < 4 && <div className={`w-12 h-0.5 mx-2 ${currentStep > step ? "bg-primary" : "bg-muted"}`} />}
-              </div>
-            ))}
-          </div>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="title">Product Title *</label>
-              <input
-                id="title"
-                placeholder="e.g., iPhone 14 Pro Max - Excellent Condition"
-                value={formData.title}
-                onChange={(e) => handleInputChange("title", e.target.value)}
-                maxLength={100}
-                className="border-2 border-gray-200 focus:border-primary"
-              />
-              <p className="text-sm text-muted-foreground">{formData.title.length}/100 characters</p>
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor="description">Description *</label>
-              <textarea
-                id="description"
-                placeholder="Describe your product in detail. Include any defects, usage history, and why you're selling."
-                rows={6}
-                value={formData.description}
-                onChange={(e) => handleInputChange("description", e.target.value)}
-                maxLength={1000}
-                className="border-2 border-gray-200 focus:border-primary"
-              />
-              <p className="text-sm text-muted-foreground">{formData.description.length}/1000 characters</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label htmlFor="category" className="block text-sm font-medium text-gray-700">
-                  Category *
-                </label>
-                <select
-                  id="category"
-                  value={formData.category}
-                  onChange={(e) => handleInputChange("category", e.target.value)}
-                  className="w-full px-3 py-2 border-2 border-gray-200 rounded-md focus:border-primary focus:outline-none"
-                  required
-                >
-                  <option value="">Select category</option>
-                  {categories.map((category) => (
-                    <option key={category.name} value={category.name}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="subcategory" className="block text-sm font-medium text-gray-700">
-                  Subcategory
-                </label>
-                <select
-                  id="subcategory"
-                  value={formData.subcategory}
-                  onChange={(e) => handleInputChange("subcategory", e.target.value)}
-                  disabled={
-                    !formData.category ||
-                    !categories.find((cat) => cat.name === formData.category)?.subcategories.length
-                  }
-                  className="w-full px-3 py-2 border-2 border-gray-200 rounded-md focus:border-primary focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
-                >
-                  <option value="">Select subcategory</option>
-                  {formData.category &&
-                    categories
-                      .find((cat) => cat.name === formData.category)
-                      ?.subcategories.map((subcategory) => (
-                        <option key={subcategory} value={subcategory}>
-                          {subcategory}
-                        </option>
-                      ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <label htmlFor="condition">Condition *</label>
-                <select
-                  id="condition"
-                  value={formData.condition}
-                  onChange={(e) => handleInputChange("condition", e.target.value)}
-                  className="border-2 border-gray-200 focus:border-primary"
-                >
-                  <option value="">Select condition</option>
-                  {conditions.map((condition) => (
-                    <option key={condition} value={condition}>
-                      {condition}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="brand">Brand</label>
-                <input
-                  id="brand"
-                  placeholder="e.g., Apple, Samsung, Honda"
-                  value={formData.brand}
-                  onChange={(e) => handleInputChange("brand", e.target.value)}
-                  className="border-2 border-gray-200 focus:border-primary"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <label htmlFor="model">Model</label>
-                <input
-                  id="model"
-                  placeholder="e.g., iPhone 14 Pro Max, Galaxy S23"
-                  value={formData.model}
-                  onChange={(e) => handleInputChange("model", e.target.value)}
-                  className="border-2 border-gray-200 focus:border-primary"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="priceType">Price Type *</label>
-                <select
-                  id="priceType"
-                  value={formData.priceType}
-                  onChange={(e) => handleInputChange("priceType", e.target.value)}
-                  className="border-2 border-gray-200 focus:border-primary"
-                >
-                  <option value="amount">Set Price</option>
-                  <option value="free">Free</option>
-                  <option value="contact">Contact for Price</option>
-                  <option value="swap">Swap/Exchange</option>
-                </select>
-              </div>
-
-              {formData.priceType === "amount" && (
-                <div className="space-y-2">
-                  <label htmlFor="price">Price (CAD) *</label>
-                  <input
-                    id="price"
-                    type="number"
-                    placeholder="0.00"
-                    value={formData.price}
-                    onChange={(e) => handleInputChange("price", e.target.value)}
-                    className="border-2 border-gray-200 focus:border-primary"
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
-              )}
-
-              <div className="space-y-2"></div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {currentStep === 3 && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-center space-x-4 mb-8">
-            {[1, 2, 3, 4].map((step) => (
-              <div key={step} className="flex items-center">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                    currentStep >= step ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {step}
-                </div>
-                {step < 4 && <div className={`w-12 h-0.5 mx-2 ${currentStep > step ? "bg-primary" : "bg-muted"}`} />}
-              </div>
-            ))}
-          </div>
-
-          <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
-            <label className="text-base font-semibold">Additional Links (Optional)</label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label htmlFor="youtubeUrl">YouTube Video Link</label>
-                <input
-                  id="youtubeUrl"
-                  placeholder="https://youtube.com/watch?v=..."
-                  value={formData.youtubeUrl}
-                  onChange={(e) => handleInputChange("youtubeUrl", e.target.value)}
-                  className="border-2 border-gray-200 focus:border-primary"
-                />
-                <p className="text-xs text-muted-foreground">Add a YouTube video showcasing your product</p>
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="websiteUrl">Website Link</label>
-                <input
-                  id="websiteUrl"
-                  placeholder="https://example.com"
-                  value={formData.websiteUrl}
-                  onChange={(e) => handleInputChange("websiteUrl", e.target.value)}
-                  className="border-2 border-gray-200 focus:border-primary"
-                />
-                <p className="text-xs text-muted-foreground">Link to your website or product page</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-4 p-4 border-2 border-primary/20 bg-primary/5 rounded-lg">
-            <Checkbox
-              id="showMobileNumber"
-              checked={formData.showMobileNumber}
-              onCheckedChange={(checked) => handleInputChange("showMobileNumber", checked as boolean)}
-              className="w-5 h-5 border-2 border-primary data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-            />
-            <div className="flex-1">
-              <label htmlFor="showMobileNumber" className="text-sm font-medium cursor-pointer">
-                Show my mobile number on this ad
-              </label>
-              <p className="text-xs text-muted-foreground mt-1">
-                Your number will be partially hidden. Only logged-in users can view the full number.
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
-            <label className="flex items-center text-base font-semibold">
-              <Tag className="h-5 w-5 mr-2" />
-              Tags (Max 5 words)
-            </label>
-            <p className="text-sm text-muted-foreground mt-1">
-              Add relevant keywords to improve your ad's search visibility and help buyers find your item
-            </p>
-            <div className="space-y-3">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Enter a tag..."
-                  value={newTag}
-                  onChange={(e) => setNewTag(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault()
-                      addTag()
-                    }
-                  }}
-                  maxLength={20}
-                  disabled={formData.tags.length >= 5}
-                  className="border-2 border-gray-200 focus:border-primary"
-                />
-                <button
-                  type="button"
-                  onClick={addTag}
-                  disabled={!newTag.trim() || formData.tags.length >= 5 || formData.tags.includes(newTag.trim())}
-                  className="bg-primary text-white px-3 py-2 rounded"
-                >
-                  Add
-                </button>
-              </div>
-
-              {formData.tags.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {formData.tags.map((tag) => (
-                    <Badge key={tag} variant="secondary" className="flex items-center gap-1 px-2 py-1">
-                      {tag}
-                      <button type="button" onClick={() => removeTag(tag)} className="ml-1 hover:text-red-500">
-                        ×
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              )}
-
-              <p className="text-xs text-muted-foreground">{formData.tags.length}/5 tags used</p>
-            </div>
-          </div>
-
-          <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
-            <label className="text-base font-semibold">Key Features (Optional)</label>
-            <div className="flex space-x-2">
-              <input
-                placeholder="Add a feature"
-                value={newFeature}
-                onChange={(e) => setNewFeature(e.target.value)}
-                onKeyPress={(e) => e.key === "Enter" && addFeature()}
-                className="border-2 border-gray-200 focus:border-primary"
-              />
-              <button type="button" onClick={addFeature} className="bg-primary text-white px-3 py-2 rounded">
-                Add
-              </button>
-            </div>
-            {formData.features.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {formData.features.map((feature) => (
-                  <Badge key={feature} variant="secondary" className="flex items-center gap-1">
-                    {feature}
-                    <X className="h-3 w-3 cursor-pointer" onClick={() => removeFeature(feature)} />
-                  </Badge>
+            <section aria-labelledby="photos" className="mt-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {formData.images.map((image, index) => (
+                  <div key={index} className="relative overflow-hidden rounded-lg border bg-background">
+                    <div className="aspect-square w-full overflow-hidden">
+                      <img
+                        src={URL.createObjectURL(image) || "/placeholder.svg"}
+                        alt={`Product ${index + 1}`}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                    {index === 0 ? (
+                      <span className="absolute left-2 top-2 rounded-md bg-black/70 px-2 py-0.5 text-xs font-medium text-white">
+                        Main
+                      </span>
+                    ) : null}
+                  </div>
                 ))}
-              </div>
-            )}
-          </div>
 
-          <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
-            <label className="flex items-center text-base font-semibold">
-              <MapPin className="h-5 w-5 mr-2" />
-              Location Details *
-            </label>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label htmlFor="address">Street Address *</label>
+                {/* Hidden input that triggers the file picker */}
+                <label
+                  htmlFor="add-photo-input"
+                  className="cursor-pointer flex flex-col items-center justify-center rounded-lg border-2 border-dashed bg-muted/40 hover:bg-muted/60 transition-colors"
+                >
+                  <div className="aspect-square w-full grid place-items-center">
+                    <div className="text-center">
+                      <div className="mx-auto mb-2 h-10 w-10 rounded-full border grid place-items-center text-foreground/70">
+                        +
+                      </div>
+                      <p className="text-sm text-muted-foreground">Add Photo</p>
+                      <p className="text-xs text-muted-foreground">Max 2MB</p>
+                    </div>
+                  </div>
+                </label>
                 <input
-                  id="address"
-                  placeholder="e.g., 123 Main Street"
-                  className="border-2 border-gray-200 focus:border-primary"
-                  value={formData.address}
-                  onChange={(e) => handleInputChange("address", e.target.value)}
+                  id="add-photo-input"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="sr-only"
+                  onChange={handleImageUpload}
                 />
               </div>
+            </section>
+          </div>
+        )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {currentStep === 2 && (
+          <div className="space-y-6">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="title">Product Title *</label>
+                <input
+                  id="title"
+                  placeholder="e.g., iPhone 14 Pro Max - Excellent Condition"
+                  value={formData.title}
+                  onChange={(e) => handleInputChange("title", e.target.value)}
+                  maxLength={100}
+                  className="border-2 border-gray-200 focus:border-primary"
+                />
+                <p className="text-sm text-muted-foreground">{formData.title.length}/100 characters</p>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="description">Description *</label>
+                <textarea
+                  id="description"
+                  placeholder="Describe your product in detail. Include any defects, usage history, and why you're selling."
+                  rows={6}
+                  value={formData.description}
+                  onChange={(e) => handleInputChange("description", e.target.value)}
+                  maxLength={1000}
+                  className="border-2 border-gray-200 focus:border-primary"
+                />
+                <p className="text-sm text-muted-foreground">{formData.description.length}/1000 characters</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label htmlFor="location">City/Province *</label>
+                  <label htmlFor="category" className="block text-sm font-medium text-gray-700">
+                    Category *
+                  </label>
                   <select
-                    id="location"
-                    value={formData.location}
-                    onChange={(e) => handleInputChange("location", e.target.value)}
-                    className="border-2 border-gray-200 focus:border-primary"
+                    id="category"
+                    value={formData.category}
+                    onChange={(e) => handleInputChange("category", e.target.value)}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-md focus:border-primary focus:outline-none"
+                    required
                   >
-                    <option value="">Select city/province</option>
-                    {CANADIAN_LOCATIONS.map((location) => (
-                      <optgroup key={location.province} label={location.province}>
-                        <option value={location.province} className="font-semibold">
-                          {location.province}
-                        </option>
-                        {location.cities.map((city) => (
-                          <option key={city} value={`${city}, ${location.province}`} className="pl-6">
-                            {city}
-                          </option>
-                        ))}
-                      </optgroup>
+                    <option value="">Select category</option>
+                    {categories.map((category) => (
+                      <option key={category.name} value={category.name}>
+                        {category.name}
+                      </option>
                     ))}
                   </select>
                 </div>
 
                 <div className="space-y-2">
-                  <label htmlFor="postalCode">Postal Code *</label>
-                  <input
-                    id="postalCode"
-                    placeholder="e.g., M5V 3A8"
+                  <label htmlFor="subcategory" className="block text-sm font-medium text-gray-700">
+                    Subcategory
+                  </label>
+                  <select
+                    id="subcategory"
+                    value={formData.subcategory}
+                    onChange={(e) => handleInputChange("subcategory", e.target.value)}
+                    disabled={
+                      !formData.category ||
+                      !categories.find((cat) => cat.name === formData.category)?.subcategories.length
+                    }
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-md focus:border-primary focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  >
+                    <option value="">Select subcategory</option>
+                    {formData.category &&
+                      categories
+                        .find((cat) => cat.name === formData.category)
+                        ?.subcategories.map((subcategory) => (
+                          <option key={subcategory} value={subcategory}>
+                            {subcategory}
+                          </option>
+                        ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <label htmlFor="condition">Condition *</label>
+                  <select
+                    id="condition"
+                    value={formData.condition}
+                    onChange={(e) => handleInputChange("condition", e.target.value)}
                     className="border-2 border-gray-200 focus:border-primary"
-                    value={formData.postalCode}
-                    onChange={(e) => handleInputChange("postalCode", e.target.value.toUpperCase())}
-                    maxLength={7}
+                  >
+                    <option value="">Select condition</option>
+                    {conditions.map((condition) => (
+                      <option key={condition} value={condition}>
+                        {condition}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="brand">Brand</label>
+                  <input
+                    id="brand"
+                    placeholder="e.g., Apple, Samsung, Honda"
+                    value={formData.brand}
+                    onChange={(e) => handleInputChange("brand", e.target.value)}
+                    className="border-2 border-gray-200 focus:border-primary"
                   />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <label htmlFor="model">Model</label>
+                  <input
+                    id="model"
+                    placeholder="e.g., iPhone 14 Pro Max, Galaxy S23"
+                    value={formData.model}
+                    onChange={(e) => handleInputChange("model", e.target.value)}
+                    className="border-2 border-gray-200 focus:border-primary"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="priceType">Price Type *</label>
+                  <select
+                    id="priceType"
+                    value={formData.priceType}
+                    onChange={(e) => handleInputChange("priceType", e.target.value)}
+                    className="border-2 border-gray-200 focus:border-primary"
+                  >
+                    <option value="amount">Set Price</option>
+                    <option value="free">Free</option>
+                    <option value="contact">Contact for Price</option>
+                    <option value="swap">Swap/Exchange</option>
+                  </select>
+                </div>
+
+                {formData.priceType === "amount" && (
+                  <div className="space-y-2">
+                    <label htmlFor="price">Price (CAD) *</label>
+                    <input
+                      id="price"
+                      type="number"
+                      placeholder="0.00"
+                      value={formData.price}
+                      onChange={(e) => handleInputChange("price", e.target.value)}
+                      className="border-2 border-gray-200 focus:border-primary"
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-2"></div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {currentStep === 3 && (
+          <div className="space-y-6">
+            <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
+              <label className="text-base font-semibold">Additional Links (Optional)</label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label htmlFor="youtubeUrl">YouTube Video Link</label>
+                  <input
+                    id="youtubeUrl"
+                    placeholder="https://youtube.com/watch?v=..."
+                    value={formData.youtubeUrl}
+                    onChange={(e) => handleInputChange("youtubeUrl", e.target.value)}
+                    className="border-2 border-gray-200 focus:border-primary"
+                  />
+                  <p className="text-xs text-muted-foreground">Add a YouTube video showcasing your product</p>
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="websiteUrl">Website Link</label>
+                  <input
+                    id="websiteUrl"
+                    placeholder="https://example.com"
+                    value={formData.websiteUrl}
+                    onChange={(e) => handleInputChange("websiteUrl", e.target.value)}
+                    className="border-2 border-gray-200 focus:border-primary"
+                  />
+                  <p className="text-xs text-muted-foreground">Link to your website or product page</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 p-4 border-2 border-primary/20 bg-primary/5 rounded-lg">
+              <Checkbox
+                id="showMobileNumber"
+                checked={formData.showMobileNumber}
+                onCheckedChange={(checked) => handleInputChange("showMobileNumber", checked as boolean)}
+                className="w-5 h-5 border-2 border-primary data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+              />
+              <div className="flex-1">
+                <label htmlFor="showMobileNumber" className="text-sm font-medium cursor-pointer">
+                  Show my mobile number on this ad
+                </label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Your number will be partially hidden. Only logged-in users can view the full number.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
+              <label className="flex items-center text-base font-semibold">
+                <Tag className="h-5 w-5 mr-2" />
+                Tags (Max 5 words)
+              </label>
+              <p className="text-sm text-muted-foreground mt-1">
+                Add relevant keywords to improve your ad's search visibility and help buyers find your item
+              </p>
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Enter a tag..."
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault()
+                        addTag()
+                      }
+                    }}
+                    maxLength={20}
+                    disabled={formData.tags.length >= 5}
+                    className="border-2 border-gray-200 focus:border-primary"
+                  />
+                  <button
+                    type="button"
+                    onClick={addTag}
+                    disabled={!newTag.trim() || formData.tags.length >= 5 || formData.tags.includes(newTag.trim())}
+                    className="bg-primary text-white px-3 py-2 rounded"
+                  >
+                    Add
+                  </button>
+                </div>
+
+                {formData.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {formData.tags.map((tag) => (
+                      <Badge key={tag} variant="secondary" className="flex items-center gap-1 px-2 py-1">
+                        {tag}
+                        <button type="button" onClick={() => removeTag(tag)} className="ml-1 hover:text-red-500">
+                          ×
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                <p className="text-xs text-muted-foreground">{formData.tags.length}/5 tags used</p>
+              </div>
+            </div>
+
+            <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
+              <label className="text-base font-semibold">Key Features (Optional)</label>
+              <div className="flex space-x-2">
+                <input
+                  placeholder="Add a feature"
+                  value={newFeature}
+                  onChange={(e) => setNewFeature(e.target.value)}
+                  onKeyPress={(e) => e.key === "Enter" && addFeature()}
+                  className="border-2 border-gray-200 focus:border-primary"
+                />
+                <button type="button" onClick={addFeature} className="bg-primary text-white px-3 py-2 rounded">
+                  Add
+                </button>
+              </div>
+              {formData.features.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {formData.features.map((feature) => (
+                    <Badge key={feature} variant="secondary" className="flex items-center gap-1">
+                      {feature}
+                      <X className="h-3 w-3 cursor-pointer" onClick={() => removeFeature(feature)} />
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
+              <label className="flex items-center text-base font-semibold">
+                <MapPin className="h-5 w-5 mr-2" />
+                Location Details *
+              </label>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label htmlFor="address">Street Address *</label>
+                  <input
+                    id="address"
+                    placeholder="e.g., 123 Main Street"
+                    className="border-2 border-gray-200 focus:border-primary"
+                    value={formData.address}
+                    onChange={(e) => handleInputChange("address", e.target.value)}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label htmlFor="location">City/Province *</label>
+                    <select
+                      id="location"
+                      value={formData.location}
+                      onChange={(e) => handleInputChange("location", e.target.value)}
+                      className="border-2 border-gray-200 focus:border-primary"
+                    >
+                      <option value="">Select city/province</option>
+                      {CANADIAN_LOCATIONS.map((location) => (
+                        <optgroup key={location.province} label={location.province}>
+                          <option value={location.province} className="font-semibold">
+                            {location.province}
+                          </option>
+                          {location.cities.map((city) => (
+                            <option key={city} value={`${city}, ${location.province}`} className="pl-6">
+                              {city}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label htmlFor="postalCode">Postal Code *</label>
+                    <input
+                      id="postalCode"
+                      placeholder="e.g., M5V 3A8"
+                      className="border-2 border-gray-200 focus:border-primary"
+                      value={formData.postalCode}
+                      onChange={(e) => handleInputChange("postalCode", e.target.value.toUpperCase())}
+                      maxLength={7}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {currentStep === 4 && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-center space-x-4 mb-8">
-            {[1, 2, 3, 4].map((step) => (
-              <div key={step} className="flex items-center">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                    currentStep >= step ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {step}
-                </div>
-                {step < 4 && <div className={`w-12 h-0.5 mx-2 ${currentStep > step ? "bg-primary" : "bg-muted"}`} />}
-              </div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {currentStep === 4 && (
+          <div className="space-y-6">
             <div className="space-y-4">
               <div>
                 <h3 className="font-semibold mb-2">Product Details</h3>
@@ -1115,50 +1060,26 @@ export function PostProductForm() {
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      <div className="flex justify-between">
+      <div className="flex items-center justify-between border-t px-6 py-4">
         <button
           type="button"
           onClick={() => setCurrentStep((prev) => Math.max(1, prev - 1))}
-          disabled={currentStep === 1 || isSubmitting}
-          className="bg-primary text-white px-3 py-2 rounded"
+          className="rounded-md bg-black text-white px-4 py-2 disabled:opacity-50"
+          disabled={currentStep <= 1}
         >
           Previous
         </button>
-
-        {currentStep < 4 ? (
-          <button
-            type="button"
-            onClick={() => setCurrentStep((prev) => prev + 1)}
-            disabled={
-              (currentStep === 1 && !isStep1Valid) ||
-              (currentStep === 2 && !isStep2Valid) ||
-              (currentStep === 3 && !isStep3Valid) ||
-              isSubmitting
-            }
-            className="bg-primary text-white px-3 py-2 rounded"
-          >
-            Next
-          </button>
-        ) : (
-          <button
-            type="submit"
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="bg-primary hover:bg-primary/90"
-          >
-            {isSubmitting ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                {isEditMode ? "Updating..." : "Publishing..."}
-              </>
-            ) : (
-              <>{isEditMode ? "Update Listing" : "Publish Listing"}</>
-            )}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => setCurrentStep((prev) => Math.min(4, prev + 1))}
+          className="rounded-md bg-black text-white px-4 py-2 disabled:opacity-50"
+          disabled={!canProceed || currentStep >= 4}
+        >
+          Next
+        </button>
       </div>
     </div>
   )
