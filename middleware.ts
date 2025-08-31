@@ -10,6 +10,15 @@ export async function middleware(request: NextRequest) {
     request,
   })
 
+  // Allow preflight and ALL /auth/* routes without protection so cookie-sync and callbacks can complete
+  if (request.method === "OPTIONS") {
+    return supabaseResponse
+  }
+  const pathname = request.nextUrl.pathname
+  if (pathname.startsWith("/auth/")) {
+    return supabaseResponse
+  }
+
   // Prefer server envs; fall back to public only if needed.
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -52,16 +61,8 @@ export async function middleware(request: NextRequest) {
       }
     }
 
-    // Allow auth pages even if authenticated state is in flux.
-    const isAuthRoute =
-      request.nextUrl.pathname.startsWith("/auth/login") || request.nextUrl.pathname.startsWith("/auth/signup")
-
     // Optional: if already logged in and visiting auth pages, send to home.
-    if (user && isAuthRoute) {
-      const home = new URL("/", request.url)
-      return NextResponse.redirect(home)
-    }
-
+    // (Auth pages are already allowed early above.)
     const protectedRoutes = ["/dashboard", "/sell", "/profile"]
     const isProtectedRoute = protectedRoutes.some((route) => request.nextUrl.pathname.startsWith(route))
 

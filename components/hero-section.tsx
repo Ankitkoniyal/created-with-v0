@@ -53,7 +53,7 @@ export function HeroSection() {
           size="md"
           className="bg-green-900 text-white hover:bg-green-950 px-6 h-10 text-sm rounded-md border border-white/80"
         >
-          <NextLink href="/post-ad">Post Free Ads Now</NextLink>
+          <NextLink href="/sell">Post Free Ads Now</NextLink>
         </Button>
       </div>
     </section>
