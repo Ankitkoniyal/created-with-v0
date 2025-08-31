@@ -64,3 +64,77 @@ export async function GET(req: Request) {
 
   return NextResponse.json({ products, next })
 }
+
+export async function POST(req: Request) {
+  const start = Date.now()
+
+  const supabase = getSupabaseServer()
+  if (!supabase) {
+    return NextResponse.json({ error: "Service unavailable" }, { status: 503 })
+  }
+
+  // Get authenticated user
+  const {
+    data: { user },
+    error: userErr,
+  } = await supabase.auth.getUser()
+
+  if (userErr || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  try {
+    const body = await req.json()
+
+    // Validate required fields
+    if (!body.title || !body.category || !body.condition) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    }
+
+    // Prepare product data
+    const productData = {
+      user_id: user.id,
+      title: body.title.trim(),
+      description: body.description?.trim() || "",
+      price: body.price || 0,
+      condition: body.condition,
+      location: body.location || "",
+      city: body.city || "",
+      province: body.province || "",
+      images: body.images || [],
+      primary_image: body.images?.[0] || null,
+      category_id: body.category_id || 1,
+      category: body.category || "",
+      subcategory: body.subcategory || null,
+      brand: body.brand || null,
+      model: body.model || null,
+      tags: body.tags || null,
+      features: body.features || null,
+      youtube_url: body.youtube_url || null,
+      website_url: body.website_url || null,
+      show_mobile_number: body.show_mobile_number ?? true,
+      status: "active",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+
+    const { data, error } = await supabase.from("products").insert(productData).select().single()
+
+    const ms = Date.now() - start
+
+    if (error) {
+      console.log("[v0] POST /api/products error", { ms, error: error.message })
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+
+    console.log("[v0] POST /api/products ok", { ms, id: data.id })
+    return NextResponse.json({ product: data }, { status: 201 })
+  } catch (error) {
+    const ms = Date.now() - start
+    console.log("[v0] POST /api/products error", {
+      ms,
+      error: error instanceof Error ? error.message : "Unknown error",
+    })
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
