@@ -66,6 +66,27 @@ export function LoginForm() {
     try {
       console.log("[v0] Login attempt for email:", emailValue)
 
+      // Fail-fast: check if this email exists in Supabase Auth before trying to sign in
+      try {
+        const res = await fetch("/api/auth/exists", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          cache: "no-store",
+          body: JSON.stringify({ email: emailValue }),
+        })
+        if (res.ok) {
+          const data = (await res.json()) as { exists?: boolean }
+          if (data && data.exists === false) {
+            setIsSubmitting(false)
+            setError("No account found for this email. Please sign up first.")
+            return
+          }
+        }
+        // If endpoint is unavailable or returns non-200, proceed to normal login attempt
+      } catch (existsErr) {
+        console.warn("[v0] /api/auth/exists check failed; proceeding with login", existsErr)
+      }
+
       if (rememberMe) {
         localStorage.setItem(
           "rememberedCredentials",
@@ -78,10 +99,15 @@ export function LoginForm() {
         localStorage.removeItem("rememberedCredentials")
       }
 
-      const result = await login(emailValue, passwordValue)
+      // Guard: never let the UI hang indefinitely if a network or SDK call stalls
+      const timeoutMs = 15000
+      const timeout = new Promise<{ error: string }>((resolve) =>
+        setTimeout(() => resolve({ error: "Login timed out. Please try again." }), timeoutMs),
+      )
+      const result = (await Promise.race([login(emailValue, passwordValue), timeout])) as { error?: string }
       console.log("[v0] Login result:", result)
 
-      if (result.error) {
+      if (result?.error) {
         setError(result.error)
         setIsSubmitting(false)
       } else {
