@@ -41,17 +41,9 @@ html {
               (function () {
                 if (typeof window === 'undefined') return;
                 if (!window.__supabase) {
-                  var url = ${JSON.stringify(
-                    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-                      process.env.NEXT_PUBLIC_webspaceSUPABASE_URL ||
-                      process.env.SUPABASE_URL ||
-                      "",
-                  )};
+                  var url = ${JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "")};
                   var key = ${JSON.stringify(
-                    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-                      process.env.NEXT_PUBLIC_webspaceSUPABASE_ANON_KEY ||
-                      process.env.SUPABASE_ANON_KEY ||
-                      "",
+                    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "",
                   )};
                   if (url && key) {
                     window.__supabase = { url: url, key: key };

@@ -14,15 +14,8 @@ type Product = {
 
 function getSupabaseServer() {
   // Prefer server env; fall back to public if present
-  const url =
-    process.env.SUPABASE_URL ||
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    // support workspace-prefixed vars if present
-    (process.env as any).NEXT_PUBLIC_webspaceSUPABASE_URL
-  const key =
-    process.env.SUPABASE_ANON_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    (process.env as any).NEXT_PUBLIC_webspaceSUPABASE_ANON_KEY
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   if (!url || !key) return null
   return createServerClient(url, key)
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
-import { onCLS, onFID, onLCP, onINP, onTTFB, type Metric } from "web-vitals"
+import { onCLS, onFCP, onINP, onLCP, onTTFB, type Metric } from "web-vitals"
 
 function send(metric: Metric) {
   try {
@@ -22,10 +22,10 @@ function send(metric: Metric) {
 export function WebVitalsClient() {
   useEffect(() => {
     onCLS(send)
-    onFID(send)
     onLCP(send)
-    onINP?.(send)
+    onINP(send)
     onTTFB(send)
+    onFCP(send)
   }, [])
   return null
 }
