@@ -44,10 +44,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const syncServerSession = async (event: string, session: any | null) => {
       try {
+        // If session is missing tokens, try to hydrate once
         if (!session?.access_token || !session?.refresh_token) {
           const { data } = await s.auth.getSession()
           session = data?.session ?? session
         }
+
+        // Guard: do NOT post unless we have both tokens for setSession to succeed
+        if (
+          (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") &&
+          (!session?.access_token || !session?.refresh_token)
+        ) {
+          return
+        }
+
         await fetch("/auth/set", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -57,9 +67,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             refresh_token: session?.refresh_token || null,
           }),
         })
-      } catch (e) {
-        // Swallow errors to avoid breaking the UI
-        // console.log("[v0] Failed to sync server session", e)
+      } catch {
+        // swallow to avoid breaking UI
       }
     }
 
@@ -87,7 +96,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         if (session?.user) {
-          await syncServerSession("SIGNED_IN", session)
+          if (session.access_token && session.refresh_token) {
+            await syncServerSession("SIGNED_IN", session)
+          }
           setUser(session.user)
           try {
             const profileData = await fetchProfile(session.user.id, session.user, s)
@@ -123,7 +134,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { data } = await s.auth.getSession()
         session = data?.session ?? session
       }
-      await syncServerSession(event, session ?? null)
+
+      if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session?.access_token && session?.refresh_token) {
+        await syncServerSession(event, session)
+      } else if (event === "SIGNED_OUT") {
+        await syncServerSession(event, null)
+      }
 
       if (event === "SIGNED_IN" && session?.user) {
         setUser(session.user)
@@ -151,12 +167,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const login = async (email: string, password: string) => {
-    // Get a fresh client each call
     const s = createClient()
     if (!s) return { error: "Authentication is not configured. Please try again later." }
     try {
       setIsLoading(true)
-      const { error } = await s.auth.signInWithPassword({ email, password })
+      const { data, error } = await s.auth.signInWithPassword({ email, password })
       if (error) {
         setIsLoading(false)
         if (error.message.includes("Invalid login credentials")) {
@@ -168,23 +183,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         return { error: error.message }
       }
-      try {
-        const { data } = await s.auth.getSession()
-        const sess = data?.session
-        if (sess) {
+
+      const sess = data?.session
+      if (sess?.access_token && sess?.refresh_token) {
+        try {
           await fetch("/auth/set", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               event: "SIGNED_IN",
-              access_token: sess.access_token || null,
-              refresh_token: sess.refresh_token || null,
+              access_token: sess.access_token,
+              refresh_token: sess.refresh_token,
             }),
           })
+        } catch {
+          // ignore; onAuthStateChange will also sync as a backup
         }
-      } catch {
-        // ignore, onAuthStateChange will also sync
       }
+
+      if (sess?.user) setUser(sess.user)
+      setIsLoading(false)
       return {}
     } catch {
       setIsLoading(false)
@@ -193,7 +211,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signup = async (email: string, password: string, name: string, phone: string) => {
-    // Get a fresh client each call
     const s = createClient()
     if (!s) return { error: "Authentication is not configured. Please try again later." }
     try {
@@ -224,10 +241,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = async () => {
-    // Get a fresh client each call
     const s = createClient()
     if (!s) return
     setIsLoading(true)
+    try {
+      await fetch("/auth/set", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event: "SIGNED_OUT" }),
+      })
+    } catch {}
     await s.auth.signOut()
   }
 

@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
       return res
     }
 
-    return res
+    return NextResponse.json({ ok: false, event, reason: "missing_tokens" }, { status: 200 })
   } catch {
     return NextResponse.json({ ok: false }, { status: 200 })
   }
