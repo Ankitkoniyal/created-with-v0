@@ -127,19 +127,6 @@ export function ProductGrid() {
   const supabase = createClient()
 
   const [shouldFetch, setShouldFetch] = useState(true)
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const p = window.location.pathname
-      const allow =
-        p === "/" ||
-        p.startsWith("/search") ||
-        p.startsWith("/category") ||
-        p.startsWith("/seller") ||
-        p.startsWith("/product")
-      setShouldFetch(allow)
-    }
-  }, [])
-
   const {
     loading: isLoading,
     error,
@@ -192,7 +179,7 @@ export function ProductGrid() {
   const { loading: isLoadingMore, execute: loadMore } = useAsyncOperation(
     async () => {
       if (!hasMore) return []
-      if (!supabase) throw new Error("Supabase client not configured.")
+      if (!supabase) return []
       if (!shouldFetch) return []
 
       const nextPage = page + 1
@@ -226,10 +213,23 @@ export function ProductGrid() {
   )
 
   useEffect(() => {
-    if (shouldFetch) {
+    if (typeof window !== "undefined") {
+      const p = window.location.pathname
+      const allow =
+        p === "/" ||
+        p.startsWith("/search") ||
+        p.startsWith("/category") ||
+        p.startsWith("/seller") ||
+        p.startsWith("/product")
+      setShouldFetch(allow)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (shouldFetch && supabase) {
       fetchProducts()
     }
-  }, [shouldFetch])
+  }, [shouldFetch]) // we intentionally keep deps minimal; supabase is stable here
 
   const toggleFavorite = (productId: string, e: React.MouseEvent) => {
     e.preventDefault()
@@ -272,6 +272,22 @@ export function ProductGrid() {
     if (diffInHours < 48) return "1d ago"
     if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}d ago`
     return posted.toLocaleDateString()
+  }
+
+  if (!supabase) {
+    return (
+      <section className="py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center py-8">
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">Please sign in to browse ads</h3>
+            <p className="text-gray-600 mb-6">Sign in to enable data loading and view the latest ads.</p>
+            <Link href="/auth/login" className="text-green-600 hover:text-green-700 font-medium underline">
+              Sign In
+            </Link>
+          </div>
+        </div>
+      </section>
+    )
   }
 
   if (!shouldFetch) {
