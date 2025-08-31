@@ -7,9 +7,9 @@ import { Heart, Loader2, MapPin, Clock, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useState, useEffect } from "react"
-import { createClient } from "@/lib/supabase/client"
+import useSWRInfinite from "swr/infinite"
+import Image from "next/image"
 import { LoadingSkeleton } from "@/components/loading-skeleton"
-import { useAsyncOperation } from "@/hooks/use-async-operation"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 
 interface Product {
@@ -119,98 +119,32 @@ const MOCK_PRODUCTS: Product[] = [
 ]
 
 export function ProductGrid() {
-  const [products, setProducts] = useState<Product[]>([])
+  const [productsState, setProductsState] = useState<Product[]>([]) // kept for compatibility; no longer primary source
   const [page, setPage] = useState(0)
-  const [hasMore, setHasMore] = useState(true)
+  const [hasMoreState, setHasMoreState] = useState(true)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
+  const [shouldFetch, setShouldFetch] = useState(false)
 
-  const supabase = createClient()
+  const fetcher = (url: string) => fetch(url, { cache: "no-store" }).then((r) => r.json())
 
-  const [shouldFetch, setShouldFetch] = useState(true)
-  const {
-    loading: isLoading,
-    error,
-    execute: fetchProducts,
-    retry,
-  } = useAsyncOperation(
-    async () => {
-      if (!supabase) {
-        throw new Error(
-          "Supabase client not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
-        )
-      }
-      if (!shouldFetch) return []
+  const getKey = (index: number, prev: any) => {
+    if (index === 0) return `/api/products?limit=${PRODUCTS_PER_PAGE}`
+    if (!prev?.next) return null
+    const n = prev.next
+    return `/api/products?limit=${PRODUCTS_PER_PAGE}&afterCreatedAt=${encodeURIComponent(
+      n.afterCreatedAt,
+    )}&afterId=${encodeURIComponent(n.afterId)}`
+  }
 
-      const from = 0 * PRODUCTS_PER_PAGE
-      const to = from + PRODUCTS_PER_PAGE - 1
+  const { data, error, size, setSize, isValidating, mutate } = useSWRInfinite(getKey, fetcher, {
+    revalidateOnFocus: false,
+    revalidateFirstPage: false,
+  })
 
-      const { data, error } = await supabase
-        .from("products")
-        .select(`
-          *,
-          seller:profiles!user_id (
-            id,
-            full_name,
-            avatar_url
-          )
-        `)
-        .order("created_at", { ascending: false })
-        .range(from, to)
-
-      if (error) {
-        console.error("Supabase error:", error)
-        throw new Error(`Database connection failed: ${error.message}`)
-      }
-
-      const fetchedProducts = data || []
-      setProducts(fetchedProducts)
-      setHasMore(fetchedProducts.length === PRODUCTS_PER_PAGE)
-      return fetchedProducts
-    },
-    {
-      retries: 1,
-      retryDelay: 800,
-      onError: (error) => {
-        console.error("Error fetching products:", error)
-      },
-    },
-  )
-
-  const { loading: isLoadingMore, execute: loadMore } = useAsyncOperation(
-    async () => {
-      if (!hasMore) return []
-      if (!supabase) return []
-      if (!shouldFetch) return []
-
-      const nextPage = page + 1
-      const from = nextPage * PRODUCTS_PER_PAGE
-      const to = from + PRODUCTS_PER_PAGE - 1
-
-      const { data, error } = await supabase
-        .from("products")
-        .select(`
-          *,
-          seller:profiles!user_id (
-            id,
-            full_name,
-            avatar_url
-          )
-        `)
-        .order("created_at", { ascending: false })
-        .range(from, to)
-
-      if (error) throw new Error(`Failed to load more ads: ${error.message}`)
-
-      setProducts((prev) => [...prev, ...(data || [])])
-      setPage(nextPage)
-      setHasMore((data || []).length === PRODUCTS_PER_PAGE)
-      return data || []
-    },
-    {
-      retries: 1,
-      retryDelay: 600,
-    },
-  )
+  const isLoading = !data && !error
+  const products: Product[] = (data ? data.flatMap((p: any) => p?.products || []) : []) as Product[]
+  const hasMore = Boolean(data && data[data.length - 1]?.next)
+  const isLoadingMore = isValidating && !!data
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -224,12 +158,6 @@ export function ProductGrid() {
       setShouldFetch(allow)
     }
   }, [])
-
-  useEffect(() => {
-    if (shouldFetch && supabase) {
-      fetchProducts()
-    }
-  }, [shouldFetch]) // we intentionally keep deps minimal; supabase is stable here
 
   const toggleFavorite = (productId: string, e: React.MouseEvent) => {
     e.preventDefault()
@@ -274,22 +202,6 @@ export function ProductGrid() {
     return posted.toLocaleDateString()
   }
 
-  if (!supabase) {
-    return (
-      <section className="py-4">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center py-8">
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">Ads are temporarily unavailable</h3>
-            <p className="text-gray-600 mb-6">We’re setting things up. Please refresh shortly to see the latest ads.</p>
-            <Button variant="outline" onClick={() => window.location.reload()}>
-              Refresh Page
-            </Button>
-          </div>
-        </div>
-      </section>
-    )
-  }
-
   if (!shouldFetch) {
     return null
   }
@@ -310,26 +222,16 @@ export function ProductGrid() {
   }
 
   if (error) {
-    const isConfigError = typeof error?.message === "string" && error.message.toLowerCase().includes("not configured")
-
     return (
       <section className="py-2">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center py-12">
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              {isConfigError ? "Supabase Not Configured" : "Unable to Load Ads"}
-            </h3>
-            <p className="text-gray-600 mb-6">
-              {isConfigError
-                ? "Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Project Settings to show ads."
-                : "We're having trouble connecting to the database. Please try again."}
-            </p>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">Unable to Load Ads</h3>
+            <p className="text-gray-600 mb-6">We’re having trouble fetching ads. Please try again.</p>
             <div className="space-x-3">
-              {!isConfigError && (
-                <Button onClick={retry} className="bg-green-600 hover:bg-green-700">
-                  Try Again
-                </Button>
-              )}
+              <Button onClick={() => mutate()} className="bg-green-600 hover:bg-green-700">
+                Try Again
+              </Button>
               <Button variant="outline" onClick={() => window.location.reload()}>
                 Refresh Page
               </Button>
@@ -374,11 +276,13 @@ export function ProductGrid() {
                   <Card className="group h-full flex flex-col overflow-hidden border-0 bg-white rounded-xl shadow-sm">
                     <CardContent className="p-0 flex flex-col h-full">
                       <div className="relative w-full aspect-square overflow-hidden bg-gray-50 rounded-xl">
-                        <img
+                        <Image
                           src={product.images?.[0] || "/placeholder.svg?height=300&width=300&query=product"}
                           alt={product.title}
+                          fill
+                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 33vw, 20vw"
+                          className="object-cover"
                           loading="lazy"
-                          className="w-full h-full object-cover"
                         />
                         <div className="absolute top-3 right-3 flex flex-col gap-2">
                           {conditionBadge && (
@@ -474,7 +378,7 @@ export function ProductGrid() {
         {hasMore && (
           <div className="text-center mt-8">
             <Button
-              onClick={loadMore}
+              onClick={() => setSize(size + 1)}
               disabled={isLoadingMore}
               className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 text-sm font-medium rounded-lg"
             >

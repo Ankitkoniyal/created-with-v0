@@ -563,8 +563,8 @@ export function PostProductForm() {
             <section aria-labelledby="photos" className="mt-6">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {formData.images.map((image, index) => (
-                  <div key={index} className="relative overflow-hidden rounded-lg border bg-background">
-                    <div className="aspect-square w-full overflow-hidden">
+                  <div key={index} className="relative overflow-hidden rounded-lg border bg-background aspect-square">
+                    <div className="w-full overflow-hidden">
                       <img
                         src={URL.createObjectURL(image) || "/placeholder.svg"}
                         alt={`Product ${index + 1}`}
@@ -579,12 +579,12 @@ export function PostProductForm() {
                   </div>
                 ))}
 
-                {/* Hidden input that triggers the file picker */}
+                {/* Hidden input that triggers the file picker - visually matches image tiles */}
                 <label
                   htmlFor="add-photo-input"
-                  className="cursor-pointer flex flex-col items-center justify-center rounded-lg border-2 border-dashed bg-muted/40 hover:bg-muted/60 transition-colors"
+                  className="relative overflow-hidden rounded-lg border-2 border-dashed bg-muted/40 hover:bg-muted/60 transition-colors cursor-pointer aspect-square"
                 >
-                  <div className="aspect-square w-full grid place-items-center">
+                  <div className="w-full grid place-items-center">
                     <div className="text-center">
                       <div className="mx-auto mb-2 h-10 w-10 rounded-full border grid place-items-center text-foreground/70">
                         +
