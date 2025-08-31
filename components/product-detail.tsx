@@ -22,6 +22,8 @@ import {
   Tag,
 } from "lucide-react"
 import { ContactSellerModal } from "@/components/messaging/contact-seller-modal"
+import { SafetyBanner } from "@/components/ui/safety-banner"
+import { SafetyWarningModal } from "@/components/ui/safety-warning-modal"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
 
@@ -70,6 +72,9 @@ export function ProductDetail({ product }: ProductDetailProps) {
   const [showMobileNumber, setShowMobileNumber] = useState(false)
   const [showShareMenu, setShowShareMenu] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
+  const [showContactWarning, setShowContactWarning] = useState(false)
+  const [showPhoneWarning, setShowPhoneWarning] = useState(false)
+  const [pendingContactAction, setPendingContactAction] = useState<(() => void) | null>(null)
 
   const isValidUUID = (str: string) => {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -223,12 +228,27 @@ export function ProductDetail({ product }: ProductDetailProps) {
       alert("Please log in to view seller's contact information")
       return
     }
-    setShowMobileNumber(true)
+    setShowPhoneWarning(true)
+    setPendingContactAction(() => () => setShowMobileNumber(true))
+  }
+
+  const handleContactWithWarning = (contactAction: () => void) => {
+    setShowContactWarning(true)
+    setPendingContactAction(() => contactAction)
+  }
+
+  const proceedWithContact = () => {
+    if (pendingContactAction) {
+      pendingContactAction()
+      setPendingContactAction(null)
+    }
   }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="lg:col-span-2">
+        <SafetyBanner />
+
         <Card>
           <CardContent className="p-0">
             <div className="relative">
@@ -423,7 +443,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                   id: product.id,
                   title: product.title,
                   price: product.price,
-                  image: product.images?.[0] || "/placeholder.svg", // Updated to use images field
+                  image: product.images?.[0] || "/placeholder.svg",
                 }}
                 seller={{
                   name: product.seller.name,
@@ -432,7 +452,12 @@ export function ProductDetail({ product }: ProductDetailProps) {
                   totalReviews: product.seller.totalReviews,
                 }}
               >
-                <Button className="w-full bg-green-900 hover:bg-green-950">Chat with Seller</Button>
+                <Button
+                  className="w-full bg-green-900 hover:bg-green-950"
+                  onClick={() => handleContactWithWarning(() => {})}
+                >
+                  Chat with Seller
+                </Button>
               </ContactSellerModal>
               <Button
                 variant="outline"
@@ -662,6 +687,26 @@ export function ProductDetail({ product }: ProductDetailProps) {
           </CardContent>
         </Card>
       </div>
+
+      <SafetyWarningModal
+        isOpen={showContactWarning}
+        onClose={() => {
+          setShowContactWarning(false)
+          setPendingContactAction(null)
+        }}
+        onProceed={proceedWithContact}
+        type="contact"
+      />
+
+      <SafetyWarningModal
+        isOpen={showPhoneWarning}
+        onClose={() => {
+          setShowPhoneWarning(false)
+          setPendingContactAction(null)
+        }}
+        onProceed={proceedWithContact}
+        type="phone"
+      />
     </div>
   )
 }

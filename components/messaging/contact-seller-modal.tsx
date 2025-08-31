@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { MessageSquare, Shield, Star } from "lucide-react"
+import { MessageSquare, Shield, Star, AlertTriangle } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
@@ -119,6 +119,13 @@ export function ContactSellerModal({ product, seller, children }: ContactSellerM
         </DialogHeader>
 
         <div className="space-y-4">
+          <div className="flex items-center space-x-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+            <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+            <p className="text-xs text-amber-700">
+              <strong>Safety Reminder:</strong> Meet in public places and inspect items before payment.
+            </p>
+          </div>
+
           <div className="flex items-center space-x-3 p-3 bg-muted rounded-lg">
             <img
               src={product.image || "/placeholder.svg"}
