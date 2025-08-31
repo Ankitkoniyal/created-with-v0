@@ -52,9 +52,7 @@ export async function middleware(request: NextRequest) {
       }
     }
 
-    // Allow auth pages even if authenticated state is in flux.
-    const isAuthRoute =
-      request.nextUrl.pathname.startsWith("/auth/login") || request.nextUrl.pathname.startsWith("/auth/signup")
+    const isAuthRoute = request.nextUrl.pathname.startsWith("/auth")
 
     // Optional: if already logged in and visiting auth pages, send to home.
     if (user && isAuthRoute) {
