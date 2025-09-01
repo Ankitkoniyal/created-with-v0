@@ -312,14 +312,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               verified: profileData.verified || false,
               created_at: profileData.created_at,
             })
+          } else {
+            // do NOT treat missing profile as an error; it will be ensured in background
           }
-        } catch {}
+        } catch {
+          // swallow; the form will still proceed based on session presence
+        }
       }
       setIsLoading(false)
       return {}
     } catch {
       setIsLoading(false)
-      return { error: "Network error: Unable to connect to authentication service" }
+      // soften wording to avoid “timeout” confusion, the form now does a session fallback
+      return { error: "Network error. Please try again." }
     }
   }
 

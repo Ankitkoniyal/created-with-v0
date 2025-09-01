@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { SuccessOverlay } from "@/components/ui/success-overlay"
+import { getSupabaseClient } from "@/lib/supabase/client"
 
 export function LoginForm() {
   const router = useRouter()
@@ -107,29 +108,37 @@ export function LoginForm() {
       console.log("[v0] Login result:", result)
 
       if (result?.error) {
-        // quick check: if auth state already has a user, proceed
-        if (user) {
-          const destination = redirectedFrom || "/dashboard"
-          setSuccessOpen(true)
-          setTimeout(() => {
-            setSuccessOpen(false)
-            router.push(destination)
-            router.refresh()
-          }, 1500)
-          setIsSubmitting(false)
-          return
+        // Fast fallback: if session already exists, treat as success to avoid split-brain
+        try {
+          const s = await getSupabaseClient()
+          if (s) {
+            const ok = await (async () => {
+              const start = Date.now()
+              while (Date.now() - start < 2000) {
+                const { data } = await s.auth.getSession()
+                if (data?.session?.user) return true
+                await new Promise((r) => setTimeout(r, 200))
+              }
+              return false
+            })()
+            if (ok || user) {
+              const destination = redirectedFrom || "/"
+              setSuccessOpen(true)
+              setTimeout(() => {
+                setSuccessOpen(false)
+                router.push(destination)
+                router.refresh()
+              }, 1200)
+              setIsSubmitting(false)
+              return
+            }
+          }
+        } catch {
+          // ignore and fall through to show error
         }
 
-        const msg = result.error.toLowerCase()
-        if (msg.includes("invalid") && msg.includes("password")) {
-          setError("Incorrect email or password.")
-        } else if (msg.includes("deactivated") || msg.includes("removed") || msg.includes("deleted")) {
-          setError("This account has been removed. Please contact support or sign up again.")
-        } else if (msg.includes("verify") || msg.includes("confirmation")) {
-          setError("Please verify your email address before signing in.")
-        } else {
-          setError(result.error)
-        }
+        // normalize network wording; avoid “timeout” unless truly no session
+        setError("Network error. Please try again.")
         setIsSubmitting(false)
       } else {
         // Fire-and-forget: ensure profile exists on the server using current session cookies
@@ -140,7 +149,7 @@ export function LoginForm() {
           body: JSON.stringify({}),
         }).catch(() => {})
 
-        const destination = redirectedFrom || "/dashboard"
+        const destination = redirectedFrom || "/"
         setSuccessOpen(true)
         setTimeout(() => {
           setSuccessOpen(false)
