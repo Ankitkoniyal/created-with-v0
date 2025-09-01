@@ -9,6 +9,8 @@ import { Heart, Search, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
+import Image from "next/image"
+import { getOptimizedImageUrl } from "@/lib/images"
 
 interface FavoriteProduct {
   id: string
@@ -134,12 +136,14 @@ export function FavoritesContent() {
           return (
             <Card key={favorite.id} className="group cursor-pointer hover:shadow-lg transition-shadow">
               <CardContent className="p-0">
-                <div className="relative">
+                <div className="relative h-48">
                   <Link href={`/product/${product.id}`}>
-                    <img
-                      src={product.images?.[0] || "/placeholder.svg"}
+                    <Image
+                      src={getOptimizedImageUrl(product.images?.[0], "thumb") || "/placeholder.svg"}
                       alt={product.title}
-                      className="w-full h-48 object-cover rounded-t-lg"
+                      fill
+                      sizes="(max-width: 1024px) 50vw, 33vw"
+                      className="object-cover rounded-t-lg"
                     />
                   </Link>
                   <Button

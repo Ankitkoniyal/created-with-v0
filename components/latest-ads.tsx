@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { getOptimizedImageUrl } from "@/lib/images"
+import Image from "next/image"
 
 interface Product {
   id: string
@@ -102,16 +103,17 @@ export function LatestAds() {
               <Card className="group cursor-pointer hover:shadow-lg transition-all duration-200 h-full flex flex-col overflow-hidden border border-gray-300 bg-white rounded-none">
                 <CardContent className="p-0 flex flex-col h-full">
                   <div className="relative w-full aspect-square overflow-hidden bg-gray-50">
-                    <img
+                    <Image
                       src={
                         getOptimizedImageUrl(product.image_urls?.[0], "thumb") ||
                         "/placeholder.svg?height=400&width=400&query=latest%20ad" ||
+                        "/placeholder.svg" ||
                         "/placeholder.svg"
                       }
                       alt={product.title}
-                      className="w-full h-full object-cover object-center"
-                      loading="lazy"
-                      decoding="async"
+                      fill
+                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 20vw, 20vw"
+                      className="object-cover object-center"
                     />
                     <Button
                       size="sm"

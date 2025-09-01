@@ -88,9 +88,8 @@ export function LoginForm() {
             cache: "no-store",
             body: JSON.stringify({ email: emailValue }),
           }).then((r) => r.json()),
-          // Fallback after 4s - soft-allow
           new Promise<{ ok: boolean; exists: boolean }>((resolve) =>
-            setTimeout(() => resolve({ ok: true, exists: true }), 4000),
+            setTimeout(() => resolve({ ok: true, exists: true }), 1500),
           ),
         ])) as any
 
@@ -137,7 +136,18 @@ export function LoginForm() {
           // swallow and show the precise error below
         }
 
-        setError(result.error || "Network error. Please try again.")
+        const raw = String(result.error || "")
+        let uiMsg = raw
+        if (/invalid login credentials/i.test(raw) || /invalid email or password/i.test(raw)) {
+          uiMsg = "Invalid email or password. Please try again."
+        } else if (/email not confirmed/i.test(raw)) {
+          uiMsg = "Please confirm your email before signing in."
+        } else if (/too many/i.test(raw) || /rate/i.test(raw)) {
+          uiMsg = "Too many attempts. Please wait a few minutes and try again."
+        } else if (!raw) {
+          uiMsg = "Network error. Please try again."
+        }
+        setError(uiMsg)
         setIsSubmitting(false)
         return
       } else {

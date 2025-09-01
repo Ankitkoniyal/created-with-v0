@@ -331,6 +331,20 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
       const supabase = createClient()
       const { productId, participantId } = parseConversationId(conversationId)
 
+      // Prevent sending if either party has blocked the other
+      const { data: blockCheck, error: blockErr } = await supabase
+        .from("blocked_users")
+        .select("id")
+        .or(
+          `and(blocker_id.eq.${user.id},blocked_id.eq.${participantId}),and(blocker_id.eq.${participantId},blocked_id.eq.${user.id})`,
+        )
+        .limit(1)
+
+      if (!blockErr && blockCheck && blockCheck.length > 0) {
+        alert("Messaging is unavailable because one of the users has been blocked.")
+        return
+      }
+
       const { data, error } = await supabase
         .from("messages")
         .insert({
@@ -543,9 +557,13 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
             <CardContent>
               <Link href={`/product/${conversationData.product.id}`} className="block hover:opacity-80">
                 <img
-                  src={conversationData.product.images?.[0] || "/placeholder.svg"}
+                  src={
+                    conversationData.product.images?.[0] || "/placeholder.svg?height=128&width=256&query=product-detail"
+                  }
                   alt={conversationData.product.title}
                   className="w-full h-32 object-cover rounded-lg mb-3"
+                  loading="lazy"
+                  decoding="async"
                 />
                 <h4 className="font-semibold text-foreground mb-2">{conversationData.product.title}</h4>
                 <p className="text-2xl font-bold text-primary mb-2">${conversationData.product.price}</p>

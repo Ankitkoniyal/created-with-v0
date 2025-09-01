@@ -3,13 +3,13 @@ import { DashboardNav } from "@/components/dashboard/dashboard-nav"
 import { AuthGuard } from "@/components/auth/auth-guard"
 
 interface ConversationPageProps {
-  params: Promise<{
+  params: {
     conversationId: string
-  }>
+  }
 }
 
-export default async function ConversationPage({ params }: ConversationPageProps) {
-  const { conversationId } = await params
+export default function ConversationPage({ params }: ConversationPageProps) {
+  const { conversationId } = params
 
   return (
     <AuthGuard requireAuth={true}>

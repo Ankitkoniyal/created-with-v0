@@ -42,7 +42,8 @@ export function ContactSellerModal({ product, seller, children }: ContactSellerM
 
   const handleSendMessage = async () => {
     if (!user) {
-      router.push("/auth/login")
+      const redirectedFrom = `${window.location.pathname}${window.location.search}`
+      router.push(`/auth/login?redirectedFrom=${encodeURIComponent(redirectedFrom)}`)
       return
     }
 
@@ -67,6 +68,33 @@ export function ContactSellerModal({ product, seller, children }: ContactSellerM
         return
       }
 
+      if (productData?.user_id === user.id) {
+        toast({
+          variant: "destructive",
+          title: "Cannot message your own listing",
+          description: "You cannot start a conversation with yourself.",
+        })
+        return
+      }
+
+      // Block check (either direction)
+      const { data: blockCheck, error: blockErr } = await supabase
+        .from("blocked_users")
+        .select("id")
+        .or(
+          `and(blocker_id.eq.${user.id},blocked_id.eq.${productData.user_id}),and(blocker_id.eq.${productData.user_id},blocked_id.eq.${user.id})`,
+        )
+        .limit(1)
+
+      if (!blockErr && blockCheck && blockCheck.length > 0) {
+        toast({
+          variant: "destructive",
+          title: "Messaging unavailable",
+          description: "Messaging is disabled because one of the users has been blocked.",
+        })
+        return
+      }
+
       const { data, error } = await supabase
         .from("messages")
         .insert({
@@ -74,6 +102,7 @@ export function ContactSellerModal({ product, seller, children }: ContactSellerM
           sender_id: user.id,
           receiver_id: productData.user_id,
           message: message.trim(),
+          is_read: false,
         })
         .select()
         .single()
@@ -128,9 +157,11 @@ export function ContactSellerModal({ product, seller, children }: ContactSellerM
 
           <div className="flex items-center space-x-3 p-3 bg-muted rounded-lg">
             <img
-              src={product.image || "/placeholder.svg"}
+              src={product.image || "/placeholder.svg?height=48&width=48&query=product-thumb"}
               alt={product.title}
               className="w-12 h-12 object-cover rounded"
+              loading="lazy"
+              decoding="async"
             />
             <div className="flex-1">
               <h4 className="font-medium text-sm">{product.title}</h4>

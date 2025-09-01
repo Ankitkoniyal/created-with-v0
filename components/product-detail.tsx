@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
+import Image from "next/image" // import Next Image for optimized delivery
 import {
   Heart,
   Share2,
@@ -252,17 +253,19 @@ export function ProductDetail({ product }: ProductDetailProps) {
 
         <Card>
           <CardContent className="p-0">
-            <div className="relative">
-              <img
+            <div className="relative h-80 bg-gray-50 rounded-t-lg">
+              <Image
                 src={
                   getOptimizedImageUrl(product.images?.[selectedImage], "detail") ||
                   "/placeholder.svg?height=400&width=600&query=product%20image" ||
+                  "/placeholder.svg" ||
                   "/placeholder.svg"
                 }
                 alt={product.title}
-                className="w-full h-80 object-contain bg-gray-50 rounded-t-lg"
-                loading="lazy"
-                decoding="async"
+                fill
+                priority
+                sizes="(max-width: 1024px) 100vw, 66vw"
+                className="object-contain"
               />
               {product.images && product.images.length > 1 && (
                 <>
@@ -296,12 +299,12 @@ export function ProductDetail({ product }: ProductDetailProps) {
                       selectedImage === index ? "border-primary" : "border-border"
                     }`}
                   >
-                    <img
+                    <Image
                       src={getOptimizedImageUrl(image, "thumb") || "/placeholder.svg?height=96&width=96&query=thumb"}
                       alt={`${product.title} ${index + 1}`}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                      decoding="async"
+                      width={48}
+                      height={48}
+                      className="object-cover w-full h-full"
                     />
                   </button>
                 ))}

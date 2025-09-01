@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Heart, MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import Image from "next/image"
 import { createClient } from "@/lib/supabase/client"
 import { getOptimizedImageUrl } from "@/lib/images"
 
@@ -91,17 +92,18 @@ export function RelatedProducts({ currentProductId, category }: RelatedProductsP
           <Link key={product.id} href={`/product/${product.id}`}>
             <Card className="group cursor-pointer hover:shadow-lg transition-shadow">
               <CardContent className="p-0">
-                <div className="relative">
-                  <img
+                <div className="relative h-48">
+                  <Image
                     src={
                       getOptimizedImageUrl(product.image_urls?.[0], "thumb") ||
                       "/placeholder.svg?height=192&width=256&query=related%20product" ||
+                      "/placeholder.svg" ||
                       "/placeholder.svg"
                     }
                     alt={product.title}
-                    className="w-full h-48 object-cover rounded-t-lg"
-                    loading="lazy"
-                    decoding="async"
+                    fill
+                    sizes="(max-width: 1024px) 50vw, 33vw"
+                    className="object-cover rounded-t-lg"
                   />
                   <Button
                     size="sm"

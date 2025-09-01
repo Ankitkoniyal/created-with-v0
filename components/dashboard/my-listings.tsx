@@ -12,6 +12,8 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
+import Image from "next/image"
+import { getOptimizedImageUrl } from "@/lib/images"
 
 interface Product {
   id: string
@@ -249,11 +251,13 @@ export function MyListings() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {filteredListings.map((listing) => (
           <Card key={listing.id} className="overflow-hidden">
-            <div className="relative">
-              <img
-                src={listing.images?.[0] || "/placeholder.svg"} // Fixed field name from image_urls to images
+            <div className="relative h-48">
+              <Image
+                src={getOptimizedImageUrl(listing.images?.[0], "thumb") || "/placeholder.svg"}
                 alt={listing.title}
-                className="w-full h-48 object-cover"
+                fill
+                sizes="(max-width: 1024px) 50vw, 33vw"
+                className="object-cover"
               />
               <Badge className="absolute top-2 right-2" variant={getStatusColor(listing.status) as any}>
                 {listing.status}

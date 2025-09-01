@@ -8,6 +8,8 @@ import { Heart, MapPin, Eye, Grid3X3, List, Package, Loader2 } from "lucide-reac
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { getCategoryMapping } from "@/lib/categories"
+import Image from "next/image"
+import { getOptimizedImageUrl } from "@/lib/images"
 
 interface Product {
   id: string
@@ -226,16 +228,13 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
               }`}
             >
               <CardContent className={`p-0 ${viewMode === "list" ? "flex" : ""}`}>
-                <div className={`relative ${viewMode === "list" ? "w-48 flex-shrink-0" : ""}`}>
-                  <img
-                    src={product.images?.[0] || "/placeholder.svg"} // Fixed field name from image_urls to images
+                <div className={`relative ${viewMode === "list" ? "w-48 h-32 flex-shrink-0" : "h-48"}`}>
+                  <Image
+                    src={getOptimizedImageUrl(product.images?.[0], "thumb") || "/placeholder.svg"}
                     alt={product.title}
-                    width={viewMode === "list" ? 192 : 300}
-                    height={viewMode === "list" ? 128 : 192}
-                    className={`object-cover ${
-                      viewMode === "list" ? "w-full h-32" : "w-full h-48"
-                    } ${viewMode === "grid" ? "rounded-t-lg" : "rounded-l-lg"}`}
-                    loading="lazy"
+                    fill
+                    sizes={viewMode === "list" ? "192px" : "(max-width: 640px) 100vw, (max-width: 1024px) 33vw, 33vw"}
+                    className={`object-cover ${viewMode === "grid" ? "rounded-t-lg" : "rounded-l-lg"}`}
                   />
                   <Button
                     size="sm"

@@ -34,6 +34,11 @@ interface Conversation {
     full_name: string
     avatar_url: string
   }
+  participant: {
+    id: string
+    full_name: string
+    avatar_url: string
+  }
   latest_message: {
     message: string
     created_at: string
@@ -64,6 +69,7 @@ export function MessagesList() {
             sender_id,
             receiver_id,
             message,
+            is_read,
             created_at,
             products (
               id,
@@ -92,13 +98,17 @@ export function MessagesList() {
           console.log("[v0] Fetched conversations:", data)
 
           // Group messages by conversation (product + participants)
-          const conversationMap = new Map()
+          const conversationMap = new Map<string, any>()
 
           data?.forEach((message: any) => {
             const otherParticipant = message.sender_id === user.id ? message.receiver : message.sender
             const conversationKey = `${message.product_id}-${otherParticipant.id}`
 
-            if (!conversationMap.has(conversationKey)) {
+            const isUnreadForMe =
+              message.receiver_id === user.id && message.sender_id === otherParticipant.id && message.is_read === false
+
+            const existing = conversationMap.get(conversationKey)
+            if (!existing) {
               conversationMap.set(conversationKey, {
                 id: conversationKey,
                 product_id: message.product_id,
@@ -112,8 +122,12 @@ export function MessagesList() {
                   created_at: message.created_at,
                   sender_id: message.sender_id,
                 },
-                unread_count: 0, // TODO: Implement unread count logic
+                unread_count: isUnreadForMe ? 1 : 0,
               })
+            } else {
+              if (isUnreadForMe) {
+                existing.unread_count += 1
+              }
             }
           })
 
@@ -269,9 +283,14 @@ export function MessagesList() {
                     {/* Product Image */}
                     <div className="w-16 h-16 flex-shrink-0">
                       <img
-                        src={conversation.products?.images?.[0] || "/placeholder.svg"}
+                        src={
+                          conversation.products?.images?.[0] ||
+                          "/placeholder.svg?height=64&width=64&query=product-thumbnail"
+                        }
                         alt={conversation.products?.title || "Product"}
                         className="w-full h-full object-cover rounded-lg"
+                        loading="lazy"
+                        decoding="async"
                       />
                     </div>
 

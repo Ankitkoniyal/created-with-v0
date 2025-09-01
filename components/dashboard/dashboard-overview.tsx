@@ -8,6 +8,8 @@ import { Package, Eye, Plus, MessageSquare, TrendingUp, Edit } from "lucide-reac
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
+import Image from "next/image"
+import { getOptimizedImageUrl } from "@/lib/images"
 
 interface UserStats {
   activeAds: number
@@ -226,10 +228,12 @@ export function DashboardOverview() {
                   key={listing.id}
                   className="flex items-center space-x-4 p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"
                 >
-                  <img
-                    src={listing.images?.[0] || "/placeholder.svg"} // Updated from image_urls to images
+                  <Image
+                    src={getOptimizedImageUrl(listing.images?.[0], "thumb") || "/placeholder.svg"} // Updated from image_urls to images
                     alt={listing.title}
-                    className="w-20 h-20 object-cover rounded-lg"
+                    width={80}
+                    height={80}
+                    className="object-cover rounded-lg"
                   />
                   <div className="flex-1">
                     <div className="flex items-center space-x-2 mb-1">

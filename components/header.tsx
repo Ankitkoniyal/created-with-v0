@@ -33,7 +33,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 import { MegaMenu } from "@/components/mega-menu"
-import { createClient } from "@/lib/supabase/client"
+import { getSupabaseClient } from "@/lib/supabase/client"
 
 const CANADIAN_LOCATIONS = [
   { province: "Alberta", cities: ["Calgary", "Edmonton", "Red Deer", "Lethbridge"] },
@@ -152,9 +152,8 @@ export function Header(): ReactElement {
 
     const fetchNotificationCounts = async () => {
       try {
-        const supabase = createClient()
+        const supabase = await getSupabaseClient()
         if (!supabase) {
-          // Supabase not configured; skip quietly so header still renders
           return
         }
 

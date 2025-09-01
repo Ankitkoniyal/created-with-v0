@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
+import { getSupabaseClient } from "@/lib/supabase/client"
 import { AlertTriangle, Shield } from "lucide-react"
 
 interface SuperAdminGuardProps {
@@ -15,40 +15,47 @@ export function SuperAdminGuard({ children }: SuperAdminGuardProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [isAuthorized, setIsAuthorized] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   useEffect(() => {
-    checkSuperAdminAccess()
-  }, [])
+    let mounted = true
+    ;(async () => {
+      try {
+        const supabase = await getSupabaseClient()
+        if (!supabase) {
+          if (mounted) setIsLoading(false)
+          router.push("/auth/login")
+          return
+        }
 
-  const checkSuperAdminAccess = async () => {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
 
-      if (!user) {
-        router.push("/auth/login")
-        return
-      }
+        if (!user) {
+          router.push("/auth/login")
+          return
+        }
 
-      const { data: profile } = await supabase.from("profiles").select("role, email").eq("id", user.id).single()
+        const { data: profile } = await supabase.from("profiles").select("role, email").eq("id", user.id).single()
 
-      const ownerEmail = process.env.NEXT_PUBLIC_OWNER_EMAIL || "ankit.koniyal000@gmail.com"
-      const isOwner = profile?.role === "owner" || user.email === ownerEmail
+        const ownerEmail = process.env.NEXT_PUBLIC_OWNER_EMAIL || "ankit.koniyal000@gmail.com"
+        const isOwner = profile?.role === "owner" || user.email === ownerEmail
 
-      if (isOwner) {
-        setIsAuthorized(true)
-      } else {
+        if (mounted) setIsAuthorized(!!isOwner)
+        if (!isOwner) {
+          router.push("/")
+        }
+      } catch (error) {
+        console.error("Super admin access check failed:", error)
         router.push("/")
+      } finally {
+        if (mounted) setIsLoading(false)
       }
-    } catch (error) {
-      console.error("Super admin access check failed:", error)
-      router.push("/")
-    } finally {
-      setIsLoading(false)
+    })()
+    return () => {
+      mounted = false
     }
-  }
+  }, [router])
 
   if (isLoading) {
     return (

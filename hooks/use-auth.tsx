@@ -254,13 +254,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!sess) {
         const start = Date.now()
-        while (Date.now() - start < 1800) {
+        while (Date.now() - start < 1200) {
           const { data: gs } = await s.auth.getSession()
           if (gs?.session?.user) {
             sess = gs.session
             break
           }
-          await new Promise((r) => setTimeout(r, 180))
+          await new Promise((r) => setTimeout(r, 150))
         }
       }
 
@@ -300,7 +300,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             body: JSON.stringify({}),
           }).catch(() => {})
         }
-        // Profile fetch in background; don't block login result
         ;(async () => {
           try {
             const { data: profileData } = await s.from("profiles").select("*").eq("id", sess!.user.id).single()
@@ -354,6 +353,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false)
         return { error: error.message }
       }
+      setIsLoading(false)
       return {}
     } catch {
       setIsLoading(false)
@@ -373,6 +373,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
     } catch {}
     await s.auth.signOut()
+    setIsLoading(false)
   }
 
   return (
