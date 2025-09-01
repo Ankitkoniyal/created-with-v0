@@ -11,6 +11,7 @@ import useSWRInfinite from "swr/infinite"
 import Image from "next/image"
 import { LoadingSkeleton } from "@/components/loading-skeleton"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
+import { getOptimizedImageUrl } from "@/lib/images"
 
 interface Product {
   id: string
@@ -280,6 +281,7 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
             {productsToRender.map((product) => {
               const conditionBadge = getConditionBadge(product.condition)
               const primaryImage = product.images?.[0] || "/diverse-products-still-life.png"
+              const optimizedPrimary = getOptimizedImageUrl(primaryImage, "card") || primaryImage
               const provinceOrLocation = product.province || product.location || ""
 
               return (
@@ -288,7 +290,7 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
                     <CardContent className="p-0 flex flex-col h-full">
                       <div className="relative w-full aspect-square overflow-hidden bg-gray-50 rounded-xl">
                         <Image
-                          src={primaryImage || "/placeholder.svg"}
+                          src={optimizedPrimary || "/placeholder.svg"}
                           alt={product.title}
                           fill
                           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 33vw, 20vw"

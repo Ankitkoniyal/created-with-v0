@@ -6,6 +6,7 @@ import { Heart, MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
+import { getOptimizedImageUrl } from "@/lib/images"
 
 interface Product {
   id: string
@@ -102,9 +103,15 @@ export function LatestAds() {
                 <CardContent className="p-0 flex flex-col h-full">
                   <div className="relative w-full aspect-square overflow-hidden bg-gray-50">
                     <img
-                      src={product.image_urls?.[0] || "/placeholder.svg"}
+                      src={
+                        getOptimizedImageUrl(product.image_urls?.[0], "thumb") ||
+                        "/placeholder.svg?height=400&width=400&query=latest%20ad" ||
+                        "/placeholder.svg"
+                      }
                       alt={product.title}
                       className="w-full h-full object-cover object-center"
+                      loading="lazy"
+                      decoding="async"
                     />
                     <Button
                       size="sm"

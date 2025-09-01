@@ -6,6 +6,7 @@ import { Heart, MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
+import { getOptimizedImageUrl } from "@/lib/images"
 
 interface Product {
   id: string
@@ -92,9 +93,15 @@ export function RelatedProducts({ currentProductId, category }: RelatedProductsP
               <CardContent className="p-0">
                 <div className="relative">
                   <img
-                    src={product.image_urls?.[0] || "/placeholder.svg"}
+                    src={
+                      getOptimizedImageUrl(product.image_urls?.[0], "thumb") ||
+                      "/placeholder.svg?height=192&width=256&query=related%20product" ||
+                      "/placeholder.svg"
+                    }
                     alt={product.title}
                     className="w-full h-48 object-cover rounded-t-lg"
+                    loading="lazy"
+                    decoding="async"
                   />
                   <Button
                     size="sm"

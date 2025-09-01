@@ -26,6 +26,7 @@ import { SafetyBanner } from "@/components/ui/safety-banner"
 import { SafetyWarningModal } from "@/components/ui/safety-warning-modal"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
+import { getOptimizedImageUrl } from "@/lib/images"
 
 interface Product {
   id: string
@@ -253,7 +254,11 @@ export function ProductDetail({ product }: ProductDetailProps) {
           <CardContent className="p-0">
             <div className="relative">
               <img
-                src={product.images?.[selectedImage] || "/placeholder.svg"}
+                src={
+                  getOptimizedImageUrl(product.images?.[selectedImage], "detail") ||
+                  "/placeholder.svg?height=400&width=600&query=product%20image" ||
+                  "/placeholder.svg"
+                }
                 alt={product.title}
                 className="w-full h-80 object-contain bg-gray-50 rounded-t-lg"
                 loading="lazy"
@@ -292,7 +297,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                     }`}
                   >
                     <img
-                      src={image || "/placeholder.svg"}
+                      src={getOptimizedImageUrl(image, "thumb") || "/placeholder.svg?height=96&width=96&query=thumb"}
                       alt={`${product.title} ${index + 1}`}
                       className="w-full h-full object-cover"
                       loading="lazy"
