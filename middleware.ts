@@ -63,7 +63,8 @@ export async function middleware(request: NextRequest) {
 
     // Optional: if already logged in and visiting auth pages, send to home.
     // (Auth pages are already allowed early above.)
-    const protectedRoutes = ["/dashboard", "/sell", "/profile", "/admin", "/superadmin"]
+    // Client-side guards handle dashboard/sell/profile; enforce only admin surfaces here.
+    const protectedRoutes = ["/admin", "/superadmin"]
     const isProtectedRoute = protectedRoutes.some((route) => request.nextUrl.pathname.startsWith(route))
 
     if (isProtectedRoute && !user) {

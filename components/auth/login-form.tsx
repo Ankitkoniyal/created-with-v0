@@ -108,20 +108,20 @@ export function LoginForm() {
       console.log("[v0] Login result:", result)
 
       if (result?.error) {
-        // Fast fallback: if session already exists, treat as success to avoid split-brain
         try {
           const s = await getSupabaseClient()
           if (s) {
-            const ok = await (async () => {
-              const start = Date.now()
-              while (Date.now() - start < 2000) {
-                const { data } = await s.auth.getSession()
-                if (data?.session?.user) return true
-                await new Promise((r) => setTimeout(r, 200))
+            const start = Date.now()
+            let hasSession = false
+            while (Date.now() - start < 1500) {
+              const { data } = await s.auth.getSession()
+              if (data?.session?.user) {
+                hasSession = true
+                break
               }
-              return false
-            })()
-            if (ok || user) {
+              await new Promise((r) => setTimeout(r, 150))
+            }
+            if (hasSession || user) {
               const destination = redirectedFrom || "/"
               setSuccessOpen(true)
               setTimeout(() => {
@@ -134,12 +134,12 @@ export function LoginForm() {
             }
           }
         } catch {
-          // ignore and fall through to show error
+          // swallow and show the precise error below
         }
 
-        // normalize network wording; avoid “timeout” unless truly no session
-        setError("Network error. Please try again.")
+        setError(result.error || "Network error. Please try again.")
         setIsSubmitting(false)
+        return
       } else {
         // Fire-and-forget: ensure profile exists on the server using current session cookies
         fetch("/api/profile/ensure", {
