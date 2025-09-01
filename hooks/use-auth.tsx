@@ -250,8 +250,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log("[v0] Login attempt for email:", email)
 
       const { data, error } = await s.auth.signInWithPassword({ email, password })
+      let sess = data?.session ?? null
 
-      if (error) {
+      if (!sess) {
+        const start = Date.now()
+        while (Date.now() - start < 1800) {
+          const { data: gs } = await s.auth.getSession()
+          if (gs?.session?.user) {
+            sess = gs.session
+            break
+          }
+          await new Promise((r) => setTimeout(r, 180))
+        }
+      }
+
+      if (!sess && error) {
         setIsLoading(false)
         const msg = String(error.message || "")
         if (msg.includes("Invalid login credentials")) {
@@ -261,22 +274,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else if (msg.includes("Too many requests")) {
           return { error: "Too many login attempts. Please wait a few minutes before trying again." }
         }
-        return { error: msg || "Unable to sign in. Please try again." }
+        return { error: msg || "Network error. Please try again." }
       }
 
-      let sess = data?.session || null
-      if (!sess?.access_token || !sess?.refresh_token) {
-        const { data: gs } = await s.auth.getSession()
-        if (gs?.session) sess = gs.session
-      }
-      if (sess?.user && (!sess?.access_token || !sess?.refresh_token)) {
-        await clearAllSessionData(s)
-        setIsLoading(false)
-        return { error: "Login failed. Please try again." }
-      }
+      if (sess?.user) {
+        setUser(sess.user)
 
-      if (sess?.access_token && sess?.refresh_token) {
-        await withTimeout(
+        // Fire-and-forget cookie sync and profile ensure (do NOT block UI)
+        if (sess.access_token && sess.refresh_token) {
           fetch("/auth/set", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -286,50 +291,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               access_token: sess.access_token,
               refresh_token: sess.refresh_token,
             }),
-          }),
-          1500,
-          undefined as any,
-        )
-        await withTimeout(
+          }).catch(() => {})
+
           fetch("/api/profile/ensure", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             cache: "no-store",
             body: JSON.stringify({}),
-          }),
-          1500,
-          undefined as any,
-        )
+          }).catch(() => {})
+        }
+        // Profile fetch in background; don't block login result
+        ;(async () => {
+          try {
+            const { data: profileData } = await s.from("profiles").select("*").eq("id", sess!.user.id).single()
+            if (profileData) {
+              setProfile({
+                id: profileData.id,
+                name: profileData.full_name || sess!.user.email?.split("@")[0] || "User",
+                email: profileData.email || sess!.user.email || "",
+                phone: profileData.phone || "",
+                avatar_url: profileData.avatar_url || "",
+                bio: profileData.bio || "",
+                location: profileData.location || "",
+                verified: profileData.verified || false,
+                created_at: profileData.created_at,
+              })
+            }
+          } catch {
+            // ignore
+          }
+        })()
       }
 
-      if (sess?.user) {
-        setUser(sess.user)
-        try {
-          const { data: profileData } = await s.from("profiles").select("*").eq("id", sess.user.id).single()
-          if (profileData) {
-            setProfile({
-              id: profileData.id,
-              name: profileData.full_name || sess.user.email?.split("@")[0] || "User",
-              email: profileData.email || sess.user.email || "",
-              phone: profileData.phone || "",
-              avatar_url: profileData.avatar_url || "",
-              bio: profileData.bio || "",
-              location: profileData.location || "",
-              verified: profileData.verified || false,
-              created_at: profileData.created_at,
-            })
-          } else {
-            // do NOT treat missing profile as an error; it will be ensured in background
-          }
-        } catch {
-          // swallow; the form will still proceed based on session presence
-        }
-      }
       setIsLoading(false)
       return {}
     } catch {
       setIsLoading(false)
-      // soften wording to avoid “timeout” confusion, the form now does a session fallback
       return { error: "Network error. Please try again." }
     }
   }
