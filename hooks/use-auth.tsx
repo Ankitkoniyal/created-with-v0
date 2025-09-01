@@ -119,9 +119,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await syncServerSession("SIGNED_IN", session)
           }
           setUser(session.user)
+
+          if (mounted) setIsLoading(false)
+
           try {
             let profileData = await fetchProfile(session.user.id, session.user, s)
-            // if missing, try to ensure and refetch; do NOT clear session on first missing profile
             if (!profileData) {
               await withTimeout(
                 fetch("/api/profile/ensure", {
@@ -142,6 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setUser(null)
           setProfile(null)
+          if (mounted) setIsLoading(false)
         }
 
         if (mounted) setIsLoading(false)
@@ -194,6 +197,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           if (event === "SIGNED_IN" && session?.user) {
             setUser(session.user)
+
+            if (mounted) setIsLoading(false)
+
             try {
               await withTimeout(
                 fetch("/api/profile/ensure", {
@@ -210,7 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             } catch (profileError) {
               console.error("Profile fetch error after sign in:", profileError)
             }
-            setIsLoading(false)
+            // was: setIsLoading(false) here; moved earlier to avoid blocking UI
           } else if (event === "SIGNED_OUT") {
             setUser(null)
             setProfile(null)

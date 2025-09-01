@@ -183,33 +183,7 @@ export function Header(): ReactElement {
     return () => clearInterval(interval)
   }, [user?.id])
 
-  if (isLoading) {
-    return (
-      <header className="sticky top-0 z-50 bg-background border-b border-border">
-        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center flex-shrink-0">
-              <Link href="/">
-                <h1 className="text-2xl sm:text-3xl font-bold text-black cursor-pointer">M</h1>
-              </Link>
-            </div>
-
-            <div className="flex-1 max-w-4xl mx-2 sm:mx-4 lg:mx-8">
-              <div className="flex items-center bg-white border-2 border-gray-200 rounded-full shadow-lg h-12">
-                <div className="flex-1 h-4 bg-gray-200 rounded mx-4 animate-pulse"></div>
-              </div>
-            </div>
-
-            <div className="hidden md:flex items-center space-x-4 flex-shrink-0">
-              <div className="h-8 w-8 rounded-full bg-gray-200 animate-pulse"></div>
-            </div>
-          </div>
-        </div>
-      </header>
-    )
-  }
-
-  const isAuthenticated = !!user
+  // const isAuthenticated = !!user
 
   return (
     <header className="sticky top-0 z-50 bg-background border-b border-border">
@@ -278,7 +252,7 @@ export function Header(): ReactElement {
                 Home
               </Link>
             </Button>
-            {isAuthenticated && (
+            {user && (
               <>
                 <Button variant="ghost" size="sm" className="relative" asChild>
                   <Link href="/dashboard/favorites" aria-label="Favorites">
@@ -312,7 +286,7 @@ export function Header(): ReactElement {
                 </Button>
               </>
             )}
-            {isAuthenticated ? (
+            {user ? (
               <>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -361,11 +335,7 @@ export function Header(): ReactElement {
                   size="sm"
                   className="bg-green-900 hover:bg-green-950 text-white font-medium px-4 py-2 rounded-full shadow-lg hover:shadow-green-900/30 transition-all duration-300 transform hover:scale-105 border border-white/10 hover:border-white/20 relative overflow-hidden group"
                   onClick={() => {
-                    if (!isAuthenticated) {
-                      router.push("/auth/login?redirectedFrom=" + encodeURIComponent("/sell"))
-                    } else {
-                      router.push("/sell")
-                    }
+                    router.push("/sell")
                   }}
                 >
                   <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></span>
@@ -386,11 +356,7 @@ export function Header(): ReactElement {
                   size="sm"
                   className="bg-green-900 hover:bg-green-950 text-white font-medium px-4 py-2 rounded-full shadow-lg hover:shadow-green-900/30 transition-all duration-300 transform hover:scale-105 border border-white/10 hover:border-white/20 relative overflow-hidden group"
                   onClick={() => {
-                    if (!isAuthenticated) {
-                      router.push("/auth/login?redirectedFrom=" + encodeURIComponent("/sell"))
-                    } else {
-                      router.push("/sell")
-                    }
+                    router.push("/auth/login?redirectedFrom=" + encodeURIComponent("/sell"))
                   }}
                 >
                   <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></span>
