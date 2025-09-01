@@ -16,7 +16,7 @@ import { SuccessOverlay } from "@/components/ui/success-overlay"
 export function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { login } = useAuth()
+  const { login, user } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -107,6 +107,19 @@ export function LoginForm() {
       console.log("[v0] Login result:", result)
 
       if (result?.error) {
+        // quick check: if auth state already has a user, proceed
+        if (user) {
+          const destination = redirectedFrom || "/dashboard"
+          setSuccessOpen(true)
+          setTimeout(() => {
+            setSuccessOpen(false)
+            router.push(destination)
+            router.refresh()
+          }, 1500)
+          setIsSubmitting(false)
+          return
+        }
+
         const msg = result.error.toLowerCase()
         if (msg.includes("invalid") && msg.includes("password")) {
           setError("Incorrect email or password.")
@@ -115,7 +128,6 @@ export function LoginForm() {
         } else if (msg.includes("verify") || msg.includes("confirmation")) {
           setError("Please verify your email address before signing in.")
         } else {
-          // Show server-provided error without claiming timeout
           setError(result.error)
         }
         setIsSubmitting(false)

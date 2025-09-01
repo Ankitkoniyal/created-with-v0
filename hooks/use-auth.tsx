@@ -243,17 +243,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(true)
       console.log("[v0] Login attempt for email:", email)
 
-      const { data, error } = await withTimeout(s.auth.signInWithPassword({ email, password }), 5000, {
-        data: null as any,
-        error: new Error("network_timeout") as any,
-      })
+      const { data, error } = await s.auth.signInWithPassword({ email, password })
 
       if (error) {
         setIsLoading(false)
         const msg = String(error.message || "")
-        if (msg === "network_timeout") {
-          return { error: "Network timeout. Please check your connection and try again." }
-        }
         if (msg.includes("Invalid login credentials")) {
           return { error: "Invalid email or password. Please check your credentials and try again." }
         } else if (msg.includes("Email not confirmed")) {
