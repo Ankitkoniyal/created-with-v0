@@ -50,37 +50,34 @@ export function LoginForm() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    
+
     // Prevent multiple submissions
     if (isSubmitting) return
-    
+
     // Reset error state
     setError(null)
-    
+
     // Basic validation
     if (!email.trim() || !password) {
       setError("Please fill in all required fields")
       return
     }
-    
+
     if (!isValidEmail(email.trim())) {
       setError("Please enter a valid email address")
       return
     }
-    
+
     setIsSubmitting(true)
-    
+
     try {
       // Save credentials if remember me is checked
       if (rememberMe) {
-        localStorage.setItem(
-          "rememberedCredentials",
-          JSON.stringify({ email: email.trim(), rememberMe: true })
-        )
+        localStorage.setItem("rememberedCredentials", JSON.stringify({ email: email.trim(), rememberMe: true }))
       } else {
         localStorage.removeItem("rememberedCredentials")
       }
-      
+
       // Check if account exists
       try {
         const existsResponse = await fetch("/api/auth/exists", {
@@ -88,7 +85,7 @@ export function LoginForm() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email: email.trim() }),
         })
-        
+
         if (existsResponse.ok) {
           const existsData = await existsResponse.json()
           if (existsData.ok && !existsData.exists) {
@@ -98,18 +95,17 @@ export function LoginForm() {
           }
         }
       } catch (error) {
-        // Continue with login attempt even if account check fails
         console.warn("Account check failed, proceeding with login:", error)
       }
-      
+
       // Attempt login
       const result = await login(email.trim(), password)
-      
+
       if (result?.error) {
         // Handle specific error cases
         const errorMessage = String(result.error)
         let userFriendlyError = "An error occurred during login"
-        
+
         if (/invalid login credentials|invalid email or password/i.test(errorMessage)) {
           userFriendlyError = "Invalid email or password. Please try again."
         } else if (/email not confirmed|confirmation/i.test(errorMessage)) {
@@ -117,19 +113,18 @@ export function LoginForm() {
         } else if (/too many|rate/i.test(errorMessage)) {
           userFriendlyError = "Too many attempts. Please wait a few minutes and try again."
         }
-        
+
         setError(userFriendlyError)
         setIsSubmitting(false)
         return
       }
-      
+
       // Login successful - verify session
       try {
-        const supabase = getSupabaseClient()
-        if (supabase) {
-          // Wait for session to be established with a timeout
-          const { data: { session } } = await supabase.auth.getSession()
-          
+        const supabase = await getSupabaseClient().catch(() => null as any)
+        if (supabase && typeof supabase === "object" && "auth" in supabase && supabase.auth?.getSession) {
+          const { data } = await supabase.auth.getSession()
+          const session = data?.session
           if (session?.user) {
             // Fire-and-forget: ensure profile exists
             fetch("/api/profile/ensure", {
@@ -137,33 +132,35 @@ export function LoginForm() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({}),
             }).catch(() => {})
-            
-            // Show success and redirect
+
+            // Show success and redirect quickly
             setSuccessOpen(true)
+            setIsSubmitting(false)
             setTimeout(() => {
               setSuccessOpen(false)
               router.push(redirectedFrom)
               router.refresh()
-            }, 1600)
+            }, 1000)
             return
           }
         }
       } catch (error) {
         console.error("Session verification error:", error)
-        // Even if session verification fails, proceed with redirect
+        // Proceed with redirect even if this check fails
       }
-      
+
       // Fallback redirect if session verification skipped or failed
       setSuccessOpen(true)
+      setIsSubmitting(false)
       setTimeout(() => {
         setSuccessOpen(false)
         router.push(redirectedFrom)
         router.refresh()
-      }, 1600)
-      
+      }, 1000)
     } catch (err) {
       console.error("Login error:", err)
       setError("An unexpected error occurred. Please try again.")
+    } finally {
       setIsSubmitting(false)
     }
   }
@@ -247,10 +244,10 @@ export function LoginForm() {
                   Remember me
                 </Label>
               </div>
-              <Button 
-                type="button" 
-                variant="link" 
-                className="p-0 h-auto text-sm" 
+              <Button
+                type="button"
+                variant="link"
+                className="p-0 h-auto text-sm"
                 disabled={isSubmitting}
                 onClick={() => router.push("/forgot-password")}
               >
@@ -258,11 +255,7 @@ export function LoginForm() {
               </Button>
             </div>
 
-            <Button 
-              type="submit" 
-              className="w-full" 
-              disabled={isSubmitting || !email || !password}
-            >
+            <Button type="submit" className="w-full" disabled={isSubmitting || !email || !password}>
               {isSubmitting ? (
                 <div className="flex items-center">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
@@ -272,13 +265,13 @@ export function LoginForm() {
                 "Sign In"
               )}
             </Button>
-            
+
             <div className="text-center text-sm mt-4">
               Don't have an account?{" "}
-              <Button 
-                type="button" 
-                variant="link" 
-                className="p-0 h-auto text-sm" 
+              <Button
+                type="button"
+                variant="link"
+                className="p-0 h-auto text-sm"
                 disabled={isSubmitting}
                 onClick={() => router.push("/signup")}
               >
