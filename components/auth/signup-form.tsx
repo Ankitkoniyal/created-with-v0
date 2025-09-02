@@ -22,41 +22,44 @@ export function SignupForm() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    if (isSubmitting) return
+
     setError(null)
-
-    const formData = new FormData(e.currentTarget)
-    const fullName = (formData.get("fullName") as string)?.trim()
-    const email = (formData.get("email") as string)?.trim()
-    const phone = (formData.get("phone") as string)?.trim()
-    const password = (formData.get("password") as string) || ""
-
-    if (!fullName || !email || !password) {
-      setError("Please fill in all required fields.")
-      return
-    }
-    if (!agreeToTerms) {
-      setError("Please agree to the Terms and Privacy Policy to continue.")
-      return
-    }
-
     setIsSubmitting(true)
+
     try {
+      const formData = new FormData(e.currentTarget)
+      const fullName = (formData.get("fullName") as string)?.trim()
+      const email = (formData.get("email") as string)?.trim()
+      const phone = (formData.get("phone") as string)?.trim()
+      const password = (formData.get("password") as string) || ""
+
+      if (!fullName || !email || !password) {
+        setError("Please fill in all required fields.")
+        return
+      }
+      if (!agreeToTerms) {
+        setError("Please agree to the Terms and Privacy Policy to continue.")
+        return
+      }
+
       const supabase = await getSupabaseClient()
       if (!supabase) {
         setError("Authentication is not configured. Please try again later.")
         return
       }
 
-      const redirect =
-        (typeof window !== "undefined" && `${window.location.origin}/auth/callback`) ||
-        process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL
+      const redirectUrl =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/auth/callback`
+          : process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || "http://localhost:3000/auth/callback"
 
       const { data, error: signErr } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: { full_name: fullName, phone: phone || undefined },
-          emailRedirectTo: redirect || (typeof window !== "undefined" ? window.location.origin : undefined),
+          emailRedirectTo: redirectUrl,
         },
       })
 
@@ -65,29 +68,33 @@ export function SignupForm() {
         if (/email rate/i.test(msg)) msg = "Too many signup attempts. Please try again later."
         if (/invalid email/i.test(msg)) msg = "Please enter a valid email address."
         if (/password/i.test(msg) && /short|length/i.test(msg)) msg = "Password must be at least 6 characters."
+        if (/already registered|already exists/i.test(msg))
+          msg = "An account with this email already exists. Please sign in instead."
         setError(msg)
         return
       }
 
-      // If session exists (auto-confirm), ensure profile now (non-blocking)
-      try {
-        const session = (await supabase.auth.getSession()).data.session
-        if (session?.user) {
-          fetch("/api/profile/ensure", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            cache: "no-store",
-            body: JSON.stringify({ fullName, phone }),
-          }).catch(() => {})
-        }
-      } catch {}
+      if (data.session?.user) {
+        // Auto-confirmed - ensure profile immediately
+        fetch("/api/profile/ensure", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fullName, phone }),
+        }).catch(() => {})
 
-      // Success: show overlay and instruct email confirmation
-      setSuccessOpen(true)
-      setTimeout(() => {
-        setSuccessOpen(false)
-        router.push("/?signup=ok")
-      }, 2500)
+        setSuccessOpen(true)
+        setTimeout(() => {
+          setSuccessOpen(false)
+          router.push("/")
+        }, 1500)
+      } else {
+        // Email confirmation required
+        setSuccessOpen(true)
+        setTimeout(() => {
+          setSuccessOpen(false)
+          router.push("/auth/login?message=check_email")
+        }, 2500)
+      }
     } catch (e: any) {
       console.error("[signup] error:", e?.message || e)
       setError("An unexpected error occurred. Please try again.")

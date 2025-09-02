@@ -48,19 +48,22 @@ export function LoginForm() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (isSubmitting) return
+
     setError(null)
+    setIsSubmitting(true)
 
     if (!email.trim() || !password) {
       setError("Please fill in all required fields")
+      setIsSubmitting(false)
       return
     }
 
     if (!isValidEmail(email.trim())) {
       setError("Please enter a valid email address")
+      setIsSubmitting(false)
       return
     }
 
-    setIsSubmitting(true)
     try {
       if (rememberMe) {
         localStorage.setItem("rememberedCredentials", JSON.stringify({ email: email.trim(), rememberMe: true }))
@@ -68,47 +71,25 @@ export function LoginForm() {
         localStorage.removeItem("rememberedCredentials")
       }
 
-      const existsResponse = await fetch("/api/auth/exists", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
-      })
-
-      if (existsResponse.ok) {
-        const existsData = await existsResponse.json()
-        if (existsData.ok && !existsData.exists) {
-          setError("No account found for this email. Please sign up first.")
-          return
-        }
-      }
-    } catch (error) {
-      console.warn("Account check failed, proceeding with login:", error)
-    }
-
-    try {
       const result = await login(email.trim(), password)
 
       if (result?.error) {
         const errorMessage = String(result.error)
         let userFriendlyError = "An error occurred during login"
+
         if (/invalid login credentials|invalid email or password/i.test(errorMessage)) {
-          userFriendlyError = "Invalid email or password. Please try again."
+          userFriendlyError = "Incorrect email or password. Please try again."
         } else if (/email not confirmed|confirmation/i.test(errorMessage)) {
           userFriendlyError = "Please confirm your email before signing in."
         } else if (/too many|rate/i.test(errorMessage)) {
           userFriendlyError = "Too many attempts. Please wait a few minutes and try again."
-        } else if (/auth not configured|supabase/i.test(errorMessage)) {
-          userFriendlyError = "Authentication is not configured. Please try again later."
+        } else if (/network|fetch/i.test(errorMessage)) {
+          userFriendlyError = "Network error. Please check your connection and try again."
         }
+
         setError(userFriendlyError)
         return
       }
-
-      fetch("/api/profile/ensure", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      }).catch(() => {})
 
       setSuccessOpen(true)
       setTimeout(() => {

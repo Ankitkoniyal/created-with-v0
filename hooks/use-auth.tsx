@@ -245,25 +245,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string) => {
     const s = await getSupabaseClient()
     if (!s) return { error: "Authentication is not configured. Please try again later." }
+
     try {
       console.log("[v0] Login attempt for email:", email)
 
       const { data, error } = await s.auth.signInWithPassword({ email, password })
-      let sess = data?.session ?? null
 
-      if (!sess) {
-        const start = Date.now()
-        while (Date.now() - start < 800) {
-          const { data: gs } = await s.auth.getSession()
-          if (gs?.session?.user) {
-            sess = gs.session
-            break
-          }
-          await new Promise((r) => setTimeout(r, 120))
-        }
-      }
-
-      if (!sess && error) {
+      if (error) {
         const msg = String(error.message || "")
         if (/invalid login credentials/i.test(msg)) {
           return { error: "Invalid email or password. Please check your credentials and try again." }
@@ -272,55 +260,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else if (/too many/i.test(msg) || /rate/i.test(msg)) {
           return { error: "Too many login attempts. Please wait a few minutes before trying again." }
         }
-        return { error: msg || "Network error. Please try again." }
+        return { error: msg || "Login failed. Please try again." }
       }
 
-      if (sess?.user) {
-        setUser(sess.user)
+      if (data.session?.user) {
+        setUser(data.session.user)
 
-        if (sess.access_token && sess.refresh_token) {
+        if (data.session.access_token && data.session.refresh_token) {
           fetch("/auth/set", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            cache: "no-store",
             body: JSON.stringify({
               event: "SIGNED_IN",
-              access_token: sess.access_token,
-              refresh_token: sess.refresh_token,
+              access_token: data.session.access_token,
+              refresh_token: data.session.refresh_token,
             }),
           }).catch(() => {})
 
           fetch("/api/profile/ensure", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            cache: "no-store",
             body: JSON.stringify({}),
           }).catch(() => {})
         }
-        ;(async () => {
-          try {
-            const { data: profileData } = await s.from("profiles").select("*").eq("id", sess!.user.id).single()
-            if (profileData) {
-              setProfile({
-                id: profileData.id,
-                name: profileData.full_name || sess!.user.email?.split("@")[0] || "User",
-                email: profileData.email || sess!.user.email || "",
-                phone: profileData.phone || "",
-                avatar_url: profileData.avatar_url || "",
-                bio: profileData.bio || "",
-                location: profileData.location || "",
-                verified: profileData.verified || false,
-                created_at: profileData.created_at,
-              })
-            }
-          } catch {
-            // ignore
-          }
-        })()
+
+        return {}
       }
 
-      return {}
-    } catch {
+      return { error: "Login failed. Please try again." }
+    } catch (err) {
+      console.error("Login error:", err)
       return { error: "Network error. Please try again." }
     }
   }
@@ -422,7 +391,6 @@ const clearAllSessionData = async (s: any) => {
       fetch("/auth/set", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        cache: "no-store",
         body: JSON.stringify({ event: "SIGNED_OUT" }),
       }),
       1200,
