@@ -45,6 +45,8 @@ export function LoginForm() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    if (isSubmitting) return
+
     setIsSubmitting(true)
     setError(null)
 
@@ -64,6 +66,7 @@ export function LoginForm() {
       return
     }
 
+    let finished = false
     try {
       console.log("[v0] Login attempt for email:", emailValue)
 
@@ -95,6 +98,7 @@ export function LoginForm() {
         if (existsResult?.ok === true && existsResult?.exists === false) {
           setError("No account found for this email. Please sign up first.")
           setIsSubmitting(false)
+          finished = true
           return
         }
       } catch {
@@ -121,12 +125,13 @@ export function LoginForm() {
             if (hasSession) {
               const destination = redirectedFrom || "/"
               setSuccessOpen(true)
+              setIsSubmitting(false)
+              finished = true
               setTimeout(() => {
                 setSuccessOpen(false)
                 router.push(destination)
                 router.refresh()
               }, 1200)
-              setIsSubmitting(false)
               return
             }
           }
@@ -147,6 +152,7 @@ export function LoginForm() {
         }
         setError(uiMsg)
         setIsSubmitting(false)
+        finished = true
         return
       } else {
         // Fire-and-forget: ensure profile exists on the server using current session cookies
@@ -159,16 +165,24 @@ export function LoginForm() {
 
         const destination = redirectedFrom || "/"
         setSuccessOpen(true)
+        setIsSubmitting(false)
+        finished = true
         setTimeout(() => {
           setSuccessOpen(false)
           router.push(destination)
           router.refresh()
-        }, 1600) // brief but readable success overlay
+        }, 1600)
+        return
       }
     } catch (err) {
       console.error("Login error:", err)
       setError("An unexpected error occurred. Please try again.")
       setIsSubmitting(false)
+      finished = true
+    } finally {
+      if (!finished) {
+        setIsSubmitting(false)
+      }
     }
   }
 
@@ -246,7 +260,7 @@ export function LoginForm() {
                   Remember me
                 </Label>
               </div>
-              <Button variant="link" className="p-0 h-auto text-sm" disabled={isSubmitting}>
+              <Button type="button" variant="link" className="p-0 h-auto text-sm" disabled={isSubmitting}>
                 Forgot password?
               </Button>
             </div>
