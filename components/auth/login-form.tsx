@@ -1,7 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
 import type React from "react"
-
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -26,163 +25,146 @@ export function LoginForm() {
   const [password, setPassword] = useState("")
   const [successOpen, setSuccessOpen] = useState(false)
 
-  const redirectedFrom = searchParams.get("redirectedFrom")
+  const redirectedFrom = searchParams.get("redirectedFrom") || "/"
 
+  // Load saved credentials on component mount
   useEffect(() => {
-    const savedCredentials = localStorage.getItem("rememberedCredentials")
-    if (savedCredentials) {
-      try {
+    try {
+      const savedCredentials = localStorage.getItem("rememberedCredentials")
+      if (savedCredentials) {
         const { email: savedEmail, rememberMe: savedRememberMe } = JSON.parse(savedCredentials)
-        if (savedRememberMe) {
-          setEmail(savedEmail || "")
+        if (savedRememberMe && savedEmail) {
+          setEmail(savedEmail)
           setRememberMe(true)
         }
-      } catch (error) {
-        console.error("Error loading saved credentials:", error)
       }
+    } catch (error) {
+      console.error("Error loading saved credentials:", error)
     }
   }, [])
 
+  // Validate email format
+  const isValidEmail = (email: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+  }
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    
+    // Prevent multiple submissions
     if (isSubmitting) return
-
-    setIsSubmitting(true)
+    
+    // Reset error state
     setError(null)
-
-    const formData = new FormData(e.currentTarget)
-    const emailValue = (formData.get("email") as string)?.trim()
-    const passwordValue = (formData.get("password") as string) || ""
-
-    if (!emailValue || !passwordValue) {
+    
+    // Basic validation
+    if (!email.trim() || !password) {
       setError("Please fill in all required fields")
-      setIsSubmitting(false)
       return
     }
-
-    if (!emailValue.includes("@")) {
+    
+    if (!isValidEmail(email.trim())) {
       setError("Please enter a valid email address")
-      setIsSubmitting(false)
       return
     }
-
-    let finished = false
+    
+    setIsSubmitting(true)
+    
     try {
-      console.log("[v0] Login attempt for email:", emailValue)
-
+      // Save credentials if remember me is checked
       if (rememberMe) {
         localStorage.setItem(
           "rememberedCredentials",
-          JSON.stringify({
-            email: emailValue,
-            rememberMe: true,
-          }),
+          JSON.stringify({ email: email.trim(), rememberMe: true })
         )
       } else {
         localStorage.removeItem("rememberedCredentials")
       }
-
+      
+      // Check if account exists
       try {
-        const existsResult = (await Promise.race([
-          fetch("/api/auth/exists", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            cache: "no-store",
-            body: JSON.stringify({ email: emailValue }),
-          }).then((r) => r.json()),
-          new Promise<{ ok: boolean; exists: boolean }>((resolve) =>
-            setTimeout(() => resolve({ ok: true, exists: true }), 800),
-          ),
-        ])) as any
-
-        if (existsResult?.ok === true && existsResult?.exists === false) {
-          setError("No account found for this email. Please sign up first.")
-          setIsSubmitting(false)
-          finished = true
-          return
-        }
-      } catch {
-        // ignore – soft-allow
-      }
-
-      const result = (await login(emailValue, passwordValue)) as { error?: string }
-      console.log("[v0] Login result:", result)
-
-      if (result?.error) {
-        try {
-          const s = await getSupabaseClient()
-          if (s) {
-            const start = Date.now()
-            let hasSession = false
-            while (Date.now() - start < 1000) {
-              const { data } = await s.auth.getSession()
-              if (data?.session?.user) {
-                hasSession = true
-                break
-              }
-              await new Promise((r) => setTimeout(r, 120))
-            }
-            if (hasSession) {
-              const destination = redirectedFrom || "/"
-              setSuccessOpen(true)
-              setIsSubmitting(false)
-              finished = true
-              setTimeout(() => {
-                setSuccessOpen(false)
-                router.push(destination)
-                router.refresh()
-              }, 1200)
-              return
-            }
-          }
-        } catch {
-          // swallow and show the precise error below
-        }
-
-        const raw = String(result.error || "")
-        let uiMsg = raw
-        if (/invalid login credentials/i.test(raw) || /invalid email or password/i.test(raw)) {
-          uiMsg = "Invalid email or password. Please try again."
-        } else if (/email not confirmed/i.test(raw) || /confirmation/i.test(raw)) {
-          uiMsg = "Please confirm your email before signing in."
-        } else if (/too many/i.test(raw) || /rate/i.test(raw)) {
-          uiMsg = "Too many attempts. Please wait a few minutes and try again."
-        } else if (!raw) {
-          uiMsg = "Network error. Please try again."
-        }
-        setError(uiMsg)
-        setIsSubmitting(false)
-        finished = true
-        return
-      } else {
-        // Fire-and-forget: ensure profile exists on the server using current session cookies
-        fetch("/api/profile/ensure", {
+        const existsResponse = await fetch("/api/auth/exists", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          cache: "no-store",
-          body: JSON.stringify({}),
-        }).catch(() => {})
-
-        const destination = redirectedFrom || "/"
-        setSuccessOpen(true)
+          body: JSON.stringify({ email: email.trim() }),
+        })
+        
+        if (existsResponse.ok) {
+          const existsData = await existsResponse.json()
+          if (existsData.ok && !existsData.exists) {
+            setError("No account found for this email. Please sign up first.")
+            setIsSubmitting(false)
+            return
+          }
+        }
+      } catch (error) {
+        // Continue with login attempt even if account check fails
+        console.warn("Account check failed, proceeding with login:", error)
+      }
+      
+      // Attempt login
+      const result = await login(email.trim(), password)
+      
+      if (result?.error) {
+        // Handle specific error cases
+        const errorMessage = String(result.error)
+        let userFriendlyError = "An error occurred during login"
+        
+        if (/invalid login credentials|invalid email or password/i.test(errorMessage)) {
+          userFriendlyError = "Invalid email or password. Please try again."
+        } else if (/email not confirmed|confirmation/i.test(errorMessage)) {
+          userFriendlyError = "Please confirm your email before signing in."
+        } else if (/too many|rate/i.test(errorMessage)) {
+          userFriendlyError = "Too many attempts. Please wait a few minutes and try again."
+        }
+        
+        setError(userFriendlyError)
         setIsSubmitting(false)
-        finished = true
-        setTimeout(() => {
-          setSuccessOpen(false)
-          router.push(destination)
-          router.refresh()
-        }, 1600)
         return
       }
+      
+      // Login successful - verify session
+      try {
+        const supabase = getSupabaseClient()
+        if (supabase) {
+          // Wait for session to be established with a timeout
+          const { data: { session } } = await supabase.auth.getSession()
+          
+          if (session?.user) {
+            // Fire-and-forget: ensure profile exists
+            fetch("/api/profile/ensure", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({}),
+            }).catch(() => {})
+            
+            // Show success and redirect
+            setSuccessOpen(true)
+            setTimeout(() => {
+              setSuccessOpen(false)
+              router.push(redirectedFrom)
+              router.refresh()
+            }, 1600)
+            return
+          }
+        }
+      } catch (error) {
+        console.error("Session verification error:", error)
+        // Even if session verification fails, proceed with redirect
+      }
+      
+      // Fallback redirect if session verification skipped or failed
+      setSuccessOpen(true)
+      setTimeout(() => {
+        setSuccessOpen(false)
+        router.push(redirectedFrom)
+        router.refresh()
+      }, 1600)
+      
     } catch (err) {
       console.error("Login error:", err)
       setError("An unexpected error occurred. Please try again.")
       setIsSubmitting(false)
-      finished = true
-    } finally {
-      if (!finished) {
-        setIsSubmitting(false)
-      }
     }
   }
 
@@ -191,7 +173,9 @@ export function LoginForm() {
       <Card className="w-full max-w-md mx-auto">
         <CardHeader>
           <CardTitle className="text-2xl font-bold text-center">Sign In</CardTitle>
-          {redirectedFrom && <p className="text-sm text-muted-foreground text-center">Please sign in to continue</p>}
+          {redirectedFrom !== "/" && (
+            <p className="text-sm text-muted-foreground text-center">Please sign in to continue</p>
+          )}
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -216,6 +200,7 @@ export function LoginForm() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   disabled={isSubmitting}
+                  autoComplete="email"
                 />
               </div>
             </div>
@@ -235,12 +220,14 @@ export function LoginForm() {
                   required
                   disabled={isSubmitting}
                   minLength={6}
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   onClick={() => setShowPassword(!showPassword)}
                   disabled={isSubmitting}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -260,12 +247,22 @@ export function LoginForm() {
                   Remember me
                 </Label>
               </div>
-              <Button type="button" variant="link" className="p-0 h-auto text-sm" disabled={isSubmitting}>
+              <Button 
+                type="button" 
+                variant="link" 
+                className="p-0 h-auto text-sm" 
+                disabled={isSubmitting}
+                onClick={() => router.push("/forgot-password")}
+              >
                 Forgot password?
               </Button>
             </div>
 
-            <Button type="submit" className="w-full" disabled={isSubmitting || !email || !password}>
+            <Button 
+              type="submit" 
+              className="w-full" 
+              disabled={isSubmitting || !email || !password}
+            >
               {isSubmitting ? (
                 <div className="flex items-center">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
@@ -275,6 +272,19 @@ export function LoginForm() {
                 "Sign In"
               )}
             </Button>
+            
+            <div className="text-center text-sm mt-4">
+              Don't have an account?{" "}
+              <Button 
+                type="button" 
+                variant="link" 
+                className="p-0 h-auto text-sm" 
+                disabled={isSubmitting}
+                onClick={() => router.push("/signup")}
+              >
+                Sign up
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>
