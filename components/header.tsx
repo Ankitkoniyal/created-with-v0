@@ -30,7 +30,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 import { MegaMenu } from "@/components/mega-menu"
 import { getSupabaseClient } from "@/lib/supabase/client"
@@ -70,6 +70,8 @@ const CATEGORIES = [
 export function Header(): ReactElement {
   const { user, profile, logout, isLoading } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
+  const isAuthRoute = !!pathname && pathname.startsWith("/auth")
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedLocation, setSelectedLocation] = useState("")
   const [locationInput, setLocationInput] = useState("")
@@ -346,12 +348,14 @@ export function Header(): ReactElement {
               </>
             ) : (
               <>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/auth/login">
-                    <User className="h-4 w-4 mr-2" />
-                    Login/Sign up
-                  </Link>
-                </Button>
+                {!isAuthRoute && (
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href="/auth/login">
+                      <User className="h-4 w-4 mr-2" />
+                      Login/Sign up
+                    </Link>
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   className="bg-green-900 hover:bg-green-950 text-white font-medium px-4 py-2 rounded-full shadow-lg hover:shadow-green-900/30 transition-all duration-300 transform hover:scale-105 border border-white/10 hover:border-white/20 relative overflow-hidden group"

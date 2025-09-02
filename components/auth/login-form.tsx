@@ -50,37 +50,34 @@ export function LoginForm() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    
+
     // Prevent multiple submissions
     if (isSubmitting) return
-    
+
     // Reset error state
     setError(null)
-    
+
     // Basic validation
     if (!email.trim() || !password) {
       setError("Please fill in all required fields")
       return
     }
-    
+
     if (!isValidEmail(email.trim())) {
       setError("Please enter a valid email address")
       return
     }
-    
+
     setIsSubmitting(true)
-    
+
     try {
       // Save credentials if remember me is checked
       if (rememberMe) {
-        localStorage.setItem(
-          "rememberedCredentials",
-          JSON.stringify({ email: email.trim(), rememberMe: true })
-        )
+        localStorage.setItem("rememberedCredentials", JSON.stringify({ email: email.trim(), rememberMe: true }))
       } else {
         localStorage.removeItem("rememberedCredentials")
       }
-      
+
       // Check if account exists
       try {
         const existsResponse = await fetch("/api/auth/exists", {
@@ -88,7 +85,7 @@ export function LoginForm() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email: email.trim() }),
         })
-        
+
         if (existsResponse.ok) {
           const existsData = await existsResponse.json()
           if (existsData.ok && !existsData.exists) {
@@ -100,15 +97,15 @@ export function LoginForm() {
         // Continue with login attempt even if account check fails
         console.warn("Account check failed, proceeding with login:", error)
       }
-      
+
       // Attempt login
       const result = await login(email.trim(), password)
-      
+
       if (result?.error) {
         // Handle specific error cases
         const errorMessage = String(result.error)
         let userFriendlyError = "An error occurred during login"
-        
+
         if (/invalid login credentials|invalid email or password/i.test(errorMessage)) {
           userFriendlyError = "Invalid email or password. Please try again."
         } else if (/email not confirmed|confirmation/i.test(errorMessage)) {
@@ -116,27 +113,29 @@ export function LoginForm() {
         } else if (/too many|rate/i.test(errorMessage)) {
           userFriendlyError = "Too many attempts. Please wait a few minutes and try again."
         }
-        
+
         setError(userFriendlyError)
         return
       }
-      
+
       // Login successful - verify session with proper error handling
       try {
         // Get supabase client with proper error handling
-        let supabase;
+        let supabase
         try {
-          supabase = getSupabaseClient();
+          supabase = getSupabaseClient()
         } catch (clientError) {
-          console.warn("Supabase client initialization error:", clientError);
+          console.warn("Supabase client initialization error:", clientError)
           // Continue without session verification
-          supabase = null;
+          supabase = null
         }
-        
-        if (supabase && typeof supabase.auth?.getSession === 'function') {
+
+        if (supabase && typeof supabase.auth?.getSession === "function") {
           // Wait for session to be established
-          const { data: { session } } = await supabase.auth.getSession()
-          
+          const {
+            data: { session },
+          } = await supabase.auth.getSession()
+
           if (session?.user) {
             // Fire-and-forget: ensure profile exists
             fetch("/api/profile/ensure", {
@@ -150,7 +149,7 @@ export function LoginForm() {
         console.error("Session verification error:", error)
         // Continue with redirect even if session verification fails
       }
-      
+
       // Show success and redirect
       setSuccessOpen(true)
       setTimeout(() => {
@@ -158,7 +157,6 @@ export function LoginForm() {
         router.push(redirectedFrom)
         router.refresh()
       }, 1500)
-      
     } catch (err) {
       console.error("Login error:", err)
       setError("An unexpected error occurred. Please try again.")
@@ -246,10 +244,10 @@ export function LoginForm() {
                   Remember me
                 </Label>
               </div>
-              <Button 
-                type="button" 
-                variant="link" 
-                className="p-0 h-auto text-sm" 
+              <Button
+                type="button"
+                variant="link"
+                className="p-0 h-auto text-sm"
                 disabled={isSubmitting}
                 onClick={() => router.push("/forgot-password")}
               >
@@ -257,11 +255,7 @@ export function LoginForm() {
               </Button>
             </div>
 
-            <Button 
-              type="submit" 
-              className="w-full" 
-              disabled={isSubmitting || !email || !password}
-            >
+            <Button type="submit" className="w-full" disabled={isSubmitting || !email || !password}>
               {isSubmitting ? (
                 <div className="flex items-center">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
@@ -271,19 +265,6 @@ export function LoginForm() {
                 "Sign In"
               )}
             </Button>
-            
-            <div className="text-center text-sm mt-4">
-              Don't have an account?{" "}
-              <Button 
-                type="button" 
-                variant="link" 
-                className="p-0 h-auto text-sm" 
-                disabled={isSubmitting}
-                onClick={() => router.push("/signup")}
-              >
-                Sign up
-              </Button>
-            </div>
           </form>
         </CardContent>
       </Card>
