@@ -10,12 +10,8 @@ export async function middleware(request: NextRequest) {
     request,
   })
 
-  // Allow preflight and ALL /auth/* routes without protection so cookie-sync and callbacks can complete
+  // Allow preflight requests without protection
   if (request.method === "OPTIONS") {
-    return supabaseResponse
-  }
-  const pathname = request.nextUrl.pathname
-  if (pathname.startsWith("/auth/")) {
     return supabaseResponse
   }
 
@@ -99,5 +95,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/admin/:path*", "/superadmin/:path*"],
 }

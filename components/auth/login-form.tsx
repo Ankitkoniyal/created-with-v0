@@ -79,7 +79,6 @@ export function LoginForm() {
         localStorage.removeItem("rememberedCredentials")
       }
 
-      // Soft pre-check can remain, but never block a valid login.
       try {
         const existsResult = (await Promise.race([
           fetch("/api/auth/exists", {
@@ -89,7 +88,7 @@ export function LoginForm() {
             body: JSON.stringify({ email: emailValue }),
           }).then((r) => r.json()),
           new Promise<{ ok: boolean; exists: boolean }>((resolve) =>
-            setTimeout(() => resolve({ ok: true, exists: true }), 1500),
+            setTimeout(() => resolve({ ok: true, exists: true }), 800),
           ),
         ])) as any
 
@@ -102,7 +101,6 @@ export function LoginForm() {
         // ignore – soft-allow
       }
 
-      // IMPORTANT: remove artificial timeout that caused false "Network timeout" errors.
       const result = (await login(emailValue, passwordValue)) as { error?: string }
       console.log("[v0] Login result:", result)
 
@@ -112,15 +110,15 @@ export function LoginForm() {
           if (s) {
             const start = Date.now()
             let hasSession = false
-            while (Date.now() - start < 1500) {
+            while (Date.now() - start < 1000) {
               const { data } = await s.auth.getSession()
               if (data?.session?.user) {
                 hasSession = true
                 break
               }
-              await new Promise((r) => setTimeout(r, 150))
+              await new Promise((r) => setTimeout(r, 120))
             }
-            if (hasSession || user) {
+            if (hasSession) {
               const destination = redirectedFrom || "/"
               setSuccessOpen(true)
               setTimeout(() => {
@@ -140,7 +138,7 @@ export function LoginForm() {
         let uiMsg = raw
         if (/invalid login credentials/i.test(raw) || /invalid email or password/i.test(raw)) {
           uiMsg = "Invalid email or password. Please try again."
-        } else if (/email not confirmed/i.test(raw)) {
+        } else if (/email not confirmed/i.test(raw) || /confirmation/i.test(raw)) {
           uiMsg = "Please confirm your email before signing in."
         } else if (/too many/i.test(raw) || /rate/i.test(raw)) {
           uiMsg = "Too many attempts. Please wait a few minutes and try again."
@@ -165,7 +163,7 @@ export function LoginForm() {
           setSuccessOpen(false)
           router.push(destination)
           router.refresh()
-        }, 2000) // was ~1.4s; give users time to read
+        }, 1600) // brief but readable success overlay
       }
     } catch (err) {
       console.error("Login error:", err)

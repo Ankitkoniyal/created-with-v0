@@ -246,7 +246,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const s = await getSupabaseClient()
     if (!s) return { error: "Authentication is not configured. Please try again later." }
     try {
-      setIsLoading(true)
       console.log("[v0] Login attempt for email:", email)
 
       const { data, error } = await s.auth.signInWithPassword({ email, password })
@@ -254,24 +253,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!sess) {
         const start = Date.now()
-        while (Date.now() - start < 1200) {
+        while (Date.now() - start < 800) {
           const { data: gs } = await s.auth.getSession()
           if (gs?.session?.user) {
             sess = gs.session
             break
           }
-          await new Promise((r) => setTimeout(r, 150))
+          await new Promise((r) => setTimeout(r, 120))
         }
       }
 
       if (!sess && error) {
-        setIsLoading(false)
         const msg = String(error.message || "")
-        if (msg.includes("Invalid login credentials")) {
+        if (/invalid login credentials/i.test(msg)) {
           return { error: "Invalid email or password. Please check your credentials and try again." }
-        } else if (msg.includes("Email not confirmed")) {
+        } else if (/email not confirmed/i.test(msg)) {
           return { error: "Please check your email and click the confirmation link before signing in." }
-        } else if (msg.includes("Too many requests")) {
+        } else if (/too many/i.test(msg) || /rate/i.test(msg)) {
           return { error: "Too many login attempts. Please wait a few minutes before trying again." }
         }
         return { error: msg || "Network error. Please try again." }
@@ -280,7 +278,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (sess?.user) {
         setUser(sess.user)
 
-        // Fire-and-forget cookie sync and profile ensure (do NOT block UI)
         if (sess.access_token && sess.refresh_token) {
           fetch("/auth/set", {
             method: "POST",
@@ -322,10 +319,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         })()
       }
 
-      setIsLoading(false)
       return {}
     } catch {
-      setIsLoading(false)
       return { error: "Network error. Please try again." }
     }
   }
