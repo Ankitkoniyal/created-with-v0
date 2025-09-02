@@ -16,7 +16,7 @@ import { getSupabaseClient } from "@/lib/supabase/client"
 export function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { login, user } = useAuth()
+  const { login } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -50,34 +50,37 @@ export function LoginForm() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-
+    
     // Prevent multiple submissions
     if (isSubmitting) return
-
+    
     // Reset error state
     setError(null)
-
+    
     // Basic validation
     if (!email.trim() || !password) {
       setError("Please fill in all required fields")
       return
     }
-
+    
     if (!isValidEmail(email.trim())) {
       setError("Please enter a valid email address")
       return
     }
-
+    
     setIsSubmitting(true)
-
+    
     try {
       // Save credentials if remember me is checked
       if (rememberMe) {
-        localStorage.setItem("rememberedCredentials", JSON.stringify({ email: email.trim(), rememberMe: true }))
+        localStorage.setItem(
+          "rememberedCredentials",
+          JSON.stringify({ email: email.trim(), rememberMe: true })
+        )
       } else {
         localStorage.removeItem("rememberedCredentials")
       }
-
+      
       // Check if account exists
       try {
         const existsResponse = await fetch("/api/auth/exists", {
@@ -85,27 +88,27 @@ export function LoginForm() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email: email.trim() }),
         })
-
+        
         if (existsResponse.ok) {
           const existsData = await existsResponse.json()
           if (existsData.ok && !existsData.exists) {
             setError("No account found for this email. Please sign up first.")
-            setIsSubmitting(false)
             return
           }
         }
       } catch (error) {
+        // Continue with login attempt even if account check fails
         console.warn("Account check failed, proceeding with login:", error)
       }
-
+      
       // Attempt login
       const result = await login(email.trim(), password)
-
+      
       if (result?.error) {
         // Handle specific error cases
         const errorMessage = String(result.error)
         let userFriendlyError = "An error occurred during login"
-
+        
         if (/invalid login credentials|invalid email or password/i.test(errorMessage)) {
           userFriendlyError = "Invalid email or password. Please try again."
         } else if (/email not confirmed|confirmation/i.test(errorMessage)) {
@@ -113,18 +116,27 @@ export function LoginForm() {
         } else if (/too many|rate/i.test(errorMessage)) {
           userFriendlyError = "Too many attempts. Please wait a few minutes and try again."
         }
-
+        
         setError(userFriendlyError)
-        setIsSubmitting(false)
         return
       }
-
-      // Login successful - verify session
+      
+      // Login successful - verify session with proper error handling
       try {
-        const supabase = await getSupabaseClient().catch(() => null as any)
-        if (supabase && typeof supabase === "object" && "auth" in supabase && supabase.auth?.getSession) {
-          const { data } = await supabase.auth.getSession()
-          const session = data?.session
+        // Get supabase client with proper error handling
+        let supabase;
+        try {
+          supabase = getSupabaseClient();
+        } catch (clientError) {
+          console.warn("Supabase client initialization error:", clientError);
+          // Continue without session verification
+          supabase = null;
+        }
+        
+        if (supabase && typeof supabase.auth?.getSession === 'function') {
+          // Wait for session to be established
+          const { data: { session } } = await supabase.auth.getSession()
+          
           if (session?.user) {
             // Fire-and-forget: ensure profile exists
             fetch("/api/profile/ensure", {
@@ -132,31 +144,21 @@ export function LoginForm() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({}),
             }).catch(() => {})
-
-            // Show success and redirect quickly
-            setSuccessOpen(true)
-            setIsSubmitting(false)
-            setTimeout(() => {
-              setSuccessOpen(false)
-              router.push(redirectedFrom)
-              router.refresh()
-            }, 1000)
-            return
           }
         }
       } catch (error) {
         console.error("Session verification error:", error)
-        // Proceed with redirect even if this check fails
+        // Continue with redirect even if session verification fails
       }
-
-      // Fallback redirect if session verification skipped or failed
+      
+      // Show success and redirect
       setSuccessOpen(true)
-      setIsSubmitting(false)
       setTimeout(() => {
         setSuccessOpen(false)
         router.push(redirectedFrom)
         router.refresh()
-      }, 1000)
+      }, 1500)
+      
     } catch (err) {
       console.error("Login error:", err)
       setError("An unexpected error occurred. Please try again.")
@@ -244,10 +246,10 @@ export function LoginForm() {
                   Remember me
                 </Label>
               </div>
-              <Button
-                type="button"
-                variant="link"
-                className="p-0 h-auto text-sm"
+              <Button 
+                type="button" 
+                variant="link" 
+                className="p-0 h-auto text-sm" 
                 disabled={isSubmitting}
                 onClick={() => router.push("/forgot-password")}
               >
@@ -255,7 +257,11 @@ export function LoginForm() {
               </Button>
             </div>
 
-            <Button type="submit" className="w-full" disabled={isSubmitting || !email || !password}>
+            <Button 
+              type="submit" 
+              className="w-full" 
+              disabled={isSubmitting || !email || !password}
+            >
               {isSubmitting ? (
                 <div className="flex items-center">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
@@ -265,13 +271,13 @@ export function LoginForm() {
                 "Sign In"
               )}
             </Button>
-
+            
             <div className="text-center text-sm mt-4">
               Don't have an account?{" "}
-              <Button
-                type="button"
-                variant="link"
-                className="p-0 h-auto text-sm"
+              <Button 
+                type="button" 
+                variant="link" 
+                className="p-0 h-auto text-sm" 
                 disabled={isSubmitting}
                 onClick={() => router.push("/signup")}
               >
