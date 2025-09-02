@@ -1,7 +1,6 @@
 "use client"
 import { useState } from "react"
 import type React from "react"
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,23 +9,20 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, Mail, Lock, User, AlertCircle, Phone } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useAuth } from "@/hooks/use-auth"
 import { SuccessOverlay } from "@/components/ui/success-overlay"
+import { getSupabaseClient } from "@/lib/supabase/client"
 
 export function SignupForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [agreeToTerms, setAgreeToTerms] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
   const [successOpen, setSuccessOpen] = useState(false)
   const router = useRouter()
-  const { signup } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(null)
-    setSuccess(null)
 
     const formData = new FormData(e.currentTarget)
     const fullName = (formData.get("fullName") as string)?.trim()
@@ -44,29 +40,60 @@ export function SignupForm() {
     }
 
     setIsSubmitting(true)
-    const res = await signup(email, password, fullName, phone || "")
-    setIsSubmitting(false)
+    try {
+      const supabase = await getSupabaseClient()
+      if (!supabase) {
+        setError("Authentication is not configured. Please try again later.")
+        return
+      }
 
-    if (res?.error) {
-      setError(res.error)
-      return
+      const redirect =
+        (typeof window !== "undefined" && `${window.location.origin}/auth/callback`) ||
+        process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL
+
+      const { data, error: signErr } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: fullName, phone: phone || undefined },
+          emailRedirectTo: redirect || (typeof window !== "undefined" ? window.location.origin : undefined),
+        },
+      })
+
+      if (signErr) {
+        let msg = signErr.message || "Failed to create account."
+        if (/email rate/i.test(msg)) msg = "Too many signup attempts. Please try again later."
+        if (/invalid email/i.test(msg)) msg = "Please enter a valid email address."
+        if (/password/i.test(msg) && /short|length/i.test(msg)) msg = "Password must be at least 6 characters."
+        setError(msg)
+        return
+      }
+
+      // If session exists (auto-confirm), ensure profile now (non-blocking)
+      try {
+        const session = (await supabase.auth.getSession()).data.session
+        if (session?.user) {
+          fetch("/api/profile/ensure", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            cache: "no-store",
+            body: JSON.stringify({ fullName, phone }),
+          }).catch(() => {})
+        }
+      } catch {}
+
+      // Success: show overlay and instruct email confirmation
+      setSuccessOpen(true)
+      setTimeout(() => {
+        setSuccessOpen(false)
+        router.push("/?signup=ok")
+      }, 2500)
+    } catch (e: any) {
+      console.error("[signup] error:", e?.message || e)
+      setError("An unexpected error occurred. Please try again.")
+    } finally {
+      setIsSubmitting(false)
     }
-
-    // In most setups, signUp sends a confirmation email and does not create a session yet.
-    // If a session is present (providers/password with auto-confirm), ensure profile now (non-blocking).
-    fetch("/api/profile/ensure", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      cache: "no-store",
-      body: JSON.stringify({ fullName, phone }),
-    }).catch(() => {})
-
-    setSuccessOpen(true)
-    setTimeout(() => {
-      setSuccessOpen(false)
-      // Redirect to homepage after showing a readable success message
-      router.push("/")
-    }, 3000)
   }
 
   return (
@@ -179,7 +206,7 @@ export function SignupForm() {
       <SuccessOverlay
         open={successOpen}
         title="Account created"
-        message="Please check your inbox to confirm your email."
+        message="Check your email to confirm your account. After confirming, you’ll be signed in automatically."
         onClose={() => setSuccessOpen(false)}
         actionLabel="Okay"
       />

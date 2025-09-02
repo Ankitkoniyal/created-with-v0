@@ -11,7 +11,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { SuccessOverlay } from "@/components/ui/success-overlay"
-import { getSupabaseClient } from "@/lib/supabase/client"
 
 export function LoginForm() {
   const router = useRouter()
@@ -27,7 +26,6 @@ export function LoginForm() {
 
   const redirectedFrom = searchParams.get("redirectedFrom") || "/"
 
-  // Load saved credentials on component mount
   useEffect(() => {
     try {
       const savedCredentials = localStorage.getItem("rememberedCredentials")
@@ -43,21 +41,15 @@ export function LoginForm() {
     }
   }, [])
 
-  // Validate email format
   const isValidEmail = (email: string) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-
-    // Prevent multiple submissions
     if (isSubmitting) return
-
-    // Reset error state
     setError(null)
 
-    // Basic validation
     if (!email.trim() || !password) {
       setError("Please fill in all required fields")
       return
@@ -69,94 +61,61 @@ export function LoginForm() {
     }
 
     setIsSubmitting(true)
-
     try {
-      // Save credentials if remember me is checked
       if (rememberMe) {
         localStorage.setItem("rememberedCredentials", JSON.stringify({ email: email.trim(), rememberMe: true }))
       } else {
         localStorage.removeItem("rememberedCredentials")
       }
 
-      // Check if account exists
-      try {
-        const existsResponse = await fetch("/api/auth/exists", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: email.trim() }),
-        })
+      const existsResponse = await fetch("/api/auth/exists", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      })
 
-        if (existsResponse.ok) {
-          const existsData = await existsResponse.json()
-          if (existsData.ok && !existsData.exists) {
-            setError("No account found for this email. Please sign up first.")
-            return
-          }
+      if (existsResponse.ok) {
+        const existsData = await existsResponse.json()
+        if (existsData.ok && !existsData.exists) {
+          setError("No account found for this email. Please sign up first.")
+          return
         }
-      } catch (error) {
-        // Continue with login attempt even if account check fails
-        console.warn("Account check failed, proceeding with login:", error)
       }
+    } catch (error) {
+      console.warn("Account check failed, proceeding with login:", error)
+    }
 
-      // Attempt login
+    try {
       const result = await login(email.trim(), password)
 
       if (result?.error) {
-        // Handle specific error cases
         const errorMessage = String(result.error)
         let userFriendlyError = "An error occurred during login"
-
         if (/invalid login credentials|invalid email or password/i.test(errorMessage)) {
           userFriendlyError = "Invalid email or password. Please try again."
         } else if (/email not confirmed|confirmation/i.test(errorMessage)) {
           userFriendlyError = "Please confirm your email before signing in."
         } else if (/too many|rate/i.test(errorMessage)) {
           userFriendlyError = "Too many attempts. Please wait a few minutes and try again."
+        } else if (/auth not configured|supabase/i.test(errorMessage)) {
+          userFriendlyError = "Authentication is not configured. Please try again later."
         }
-
         setError(userFriendlyError)
         return
       }
 
-      // Login successful - verify session with proper error handling
-      try {
-        // Get supabase client with proper error handling
-        let supabase
-        try {
-          supabase = getSupabaseClient()
-        } catch (clientError) {
-          console.warn("Supabase client initialization error:", clientError)
-          // Continue without session verification
-          supabase = null
-        }
+      fetch("/api/profile/ensure", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      }).catch(() => {})
 
-        if (supabase && typeof supabase.auth?.getSession === "function") {
-          // Wait for session to be established
-          const {
-            data: { session },
-          } = await supabase.auth.getSession()
-
-          if (session?.user) {
-            // Fire-and-forget: ensure profile exists
-            fetch("/api/profile/ensure", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({}),
-            }).catch(() => {})
-          }
-        }
-      } catch (error) {
-        console.error("Session verification error:", error)
-        // Continue with redirect even if session verification fails
-      }
-
-      // Show success and redirect
       setSuccessOpen(true)
       setTimeout(() => {
         setSuccessOpen(false)
         router.push(redirectedFrom)
         router.refresh()
-      }, 1500)
+      }, 1200)
     } catch (err) {
       console.error("Login error:", err)
       setError("An unexpected error occurred. Please try again.")

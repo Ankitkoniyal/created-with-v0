@@ -64,6 +64,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Always land users on home with a flag
     return NextResponse.redirect(new URL("/?confirmed=true", requestUrl.origin))
   } catch (error) {
     console.error("[v0] Auth callback exception:", error)
