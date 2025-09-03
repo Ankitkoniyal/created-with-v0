@@ -189,8 +189,9 @@ export function LoginForm() {
                 variant="link"
                 className="p-0 h-auto text-sm"
                 disabled={isSubmitting}
-                onClick={() => router.push("/forgot-password")}
+                onClick={() => router.push("/auth/forgot-password")}
               >
+                {/* route fix: point to /auth/forgot-password (correct path) instead of /forgot-password */}
                 Forgot password?
               </Button>
             </div>
