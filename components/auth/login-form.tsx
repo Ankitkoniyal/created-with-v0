@@ -9,13 +9,12 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react"
-import { useAuth } from "@/hooks/use-auth"
 import { SuccessOverlay } from "@/components/ui/success-overlay"
+import { getBrowserSupabase } from "@/lib/supabase/browser"
 
 export function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { login } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -78,58 +77,71 @@ export function LoginForm() {
       return
     }
 
-    try {
-      if (rememberMe) {
-        localStorage.setItem("rememberedCredentials", JSON.stringify({ email: email.trim(), rememberMe: true }))
-      } else {
-        localStorage.removeItem("rememberedCredentials")
-      }
-
-      const result = await login(email.trim(), password)
-
-      if (result?.error) {
-        const errorMessage = String(result.error)
-        let userFriendlyError = "An error occurred during login"
-
-        if (/invalid login credentials|invalid email or password/i.test(errorMessage)) {
-          userFriendlyError = "Incorrect email or password. Please try again."
-        } else if (/email not confirmed|confirmation/i.test(errorMessage)) {
-          userFriendlyError = "Please confirm your email before signing in."
-        } else if (/too many|rate/i.test(errorMessage)) {
-          userFriendlyError = "Too many attempts. Please wait a few minutes and try again."
-        } else if (/network|fetch/i.test(errorMessage)) {
-          userFriendlyError = "Network error. Please check your connection and try again."
-        }
-
-        setError(userFriendlyError)
-        return
-      }
-
-      setSuccessOpen(true)
-      // stop spinner immediately so button doesn't look stuck while redirecting
+    const supabase = await getBrowserSupabase()
+    if (!supabase) {
+      setError("Authentication service is not available. Please refresh the page and try again.")
       setIsSubmitting(false)
+      return
+    }
+
+    if (rememberMe) {
+      localStorage.setItem("rememberedCredentials", JSON.stringify({ email: email.trim(), rememberMe: true }))
+    } else {
+      localStorage.removeItem("rememberedCredentials")
+    }
+
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password: password,
+    })
+
+    if (authError) {
+      const errorMessage = String(authError.message || authError)
+      let userFriendlyError = "An error occurred during login"
+
+      if (/invalid login credentials|invalid email or password/i.test(errorMessage)) {
+        userFriendlyError = "Incorrect email or password. Please try again."
+      } else if (/email not confirmed|confirmation/i.test(errorMessage)) {
+        userFriendlyError = "Please confirm your email before signing in."
+      } else if (/too many|rate/i.test(errorMessage)) {
+        userFriendlyError = "Too many attempts. Please wait a few minutes and try again."
+      } else if (/network|fetch/i.test(errorMessage)) {
+        userFriendlyError = "Network error. Please check your connection and try again."
+      }
+
+      setError(userFriendlyError)
+      setIsSubmitting(false)
+      return
+    }
+
+    if (data.session) {
+      setSuccessOpen(true)
+
+      fetch("/api/auth/set", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        }),
+      }).catch((err) => console.log("[v0] Cookie sync failed (non-blocking):", err))
+
+      fetch("/api/profile/ensure", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      }).catch((err) => console.log("[v0] Profile ensure failed (non-blocking):", err))
 
       const dest = redirectedFrom
-      // soft redirect first
       setTimeout(() => {
-        try {
-          router.replace(dest)
-        } catch (err) {
-          console.log("[v0] router.replace failed, falling back to hard nav", err)
-          // no-op; we use hard fallback below
-        }
-        // hard fallback to guarantee navigation even if router is stuck
+        router.replace(dest)
         setTimeout(() => {
           if (typeof window !== "undefined" && window.location.pathname.startsWith("/auth")) {
             window.location.assign(dest)
           }
-        }, 600)
-      }, 600)
-      return
-    } catch (err) {
-      console.error("Login error:", err)
-      setError("An unexpected error occurred. Please try again.")
-    } finally {
+        }, 500)
+      }, 300)
+    } else {
+      setError("Sign in failed. Please try again.")
       setIsSubmitting(false)
     }
   }
