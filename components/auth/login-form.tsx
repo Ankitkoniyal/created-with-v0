@@ -24,7 +24,21 @@ export function LoginForm() {
   const [password, setPassword] = useState("")
   const [successOpen, setSuccessOpen] = useState(false)
 
-  const redirectedFrom = searchParams.get("redirectedFrom") || "/"
+  const rawRedirect = searchParams.get("redirectedFrom") || "/"
+  const getSafeRedirect = (v: string) => {
+    try {
+      const val = (v || "/").trim()
+      if (!val.startsWith("/")) return "/"
+      // prevent redirect loops to auth pages
+      if (val.startsWith("/auth")) return "/"
+      // optionally block login/signup words anywhere
+      if (/\/(login|signup|sign-up|sign-in)/i.test(val)) return "/"
+      return val
+    } catch {
+      return "/"
+    }
+  }
+  const redirectedFrom = getSafeRedirect(rawRedirect)
 
   useEffect(() => {
     try {
@@ -92,11 +106,26 @@ export function LoginForm() {
       }
 
       setSuccessOpen(true)
+      // stop spinner immediately so button doesn't look stuck while redirecting
+      setIsSubmitting(false)
+
+      const dest = redirectedFrom
+      // soft redirect first
       setTimeout(() => {
-        setSuccessOpen(false)
-        router.push(redirectedFrom)
-        router.refresh()
-      }, 1200)
+        try {
+          router.replace(dest)
+        } catch (err) {
+          console.log("[v0] router.replace failed, falling back to hard nav", err)
+          // no-op; we use hard fallback below
+        }
+        // hard fallback to guarantee navigation even if router is stuck
+        setTimeout(() => {
+          if (typeof window !== "undefined" && window.location.pathname.startsWith("/auth")) {
+            window.location.assign(dest)
+          }
+        }, 600)
+      }, 600)
+      return
     } catch (err) {
       console.error("Login error:", err)
       setError("An unexpected error occurred. Please try again.")
