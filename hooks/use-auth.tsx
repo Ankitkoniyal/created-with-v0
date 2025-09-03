@@ -55,7 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return
         }
         await withTimeout(
-          fetch("/auth/set", {
+          fetch("/api/auth/set", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             cache: "no-store",
@@ -76,7 +76,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const initializeAuth = async () => {
       s = await getSupabaseClient()
       if (!s) {
-        if (mounted) setIsLoading(false)
+        if (mounted) {
+          setUser(null)
+          setProfile(null)
+          setIsLoading(false)
+        }
         return
       }
       try {
@@ -116,28 +120,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (session?.user) {
           console.log("[v0] Found existing session for user:", session.user.email)
           if (session.access_token && session.refresh_token) {
-            await syncServerSession("SIGNED_IN", session)
+            syncServerSession("SIGNED_IN", session).catch(() => {})
           }
           setUser(session.user)
 
           if (mounted) setIsLoading(false)
 
           try {
-            let profileData = await fetchProfile(session.user.id, session.user, s)
+            const profileData = await fetchProfile(session.user.id, session.user, s)
             if (!profileData) {
-              await withTimeout(
-                fetch("/api/profile/ensure", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  cache: "no-store",
-                  body: JSON.stringify({}),
-                }),
-                1500,
-                undefined as any,
-              )
-              profileData = await fetchProfile(session.user.id, session.user, s)
+              fetch("/api/profile/ensure", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                cache: "no-store",
+                body: JSON.stringify({}),
+              })
+                .then(() => {
+                  return fetchProfile(session.user.id, session.user, s)
+                })
+                .then((data) => {
+                  if (mounted) setProfile(data)
+                })
+                .catch(() => {})
+            } else {
+              if (mounted) setProfile(profileData)
             }
-            if (mounted) setProfile(profileData)
           } catch (profileError) {
             console.error("Profile fetch error:", profileError)
           }
@@ -146,8 +153,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfile(null)
           if (mounted) setIsLoading(false)
         }
-
-        if (mounted) setIsLoading(false)
       } catch (error) {
         console.error("Auth initialization error:", error)
         if (mounted) {
@@ -267,7 +272,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(data.session.user)
 
         if (data.session.access_token && data.session.refresh_token) {
-          fetch("/auth/set", {
+          fetch("/api/auth/set", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -330,7 +335,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!s) return
     setIsLoading(true)
     try {
-      await fetch("/auth/set", {
+      await fetch("/api/auth/set", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ event: "SIGNED_OUT" }),
@@ -388,7 +393,7 @@ const fetchProfile = async (userId: string, userData: User, s: any): Promise<Pro
 const clearAllSessionData = async (s: any) => {
   try {
     await withTimeout(
-      fetch("/auth/set", {
+      fetch("/api/auth/set", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ event: "SIGNED_OUT" }),

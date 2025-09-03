@@ -140,9 +140,15 @@ export function Header(): ReactElement {
     router.push(`/search?${params.toString()}`)
   }
 
-  const handleLogout = () => {
-    logout()
-    router.push("/auth/login")
+  const handleLogout = async () => {
+    try {
+      await logout()
+      router.push("/")
+    } catch (error) {
+      console.error("Logout error:", error)
+      // Force navigation even if logout fails
+      router.push("/")
+    }
   }
 
   const handleCategorySelect = (category: string) => {

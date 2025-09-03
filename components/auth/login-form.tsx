@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react"
 import { SuccessOverlay } from "@/components/ui/success-overlay"
-import { getBrowserSupabase } from "@/lib/supabase/browser"
+import { getSupabaseClient } from "@/lib/supabase/client"
 
 export function LoginForm() {
   const router = useRouter()
@@ -65,84 +65,93 @@ export function LoginForm() {
     setError(null)
     setIsSubmitting(true)
 
-    if (!email.trim() || !password) {
-      setError("Please fill in all required fields")
-      setIsSubmitting(false)
-      return
-    }
-
-    if (!isValidEmail(email.trim())) {
-      setError("Please enter a valid email address")
-      setIsSubmitting(false)
-      return
-    }
-
-    const supabase = await getBrowserSupabase()
-    if (!supabase) {
-      setError("Authentication service is not available. Please refresh the page and try again.")
-      setIsSubmitting(false)
-      return
-    }
-
-    if (rememberMe) {
-      localStorage.setItem("rememberedCredentials", JSON.stringify({ email: email.trim(), rememberMe: true }))
-    } else {
-      localStorage.removeItem("rememberedCredentials")
-    }
-
-    const { data, error: authError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password: password,
-    })
-
-    if (authError) {
-      const errorMessage = String(authError.message || authError)
-      let userFriendlyError = "An error occurred during login"
-
-      if (/invalid login credentials|invalid email or password/i.test(errorMessage)) {
-        userFriendlyError = "Incorrect email or password. Please try again."
-      } else if (/email not confirmed|confirmation/i.test(errorMessage)) {
-        userFriendlyError = "Please confirm your email before signing in."
-      } else if (/too many|rate/i.test(errorMessage)) {
-        userFriendlyError = "Too many attempts. Please wait a few minutes and try again."
-      } else if (/network|fetch/i.test(errorMessage)) {
-        userFriendlyError = "Network error. Please check your connection and try again."
+    try {
+      if (!email.trim() || !password) {
+        setError("Please fill in all required fields")
+        return
       }
 
-      setError(userFriendlyError)
-      setIsSubmitting(false)
-      return
-    }
+      if (!isValidEmail(email.trim())) {
+        setError("Please enter a valid email address")
+        return
+      }
 
-    if (data.session) {
-      setSuccessOpen(true)
+      const supabase = await getSupabaseClient()
+      if (!supabase) {
+        setError("Authentication service is not available. Please refresh the page and try again.")
+        return
+      }
 
-      fetch("/api/auth/set", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
-        }),
-      }).catch((err) => console.log("[v0] Cookie sync failed (non-blocking):", err))
+      if (rememberMe) {
+        localStorage.setItem("rememberedCredentials", JSON.stringify({ email: email.trim(), rememberMe: true }))
+      } else {
+        localStorage.removeItem("rememberedCredentials")
+      }
 
-      fetch("/api/profile/ensure", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      }).catch((err) => console.log("[v0] Profile ensure failed (non-blocking):", err))
+      console.log("[v0] Login attempt for email:", email.trim())
 
-      const dest = redirectedFrom
-      setTimeout(() => {
-        router.replace(dest)
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password,
+      })
+
+      if (authError) {
+        const errorMessage = String(authError.message || authError)
+        let userFriendlyError = "An error occurred during login"
+
+        if (/invalid login credentials|invalid email or password/i.test(errorMessage)) {
+          userFriendlyError = "Incorrect email or password. Please try again."
+        } else if (/email not confirmed|confirmation/i.test(errorMessage)) {
+          userFriendlyError = "Please confirm your email before signing in."
+        } else if (/too many|rate/i.test(errorMessage)) {
+          userFriendlyError = "Too many attempts. Please wait a few minutes and try again."
+        } else if (/network|fetch/i.test(errorMessage)) {
+          userFriendlyError = "Network error. Please check your connection and try again."
+        }
+
+        setError(userFriendlyError)
+        return
+      }
+
+      if (data.session) {
+        setSuccessOpen(true)
+
+        fetch("/api/auth/set", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token,
+          }),
+        }).catch((err) => console.log("[v0] Cookie sync failed (non-blocking):", err))
+
+        fetch("/api/profile/ensure", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        }).catch((err) => console.log("[v0] Profile ensure failed (non-blocking):", err))
+
+        setIsSubmitting(false)
+
+        const dest = redirectedFrom
         setTimeout(() => {
-          if (typeof window !== "undefined" && window.location.pathname.startsWith("/auth")) {
-            window.location.assign(dest)
-          }
-        }, 500)
-      }, 300)
-    } else {
-      setError("Sign in failed. Please try again.")
-      setIsSubmitting(false)
+          setSuccessOpen(false)
+          router.replace(dest)
+          setTimeout(() => {
+            if (typeof window !== "undefined" && window.location.pathname.startsWith("/auth")) {
+              window.location.assign(dest)
+            }
+          }, 500)
+        }, 1500)
+      } else {
+        setError("Sign in failed. Please try again.")
+      }
+    } catch (err) {
+      console.error("[v0] Login error:", err)
+      setError("Network error. Please check your connection and try again.")
+    } finally {
+      if (!successOpen) {
+        setIsSubmitting(false)
+      }
     }
   }
 
