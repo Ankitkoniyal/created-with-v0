@@ -314,23 +314,17 @@ export function Header(): ReactElement {
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onSelect={(e) => {
-                        e.preventDefault()
-                        router.push("/dashboard/listings")
-                      }}
-                    >
-                      <Package className="mr-2 h-4 w-4" />
-                      <span>My Ads</span>
+                    <DropdownMenuItem asChild>
+                      <Link href="/dashboard/listings" className="flex items-center">
+                        <Package className="mr-2 h-4 w-4" />
+                        <span>My Ads</span>
+                      </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={(e) => {
-                        e.preventDefault()
-                        router.push("/dashboard/profile")
-                      }}
-                    >
-                      <Settings className="mr-2 h-4 w-4" />
-                      <span>Settings</span>
+                    <DropdownMenuItem asChild>
+                      <Link href="/dashboard/profile" className="flex items-center">
+                        <Settings className="mr-2 h-4 w-4" />
+                        <span>Settings</span>
+                      </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={handleLogout}>
