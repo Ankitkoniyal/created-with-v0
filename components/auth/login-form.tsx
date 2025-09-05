@@ -117,40 +117,53 @@ export function LoginForm() {
       if (data.session && data.user) {
         console.log("[v0] Login successful for:", data.user.email)
 
-        fetch("/api/auth/set", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            access_token: data.session.access_token,
-            refresh_token: data.session.refresh_token,
+        Promise.allSettled([
+          fetch("/api/auth/set", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              access_token: data.session.access_token,
+              refresh_token: data.session.refresh_token,
+            }),
           }),
-        }).catch((err) => console.log("[v0] Cookie sync failed (non-blocking):", err))
-
-        fetch("/api/profile/ensure", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        }).catch((err) => console.log("[v0] Profile ensure failed (non-blocking):", err))
+          fetch("/api/profile/ensure", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+          }),
+        ]).then((results) => {
+          results.forEach((result, index) => {
+            if (result.status === "rejected") {
+              console.log(`[v0] Background operation ${index} failed (non-blocking):`, result.reason)
+            }
+          })
+        })
 
         setSuccessOpen(true)
+
+        setIsSubmitting(false)
 
         setTimeout(() => {
           setSuccessOpen(false)
           console.log("[v0] Redirecting to:", redirectedFrom)
-          router.replace(redirectedFrom)
 
-          setTimeout(() => {
-            if (typeof window !== "undefined" && window.location.pathname.startsWith("/auth")) {
-              console.log("[v0] Hard redirect to:", redirectedFrom)
-              window.location.assign(redirectedFrom)
-            }
-          }, 500)
+          try {
+            router.replace(redirectedFrom)
+          } catch (routerError) {
+            console.log("[v0] Router failed, using window.location:", routerError)
+            window.location.href = redirectedFrom
+          }
         }, 1500)
       } else {
         setError("Sign in failed. Please try again.")
       }
     } catch (err) {
       console.error("[v0] Login error:", err)
-      setError("Network error. Please check your connection and try again.")
+      const errorMessage = String(err)
+      if (/fetch/i.test(errorMessage)) {
+        setError("Network error. Please check your connection and try again.")
+      } else {
+        setError("An unexpected error occurred. Please try again.")
+      }
     } finally {
       if (!successOpen) {
         setIsSubmitting(false)
