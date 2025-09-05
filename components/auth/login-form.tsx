@@ -76,6 +76,8 @@ export function LoginForm() {
         return
       }
 
+      console.log("[v0] Login attempt for email:", email.trim())
+
       const supabase = await getSupabaseClient()
       if (!supabase) {
         setError("Authentication service is not available. Please refresh the page and try again.")
@@ -88,14 +90,13 @@ export function LoginForm() {
         localStorage.removeItem("rememberedCredentials")
       }
 
-      console.log("[v0] Login attempt for email:", email.trim())
-
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password: password,
       })
 
       if (authError) {
+        console.error("[v0] Auth error:", authError)
         const errorMessage = String(authError.message || authError)
         let userFriendlyError = "An error occurred during login"
 
@@ -113,8 +114,8 @@ export function LoginForm() {
         return
       }
 
-      if (data.session) {
-        setSuccessOpen(true)
+      if (data.session && data.user) {
+        console.log("[v0] Login successful for:", data.user.email)
 
         fetch("/api/auth/set", {
           method: "POST",
@@ -130,15 +131,17 @@ export function LoginForm() {
           headers: { "Content-Type": "application/json" },
         }).catch((err) => console.log("[v0] Profile ensure failed (non-blocking):", err))
 
-        setIsSubmitting(false)
+        setSuccessOpen(true)
 
-        const dest = redirectedFrom
         setTimeout(() => {
           setSuccessOpen(false)
-          router.replace(dest)
+          console.log("[v0] Redirecting to:", redirectedFrom)
+          router.replace(redirectedFrom)
+
           setTimeout(() => {
             if (typeof window !== "undefined" && window.location.pathname.startsWith("/auth")) {
-              window.location.assign(dest)
+              console.log("[v0] Hard redirect to:", redirectedFrom)
+              window.location.assign(redirectedFrom)
             }
           }, 500)
         }, 1500)
@@ -241,7 +244,6 @@ export function LoginForm() {
                 disabled={isSubmitting}
                 onClick={() => router.push("/auth/forgot-password")}
               >
-                {/* route fix: point to /auth/forgot-password (correct path) instead of /forgot-password */}
                 Forgot password?
               </Button>
             </div>
@@ -263,7 +265,10 @@ export function LoginForm() {
         open={successOpen}
         title="Signed in"
         message="You have been successfully logged in."
-        onClose={() => setSuccessOpen(false)}
+        onClose={() => {
+          setSuccessOpen(false)
+          setIsSubmitting(false)
+        }}
         actionLabel="Continue"
       />
     </>
