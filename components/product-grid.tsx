@@ -338,6 +338,9 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
                         <h4 className="text-base font-semibold text-gray-900 leading-5 line-clamp-2">
                           {product.title}
                         </h4>
+                        {product.description && (
+                          <p className="text-sm text-gray-600 line-clamp-2 mb-1">{product.description}</p>
+                        )}
                         <div className="flex items-center justify-between">
                           <p className="text-lg font-bold text-green-800">
                             {formatPrice(product.price as any, (product as any).price_type)}

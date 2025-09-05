@@ -10,6 +10,11 @@ type Product = {
   price_type?: string | null
   province?: string | null
   images?: string[]
+  description?: string
+  location?: string
+  condition?: string
+  category?: string
+  user_id?: string
 }
 
 function getSupabaseServer() {
@@ -33,10 +38,13 @@ export async function GET(req: Request) {
     return NextResponse.json({ products: [], next: null, meta: { reason: "supabase-missing-config" } }, { status: 200 })
   }
 
-  // Build query with lean select; adjust column names if your schema differs
   let query = supabase
     .from("products")
-    .select("id,title,price,primary_image,created_at,price_type,province", { count: "exact" })
+    .select(
+      "id,title,description,price,primary_image,images,created_at,price_type,province,city,location,condition,category,user_id",
+      { count: "exact" },
+    )
+    .eq("status", "active")
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
 
@@ -56,7 +64,9 @@ export async function GET(req: Request) {
   const rows = (data || []) as Product[]
   const products = rows.map((r) => ({
     ...r,
-    images: r.primary_image ? [r.primary_image] : [],
+    images: r.images && Array.isArray(r.images) ? r.images : r.primary_image ? [r.primary_image] : [],
+    description: r.description || "",
+    location: r.location || `${r.city || ""}, ${r.province || ""}`.replace(/^,\s*|,\s*$/g, "") || "",
   }))
 
   const last = products[products.length - 1]
