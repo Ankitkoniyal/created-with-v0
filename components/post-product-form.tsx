@@ -573,6 +573,16 @@ export function PostProductForm() {
                         Main
                       </span>
                     ) : null}
+                    <button
+                      type="button"
+                      onClick={() => removeImage(index)}
+                      className="absolute right-2 top-2 rounded-full bg-red-500 hover:bg-red-600 text-white p-1 transition-colors shadow-lg"
+                      aria-label={`Remove image ${index + 1}`}
+                    >
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
                   </div>
                 ))}
 
@@ -640,7 +650,7 @@ export function PostProductForm() {
                       !formData.category ||
                       !categories.find((cat) => cat.name === formData.category)?.subcategories.length
                     }
-                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-md focus:border-primary focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-md focus:border-primary disabled:bg-gray-100 disabled:cursor-not-allowed"
                   >
                     <option value="">Select subcategory</option>
                     {formData.category &&
