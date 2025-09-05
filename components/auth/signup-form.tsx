@@ -182,14 +182,14 @@ export function SignupForm() {
                 id="terms"
                 checked={agreeToTerms}
                 onCheckedChange={(checked) => setAgreeToTerms(!!checked)}
-                className="mt-1 border-2 border-gray-300 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
+                className="mt-1 border-2 border-gray-300 data-[state=checked]:bg-green-900 data-[state=checked]:border-green-900"
               />
               <Label htmlFor="terms" className="text-sm leading-relaxed cursor-pointer">
                 I agree to the{" "}
                 <Button
                   type="button"
                   variant="link"
-                  className="p-0 h-auto text-sm font-normal text-green-600 hover:text-green-700"
+                  className="p-0 h-auto text-sm font-normal text-green-900 hover:text-green-950"
                 >
                   Terms of Service
                 </Button>{" "}
@@ -197,14 +197,18 @@ export function SignupForm() {
                 <Button
                   type="button"
                   variant="link"
-                  className="p-0 h-auto text-sm font-normal text-green-600 hover:text-green-700"
+                  className="p-0 h-auto text-sm font-normal text-green-900 hover:text-green-950"
                 >
                   Privacy Policy
                 </Button>
               </Label>
             </div>
 
-            <Button type="submit" className="w-full" disabled={!agreeToTerms || isSubmitting}>
+            <Button
+              type="submit"
+              className="w-full bg-green-900 hover:bg-green-950"
+              disabled={!agreeToTerms || isSubmitting}
+            >
               {isSubmitting ? "Creating..." : "Create Account"}
             </Button>
           </form>
@@ -213,7 +217,7 @@ export function SignupForm() {
       <SuccessOverlay
         open={successOpen}
         title="Account created"
-        message="Check your email to confirm your account. After confirming, you’ll be signed in automatically."
+        message="Check your email to confirm your account. After confirming, you'll be signed in automatically."
         onClose={() => setSuccessOpen(false)}
         actionLabel="Okay"
       />

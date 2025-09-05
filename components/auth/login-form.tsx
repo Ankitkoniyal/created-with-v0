@@ -230,7 +230,7 @@ export function LoginForm() {
                   id="remember"
                   checked={rememberMe}
                   onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-                  className="border-2 border-gray-300 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
+                  className="border-2 border-gray-300 data-[state=checked]:bg-green-900 data-[state=checked]:border-green-900"
                   disabled={isSubmitting}
                 />
                 <Label htmlFor="remember" className="text-sm cursor-pointer font-medium">
@@ -248,7 +248,11 @@ export function LoginForm() {
               </Button>
             </div>
 
-            <Button type="submit" className="w-full" disabled={isSubmitting || !email || !password}>
+            <Button
+              type="submit"
+              className="w-full bg-green-900 hover:bg-green-950"
+              disabled={isSubmitting || !email || !password}
+            >
               {isSubmitting ? (
                 <div className="flex items-center">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
