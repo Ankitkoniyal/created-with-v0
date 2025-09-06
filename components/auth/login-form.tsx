@@ -78,6 +78,8 @@ export function LoginForm() {
 
       console.log("[v0] Login attempt for email:", email.trim())
 
+      await new Promise((resolve) => setTimeout(resolve, 200))
+
       const supabase = await getSupabaseClient()
       if (!supabase) {
         setError("Authentication service is not available. Please refresh the page and try again.")
@@ -89,8 +91,6 @@ export function LoginForm() {
       } else {
         localStorage.removeItem("rememberedCredentials")
       }
-
-      await new Promise((resolve) => setTimeout(resolve, 100))
 
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
@@ -129,12 +129,18 @@ export function LoginForm() {
               access_token: data.session.access_token,
               refresh_token: data.session.refresh_token,
             }),
-          }).catch((err) => console.log("[v0] Cookie sync failed (non-blocking):", err)),
+          }),
           fetch("/api/profile/ensure", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-          }).catch((err) => console.log("[v0] Profile ensure failed (non-blocking):", err)),
-        ])
+          }),
+        ]).then((results) => {
+          results.forEach((result, index) => {
+            if (result.status === "rejected") {
+              console.log(`[v0] Background operation ${index} failed (non-blocking):`, result.reason)
+            }
+          })
+        })
 
         setSuccessOpen(true)
 
@@ -150,7 +156,7 @@ export function LoginForm() {
             console.log("[v0] Router failed, using window.location:", routerError)
             window.location.href = redirectedFrom
           }
-        }, 1500)
+        }, 1200)
       } else {
         setError("Sign in failed. Please try again.")
       }
