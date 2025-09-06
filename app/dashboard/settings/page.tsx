@@ -217,6 +217,40 @@ export default function SettingsPage() {
                   </CardContent>
                 </Card>
 
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center">
+                      <Eye className="h-5 w-5 mr-2" />
+                      Profile Management
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-medium">Update Profile Information</h4>
+                        <p className="text-sm text-muted-foreground">Change your name, bio, and contact details</p>
+                      </div>
+                      <Button variant="outline" onClick={() => (window.location.href = "/dashboard/profile")}>
+                        Edit Profile
+                      </Button>
+                    </div>
+
+                    <Separator />
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-medium">Change Password</h4>
+                        <p className="text-sm text-muted-foreground">Update your account password</p>
+                      </div>
+                      <Button variant="outline" onClick={() => (window.location.href = "/auth/update-password")}>
+                        Change Password
+                      </Button>
+                    </div>
+
+                    <Separator />
+                  </CardContent>
+                </Card>
+
                 {/* Account Management */}
                 <Card>
                   <CardHeader>

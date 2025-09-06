@@ -28,6 +28,8 @@ import { SafetyWarningModal } from "@/components/ui/safety-warning-modal"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
 import { getOptimizedImageUrl } from "@/lib/images"
+import { toast } from "@/components/ui/use-toast"
+import { UserRatings } from "@/components/user-ratings"
 
 interface Product {
   id: string
@@ -55,10 +57,12 @@ interface Product {
     memberSince: string
     verified: boolean
     responseTime: string
+    avatar?: string // Added avatar field
   }
   features?: string[] // Made optional since it might not exist
   storage?: string | null
   color?: string | null
+  adId?: string // Added adId field
   [key: string]: any
 }
 
@@ -259,6 +263,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                   getOptimizedImageUrl(product.images?.[selectedImage], "detail") ||
                   "/placeholder.svg?height=400&width=600&query=product%20image" ||
                   "/placeholder.svg" ||
+                  "/placeholder.svg" ||
                   "/placeholder.svg"
                 }
                 alt={product.title}
@@ -429,8 +434,23 @@ export function ProductDetail({ product }: ProductDetailProps) {
             </div>
 
             <div className="mb-2">
-              <span className="text-sm text-muted-foreground">Ad ID: </span>
-              <span className="text-sm font-medium text-primary">{product.id.slice(-8)}</span>
+              <div className="flex items-center justify-between mb-3 p-3 bg-muted/50 rounded-lg border">
+                <div>
+                  <span className="text-sm text-muted-foreground">Ad ID: </span>
+                  <span className="text-lg font-bold text-primary">{product.adId || product.id.slice(-8)}</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(product.adId || product.id.slice(-8))
+                    toast({ title: "Ad ID copied to clipboard!" })
+                  }}
+                  className="text-xs"
+                >
+                  Copy ID
+                </Button>
+              </div>
             </div>
 
             <div className="flex items-center space-x-2 mb-3">
@@ -476,6 +496,18 @@ export function ProductDetail({ product }: ProductDetailProps) {
                 {showMobileNumber ? "+1 (555) 123-****" : "Show Mobile"}
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="mt-4">
+          <CardContent className="p-4">
+            <UserRatings
+              sellerId={product.seller.id}
+              sellerName={product.seller.name}
+              sellerAvatar={product.seller.avatar}
+              productId={product.id}
+              productTitle={product.title}
+            />
           </CardContent>
         </Card>
 

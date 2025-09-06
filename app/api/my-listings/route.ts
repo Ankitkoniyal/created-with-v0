@@ -62,70 +62,37 @@ export async function GET(req: Request) {
 
     console.log("[v0] Getting user session...")
 
-    const authPromise = supabase.auth.getUser()
-    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Auth timeout")), 10000))
+    const {
+      data: { user },
+      error: userErr,
+    } = await supabase.auth.getUser()
 
-    let user
-    try {
-      const result = (await Promise.race([authPromise, timeoutPromise])) as any
-      const {
-        data: { user: authUser },
-        error: userErr,
-      } = result
-
-      if (userErr) {
-        console.log("[v0] Auth error:", userErr.message)
-        return NextResponse.json(
-          {
-            listings: [],
-            error: "Authentication failed: " + userErr.message,
-          },
-          { status: 401 },
-        )
-      }
-
-      if (!authUser) {
-        console.log("[v0] No authenticated user")
-        return NextResponse.json(
-          {
-            listings: [],
-            error: "No authenticated user",
-          },
-          { status: 401 },
-        )
-      }
-
-      user = authUser
-      console.log("[v0] User authenticated:", user.email)
-    } catch (authError: any) {
-      console.error("[v0] Auth exception:", authError.message)
+    if (userErr || !user) {
+      console.log("[v0] Auth error or no user:", userErr?.message)
       return NextResponse.json(
         {
           listings: [],
-          error: "Authentication error: " + authError.message,
+          error: "Authentication required",
         },
-        { status: 500 },
+        { status: 401 },
       )
     }
 
-    // Optional: limit for future pagination
+    console.log("[v0] User authenticated:", user.email)
+
     const { searchParams } = new URL(req.url)
     const limit = Math.min(Number.parseInt(searchParams.get("limit") || "50", 10) || 50, 100)
 
     console.log("[v0] Querying products for user:", user.id, "limit:", limit)
 
-    const queryPromise = supabase
+    const { data, error } = await supabase
       .from("products")
-      .select("id,title,price,status,views,category,created_at,user_id,primary_image")
+      .select(
+        "id,title,description,price,status,views,category,created_at,user_id,primary_image,images,condition,location",
+      )
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(limit)
-
-    const queryTimeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Database query timeout")), 15000),
-    )
-
-    const { data, error } = (await Promise.race([queryPromise, queryTimeoutPromise])) as any
 
     if (error) {
       console.error("[v0] Database error:", error.message, error.code)
@@ -140,10 +107,25 @@ export async function GET(req: Request) {
 
     console.log("[v0] Query successful, found", data?.length || 0, "listings")
 
-    const listings = (data || []).map((r: any) => ({
-      ...r,
-      images: r.primary_image ? [r.primary_image] : [],
-    }))
+    const listings = (data || []).map((r: any) => {
+      const generateAdId = (productId: string, createdAt: string) => {
+        const date = new Date(createdAt)
+        const year = date.getFullYear()
+        const month = (date.getMonth() + 1).toString().padStart(2, "0")
+        const day = date.getDate().toString().padStart(2, "0")
+        const idSuffix = productId.replace(/-/g, "").substring(0, 4).toUpperCase()
+        return `AD${year}${month}${day}${idSuffix}`
+      }
+
+      return {
+        ...r,
+        images: r.images && Array.isArray(r.images) ? r.images : r.primary_image ? [r.primary_image] : [],
+        adId: generateAdId(r.id, r.created_at),
+        description: r.description || "",
+        location: r.location || "",
+        condition: r.condition || "Used",
+      }
+    })
 
     console.log("[v0] Returning", listings.length, "processed listings")
     return NextResponse.json({ listings }, { status: 200 })
