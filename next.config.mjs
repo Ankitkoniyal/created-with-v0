@@ -7,8 +7,8 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   experimental: {
-    optimizePackageImports: ['@supabase/supabase-js'],
-    serverComponentsExternalPackages: ['@supabase/supabase-js']
+    // Keep ONLY one of these — Supabase should not be in both
+    serverComponentsExternalPackages: ['@supabase/supabase-js'],
   },
   images: {
     unoptimized: false,
@@ -21,7 +21,7 @@ const nextConfig = {
       {
         protocol: 'https',
         hostname: 'blob.vercel-storage.com',
-      }
+      },
     ],
   },
   async headers() {
@@ -47,8 +47,8 @@ const nextConfig = {
           },
         ],
       },
-    ]
+    ];
   },
-}
+};
 
-export default nextConfig
+export default nextConfig;
