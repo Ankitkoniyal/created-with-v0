@@ -90,24 +90,28 @@ export function LoginForm() {
         localStorage.removeItem("rememberedCredentials")
       }
 
+      await new Promise((resolve) => setTimeout(resolve, 100))
+
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password: password,
       })
 
       if (authError) {
-        console.error("[v0] Auth error:", authError)
+        console.error("[v0] Auth error:", authError.message)
         const errorMessage = String(authError.message || authError)
         let userFriendlyError = "An error occurred during login"
 
         if (/invalid login credentials|invalid email or password/i.test(errorMessage)) {
-          userFriendlyError = "Incorrect email or password. Please try again."
+          userFriendlyError = "Invalid email or password. Please check your credentials and try again."
         } else if (/email not confirmed|confirmation/i.test(errorMessage)) {
-          userFriendlyError = "Please confirm your email before signing in."
+          userFriendlyError = "Please confirm your email before signing in. Check your inbox for a confirmation link."
         } else if (/too many|rate/i.test(errorMessage)) {
-          userFriendlyError = "Too many attempts. Please wait a few minutes and try again."
+          userFriendlyError = "Too many login attempts. Please wait a few minutes and try again."
         } else if (/network|fetch/i.test(errorMessage)) {
           userFriendlyError = "Network error. Please check your connection and try again."
+        } else if (/signup|sign up/i.test(errorMessage)) {
+          userFriendlyError = "Account not found. Please sign up first or check your email address."
         }
 
         setError(userFriendlyError)
@@ -125,18 +129,12 @@ export function LoginForm() {
               access_token: data.session.access_token,
               refresh_token: data.session.refresh_token,
             }),
-          }),
+          }).catch((err) => console.log("[v0] Cookie sync failed (non-blocking):", err)),
           fetch("/api/profile/ensure", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-          }),
-        ]).then((results) => {
-          results.forEach((result, index) => {
-            if (result.status === "rejected") {
-              console.log(`[v0] Background operation ${index} failed (non-blocking):`, result.reason)
-            }
-          })
-        })
+          }).catch((err) => console.log("[v0] Profile ensure failed (non-blocking):", err)),
+        ])
 
         setSuccessOpen(true)
 
