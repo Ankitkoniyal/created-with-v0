@@ -132,7 +132,7 @@ export default function SellerProfilePage({ params }: SellerPageProps) {
           <CardContent className="p-12 text-center">
             <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-foreground mb-2">Seller Not Found</h3>
-            <p className="text-muted-foreground mb-4">The seller profile you're looking for doesn't exist.</p>
+            <p className="text-muted-foreground mb-4">The seller profile you&apos;re looking for doesn&apos;t exist.</p>
             <Button asChild>
               <Link href="/">Back to Home</Link>
             </Button>
@@ -223,7 +223,7 @@ export default function SellerProfilePage({ params }: SellerPageProps) {
             <div className="text-center py-12">
               <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-foreground mb-2">No Active Ads</h3>
-              <p className="text-muted-foreground">This seller doesn't have any active listings at the moment.</p>
+              <p className="text-muted-foreground">This seller doesn&apos;t have any active listings at the moment.</p>
             </div>
           )}
         </CardContent>

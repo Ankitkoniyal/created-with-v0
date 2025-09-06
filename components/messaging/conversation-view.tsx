@@ -425,7 +425,7 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
           <CardContent className="p-12 text-center">
             <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-foreground mb-2">Conversation not found</h3>
-            <p className="text-muted-foreground">This conversation may have been deleted or doesn't exist.</p>
+            <p className="text-muted-foreground">This conversation may have been deleted or doesn&apos;t exist.</p>
           </CardContent>
         </Card>
       </div>

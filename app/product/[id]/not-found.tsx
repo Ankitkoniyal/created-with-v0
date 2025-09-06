@@ -12,7 +12,7 @@ export default function NotFound() {
             <Package className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
             <h1 className="text-2xl font-bold text-foreground mb-2">Product Not Found</h1>
             <p className="text-muted-foreground mb-6">
-              The product you're looking for doesn't exist or has been removed.
+              The product you&apos;re looking for doesn&apos;t exist or has been removed.
             </p>
 
             <div className="space-y-3">
