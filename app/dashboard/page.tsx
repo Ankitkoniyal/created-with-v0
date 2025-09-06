@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import { DashboardOverview } from "@/components/dashboard/dashboard-overview"
 import { DashboardNav } from "@/components/dashboard/dashboard-nav"
 import { AuthGuard } from "@/components/auth/auth-guard"
@@ -17,7 +18,14 @@ export default function DashboardPage() {
               <DashboardNav />
             </div>
             <div className="lg:col-span-3">
-              <DashboardOverview />
+              <Suspense fallback={
+                <div className="flex justify-center items-center h-64">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                  <span className="sr-only">Loading...</span>
+                </div>
+              }>
+                <DashboardOverview />
+              </Suspense>
             </div>
           </div>
         </div>
