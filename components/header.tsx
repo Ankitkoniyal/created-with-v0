@@ -293,17 +293,15 @@ export function Header(): ReactElement {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={profile?.avatar_url || "/placeholder.svg"} alt={profile?.name || "User"} />
-                        <AvatarFallback>
-                          {profile?.name && typeof profile.name === "string"
-                            ? profile.name
-                                .split(" ")
-                                .map((n) => n[0])
-                                .join("")
-                            : "U"}
-                        </AvatarFallback>
-                      </Avatar>
+                      // Replace the Avatar section with this code:
+<Avatar className="h-8 w-8 border-2 border-green-600"> {/* Added border */}
+  <AvatarImage src={profile?.avatar_url || user?.user_metadata?.avatar_url || ""} alt={profile?.name || "User"} />
+  <AvatarFallback className="bg-green-100 text-green-800 font-medium"> {/* Added styling */}
+    {profile?.name || user?.email
+      ? (profile?.name || user?.email)[0]?.toUpperCase()
+      : "U"}
+  </AvatarFallback>
+</Avatar>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-56" align="end" forceMount>
