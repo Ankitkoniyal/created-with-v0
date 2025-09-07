@@ -26,16 +26,39 @@ export function DashboardNav() {
     const fetchDashboardCounts = async () => {
       try {
         const supabase = createClient()
+        if (!supabase) {
+          console.error("Supabase client not available")
+          return
+        }
 
+        // Fix the products query to ensure we're getting the right data
         const [adsResult, favoritesResult, messagesResult] = await Promise.all([
-          supabase.from("products").select("*", { count: "exact", head: true }).eq("user_id", user.id),
-          supabase.from("favorites").select("*", { count: "exact", head: true }).eq("user_id", user.id),
+          supabase
+            .from("products")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", user.id)
+            .eq("status", "active"), // Added status filter
+          supabase
+            .from("favorites")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", user.id),
           supabase
             .from("messages")
             .select("*", { count: "exact", head: true })
             .eq("receiver_id", user.id)
             .eq("is_read", false),
         ])
+
+        // Check for errors in each query
+        if (adsResult.error) {
+          console.error("Error fetching ads count:", adsResult.error)
+        }
+        if (favoritesResult.error) {
+          console.error("Error fetching favorites count:", favoritesResult.error)
+        }
+        if (messagesResult.error) {
+          console.error("Error fetching messages count:", messagesResult.error)
+        }
 
         setDashboardCounts({
           myAds: adsResult.count || 0,
@@ -97,20 +120,20 @@ export function DashboardNav() {
     <Card>
       <CardContent className="p-6">
         <div className="flex items-center space-x-3 mb-6">
-          <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+          <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center border-2 border-green-600">
             <span className="text-primary font-semibold">
-              {user?.full_name
-                ? user.full_name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")
+              {user?.full_name || user?.email
+                ? (user.full_name || user.email)[0]?.toUpperCase()
                 : "U"}
             </span>
           </div>
           <div>
-            <h3 className="font-semibold text-foreground">{user?.full_name || "User"}</h3>
+            <h3 className="font-semibold text-foreground">{user?.full_name || user?.email || "User"}</h3>
             <p className="text-sm text-muted-foreground">
-              Member since {user?.created_at ? new Date(user.created_at).getFullYear() : "Recently"}
+              Member since{" "}
+              {user?.created_at
+                ? new Date(user.created_at).getFullYear()
+                : "Recently"}
             </p>
           </div>
         </div>
