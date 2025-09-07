@@ -1,10 +1,9 @@
 "use client"
 
 import type React from "react"
-import { Suspense } from "react"
 import { useAuth } from "@/hooks/use-auth"
-import { useRouter, useSearchParams, usePathname } from "next/navigation"
-import { useEffect } from "react"
+import { useRouter, usePathname } from "next/navigation"
+import { useEffect, useState } from "react"
 
 interface AuthGuardProps {
   children: React.ReactNode
@@ -12,27 +11,18 @@ interface AuthGuardProps {
 }
 
 export function AuthGuard({ children, requireAuth = true }: AuthGuardProps) {
-  return (
-    <Suspense fallback={<LoadingSpinner />}>
-      <AuthGuardContent requireAuth={requireAuth}>
-        {children}
-      </AuthGuardContent>
-    </Suspense>
-  )
-}
-
-function AuthGuardContent({ children, requireAuth }: AuthGuardProps) {
-  const { user, profile, isLoading } = useAuth()
+  const { user, isLoading } = useAuth()
   const router = useRouter()
-  const searchParams = useSearchParams()
   const pathname = usePathname()
+  const [isClient, setIsClient] = useState(false)
 
   useEffect(() => {
-    if (isLoading || !requireAuth || user) return
+    setIsClient(true)
+  }, [])
 
-    // Use ONLY Next.js hooks - no window.location!
-    const currentPath = pathname + (searchParams?.toString() ? `?${searchParams.toString()}` : "")
-    
+  useEffect(() => {
+    if (!isClient || isLoading || !requireAuth || user) return
+
     const publicPages = [
       '/',
       '/auth/login',
@@ -46,33 +36,35 @@ function AuthGuardContent({ children, requireAuth }: AuthGuardProps) {
     ]
 
     const isPublicPage = publicPages.some(publicPath => 
-      currentPath.startsWith(publicPath)
+      pathname.startsWith(publicPath)
     )
 
     if (!isPublicPage) {
-      const cleanPath = currentPath.replace(/[?&]redirectedFrom=[^&]*/, "")
+      const cleanPath = pathname.replace(/[?&]redirectedFrom=[^&]*/, "")
       router.push(`/auth/login?redirectedFrom=${encodeURIComponent(cleanPath)}`)
     }
-  }, [user, isLoading, requireAuth, router, pathname, searchParams])
+  }, [isClient, user, isLoading, requireAuth, router, pathname])
 
-  if (isLoading) {
-    return <LoadingSpinner />
+  if (!isClient || isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    )
   }
 
   if (requireAuth && !user) {
-    return <LoadingSpinner message="Checking authentication..." />
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-muted-foreground">Please sign in to access this page</p>
+        </div>
+      </div>
+    )
   }
 
   return <>{children}</>
-}
-
-function LoadingSpinner({ message = "Loading..." }) {
-  return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-        <p className="text-muted-foreground">{message}</p>
-      </div>
-    </div>
-  )
 }
