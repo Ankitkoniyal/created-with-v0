@@ -1,10 +1,10 @@
 import { DashboardOverview } from "@/components/dashboard/dashboard-overview"
 import { DashboardNav } from "@/components/dashboard/dashboard-nav"
-import { AuthGuard } from "@/components/auth/auth-guard" // ← Changed to AuthGuard
+import { AuthGuard } from "@/components/auth/auth-guard"
 
 export default function DashboardPage() {
   return (
-    <AuthGuard requireAuth={true}> {/* ← Changed to AuthGuard */}
+    <AuthGuard requireAuth={true}>
       <div className="min-h-screen bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="mb-8">
@@ -22,6 +22,6 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-    </AuthGuard> {/* ← Changed to AuthGuard */}
+    </AuthGuard>
   )
 }
