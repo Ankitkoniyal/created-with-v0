@@ -1,6 +1,6 @@
 import { DashboardOverview } from "@/components/dashboard/dashboard-overview"
 import { DashboardNav } from "@/components/dashboard/dashboard-nav"
-import { SimpleAuthGuard } from "@/components/auth/simple-auth-guard" // Use the new simple guard
+import { SimpleAuthGuard } from "@/components/auth/auth-guard"
 
 export default function DashboardPage() {
   return (
