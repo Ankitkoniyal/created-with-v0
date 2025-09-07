@@ -1,38 +1,71 @@
-import { Suspense } from "react"
-import { DashboardOverview } from "@/components/dashboard/dashboard-overview"
-import { DashboardNav } from "@/components/dashboard/dashboard-nav"
-import { AuthGuard } from "@/components/auth/auth-guard"
+import type React from "react"
+import type { Metadata } from "next"
+import { DM_Sans } from "next/font/google"
+import "./globals.css"
+import { AuthProvider } from "@/hooks/use-auth"
+import { Header } from "@/components/header"
+import { Toaster } from "@/components/ui/toaster"
+import { ErrorBoundary } from "@/components/error-boundary"
+import { WebVitalsClient } from "@/components/metrics/web-vitals-client"
 
-// Add this export to disable static generation
-export const dynamic = "force-dynamic"
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-dm-sans",
+})
 
-export default function DashboardPage() {
+export const metadata: Metadata = {
+  title: "MarketPlace - Buy & Sell Everything",
+  description: "Your trusted marketplace for buying and selling products locally",
+  generator: "v0.app",
+}
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode
+}>) {
+  const publicUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || ""
+  const publicAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || ""
+
   return (
-    <AuthGuard requireAuth={true}>
-      <div className="min-h-screen bg-background">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-foreground mb-2">My Ads</h1>
-            <p className="text-muted-foreground">Manage your listings and account</p>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <div className="lg:col-span-1">
-              <DashboardNav />
-            </div>
-            <div className="lg:col-span-3">
-              <Suspense fallback={
-                <div className="flex justify-center items-center h-64">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-                  <span className="sr-only">Loading...</span>
-                </div>
-              }>
-                <DashboardOverview />
-              </Suspense>
-            </div>
-          </div>
-        </div>
-      </div>
-    </AuthGuard>
+    <html lang="en">
+      <head>
+        <style>{`
+html {
+  font-family: ${dmSans.style.fontFamily};
+  --font-sans: ${dmSans.variable};
+}
+        `}</style>
+        {publicUrl && <meta name="supabase-url" content={publicUrl} />}
+        {publicAnon && <meta name="supabase-anon" content={publicAnon} />}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function () {
+                if (typeof window === 'undefined') return;
+                if (!window.__supabase) {
+                  var url = ${JSON.stringify(publicUrl)};
+                  var key = ${JSON.stringify(publicAnon)};
+                  if (url && key) {
+                    window.__supabase = { url: url, key: key };
+                  }
+                }
+              })();
+            `,
+          }}
+        />
+      </head>
+      <body className={dmSans.className}>
+        <ErrorBoundary>
+          <AuthProvider>
+            <Header />
+            {children}
+            <Toaster />
+            <WebVitalsClient />
+          </AuthProvider>
+        </ErrorBoundary>
+      </body>
+    </html>
   )
 }
