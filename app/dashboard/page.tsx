@@ -4,7 +4,7 @@ import { SimpleAuthGuard } from "@/components/auth/auth-guard"
 
 export default function DashboardPage() {
   return (
-    <SimpleAuthGuard requireAuth={true}>
+   <AuthGuard requireAuth={true}>
       <div className="min-h-screen bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="mb-8">
