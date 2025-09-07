@@ -30,8 +30,8 @@ function AuthGuardContent({ children, requireAuth }: AuthGuardProps) {
   useEffect(() => {
     if (isLoading || !requireAuth || user) return
 
-    // Use pathname from usePathname() instead of window.location
-    const currentPath = pathname + (window.location?.search || "")
+    // Use ONLY Next.js hooks - no window.location!
+    const currentPath = pathname + (searchParams?.toString() ? `?${searchParams.toString()}` : "")
     
     const publicPages = [
       '/',
@@ -53,7 +53,7 @@ function AuthGuardContent({ children, requireAuth }: AuthGuardProps) {
       const cleanPath = currentPath.replace(/[?&]redirectedFrom=[^&]*/, "")
       router.push(`/auth/login?redirectedFrom=${encodeURIComponent(cleanPath)}`)
     }
-  }, [user, isLoading, requireAuth, router, pathname])
+  }, [user, isLoading, requireAuth, router, pathname, searchParams])
 
   if (isLoading) {
     return <LoadingSpinner />
