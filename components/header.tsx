@@ -315,11 +315,11 @@ export function Header(): ReactElement {
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
-                      <Link href="/dashboard/listings" className="flex items-center">
-                        <Package className="mr-2 h-4 w-4" />
-                        <span>My Ads</span>
-                      </Link>
-                    </DropdownMenuItem>
+  <Link href="/dashboard" className="flex items-center"> {/* Changed from /dashboard/listings to /dashboard */}
+    <Package className="mr-2 h-4 w-4" />
+    <span>Dashboard</span> {/* Changed from "My Ads" to "Dashboard" */}
+  </Link>
+</DropdownMenuItem>
                     <DropdownMenuItem asChild>
                       <Link href="/dashboard/profile" className="flex items-center">
                         <Settings className="mr-2 h-4 w-4" />
