@@ -27,6 +27,7 @@ interface ProductFormData {
   model: string
   address: string
   location: string
+  postalCode: string
   youtubeUrl: string
   websiteUrl: string
   showMobileNumber: boolean
@@ -214,6 +215,7 @@ export function PostProductForm() {
     model: "",
     address: "",
     location: "",
+    postalCode: "",
     youtubeUrl: "",
     websiteUrl: "",
     showMobileNumber: true,
@@ -235,7 +237,7 @@ export function PostProductForm() {
       try {
         const supabase = createClient()
         if (!supabase) {
-          console.error("[v0] Supabase client unavailable. Skipping edit data fetch.")
+          console.error("Supabase client unavailable. Skipping edit data fetch.")
           toast.error("Service temporarily unavailable. Please try again in a moment.")
           router.push("/dashboard/listings")
           return
@@ -267,11 +269,12 @@ export function PostProductForm() {
             model: data.model || "",
             address: data.location?.split(",")[0]?.trim() || "",
             location: `${data.city}, ${data.province}` || "",
+            postalCode: data.postal_code || "",
             youtubeUrl: data.youtube_url || "",
             websiteUrl: data.website_url || "",
             showMobileNumber: data.show_mobile_number ?? true,
             tags: data.tags || [],
-            images: [], // Will be handled separately for existing images
+            images: [],
             features: data.features || [],
           })
         }
@@ -366,39 +369,39 @@ export function PostProductForm() {
     setIsSubmitting(true)
 
     try {
-      console.log(`[v0] Starting ${isEditMode ? "ad update" : "ad submission"} process`)
+      console.log(`Starting ${isEditMode ? "ad update" : "ad submission"} process`)
 
       const supabase = createClient()
       if (!supabase) {
-        console.error("[v0] Supabase client unavailable. Aborting submission.")
+        console.error("Supabase client unavailable. Aborting submission.")
         setSubmitError(
           "Service temporarily unavailable. Please refresh the page or try again shortly. If this persists, contact support.",
         )
         return
       }
 
-      console.log("[v0] Supabase client created successfully")
+      console.log("Supabase client created successfully")
 
       const imageUrls: string[] = []
       if (formData.images.length > 0) {
-        console.log("[v0] Uploading images:", formData.images.length)
+        console.log("Uploading images:", formData.images.length)
 
         for (const image of formData.images) {
           const fileExt = image.name.split(".").pop()
           const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
 
-          console.log("[v0] Uploading image:", fileName)
+          console.log("Uploading image:", fileName)
 
           const { data, error } = await supabase.storage.from("product-images").upload(fileName, image)
 
           if (error) {
-            console.error("[v0] Image upload error:", error)
+            console.error("Image upload error:", error)
             throw new Error(`Failed to upload image: ${error.message}`)
           }
 
           const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(fileName)
           imageUrls.push(urlData.publicUrl)
-          console.log("[v0] Image uploaded successfully:", urlData.publicUrl)
+          console.log("Image uploaded successfully:", urlData.publicUrl)
         }
       }
 
@@ -406,7 +409,7 @@ export function PostProductForm() {
       const city = locationParts.city || formData.location.split(",")[0]?.trim() || ""
       const province = locationParts.province || formData.location.split(",")[1]?.trim() || ""
 
-      console.log("[v0] Preparing product data...")
+      console.log("Preparing product data...")
 
       const selectedCategory = categories.find((cat) => cat.name === formData.category)
       const selectedSubcategory = selectedCategory?.subcategories.find((sub) => sub === formData.subcategory)
@@ -422,6 +425,7 @@ export function PostProductForm() {
         location: `${formData.address}, ${city}`.trim(),
         city: city,
         province: province,
+        postal_code: formData.postalCode.trim(),
         ...(imageUrls.length > 0 && { images: imageUrls }),
         category_id: categoryIndex,
         brand: formData.brand.trim() || null,
@@ -434,12 +438,12 @@ export function PostProductForm() {
         ...(!isEditMode && { created_at: new Date().toISOString() }),
       }
 
-      console.log("[v0] Product data prepared:", JSON.stringify(productData, null, 2))
+      console.log("Product data prepared:", JSON.stringify(productData, null, 2))
 
       let data, error
 
       if (isEditMode) {
-        console.log("[v0] Updating existing product...")
+        console.log("Updating existing product...")
         const result = await supabase
           .from("products")
           .update(productData)
@@ -451,14 +455,14 @@ export function PostProductForm() {
         data = result.data
         error = result.error
       } else {
-        console.log("[v0] Inserting new product...")
+        console.log("Inserting new product...")
         const result = await supabase.from("products").insert(productData).select().single()
         data = result.data
         error = result.error
       }
 
       if (error) {
-        console.error("[v0] Database error details:", {
+        console.error("Database error details:", {
           message: error.message,
           details: error.details,
           hint: error.hint,
@@ -471,7 +475,7 @@ export function PostProductForm() {
           )
           return
         } else if (error.message.includes("column") && error.message.includes("does not exist")) {
-          console.error("[v0] Missing database column:", error.message)
+          console.error("Missing database column:", error.message)
           setSubmitError(`Database schema issue: ${error.message}. Please run the required database migrations.`)
           return
         } else if (error.message.includes("duplicate key") || error.message.includes("unique constraint")) {
@@ -483,13 +487,13 @@ export function PostProductForm() {
         }
       }
 
-      console.log(`[v0] Product ${isEditMode ? "updated" : "saved"} successfully:`, data)
+      console.log(`Product ${isEditMode ? "updated" : "saved"} successfully:`, data)
 
       const successMessage = isEditMode
         ? "Your ad has been updated successfully!"
         : "Your ad has been posted successfully!"
 
-      console.log("[v0] Redirecting to success page with ID:", data.id)
+      console.log("Redirecting to success page with ID:", data.id)
       sessionStorage.setItem("adPostSuccess", successMessage)
 
       if (isEditMode) {
@@ -498,7 +502,7 @@ export function PostProductForm() {
         router.push(`/sell/success?id=${data.id}`)
       }
     } catch (error) {
-      console.error("[v0] Submission error details:", {
+      console.error("Submission error details:", {
         error,
         message: error instanceof Error ? error.message : "Unknown error",
         stack: error instanceof Error ? error.stack : undefined,
@@ -508,14 +512,13 @@ export function PostProductForm() {
       )
     } finally {
       setIsSubmitting(false)
-      console.log(`[v0] ${isEditMode ? "Ad update" : "Ad submission"} process completed`)
+      console.log(`${isEditMode ? "Ad update" : "Ad submission"} process completed`)
     }
   }
 
-  // Updated validation logic
   const isStep1Valid = formData.images.length > 0 && formData.title.trim() && formData.description.trim()
   const isStep2Valid = formData.category && formData.condition && (formData.priceType !== "amount" || formData.price)
-  const isStep3Valid = formData.address && formData.location
+  const isStep3Valid = formData.address && formData.location && formData.postalCode
   const canProceed =
     currentStep === 1 ? isStep1Valid : currentStep === 2 ? isStep2Valid : currentStep === 3 ? isStep3Valid : true
 
@@ -621,7 +624,6 @@ export function PostProductForm() {
                     </div>
                   ))}
 
-                  {/* Hidden input that triggers the file picker - visually matches image tiles */}
                   <label
                     htmlFor="add-photo-input"
                     className="relative overflow-hidden rounded-lg border-2 border-dashed bg-muted/40 hover:bg-muted/60 transition-colors cursor-pointer aspect-square"
@@ -946,6 +948,22 @@ export function PostProductForm() {
                   </select>
                 </div>
               </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-4">
+                <div className="space-y-2">
+                  <label htmlFor="postalCode" className="block text-sm font-medium text-gray-700">
+                    Postal Code *
+                  </label>
+                  <input
+                    id="postalCode"
+                    placeholder="e.g., M5V 2T6"
+                    className="w-full border-2 border-gray-200 focus:border-primary"
+                    value={formData.postalCode}
+                    onChange={(e) => handleInputChange("postalCode", e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -991,6 +1009,9 @@ export function PostProductForm() {
                     <span className="text-muted-foreground">Location:</span>{" "}
                     {formData.address && `${formData.address}, `}
                     {formData.location}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Postal Code:</span> {formData.postalCode}
                   </p>
                   {formData.youtubeUrl && (
                     <p>
@@ -1064,19 +1085,31 @@ export function PostProductForm() {
         <button
           type="button"
           onClick={() => setCurrentStep((prev) => Math.max(1, prev - 1))}
-          className="rounded-md bg-black text-white px-4 py-2 disabled:opacity-50"
+          className="rounded-md bg-gray-500 text-white px-4 py-2 disabled:opacity-50"
           disabled={currentStep <= 1}
         >
           Previous
         </button>
-        <button
-          type="button"
-          onClick={() => setCurrentStep((prev) => Math.min(4, prev + 1))}
-          className="rounded-md bg-black text-white px-4 py-2 disabled:opacity-50"
-          disabled={!canProceed || currentStep >= 4}
-        >
-          Next
-        </button>
+        
+        {currentStep === 4 ? (
+          <button
+            type="button"
+            onClick={handleSubmit}
+            className="rounded-md bg-green-600 text-white px-6 py-2 hover:bg-green-700 disabled:opacity-50"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Publishing..." : "Publish Ad"}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setCurrentStep((prev) => Math.min(4, prev + 1))}
+            className="rounded-md bg-blue-600 text-white px-4 py-2 disabled:opacity-50"
+            disabled={!canProceed}
+          >
+            Next
+          </button>
+        )}
       </div>
     </div>
   )
