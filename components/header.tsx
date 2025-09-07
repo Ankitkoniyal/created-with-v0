@@ -1,8 +1,6 @@
 "use client"
 
 import type React from "react"
-
-import type { ReactElement } from "react"
 import { useState, useEffect, useRef } from "react"
 import {
   Search,
@@ -51,23 +49,7 @@ const CANADIAN_LOCATIONS = [
   { province: "Yukon", cities: ["Whitehorse", "Dawson City"] },
 ]
 
-const CATEGORIES = [
-  "All Categories",
-  "Books",
-  "Electronics",
-  "Fashion",
-  "Furniture",
-  "Gaming",
-  "Jobs",
-  "Mobile",
-  "Other",
-  "Pets",
-  "Real Estate",
-  "Services",
-  "Vehicles",
-]
-
-export function Header(): ReactElement {
+export function Header() {
   const { user, profile, logout, isLoading } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
@@ -85,18 +67,13 @@ export function Header(): ReactElement {
     notifications: 0,
   })
 
-  const allLocations = useState(() => {
-    const locations: string[] = []
-    CANADIAN_LOCATIONS.forEach((location) => {
-      locations.push(location.province)
-      location.cities.forEach((city) => {
-        locations.push(`${city}, ${location.province}`)
-      })
-    })
-    return locations
-  })[0]
+  const allLocations = CANADIAN_LOCATIONS.flatMap(location => [
+    location.province,
+    ...location.cities.map(city => `${city}, ${location.province}`)
+  ])
 
-  const handleLocationInputChange = (value: string) => {
+  const handleLocationInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
     setLocationInput(value)
     if (value.trim() === "") {
       setFilteredLocations([])
@@ -104,7 +81,9 @@ export function Header(): ReactElement {
       return
     }
 
-    const filtered = allLocations.filter((location) => location.toLowerCase().includes(value.toLowerCase())).slice(0, 8)
+    const filtered = allLocations.filter((location) => 
+      location.toLowerCase().includes(value.toLowerCase())
+    ).slice(0, 8)
 
     setFilteredLocations(filtered)
     setShowLocationSuggestions(filtered.length > 0)
@@ -146,7 +125,6 @@ export function Header(): ReactElement {
       router.push("/")
     } catch (error) {
       console.error("Logout error:", error)
-      // Force navigation even if logout fails
       router.push("/")
     }
   }
@@ -190,8 +168,6 @@ export function Header(): ReactElement {
     return () => clearInterval(interval)
   }, [user?.id])
 
-  // const isAuthenticated = !!user
-
   return (
     <header className="sticky top-0 z-50 bg-background border-b border-border">
       <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
@@ -207,13 +183,13 @@ export function Header(): ReactElement {
               <div className="flex items-center bg-white border-2 border-gray-200 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:border-gray-300">
                 <div className="flex items-center border-r border-gray-200 px-3 flex-1 relative">
                   <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-2 text-green-600 flex-shrink-0" />
-                  <Input(
+                  <Input
                     ref={locationInputRef}
                     type="text"
                     placeholder="City or Location"
                     className="border-0 bg-transparent shadow-none focus:ring-0 focus-visible:ring-0 w-full text-xs sm:text-sm"
                     value={locationInput}
-                    onChange={(e) => handleLocationInputChange(e.target.value)}
+                    onChange={handleLocationInputChange}
                     onFocus={handleLocationFocus}
                     onBlur={handleLocationBlur}
                   />
@@ -294,10 +270,13 @@ export function Header(): ReactElement {
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                       <Avatar className="h-8 w-8 border-2 border-green-600">
-                        <AvatarImage src={profile?.avatar_url || user?.user_metadata?.avatar_url || ""} alt={profile?.name || "User"} />
+                        <AvatarImage 
+                          src={profile?.avatar_url || user?.user_metadata?.avatar_url || ""} 
+                          alt={profile?.name || "User"} 
+                        />
                         <AvatarFallback className="bg-green-100 text-green-800 font-medium">
                           {profile?.name || user?.email
-                            ? (profile?.name || user?.email)[0]?.toUpperCase()
+                            ? (profile?.name || user.email)[0]?.toUpperCase()
                             : "U"}
                         </AvatarFallback>
                       </Avatar>
