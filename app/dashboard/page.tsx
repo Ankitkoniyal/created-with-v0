@@ -1,11 +1,10 @@
-import { Suspense } from "react"
 import { DashboardOverview } from "@/components/dashboard/dashboard-overview"
 import { DashboardNav } from "@/components/dashboard/dashboard-nav"
-import { AuthGuard } from "@/components/auth/auth-guard"
+import { SimpleAuthGuard } from "@/components/auth/simple-auth-guard" // Use the new simple guard
 
 export default function DashboardPage() {
   return (
-    <AuthGuard requireAuth={true}>
+    <SimpleAuthGuard requireAuth={true}>
       <div className="min-h-screen bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="mb-8">
@@ -18,18 +17,11 @@ export default function DashboardPage() {
               <DashboardNav />
             </div>
             <div className="lg:col-span-3">
-              <Suspense fallback={
-                <div className="flex justify-center items-center h-64">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-                  <span className="sr-only">Loading...</span>
-                </div>
-              }>
-                <DashboardOverview />
-              </Suspense>
+              <DashboardOverview /> {/* Removed Suspense wrapper */}
             </div>
           </div>
         </div>
       </div>
-    </AuthGuard>
+    </SimpleAuthGuard>
   )
 }
