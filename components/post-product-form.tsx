@@ -512,10 +512,10 @@ export function PostProductForm() {
     }
   }
 
-  const isStep1Valid = formData.images.length > 0
-  const isStep2Valid =
-    formData.title && formData.category && formData.condition && (formData.priceType !== "amount" || formData.price)
-  const isStep3Valid = formData.description && formData.address && formData.location
+  // Updated validation logic
+  const isStep1Valid = formData.images.length > 0 && formData.title.trim() && formData.description.trim()
+  const isStep2Valid = formData.category && formData.condition && (formData.priceType !== "amount" || formData.price)
+  const isStep3Valid = formData.address && formData.location
   const canProceed =
     currentStep === 1 ? isStep1Valid : currentStep === 2 ? isStep2Valid : currentStep === 3 ? isStep3Valid : true
 
@@ -553,64 +553,100 @@ export function PostProductForm() {
 
         {currentStep === 1 && (
           <div className="space-y-6">
-            <p className="text-muted-foreground">
-              Add up to 5 photos (max 2MB each). The first photo will be your main image.
-            </p>
-
-            <section aria-labelledby="photos" className="mt-6">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {formData.images.map((image, index) => (
-                  <div key={index} className="relative overflow-hidden rounded-lg border bg-background aspect-square">
-                    <div className="w-full overflow-hidden">
-                      <img
-                        src={URL.createObjectURL(image) || "/placeholder.svg"}
-                        alt={`Product ${index + 1}`}
-                        className="h-full w-full object-cover"
-                      />
-                    </div>
-                    {index === 0 ? (
-                      <span className="absolute left-2 top-2 rounded-md bg-black/70 px-2 py-0.5 text-xs font-medium text-white">
-                        Main
-                      </span>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => removeImage(index)}
-                      className="absolute right-2 top-2 rounded-full bg-red-500 hover:bg-red-600 text-white p-1 transition-colors shadow-lg"
-                      aria-label={`Remove image ${index + 1}`}
-                    >
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                ))}
-
-                {/* Hidden input that triggers the file picker - visually matches image tiles */}
-                <label
-                  htmlFor="add-photo-input"
-                  className="relative overflow-hidden rounded-lg border-2 border-dashed bg-muted/40 hover:bg-muted/60 transition-colors cursor-pointer aspect-square"
-                >
-                  <div className="w-full grid place-items-center">
-                    <div className="text-center">
-                      <div className="mx-auto mb-2 h-10 w-10 rounded-full border grid place-items-center text-foreground/70">
-                        +
-                      </div>
-                      <p className="text-sm text-muted-foreground">Add Photo</p>
-                      <p className="text-xs text-muted-foreground">Max 2MB</p>
-                    </div>
-                  </div>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="title" className="block text-sm font-medium text-gray-700">
+                  Title *
                 </label>
                 <input
-                  id="add-photo-input"
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="sr-only"
-                  onChange={handleImageUpload}
+                  id="title"
+                  type="text"
+                  placeholder="Enter a clear, descriptive title for your item"
+                  value={formData.title}
+                  onChange={(e) => handleInputChange("title", e.target.value)}
+                  className="w-full px-3 py-2 border-2 border-gray-200 rounded-md focus:border-primary focus:outline-none"
+                  required
                 />
+                <p className="text-xs text-muted-foreground">Be specific about what you're selling</p>
               </div>
-            </section>
+
+              <div className="space-y-2">
+                <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+                  Description *
+                </label>
+                <textarea
+                  id="description"
+                  placeholder="Describe your item in detail. Include condition, features, and any relevant information for buyers."
+                  value={formData.description}
+                  onChange={(e) => handleInputChange("description", e.target.value)}
+                  rows={4}
+                  className="w-full px-3 py-2 border-2 border-gray-200 rounded-md focus:border-primary focus:outline-none"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">Provide detailed information to attract buyers</p>
+              </div>
+            </div>
+
+            <div className="pt-4">
+              <p className="text-muted-foreground mb-4">
+                Add up to 5 photos (max 2MB each). The first photo will be your main image.
+              </p>
+
+              <section aria-labelledby="photos" className="mt-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {formData.images.map((image, index) => (
+                    <div key={index} className="relative overflow-hidden rounded-lg border bg-background aspect-square">
+                      <div className="w-full overflow-hidden">
+                        <img
+                          src={URL.createObjectURL(image) || "/placeholder.svg"}
+                          alt={`Product ${index + 1}`}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                      {index === 0 ? (
+                        <span className="absolute left-2 top-2 rounded-md bg-black/70 px-2 py-0.5 text-xs font-medium text-white">
+                          Main
+                        </span>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => removeImage(index)}
+                        className="absolute right-2 top-2 rounded-full bg-red-500 hover:bg-red-600 text-white p-1 transition-colors shadow-lg"
+                        aria-label={`Remove image ${index + 1}`}
+                      >
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Hidden input that triggers the file picker - visually matches image tiles */}
+                  <label
+                    htmlFor="add-photo-input"
+                    className="relative overflow-hidden rounded-lg border-2 border-dashed bg-muted/40 hover:bg-muted/60 transition-colors cursor-pointer aspect-square"
+                  >
+                    <div className="w-full grid place-items-center">
+                      <div className="text-center">
+                        <div className="mx-auto mb-2 h-10 w-10 rounded-full border grid place-items-center text-foreground/70">
+                          +
+                        </div>
+                        <p className="text-sm text-muted-foreground">Add Photo</p>
+                        <p className="text-xs text-muted-foreground">Max 2MB</p>
+                      </div>
+                    </div>
+                  </label>
+                  <input
+                    id="add-photo-input"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="sr-only"
+                    onChange={handleImageUpload}
+                  />
+                </div>
+              </section>
+            </div>
           </div>
         )}
 
