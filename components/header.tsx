@@ -207,7 +207,7 @@ export function Header(): ReactElement {
               <div className="flex items-center bg-white border-2 border-gray-200 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:border-gray-300">
                 <div className="flex items-center border-r border-gray-200 px-3 flex-1 relative">
                   <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-2 text-green-600 flex-shrink-0" />
-                  <Input
+                  <Input(
                     ref={locationInputRef}
                     type="text"
                     placeholder="City or Location"
@@ -293,31 +293,30 @@ export function Header(): ReactElement {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                      // Replace the Avatar section with this code:
-<Avatar className="h-8 w-8 border-2 border-green-600"> {/* Added border */}
-  <AvatarImage src={profile?.avatar_url || user?.user_metadata?.avatar_url || ""} alt={profile?.name || "User"} />
-  <AvatarFallback className="bg-green-100 text-green-800 font-medium"> {/* Added styling */}
-    {profile?.name || user?.email
-      ? (profile?.name || user?.email)[0]?.toUpperCase()
-      : "U"}
-  </AvatarFallback>
-</Avatar>
+                      <Avatar className="h-8 w-8 border-2 border-green-600">
+                        <AvatarImage src={profile?.avatar_url || user?.user_metadata?.avatar_url || ""} alt={profile?.name || "User"} />
+                        <AvatarFallback className="bg-green-100 text-green-800 font-medium">
+                          {profile?.name || user?.email
+                            ? (profile?.name || user?.email)[0]?.toUpperCase()
+                            : "U"}
+                        </AvatarFallback>
+                      </Avatar>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-56" align="end" forceMount>
                     <DropdownMenuLabel className="font-normal">
                       <div className="flex flex-col space-y-1">
                         <p className="text-sm font-medium leading-none">{profile?.name || "User"}</p>
-                        <p className="text-xs leading-none text-muted-foreground">{profile?.email}</p>
+                        <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
-  <Link href="/dashboard" className="flex items-center"> {/* Changed from /dashboard/listings to /dashboard */}
-    <Package className="mr-2 h-4 w-4" />
-    <span>Dashboard</span> {/* Changed from "My Ads" to "Dashboard" */}
-  </Link>
-</DropdownMenuItem>
+                      <Link href="/dashboard" className="flex items-center">
+                        <Package className="mr-2 h-4 w-4" />
+                        <span>Dashboard</span>
+                      </Link>
+                    </DropdownMenuItem>
                     <DropdownMenuItem asChild>
                       <Link href="/dashboard/profile" className="flex items-center">
                         <Settings className="mr-2 h-4 w-4" />
