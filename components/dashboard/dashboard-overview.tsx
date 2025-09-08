@@ -24,8 +24,8 @@ interface RecentListing {
   price: number
   status: string
   views: number
-  images: string[] // Updated from image_urls to images to match database schema
-  category: string // Updated from primary_category to category to match database schema
+  images: string[]
+  category: string
   created_at: string
 }
 
@@ -61,14 +61,12 @@ export function DashboardOverview() {
           setStats({
             activeAds: activeProducts.length,
             totalViews: totalViews,
-            totalMessages: 0, // TODO: Implement when messaging system is ready
+            totalMessages: 0,
             responseRate: activeProducts.length > 0 ? Math.round((totalViews / activeProducts.length) * 0.1) : 0,
           })
 
-          const recent =
-            products?.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 3) ||
-            []
-
+          // Show ALL products in recent listings, not just active ones
+          const recent = products?.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 3) || []
           setRecentListings(recent)
         }
       } catch (error) {
@@ -229,7 +227,7 @@ export function DashboardOverview() {
                   className="flex items-center space-x-4 p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"
                 >
                   <Image
-                    src={getOptimizedImageUrl(listing.images?.[0], "thumb") || "/placeholder.svg"} // Updated from image_urls to images
+                    src={getOptimizedImageUrl(listing.images?.[0], "thumb") || "/placeholder.svg"}
                     alt={listing.title}
                     width={80}
                     height={80}
@@ -255,7 +253,13 @@ export function DashboardOverview() {
                     </div>
                   </div>
                   <div className="flex flex-col items-end space-y-2">
-                    <Badge variant={listing.status === "active" ? "default" : "secondary"}>{listing.status}</Badge>
+                    <Badge variant={
+                      listing.status === "active" ? "default" :
+                      listing.status === "sold" ? "destructive" :
+                      listing.status === "draft" ? "outline" : "secondary"
+                    }>
+                      {listing.status}
+                    </Badge>
                     <div className="flex space-x-1">
                       <Button size="sm" variant="outline" className="h-8 w-8 p-0 bg-transparent" asChild>
                         <Link href={`/product/${listing.id}`}>
