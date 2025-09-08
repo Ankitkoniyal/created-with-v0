@@ -3,6 +3,7 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { LayoutDashboard, Package, Heart, User, Settings, MessageSquare, TrendingUp } from "lucide-react"
 import { usePathname } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
@@ -75,6 +76,36 @@ export function DashboardNav() {
     return () => clearInterval(interval)
   }, [user?.id])
 
+  // Get user's display name (prefer full name, fallback to email)
+  const getDisplayName = () => {
+    if (user?.user_metadata?.full_name) {
+      return user.user_metadata.full_name
+    }
+    if (user?.email) {
+      return user.email
+    }
+    return "User"
+  }
+
+  // Get user's avatar initials (first letter of name or email)
+  const getAvatarInitials = () => {
+    if (user?.user_metadata?.full_name) {
+      return user.user_metadata.full_name.charAt(0).toUpperCase()
+    }
+    if (user?.email) {
+      return user.email.charAt(0).toUpperCase()
+    }
+    return "U"
+  }
+
+  // Get member since year
+  const getMemberSince = () => {
+    if (user?.created_at) {
+      return `Member since ${new Date(user.created_at).getFullYear()}`
+    }
+    return "Member"
+  }
+
   const navItemsDynamic = [
     {
       title: "Overview",
@@ -120,20 +151,19 @@ export function DashboardNav() {
     <Card>
       <CardContent className="p-6">
         <div className="flex items-center space-x-3 mb-6">
-          <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center border-2 border-green-600">
-            <span className="text-primary font-semibold">
-              {user?.full_name || user?.email
-                ? (user.full_name || user.email)[0]?.toUpperCase()
-                : "U"}
-            </span>
-          </div>
+          <Avatar className="h-12 w-12 border-2 border-green-600">
+            <AvatarImage 
+              src={user?.user_metadata?.avatar_url || ""} 
+              alt={getDisplayName()}
+            />
+            <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+              {getAvatarInitials()}
+            </AvatarFallback>
+          </Avatar>
           <div>
-            <h3 className="font-semibold text-foreground">{user?.full_name || user?.email || "User"}</h3>
+            <h3 className="font-semibold text-foreground">{getDisplayName()}</h3>
             <p className="text-sm text-muted-foreground">
-              Member since{" "}
-              {user?.created_at
-                ? new Date(user.created_at).getFullYear()
-                : "Recently"}
+              {getMemberSince()}
             </p>
           </div>
         </div>
