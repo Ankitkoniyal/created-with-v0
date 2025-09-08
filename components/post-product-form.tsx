@@ -182,8 +182,11 @@ const conditions = ["New", "Like New", "Fair"]
 const mapConditionToDatabase = (condition: string): string => {
   const conditionMap: { [key: string]: string } = {
     New: "new",
-    "Like New": "like_new",
+    "Like New": "like_new", 
     Fair: "fair",
+    // Add these if needed:
+    Good: "good",
+    Poor: "poor"
   }
   return conditionMap[condition] || condition.toLowerCase()
 }
@@ -255,28 +258,28 @@ export function PostProductForm() {
           return
         }
 
-        if (data) {
-          setFormData({
-            title: data.title || "",
-            description: data.description || "",
-            price: data.price ? data.price.toString() : "",
-            priceType: data.price > 0 ? "amount" : "contact",
-            category: data.category || "",
-            subcategory: data.subcategory || "",
-            condition: data.condition || "",
-            brand: data.brand || "",
-            model: data.model || "",
-            address: data.location?.split(",")[0]?.trim() || "",
-            location: `${data.city}, ${data.province}` || "",
-            postalCode: data.postal_code || "",
-            youtubeUrl: data.youtube_url || "",
-            websiteUrl: data.website_url || "",
-            showMobileNumber: data.show_mobile_number ?? true,
-            tags: data.tags || [],
-            images: [],
-            features: data.features || [],
-          })
-        }
+       if (data) {
+  setFormData({
+    title: data.title || "",
+    description: data.description || "",
+    price: data.price ? data.price.toString() : "",
+    priceType: data.price_type || (data.price > 0 ? "amount" : "contact"),
+    category: data.category || "",
+    subcategory: data.subcategory || "",
+    condition: data.condition || "",
+    brand: data.brand || "",
+    model: data.model || "",
+    address: data.location || "", // Use location for address field
+    location: data.city && data.province ? `${data.city}, ${data.province}` : "",
+    postalCode: data.postal_code || "",
+    youtubeUrl: data.youtube_url || "",
+    websiteUrl: data.website_url || "",
+    showMobileNumber: data.show_mobile_number ?? true,
+    tags: data.tags || [],
+    images: [],
+    features: data.features || [],
+  })
+}
       } catch (error) {
         console.error("Error fetching product:", error)
         toast.error("Failed to load product data")
@@ -417,26 +420,31 @@ export function PostProductForm() {
       const categoryIndex = categories.findIndex((cat) => cat.name === formData.category) + 1
 
       const productData = {
-        user_id: user.id,
-        title: formData.title.trim(),
-        description: formData.description.trim(),
-        price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
-        condition: mapConditionToDatabase(formData.condition),
-        location: `${formData.address}, ${city}`.trim(),
-        city: city,
-        province: province,
-        postal_code: formData.postalCode.trim(),
-        ...(imageUrls.length > 0 && { images: imageUrls }),
-        category_id: categoryIndex,
-        brand: formData.brand.trim() || null,
-        model: formData.model.trim() || null,
-        tags: formData.tags.length > 0 ? formData.tags : null,
-        youtube_url: formData.youtubeUrl.trim() || null,
-        website_url: formData.websiteUrl.trim() || null,
-        status: "active",
-        updated_at: new Date().toISOString(),
-        ...(!isEditMode && { created_at: new Date().toISOString() }),
-      }
+  user_id: user.id,
+  title: formData.title.trim(),
+  description: formData.description.trim(),
+  price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
+  price_type: formData.priceType, // This should match your DB enum values
+  condition: mapConditionToDatabase(formData.condition),
+  location: formData.address, // Use address for location field
+  province: province,
+  city: city,
+  postal_code: formData.postalCode.trim(),
+  images: imageUrls,
+  category_id: categoryIndex, // REQUIRED by your database schema
+  category: formData.category, // Also send category text
+  subcategory: formData.subcategory || null,
+  brand: formData.brand.trim() || null,
+  model: formData.model.trim() || null,
+  tags: formData.tags.length > 0 ? formData.tags : null,
+  youtube_url: formData.youtubeUrl.trim() || null,
+  website_url: formData.websiteUrl.trim() || null,
+  show_mobile_number: formData.showMobileNumber,
+  features: formData.features.length > 0 ? formData.features : null,
+  status: "active",
+  updated_at: new Date().toISOString(),
+  ...(!isEditMode && { created_at: new Date().toISOString() }),
+}
 
       console.log("Product data prepared:", JSON.stringify(productData, null, 2))
 
