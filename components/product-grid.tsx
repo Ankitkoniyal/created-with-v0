@@ -7,11 +7,11 @@ import { Heart, Loader2, MapPin, Clock, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useState, useEffect } from "react"
-import useSWRInfinite from "swr/infinite"
 import Image from "next/image"
 import { LoadingSkeleton } from "@/components/loading-skeleton"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { getOptimizedImageUrl } from "@/lib/images"
+import { createClient } from "@/lib/supabase/client"
 
 interface Product {
   id: string
@@ -41,93 +41,14 @@ interface Product {
 
 const PRODUCTS_PER_PAGE = 20
 
-const MOCK_PRODUCTS: Product[] = [
-  {
-    id: "1",
-    title: "iPhone 13 - Good Condition",
-    price: 599,
-    price_type: "fixed",
-    location: "Toronto",
-    city: "Toronto",
-    province: "Ontario",
-    condition: "like new",
-    category: "Electronics",
-    description: "Excellent condition iPhone 13",
-    images: ["/modern-smartphone.png"],
-    created_at: new Date().toISOString(),
-    user_id: "user1",
-  },
-  {
-    id: "2",
-    title: "Dining Table Set - Oak Wood",
-    price: 350,
-    price_type: "negotiable",
-    location: "Vancouver",
-    city: "Vancouver",
-    province: "British Columbia",
-    condition: "new",
-    category: "Furniture",
-    description: "Beautiful oak dining table",
-    images: ["/elegant-dining-table.png"],
-    created_at: new Date(Date.now() - 86400000).toISOString(),
-    user_id: "user2",
-  },
-  {
-    id: "3",
-    title: "Samsung Galaxy S23 Ultra",
-    price: 750,
-    price_type: "fixed",
-    location: "Calgary",
-    city: "Calgary",
-    province: "Alberta",
-    condition: "like new",
-    category: "Electronics",
-    description: "Latest Samsung flagship phone",
-    images: ["/samsung-smartphone.png"],
-    created_at: new Date(Date.now() - 172800000).toISOString(),
-    user_id: "user3",
-  },
-  {
-    id: "4",
-    title: "MacBook Air M2 - Like New",
-    price: 1100,
-    price_type: "negotiable",
-    location: "Montreal",
-    city: "Montreal",
-    province: "Quebec",
-    condition: "like new",
-    category: "Electronics",
-    description: "Barely used MacBook Air",
-    images: ["/macbook.png"],
-    created_at: new Date(Date.now() - 259200000).toISOString(),
-    user_id: "user4",
-  },
-  {
-    id: "5",
-    title: "Sectional Couch - Grey",
-    price: 800,
-    price_type: "fixed",
-    location: "Ottawa",
-    city: "Ottawa",
-    province: "Ontario",
-    condition: "new",
-    category: "Furniture",
-    description: "Comfortable sectional sofa",
-    images: ["/sectional-couch.png"],
-    created_at: new Date(Date.now() - 345600000).toISOString(),
-    user_id: "user5",
-  },
-]
-
 export function ProductGrid({ products: overrideProducts }: { products?: Product[] }) {
-  const [productsState, setProductsState] = useState<Product[]>([]) // kept for compatibility; no longer primary source
-  const [page, setPage] = useState(0)
-  const [hasMoreState, setHasMoreState] = useState(true)
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
   const [shouldFetch, setShouldFetch] = useState(false)
 
   const hasOverride = Array.isArray(overrideProducts)
-  const fetcher = (url: string) => fetch(url, { cache: "no-store" }).then((r) => r.json())
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -142,28 +63,44 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     }
   }, [])
 
-  const swrEnabled = !hasOverride && shouldFetch
+  useEffect(() => {
+    async function fetchProducts() {
+      try {
+        const supabase = createClient()
+        
+        if (!supabase) {
+          throw new Error('Supabase client not available. Check your environment variables.')
+        }
 
-  const getKey = (index: number, prev: any) => {
-    if (!swrEnabled) return null
-    if (index === 0) return `/api/products?limit=${PRODUCTS_PER_PAGE}`
-    if (!prev?.next) return null
-    const n = prev.next
-    return `/api/products?limit=${PRODUCTS_PER_PAGE}&afterCreatedAt=${encodeURIComponent(
-      n.afterCreatedAt,
-    )}&afterId=${encodeURIComponent(n.afterId)}`
-  }
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(PRODUCTS_PER_PAGE)
 
-  const { data, error, size, setSize, isValidating, mutate } = useSWRInfinite(getKey, fetcher, {
-    revalidateOnFocus: false,
-    revalidateFirstPage: false,
-  })
+        if (error) {
+          throw error
+        }
 
-  const isLoading = swrEnabled && !data && !error
-  const productsFetched: Product[] = (data ? data.flatMap((p: any) => p?.products || []) : []) as Product[]
-  const productsToRender: Product[] = hasOverride ? (overrideProducts as Product[]) : productsFetched
-  const hasMore = swrEnabled ? Boolean(data && data[data.length - 1]?.next) : false
-  const isLoadingMore = swrEnabled && isValidating && !!data
+        setProducts(data || [])
+      } catch (err) {
+        setError(err.message)
+        console.error('Error fetching products:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (!hasOverride && shouldFetch) {
+      fetchProducts()
+    } else if (hasOverride) {
+      setProducts(overrideProducts as Product[])
+      setLoading(false)
+    } else {
+      setLoading(false)
+    }
+  }, [hasOverride, overrideProducts, shouldFetch])
 
   const toggleFavorite = (productId: string, e?: React.MouseEvent) => {
     if (e) {
@@ -216,7 +153,7 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     return null
   }
 
-  if (isLoading) {
+  if (loading) {
     return (
       <section className="py-2">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -237,9 +174,9 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center py-12">
             <h3 className="text-xl font-semibold text-gray-900 mb-2">Unable to Load Ads</h3>
-            <p className="text-gray-600 mb-6">We're having trouble fetching ads. Please try again.</p>
+            <p className="text-gray-600 mb-6">{error}</p>
             <div className="space-x-3">
-              <Button onClick={() => mutate()} className="bg-green-900 hover:bg-green-950">
+              <Button onClick={() => window.location.reload()} className="bg-green-900 hover:bg-green-950">
                 Try Again
               </Button>
               <Button variant="outline" onClick={() => window.location.reload()}>
@@ -252,7 +189,7 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     )
   }
 
-  if (productsToRender.length === 0) {
+  if (products.length === 0) {
     return (
       <section className="py-2">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -273,12 +210,12 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-2xl font-bold text-foreground">Latest Ads</h3>
-          <p className="text-sm text-gray-600">{productsToRender.length} ads found</p>
+          <p className="text-sm text-gray-600">{products.length} ads found</p>
         </div>
 
         <TooltipProvider>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {productsToRender.map((product) => {
+            {products.map((product) => {
               const conditionBadge = getConditionBadge(product.condition)
               const primaryImage = product.images?.[0] || "/diverse-products-still-life.png"
               const optimizedPrimary = getOptimizedImageUrl(primaryImage, "card") || primaryImage
@@ -394,19 +331,6 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
             })}
           </div>
         </TooltipProvider>
-
-        {hasMore && (
-          <div className="text-center mt-8">
-            <Button
-              onClick={() => setSize(size + 1)}
-              disabled={isLoadingMore}
-              className="bg-green-900 hover:bg-green-950 text-white px-8 py-3 text-sm font-medium rounded-lg"
-            >
-              {isLoadingMore ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {isLoadingMore ? "Loading..." : "Show More"}
-            </Button>
-          </div>
-        )}
       </div>
     </section>
   )
