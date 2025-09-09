@@ -31,9 +31,15 @@ export function HeroSection() {
         </div>
 
         {/*  Heading - Single Line */}
-        <h1 className={`text-4xl sm:text-5xl md:text-6xl font-bold text-white mb-10 leading-tight transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-  <span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-300">
-    Post Unlimited Ads 🌟{" "}
+      <h1 className={`text-4xl sm:text-5xl md:text-6xl font-bold text-white mb-10 leading-tight transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+  <span className="bg-clip-text text-transparent bg-gradient-to-r from-green-500 to-emerald-600 drop-shadow-lg" style={{
+    textShadow: "0 0 1px rgba(0,0,0,0.3), 0 0 2px rgba(0,0,0,0.2)",
+    WebkitTextStroke: "0.5px white"
+  }}>
+    List Fast Sell Faster
+  </span>
+  <span className="text-white ml-2">
+    Post Unlimited Ads
   </span>
 </h1>
 
