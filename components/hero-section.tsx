@@ -1,6 +1,6 @@
 "use client"
 import NextLink from "next/link"
-import { Upload, LinkIcon, Video, Rocket, TrendingUp, Users, Star } from "lucide-react"
+import { Upload, LinkIcon, Video, Rocket, TrendingUp, Users, Star, Zap, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useEffect, useState } from "react"
 
@@ -30,19 +30,16 @@ export function HeroSection() {
           <span className="text-sm font-medium text-green-300">#1 Marketplace in Canada</span>
         </div>
 
-        {/* Main Heading */}
-        <h1 className={`text-4xl sm:text-5xl md:text-6xl font-bold text-white mb-6 leading-tight transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-          <span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-300">Canada's Fastest Growing</span>
-          <span className="block mt-2 bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-emerald-500 drop-shadow-2xl">
+        {/* Main Heading - Single Line */}
+        <h1 className={`text-4xl sm:text-5xl md:text-6xl font-bold text-white mb-10 leading-tight transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+          <span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-300">
+            Canada's Fastest Growing{" "}
+          </span>
+          <span className="bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-emerald-500 drop-shadow-2xl">
             Ads Marketplace
           </span>
+          <Zap className="inline-block w-10 h-10 ml-4 text-yellow-400 animate-pulse" />
         </h1>
-
-        {/* Subheading */}
-        <p className={`max-w-2xl mx-auto text-lg text-gray-300 mb-10 transition-all duration-700 delay-100 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-          Join thousands of Canadians buying and selling everything from electronics to vehicles. 
-          Free listings, premium visibility, and instant connections.
-        </p>
 
         {/* Stats */}
         <div className={`flex flex-wrap justify-center gap-6 mb-10 transition-all duration-700 delay-200 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
@@ -95,11 +92,12 @@ export function HeroSection() {
           <Button
             asChild
             size="lg"
-            className="bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 px-8 h-12 rounded-xl font-semibold text-base shadow-lg shadow-green-900/30 hover:shadow-green-900/50 transition-all duration-300 hover:scale-105"
+            className="bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 px-8 h-12 rounded-xl font-semibold text-base shadow-lg shadow-green-900/30 hover:shadow-green-900/50 transition-all duration-300 hover:scale-105 group"
           >
-            <NextLink href="/sell">
-              <Rocket className="w-5 h-5 mr-2" />
+            <NextLink href="/sell" className="flex items-center">
+              <Rocket className="w-5 h-5 mr-2 group-hover:animate-bounce" />
               Start Selling Now - It's Free
+              <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
             </NextLink>
           </Button>
         </div>
