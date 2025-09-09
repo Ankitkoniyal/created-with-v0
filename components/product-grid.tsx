@@ -3,7 +3,7 @@
 import type React from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Heart, Loader2, MapPin, Clock, Star } from "lucide-react"
+import { Heart, MapPin, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useState, useEffect } from "react"
@@ -39,7 +39,7 @@ interface Product {
   }
 }
 
-const PRODUCTS_PER_PAGE = 20
+const PRODUCTS_PER_PAGE = 24 // Show more products in compact view
 
 export function ProductGrid({ products: overrideProducts }: { products?: Product[] }) {
   const [products, setProducts] = useState<Product[]>([])
@@ -116,17 +116,20 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
 
   const formatPrice = (price?: number, priceType?: string) => {
     if (priceType === "free") return "Free"
-    if (priceType === "contact") return "Contact for Price"
-    if (typeof price === "number") return `$${price.toLocaleString()}`
-    return "Contact for Price"
+    if (priceType === "contact") return "Contact"
+    if (typeof price === "number") {
+      if (price >= 1000) return `$${(price/1000).toFixed(0)}k`
+      return `$${price}`
+    }
+    return "Contact"
   }
 
   const getConditionBadge = (condition?: string) => {
     switch (condition?.toLowerCase()) {
       case "new":
-        return { text: "New", className: "bg-green-500 text-white" }
+        return { text: "New", className: "bg-green-500 text-white text-[10px] px-1.5 py-0.5" }
       case "like new":
-        return { text: "Like New", className: "bg-green-400 text-white" }
+        return { text: "Like New", className: "bg-green-400 text-white text-[10px] px-1.5 py-0.5" }
       default:
         return null
     }
@@ -142,11 +145,11 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     const posted = new Date(createdAt)
     const diffInHours = Math.floor((now.getTime() - posted.getTime()) / (1000 * 60 * 60))
 
-    if (diffInHours < 1) return "Just now"
-    if (diffInHours < 24) return `${diffInHours}h ago`
-    if (diffInHours < 48) return "1d ago"
-    if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}d ago`
-    return posted.toLocaleDateString()
+    if (diffInHours < 1) return "Now"
+    if (diffInHours < 24) return `${diffInHours}h`
+    if (diffInHours < 48) return "1d"
+    if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}d`
+    return posted.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
 
   if (!hasOverride && !shouldFetch) {
@@ -157,11 +160,8 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     return (
       <section className="py-2">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xl font-bold text-foreground">Latest Ads</h3>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            <LoadingSkeleton type="card" count={15} />
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
+            <LoadingSkeleton type="card" count={16} />
           </div>
         </div>
       </section>
@@ -172,17 +172,12 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     return (
       <section className="py-2">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center py-12">
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">Unable to Load Ads</h3>
-            <p className="text-gray-600 mb-6">{error}</p>
-            <div className="space-x-3">
-              <Button onClick={() => window.location.reload()} className="bg-green-900 hover:bg-green-950">
-                Try Again
-              </Button>
-              <Button variant="outline" onClick={() => window.location.reload()}>
-                Refresh Page
-              </Button>
-            </div>
+          <div className="text-center py-8">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Unable to Load Ads</h3>
+            <p className="text-gray-600 mb-4 text-sm">{error}</p>
+            <Button onClick={() => window.location.reload()} className="bg-green-900 hover:bg-green-950 text-xs h-8">
+              Try Again
+            </Button>
           </div>
         </div>
       </section>
@@ -193,10 +188,10 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     return (
       <section className="py-2">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center py-12">
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No Ads Found</h3>
-            <p className="text-gray-600 mb-6">Be the first to post an ad in your area!</p>
-            <Button asChild className="bg-green-900 hover:bg-green-950">
+          <div className="text-center py-8">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Ads Found</h3>
+            <p className="text-gray-600 mb-4 text-sm">Be the first to post an ad in your area!</p>
+            <Button asChild className="bg-green-900 hover:bg-green-950 text-xs h-8">
               <Link href="/post">Post Your First Ad</Link>
             </Button>
           </div>
@@ -206,122 +201,90 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
   }
 
   return (
-    <section className="py-4">
+    <section className="py-2">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-2xl font-bold text-foreground">Latest Ads</h3>
-          <p className="text-sm text-gray-600">{products.length} ads found</p>
-        </div>
-
         <TooltipProvider>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
             {products.map((product) => {
               const conditionBadge = getConditionBadge(product.condition)
               const primaryImage = product.images?.[0] || "/diverse-products-still-life.png"
-              const optimizedPrimary = getOptimizedImageUrl(primaryImage, "card") || primaryImage
+              const optimizedPrimary = getOptimizedImageUrl(primaryImage, "thumb") || primaryImage
               const provinceOrLocation = product.province || product.location || ""
 
               return (
                 <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
-                  <Card className="group h-full flex flex-col overflow-hidden border-0 bg-white rounded-xl shadow-sm">
+                  <Card className="group h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-sm hover:shadow-md transition-shadow">
                     <CardContent className="p-0 flex flex-col h-full">
-                      <div className="relative w-full aspect-square overflow-hidden bg-gray-50 rounded-xl">
+                      {/* Image Container */}
+                      <div className="relative w-full aspect-square overflow-hidden bg-gray-100">
                         <Image
                           src={optimizedPrimary || "/placeholder.svg"}
                           alt={product.title}
                           fill
-                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 33vw, 20vw"
-                          className="object-cover"
+                          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 12.5vw"
+                          className="object-cover group-hover:scale-105 transition-transform duration-200"
                           loading="lazy"
                         />
-                        <div className="absolute top-3 right-3 flex flex-col gap-2">
+                        
+                        {/* Top Right Badges */}
+                        <div className="absolute top-1 right-1 flex flex-col gap-1">
                           {conditionBadge && (
-                            <Badge
-                              className={`text-xs font-medium px-3 py-1 rounded-full shadow-sm ${conditionBadge.className}`}
-                            >
+                            <Badge className={conditionBadge.className}>
                               {conditionBadge.text}
                             </Badge>
                           )}
-
-                          {isNegotiable(product.price_type) && (
-                            <Badge className="bg-blue-500 text-white text-xs font-medium px-3 py-1 rounded-full shadow-sm">
-                              Negotiable
-                            </Badge>
-                          )}
                         </div>
+
+                        {/* Price Badge */}
+                        <div className="absolute bottom-1 left-1 bg-black/80 text-white px-1.5 py-0.5 rounded-sm">
+                          <span className="text-xs font-bold">
+                            {formatPrice(product.price as any, (product as any).price_type)}
+                          </span>
+                        </div>
+
+                        {/* Wishlist Button */}
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
                               size="icon"
                               variant="ghost"
                               aria-label="Toggle favorite"
-                              className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-sm hover:bg-white shadow-md h-10 w-10 p-0 rounded-full border-0"
+                              className="absolute top-1 right-1 bg-white/80 backdrop-blur-sm hover:bg-white shadow-xs h-6 w-6 p-0 rounded-sm"
                               onClick={(e) => toggleFavorite(product.id, e)}
                             >
                               <Heart
-                                className={`h-5 w-5 ${
+                                className={`h-3 w-3 ${
                                   favorites.has(product.id) ? "fill-red-500 text-red-500" : "text-gray-600"
                                 }`}
                               />
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>{favorites.has(product.id) ? "Remove from favorites" : "Add to favorites"}</p>
+                            <p className="text-xs">{favorites.has(product.id) ? "Remove from favorites" : "Add to favorites"}</p>
                           </TooltipContent>
                         </Tooltip>
                       </div>
 
-                      <div className="p-3 flex flex-col flex-1 space-y-1">
-                        <h4 className="text-base font-semibold text-gray-900 leading-5 line-clamp-2">
+                      {/* Product Info - Compact */}
+                      <div className="p-1.5 flex flex-col flex-1">
+                        <h4 className="text-xs text-gray-800 leading-tight line-clamp-2 mb-1 font-medium group-hover:text-primary transition-colors">
                           {product.title}
                         </h4>
-                        {product.description && (
-                          <p className="text-sm text-gray-600 line-clamp-2 mb-1">{product.description}</p>
-                        )}
-                        <div className="flex items-center justify-between">
-                          <p className="text-lg font-bold text-green-800">
-                            {formatPrice(product.price as any, (product as any).price_type)}
-                          </p>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div className="flex items-center space-x-1 cursor-help">
-                                <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                                <span className="text-sm font-semibold text-gray-700">4.2</span>
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Seller rating (4.2/5 stars)</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </div>
-                        <div className="flex items-center justify-between text-sm text-gray-500">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div className="flex items-center gap-1 cursor-help">
-                                <MapPin className="h-3 w-3 text-gray-400" />
-                                <span className="truncate text-xs font-medium">{provinceOrLocation}</span>
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Item location</p>
-                            </TooltipContent>
-                          </Tooltip>
 
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div className="flex items-center gap-1 text-gray-400 cursor-help">
-                                <Clock className="h-3 w-3" />
-                                <span className="text-xs font-medium">
-                                  {formatTimePosted(product.created_at as any)}
-                                </span>
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>
-                                Posted on {product.created_at ? new Date(product.created_at).toLocaleDateString() : "—"}
-                              </p>
-                            </TooltipContent>
-                          </Tooltip>
+                        <div className="mt-auto space-y-1">
+                          {/* Location and Time */}
+                          <div className="flex items-center justify-between text-xs text-gray-600">
+                            <div className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3 flex-shrink-0" />
+                              <span className="truncate max-w-[60px]">
+                                {provinceOrLocation}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Clock className="h-3 w-3 flex-shrink-0" />
+                              <span>{formatTimePosted(product.created_at as any)}</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </CardContent>
