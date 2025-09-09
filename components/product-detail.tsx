@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
-import Image from "next/image" // import Next Image for optimized delivery
+import Image from "next/image"
 import {
   Heart,
   Share2,
@@ -21,6 +21,7 @@ import {
   Copy,
   Check,
   Tag,
+  CheckCircle,
 } from "lucide-react"
 import { ContactSellerModal } from "@/components/messaging/contact-seller-modal"
 import { SafetyBanner } from "@/components/ui/safety-banner"
@@ -37,32 +38,32 @@ interface Product {
   price: string
   originalPrice?: string
   location: string
-  images: string[] // Changed from image_urls to images to match database
+  images: string[]
   description: string
-  youtube_url?: string | null // Changed from youtubeUrl to youtube_url
-  website_url?: string | null // Changed from websiteUrl to website_url
+  youtube_url?: string | null
+  website_url?: string | null
   category: string
   subcategory?: string | null
   condition: string
-  brand?: string | null // Made optional since it can be null
-  model?: string | null // Made optional since it can be null
-  tags?: string[] | null // Added tags field
+  brand?: string | null
+  model?: string | null
+  tags?: string[] | null
   postedDate: string
   views: number
   seller: {
-    id: string // Added seller ID field
+    id: string
     name: string
     rating: number
     totalReviews: number
     memberSince: string
     verified: boolean
     responseTime: string
-    avatar?: string // Added avatar field
+    avatar?: string
   }
-  features?: string[] // Made optional since it might not exist
+  features?: string[]
   storage?: string | null
   color?: string | null
-  adId?: string // Added adId field
+  adId?: string
   [key: string]: any
 }
 
@@ -81,6 +82,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
   const [showContactWarning, setShowContactWarning] = useState(false)
   const [showPhoneWarning, setShowPhoneWarning] = useState(false)
   const [pendingContactAction, setPendingContactAction] = useState<(() => void) | null>(null)
+  const [sellerVerified, setSellerVerified] = useState(product.seller.verified)
 
   const isValidUUID = (str: string) => {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -113,8 +115,28 @@ export function ProductDetail({ product }: ProductDetailProps) {
       }
     }
 
+    const checkSellerVerification = async () => {
+      if (!product.seller.id) return
+      
+      try {
+        const supabase = createClient()
+        const { data, error } = await supabase
+          .from("users")
+          .select("verified")
+          .eq("id", product.seller.id)
+          .single()
+
+        if (!error && data) {
+          setSellerVerified(data.verified)
+        }
+      } catch (error) {
+        console.error("Error checking seller verification:", error)
+      }
+    }
+
     checkFavoriteStatus()
-  }, [user, product.id])
+    checkSellerVerification()
+  }, [user, product.id, product.seller.id])
 
   const toggleFavorite = async () => {
     if (!user) {
@@ -253,8 +275,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="lg:col-span-2">
-        <SafetyBanner />
-
+        {/* Image Gallery */}
         <Card>
           <CardContent className="p-0">
             <div className="relative h-80 bg-gray-50 rounded-t-lg">
@@ -262,8 +283,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
                 src={
                   getOptimizedImageUrl(product.images?.[selectedImage], "detail") ||
                   "/placeholder.svg?height=400&width=600&query=product%20image" ||
-                  "/placeholder.svg" ||
-                  "/placeholder.svg" ||
                   "/placeholder.svg"
                 }
                 alt={product.title}
@@ -318,12 +337,189 @@ export function ProductDetail({ product }: ProductDetailProps) {
           </CardContent>
         </Card>
 
+        {/* Description - Moved below images */}
         <Card className="mt-4">
+          <CardContent className="p-4">
+            <h3 className="font-semibold text-foreground mb-3">Description</h3>
+            <p className="text-muted-foreground leading-relaxed whitespace-pre-line">{product.description}</p>
+
+            {(product.youtube_url || product.website_url) && (
+              <>
+                <Separator className="my-4" />
+                <div className="space-y-3">
+                  {product.youtube_url && (
+                    <div className="flex items-center space-x-3 p-3 bg-red-50 rounded-lg border border-red-100">
+                      <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
+                        <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">YouTube Video</p>
+                        <a
+                          href={product.youtube_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-red-600 hover:text-red-700 hover:underline break-all"
+                        >
+                          {product.youtube_url}
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
+                  {product.website_url && (
+                    <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                      <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9"
+                          />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">Website</p>
+                        <a
+                          href={
+                            product.website_url.startsWith("http")
+                              ? product.website_url
+                              : `https://${product.website_url}`
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-blue-600 hover:text-blue-700 hover:underline break-all"
+                        >
+                          {product.website_url}
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Product Details */}
+        <Card className="mt-4">
+          <CardContent className="p-4">
+            <h2 className="text-lg font-bold text-foreground mb-3">Product Details</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+              <div>
+                <span className="text-muted-foreground">Condition:</span>
+                <span className="ml-2 font-medium">{product.condition}</span>
+              </div>
+              {product.brand && (
+                <div>
+                  <span className="text-muted-foreground">Brand:</span>
+                  <span className="ml-2 font-medium">{product.brand}</span>
+                </div>
+              )}
+              {product.model && (
+                <div>
+                  <span className="text-muted-foreground">Model:</span>
+                  <span className="ml-2 font-medium">{product.model}</span>
+                </div>
+              )}
+              <div>
+                <span className="text-muted-foreground">Category:</span>
+                <span className="ml-2 font-medium">{product.category}</span>
+              </div>
+              {product.subcategory && (
+                <div>
+                  <span className="text-muted-foreground">Subcategory:</span>
+                  <span className="ml-2 font-medium">{product.subcategory}</span>
+                </div>
+              )}
+              {product.storage && (
+                <div>
+                  <span className="text-muted-foreground">Storage:</span>
+                  <span className="ml-2 font-medium">{product.storage}</span>
+                </div>
+              )}
+              {product.color && (
+                <div>
+                  <span className="text-muted-foreground">Color:</span>
+                  <span className="ml-2 font-medium">{product.color}</span>
+                </div>
+              )}
+            </div>
+
+            {product.tags && product.tags.length > 0 && (
+              <>
+                <Separator className="my-4" />
+                <h3 className="font-semibold text-foreground mb-2 flex items-center">
+                  <Tag className="h-4 w-4 mr-2" />
+                  Tags
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {product.tags.map((tag, index) => (
+                    <Badge key={index} variant="secondary" className="text-xs">
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {product.features && product.features.length > 0 && (
+              <>
+                <Separator className="my-4" />
+                <h3 className="font-semibold text-foreground mb-2">Key Features</h3>
+                <ul className="space-y-1">
+                  {product.features.map((feature, index) => (
+                    <li key={index} className="flex items-center text-sm">
+                      <div className="w-2 h-2 bg-primary rounded-full mr-3" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* User Ratings */}
+        <Card className="mt-4">
+          <CardContent className="p-4">
+            <UserRatings
+              sellerId={product.seller.id}
+              sellerName={product.seller.name}
+              sellerAvatar={product.seller.avatar}
+              productId={product.id}
+              productTitle={product.title}
+            />
+          </CardContent>
+        </Card>
+
+        {/* Report Ad */}
+        <Card className="mt-4">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-center">
+              <Button
+                variant="ghost"
+                onClick={handleReportAd}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50 flex items-center"
+              >
+                <Flag className="h-4 w-4 mr-2" />
+                Report this Ad
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="space-y-4">
+        {/* Product Info Card - Aligned in one line */}
+        <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h1 className="text-xl font-bold text-foreground mb-1">{product.title}</h1>
-                <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 text-sm text-muted-foreground">
                   <div className="flex items-center">
                     <MapPin className="h-4 w-4 mr-1" />
                     {product.location}
@@ -465,7 +661,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
               Posted on {new Date(product.postedDate).toLocaleDateString()}
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <ContactSellerModal
                 product={{
                   id: product.id,
@@ -475,7 +671,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                 }}
                 seller={{
                   name: product.seller.name,
-                  verified: product.seller.verified,
+                  verified: sellerVerified,
                   rating: product.seller.rating,
                   totalReviews: product.seller.totalReviews,
                 }}
@@ -488,8 +684,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                 </Button>
               </ContactSellerModal>
               <Button
-                variant="outline"
-                className="w-full bg-transparent hover:bg-green-900/10 hover:text-green-900 flex items-center justify-center"
+                className="w-full bg-green-900 hover:bg-green-950 flex items-center justify-center"
                 onClick={handleShowMobile}
               >
                 <Phone className="h-4 w-4 mr-2" />
@@ -499,113 +694,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
           </CardContent>
         </Card>
 
-        <Card className="mt-4">
-          <CardContent className="p-4">
-            <UserRatings
-              sellerId={product.seller.id}
-              sellerName={product.seller.name}
-              sellerAvatar={product.seller.avatar}
-              productId={product.id}
-              productTitle={product.title}
-            />
-          </CardContent>
-        </Card>
-
-        <Card className="mt-4">
-          <CardContent className="p-4">
-            <h2 className="text-lg font-bold text-foreground mb-3">Product Details</h2>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <span className="text-muted-foreground">Condition:</span>
-                <span className="ml-2 font-medium">{product.condition}</span>
-              </div>
-              {product.brand && (
-                <div>
-                  <span className="text-muted-foreground">Brand:</span>
-                  <span className="ml-2 font-medium">{product.brand}</span>
-                </div>
-              )}
-              {product.model && (
-                <div>
-                  <span className="text-muted-foreground">Model:</span>
-                  <span className="ml-2 font-medium">{product.model}</span>
-                </div>
-              )}
-              <div>
-                <span className="text-muted-foreground">Category:</span>
-                <span className="ml-2 font-medium">{product.category}</span>
-              </div>
-              {product.subcategory && (
-                <div>
-                  <span className="text-muted-foreground">Subcategory:</span>
-                  <span className="ml-2 font-medium">{product.subcategory}</span>
-                </div>
-              )}
-              {product.storage && (
-                <div>
-                  <span className="text-muted-foreground">Storage:</span>
-                  <span className="ml-2 font-medium">{product.storage}</span>
-                </div>
-              )}
-              {product.color && (
-                <div>
-                  <span className="text-muted-foreground">Color:</span>
-                  <span className="ml-2 font-medium">{product.color}</span>
-                </div>
-              )}
-            </div>
-
-            {product.tags && product.tags.length > 0 && (
-              <>
-                <Separator className="my-4" />
-                <h3 className="font-semibold text-foreground mb-2 flex items-center">
-                  <Tag className="h-4 w-4 mr-2" />
-                  Tags
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {product.tags.map((tag, index) => (
-                    <Badge key={index} variant="secondary" className="text-xs">
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {product.features && product.features.length > 0 && (
-              <>
-                <Separator className="my-4" />
-                <h3 className="font-semibold text-foreground mb-2">Key Features</h3>
-                <ul className="space-y-1">
-                  {product.features.map((feature, index) => (
-                    <li key={index} className="flex items-center text-sm">
-                      <div className="w-2 h-2 bg-primary rounded-full mr-3" />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-center">
-              <Button
-                variant="ghost"
-                onClick={handleReportAd}
-                className="text-red-600 hover:text-red-700 hover:bg-red-50 flex items-center"
-              >
-                <Flag className="h-4 w-4 mr-2" />
-                Report this Ad
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="space-y-4">
+        {/* Seller Information */}
         <Card>
           <CardContent className="p-4">
             <h3 className="font-semibold text-foreground mb-3">Seller Information</h3>
@@ -622,7 +711,12 @@ export function ProductDetail({ product }: ProductDetailProps) {
               <div>
                 <div className="flex items-center space-x-2">
                   <span className="font-medium">{product.seller.name}</span>
-                  {product.seller.verified && <Shield className="h-4 w-4 text-primary" />}
+                  {sellerVerified && (
+                    <Badge variant="outline" className="flex items-center text-xs bg-green-50 text-green-700 border-green-200">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Verified
+                    </Badge>
+                  )}
                 </div>
                 <div className="flex items-center space-x-1 text-sm text-muted-foreground">
                   <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
@@ -645,15 +739,13 @@ export function ProductDetail({ product }: ProductDetailProps) {
 
             <div className="space-y-2 mt-3">
               <Button
-                variant="outline"
-                className="w-full bg-transparent hover:bg-green-900/10 hover:text-green-900"
+                className="w-full bg-green-900 hover:bg-green-950"
                 onClick={() => (window.location.href = `/seller/${product.seller.id || "unknown"}`)}
               >
                 View Seller Profile
               </Button>
               <Button
-                variant="outline"
-                className="w-full bg-transparent hover:bg-green-900/10 hover:text-green-900"
+                className="w-full bg-green-900 hover:bg-green-950"
                 onClick={handleViewAllAds}
               >
                 See All Ads
@@ -662,70 +754,8 @@ export function ProductDetail({ product }: ProductDetailProps) {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-4">
-            <h3 className="font-semibold text-foreground mb-3">Description</h3>
-            <p className="text-muted-foreground leading-relaxed whitespace-pre-line">{product.description}</p>
-
-            {(product.youtube_url || product.website_url) && (
-              <>
-                <Separator className="my-4" />
-                <div className="space-y-3">
-                  {product.youtube_url && (
-                    <div className="flex items-center space-x-3 p-3 bg-red-50 rounded-lg border border-red-100">
-                      <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
-                        <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
-                        </svg>
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900">YouTube Video</p>
-                        <a
-                          href={product.youtube_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-red-600 hover:text-red-700 hover:underline break-all"
-                        >
-                          {product.youtube_url}
-                        </a>
-                      </div>
-                    </div>
-                  )}
-
-                  {product.website_url && (
-                    <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                      <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9"
-                          />
-                        </svg>
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900">Website</p>
-                        <a
-                          href={
-                            product.website_url.startsWith("http")
-                              ? product.website_url
-                              : `https://${product.website_url}`
-                          }
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-blue-600 hover:text-blue-700 hover:underline break-all"
-                        >
-                          {product.website_url}
-                        </a>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
+        {/* Safety Banner - Moved below seller profile */}
+        <SafetyBanner />
       </div>
 
       <SafetyWarningModal
