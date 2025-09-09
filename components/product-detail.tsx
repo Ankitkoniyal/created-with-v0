@@ -514,185 +514,186 @@ export function ProductDetail({ product }: ProductDetailProps) {
 
       <div className="space-y-4">
         {/* Product Info Card - Aligned in one line */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h1 className="text-xl font-bold text-foreground mb-1">{product.title}</h1>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 text-sm text-muted-foreground">
-                  <div className="flex items-center">
-                    <MapPin className="h-4 w-4 mr-1" />
-                    {product.location}
-                  </div>
-                  <div className="flex items-center">
-                    <Eye className="h-4 w-4 mr-1" />
-                    {product.views} views
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center space-x-2 relative">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={toggleFavorite}
-                  className="text-primary hover:bg-green-900/10 hover:text-green-900 border-primary/20 bg-transparent"
-                >
-                  <Heart className={`h-4 w-4 mr-1 ${isFavorited ? "fill-red-500 text-red-500" : ""}`} />
-                  {isFavorited ? "Saved" : "Save"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleShare}
-                  className="text-primary hover:bg-green-900/10 hover:text-green-900 border-primary/20 bg-transparent"
-                >
-                  <Share2 className="h-4 w-4 mr-1" />
-                  Share
-                </Button>
+        Card>
+  <CardContent className="p-4">
+    {/* Title and Price */}
+    <div className="mb-3">
+      <h1 className="text-xl font-bold text-foreground mb-2">{product.title}</h1>
+      <div className="flex items-center space-x-2">
+        <span className="text-2xl font-bold text-primary">{product.price}</span>
+        {product.originalPrice && (
+          <span className="text-lg text-muted-foreground line-through">{product.originalPrice}</span>
+        )}
+      </div>
+    </div>
 
-                {showShareMenu && (
-                  <div className="absolute top-full right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-                    <div className="p-2">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-700">Share this ad</span>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setShowShareMenu(false)}
-                          className="h-6 w-6 p-0"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <div className="space-y-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={shareToWhatsApp}
-                          className="w-full justify-start text-left hover:bg-green-900/10 hover:text-green-900"
-                        >
-                          <div className="w-5 h-5 mr-3 bg-green-500 rounded-full flex items-center justify-center">
-                            <span className="text-white text-xs font-bold">W</span>
-                          </div>
-                          WhatsApp
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={shareToFacebook}
-                          className="w-full justify-start text-left hover:bg-green-900/10 hover:text-green-900"
-                        >
-                          <div className="w-5 h-5 mr-3 bg-blue-600 rounded-full flex items-center justify-center">
-                            <span className="text-white text-xs font-bold">f</span>
-                          </div>
-                          Facebook
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={shareToTikTok}
-                          className="w-full justify-start text-left hover:bg-green-900/10 hover:text-green-900"
-                        >
-                          <div className="w-5 h-5 mr-3 bg-black rounded-full flex items-center justify-center">
-                            <span className="text-white text-xs font-bold">T</span>
-                          </div>
-                          TikTok
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={shareToEmail}
-                          className="w-full justify-start text-left hover:bg-green-900/10 hover:text-green-900"
-                        >
-                          <div className="w-5 h-5 mr-3 bg-gray-600 rounded-full flex items-center justify-center">
-                            <span className="text-white text-xs font-bold">@</span>
-                          </div>
-                          Email
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={copyLink}
-                          className="w-full justify-start text-left hover:bg-green-900/10 hover:text-green-900"
-                        >
-                          {linkCopied ? (
-                            <Check className="w-5 h-5 mr-3 text-green-600" />
-                          ) : (
-                            <Copy className="w-5 h-5 mr-3" />
-                          )}
-                          {linkCopied ? "Link Copied!" : "Copy Link"}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+    {/* Location and Views */}
+    <div className="flex items-center space-x-4 text-sm text-muted-foreground mb-4">
+      <div className="flex items-center">
+        <MapPin className="h-4 w-4 mr-1" />
+        {product.location}
+      </div>
+      <div className="flex items-center">
+        <Eye className="h-4 w-4 mr-1" />
+        {product.views} views
+      </div>
+      <div className="flex items-center">
+        <Calendar className="h-4 w-4 mr-1" />
+        Posted {new Date(product.postedDate).toLocaleDateString()}
+      </div>
+    </div>
 
-            <div className="mb-2">
-              <div className="flex items-center justify-between mb-3 p-3 bg-muted/50 rounded-lg border">
-                <div>
-                  <span className="text-sm text-muted-foreground">Ad ID: </span>
-                  <span className="text-lg font-bold text-primary">{product.adId || product.id.slice(-8)}</span>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    navigator.clipboard.writeText(product.adId || product.id.slice(-8))
-                    toast({ title: "Ad ID copied to clipboard!" })
-                  }}
-                  className="text-xs"
-                >
-                  Copy ID
-                </Button>
-              </div>
-            </div>
+    {/* Save and Share Buttons */}
+    <div className="flex items-center space-x-2 mb-4">
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={toggleFavorite}
+        className="flex-1 sm:flex-none text-primary hover:bg-green-900 hover:text-white border-primary/20 bg-transparent"
+      >
+        <Heart className={`h-4 w-4 mr-1 ${isFavorited ? "fill-red-500 text-red-500" : ""}`} />
+        {isFavorited ? "Saved" : "Save"}
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={handleShare}
+        className="flex-1 sm:flex-none text-primary hover:bg-green-900 hover:text-white border-primary/20 bg-transparent"
+      >
+        <Share2 className="h-4 w-4 mr-1" />
+        Share
+      </Button>
 
-            <div className="flex items-center space-x-2 mb-3">
-              <span className="text-2xl font-bold text-primary">{product.price}</span>
-              {product.originalPrice && (
-                <span className="text-lg text-muted-foreground line-through">{product.originalPrice}</span>
-              )}
-            </div>
-
-            <div className="flex items-center text-sm text-muted-foreground mb-4">
-              <Calendar className="h-4 w-4 mr-1" />
-              Posted on {new Date(product.postedDate).toLocaleDateString()}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <ContactSellerModal
-                product={{
-                  id: product.id,
-                  title: product.title,
-                  price: product.price,
-                  image: product.images?.[0] || "/placeholder.svg",
-                }}
-                seller={{
-                  name: product.seller.name,
-                  verified: sellerVerified,
-                  rating: product.seller.rating,
-                  totalReviews: product.seller.totalReviews,
-                }}
-              >
-                <Button
-                  className="w-full bg-green-900 hover:bg-green-950"
-                  onClick={() => handleContactWithWarning(() => {})}
-                >
-                  Chat with Seller
-                </Button>
-              </ContactSellerModal>
+      {showShareMenu && (
+        <div className="absolute top-full right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+          <div className="p-2">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-gray-700">Share this ad</span>
               <Button
-                className="w-full bg-green-900 hover:bg-green-950 flex items-center justify-center"
-                onClick={handleShowMobile}
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowShareMenu(false)}
+                className="h-6 w-6 p-0"
               >
-                <Phone className="h-4 w-4 mr-2" />
-                {showMobileNumber ? "+1 (555) 123-****" : "Show Mobile"}
+                <X className="h-4 w-4" />
               </Button>
             </div>
-          </CardContent>
-        </Card>
+            <div className="space-y-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={shareToWhatsApp}
+                className="w-full justify-start text-left hover:bg-green-900 hover:text-white"
+              >
+                <div className="w-5 h-5 mr-3 bg-green-500 rounded-full flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">W</span>
+                </div>
+                WhatsApp
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={shareToFacebook}
+                className="w-full justify-start text-left hover:bg-green-900 hover:text-white"
+              >
+                <div className="w-5 h-5 mr-3 bg-blue-600 rounded-full flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">f</span>
+                </div>
+                Facebook
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={shareToTikTok}
+                className="w-full justify-start text-left hover:bg-green-900 hover:text-white"
+              >
+                <div className="w-5 h-5 mr-3 bg-black rounded-full flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">T</span>
+                </div>
+                TikTok
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={shareToEmail}
+                className="w-full justify-start text-left hover:bg-green-900 hover:text-white"
+              >
+                <div className="w-5 h-5 mr-3 bg-gray-600 rounded-full flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">@</span>
+                </div>
+                Email
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={copyLink}
+                className="w-full justify-start text-left hover:bg-green-900 hover:text-white"
+              >
+                {linkCopied ? (
+                  <Check className="w-5 h-5 mr-3 text-green-600" />
+                ) : (
+                  <Copy className="w-5 h-5 mr-3" />
+                )}
+                {linkCopied ? "Link Copied!" : "Copy Link"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+
+    {/* Ad ID */}
+    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border mb-4">
+      <div>
+        <span className="text-sm text-muted-foreground">Ad ID: </span>
+        <span className="text-lg font-bold text-primary">{product.adId || product.id.slice(-8)}</span>
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => {
+          navigator.clipboard.writeText(product.adId || product.id.slice(-8))
+          toast({ title: "Ad ID copied to clipboard!" })
+        }}
+        className="text-xs hover:bg-green-900 hover:text-white"
+      >
+        Copy ID
+      </Button>
+    </div>
+
+    {/* Contact Buttons */}
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <ContactSellerModal
+        product={{
+          id: product.id,
+          title: product.title,
+          price: product.price,
+          image: product.images?.[0] || "/placeholder.svg",
+        }}
+        seller={{
+          name: product.seller.name,
+          verified: sellerVerified,
+          rating: product.seller.rating,
+          totalReviews: product.seller.totalReviews,
+        }}
+      >
+        <Button
+          className="w-full bg-green-900 hover:bg-green-950"
+          onClick={() => handleContactWithWarning(() => {})}
+        >
+          Chat with Seller
+        </Button>
+      </ContactSellerModal>
+      <Button
+        className="w-full bg-green-900 hover:bg-green-950 flex items-center justify-center"
+        onClick={handleShowMobile}
+      >
+        <Phone className="h-4 w-4 mr-2" />
+        {showMobileNumber ? "+1 (555) 123-****" : "Show Mobile"}
+      </Button>
+    </div>
+  </CardContent>
+</Card>
 
         {/* Seller Information */}
         <Card>
