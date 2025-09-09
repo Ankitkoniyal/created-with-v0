@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Heart, MapPin } from "lucide-react"
+import { Heart, MapPin, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
@@ -36,7 +36,7 @@ export function LatestAds() {
           .select("*")
           .eq("status", "active")
           .order("created_at", { ascending: false })
-          .limit(5)
+          .limit(8) // Show more ads in compact view
 
         if (error) {
           console.error("Error fetching latest ads:", error)
@@ -55,17 +55,18 @@ export function LatestAds() {
 
   if (loading) {
     return (
-      <section className="py-4 bg-gray-50">
+      <section className="py-6 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold text-foreground">Latest Ads</h2>
+            <h2 className="text-xl font-bold text-foreground">Latest Ads</h2>
+            <div className="h-6 w-16 bg-gray-200 rounded animate-pulse"></div>
           </div>
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
-            {[...Array(5)].map((_, i) => (
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2">
+            {[...Array(8)].map((_, i) => (
               <div key={i} className="animate-pulse">
-                <div className="bg-gray-200 aspect-square rounded mb-2"></div>
-                <div className="bg-gray-200 h-4 rounded mb-1"></div>
-                <div className="bg-gray-200 h-3 rounded w-2/3"></div>
+                <div className="bg-gray-200 aspect-square rounded-sm mb-1"></div>
+                <div className="bg-gray-200 h-3 rounded-sm mb-1"></div>
+                <div className="bg-gray-200 h-3 rounded-sm w-3/4"></div>
               </div>
             ))}
           </div>
@@ -76,79 +77,88 @@ export function LatestAds() {
 
   if (products.length === 0) {
     return (
-      <section className="py-4 bg-gray-50">
+      <section className="py-6 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold text-foreground">Latest Ads</h2>
+            <h2 className="text-xl font-bold text-foreground">Latest Ads</h2>
           </div>
-          <p className="text-gray-500 text-center py-8">No ads available at the moment.</p>
+          <p className="text-gray-500 text-center py-4 text-sm">No ads available at the moment.</p>
         </div>
       </section>
     )
   }
 
   return (
-    <section className="py-4 bg-gray-50">
+    <section className="py-6 bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold text-foreground">Latest Ads</h2>
-          <Link href="/search" className="text-primary hover:text-primary/80 font-medium">
+          <h2 className="text-xl font-bold text-foreground">Latest Ads</h2>
+          <Link href="/search" className="text-sm text-primary hover:text-primary/80 font-medium">
             View All
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2">
           {products.map((product) => (
-            <Link key={product.id} href={`/product/${product.id}`}>
-              <Card className="group cursor-pointer hover:shadow-lg transition-all duration-200 h-full flex flex-col overflow-hidden border border-gray-300 bg-white rounded-none">
+            <Link key={product.id} href={`/product/${product.id}`} className="group">
+              <Card className="cursor-pointer hover:shadow-md transition-all duration-200 h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-sm">
                 <CardContent className="p-0 flex flex-col h-full">
-                  <div className="relative w-full aspect-square overflow-hidden bg-gray-50">
+                  {/* Image Container */}
+                  <div className="relative w-full aspect-square overflow-hidden bg-gray-100">
                     <Image
                       src={
                         getOptimizedImageUrl(product.image_urls?.[0], "thumb") ||
-                        "/placeholder.svg?height=400&width=400&query=latest%20ad" ||
-                        "/placeholder.svg" ||
                         "/placeholder.svg"
                       }
                       alt={product.title}
                       fill
-                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 20vw, 20vw"
-                      className="object-cover object-center"
+                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 12.5vw"
+                      className="object-cover group-hover:scale-105 transition-transform duration-200"
                     />
+                    
+                    {/* Wishlist Button */}
                     <Button
-                      size="sm"
+                      size="icon"
                       variant="ghost"
-                      className="absolute top-1 right-1 bg-white hover:bg-gray-50 shadow-sm p-1 h-6 w-6 z-10 rounded-none"
+                      className="absolute top-1 right-1 bg-white/80 hover:bg-white shadow-xs p-1 h-6 w-6 z-10 rounded-sm"
                       onClick={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
+                        // Add to wishlist functionality here
                       }}
                     >
                       <Heart className="h-3 w-3 text-gray-600" />
                     </Button>
-                    <div className="absolute top-1 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm px-1.5 py-0.5 rounded-none">
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs font-bold text-black">${product.price.toLocaleString()}</span>
-                      </div>
+                    
+                    {/* Price Badge */}
+                    <div className="absolute bottom-1 left-1 bg-black/80 text-white px-1.5 py-0.5 rounded-sm">
+                      <span className="text-xs font-bold">${product.price.toLocaleString()}</span>
                     </div>
                   </div>
 
+                  {/* Product Info */}
                   <div className="p-1.5 flex flex-col flex-1 bg-white">
-                    <h4 className="text-xs text-gray-800 leading-tight line-clamp-2 mb-1 font-medium">
+                    <h4 className="text-xs text-gray-800 leading-tight line-clamp-2 mb-1 font-medium group-hover:text-primary transition-colors">
                       {product.title}
                     </h4>
 
-                    <div className="mt-auto space-y-0.5">
+                    <div className="mt-auto space-y-1">
+                      {/* Location */}
                       <div className="flex items-center gap-1 text-xs text-gray-600">
-                        <MapPin className="h-2.5 w-2.5" />
+                        <MapPin className="h-3 w-3 flex-shrink-0" />
                         <span className="truncate">
                           {product.city && product.province
                             ? `${product.city}, ${product.province}`
                             : product.location?.split(",").slice(-2).join(",").trim() || product.location}
                         </span>
                       </div>
-                      <div className="text-xs text-gray-500 uppercase tracking-wide">
-                        {new Date(product.created_at).toLocaleDateString()}
+                      
+                      {/* Posted Time */}
+                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                        <Clock className="h-3 w-3 flex-shrink-0" />
+                        <span className="truncate">
+                          {new Date(product.created_at).toLocaleDateString()}
+                        </span>
                       </div>
                     </div>
                   </div>
