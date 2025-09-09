@@ -33,25 +33,8 @@ export function HeroSection() {
         {/*  Heading - Single Line */}
         <h1 className={`text-4xl sm:text-5xl md:text-6xl font-bold text-white mb-10 leading-tight transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
   <span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-300">
-    Canada's Fastest Growing{" "}
+    Post Unlimited Ads 🌟{" "}
   </span>
-  <span className="relative">
-    <span className="absolute text-transparent" style={{
-      textShadow: `
-        0 2px 0 #fff,
-        0 3px 0 #fff,
-        0 4px 0 #fff,
-        0 5px 0 rgba(0,0,0,0.2)
-      `,
-      zIndex: 0,
-    }}>
-      Ads Marketplace
-    </span>
-    <span className="relative bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-emerald-500 drop-shadow-2xl z-10">
-      Ads Marketplace
-    </span>
-  </span>
-  <Zap className="inline-block w-10 h-10 ml-4 text-yellow-400 animate-pulse" />
 </h1>
 
         {/* Stats */}
