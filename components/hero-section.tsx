@@ -27,19 +27,18 @@ export function HeroSection() {
         {/* Badge */}
         <div className={`inline-flex items-center gap-2 bg-green-900/20 backdrop-blur-sm border border-green-700/30 rounded-full px-4 py-1.5 mb-6 transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
           <TrendingUp className="w-4 h-4 text-green-400" />
-          <span className="text-sm font-medium text-green-300">#1 Marketplace in Canada</span>
+          <span className="text-sm font-medium text-green-300">#Fastest Growing Marketplace in Canada</span>
         </div>
 
-        {/* Main Heading - Single Line */}
-        <h1 className={`text-4xl sm:text-5xl md:text-6xl font-bold text-white mb-10 leading-tight transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+        {/*  Heading - Single Line */}
+        <h2 className={`text-4xl sm:text-5xl md:text-6xl font-bold text-white mb-10 leading-tight transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
           <span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-300">
-            Canada's Fastest Growing{" "}
+                  </span>
+          <span className="bg-clip-text text-transparent bg-gradient-to-r from-green-600 to-emerald-500 drop-shadow-2xl">
+            Post Unmlimited Ads 
           </span>
-          <span className="bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-emerald-500 drop-shadow-2xl">
-            Ads Marketplace
-          </span>
-          <Zap className="inline-block w-10 h-10 ml-4 text-yellow-400 animate-pulse" />
-        </h1>
+         
+        </h2>
 
         {/* Stats */}
         <div className={`flex flex-wrap justify-center gap-6 mb-10 transition-all duration-700 delay-200 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
@@ -50,7 +49,7 @@ export function HeroSection() {
           </div>
           <div className="flex items-center gap-2 text-white">
             <Rocket className="w-5 h-5 text-green-400" />
-            <span className="font-semibold">50K+</span>
+            <span className="font-semibold">5K+</span>
             <span className="text-gray-400">Active Ads</span>
           </div>
           <div className="flex items-center gap-2 text-white">
