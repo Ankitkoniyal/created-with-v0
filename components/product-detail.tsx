@@ -2,12 +2,14 @@
 
 import type React from "react"
 import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Heart, MapPin, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import { LoadingSkeleton } from "@/components/loading-skeleton"
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { getOptimizedImageUrl } from "@/lib/images"
 import { createClient } from "@/lib/supabase/client"
 
@@ -37,7 +39,7 @@ interface Product {
   }
 }
 
-const PRODUCTS_PER_PAGE = 20
+const PRODUCTS_PER_PAGE = 20 // Adjusted for new layout
 
 export function ProductGrid({ products: overrideProducts }: { products?: Product[] }) {
   const [products, setProducts] = useState<Product[]>([])
@@ -116,9 +118,23 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     if (priceType === "free") return "Free"
     if (priceType === "contact") return "Contact"
     if (typeof price === "number") {
-      return `$${price.toLocaleString()}`
+      if (price >= 1000) return `¥${(price/1000).toFixed(0)}k`
+      return `¥${price}`
     }
     return "Contact"
+  }
+
+  const getConditionBadge = (condition?: string) => {
+    switch (condition?.toLowerCase()) {
+      case "new":
+        return { text: "New", className: "bg-green-500 text-white text-xs px-2 py-1" }
+      case "like new":
+        return { text: "Like New", className: "bg-green-400 text-white text-xs px-2 py-1" }
+      case "second hand":
+        return { text: "Second Hand", className: "bg-blue-500 text-white text-xs px-2 py-1" }
+      default:
+        return null
+    }
   }
 
   const isNegotiable = (priceType?: string) => {
@@ -146,8 +162,8 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     return (
       <section className="py-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
-            <LoadingSkeleton type="card" count={10} />
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <LoadingSkeleton type="card" count={12} />
           </div>
         </div>
       </section>
@@ -188,98 +204,125 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
 
   return (
     <section className="py-4">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-6">
         {/* Main products grid */}
         <div className="flex-1">
-          <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
-            {products.map((product) => {
-              const primaryImage = product.images?.[0] || "/diverse-products-still-life.png"
-              const optimizedPrimary = getOptimizedImageUrl(primaryImage, "thumb") || primaryImage
-              const provinceOrLocation = product.province || product.location || ""
+          <TooltipProvider>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {products.map((product) => {
+                const conditionBadge = getConditionBadge(product.condition)
+                const primaryImage = product.images?.[0] || "/diverse-products-still-life.png"
+                const optimizedPrimary = getOptimizedImageUrl(primaryImage, "thumb") || primaryImage
+                const provinceOrLocation = product.province || product.location || ""
 
-              return (
-                <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
-                  <Card className="h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-sm">
-                    <CardContent className="p-0 flex flex-col h-full">
-                      {/* Image Container */}
-                      <div className="relative w-full aspect-square overflow-hidden bg-gray-100">
-                        <Image
-                          src={optimizedPrimary || "/placeholder.svg"}
-                          alt={product.title}
-                          fill
-                          sizes="(max-width: 768px) 50vw, (max-width: 1200px) 20vw"
-                          className="object-cover"
-                          loading="lazy"
-                        />
-                        
-                        {/* Wishlist Button */}
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            toggleFavorite(product.id, e)
-                          }}
-                          className={`absolute top-1 right-1 p-1 rounded ${
-                            favorites.has(product.id) 
-                              ? "text-red-500 bg-white/90" 
-                              : "text-gray-400 bg-white/80"
-                          }`}
-                        >
-                          <Heart 
-                            className={`h-3.5 w-3.5 ${favorites.has(product.id) ? "fill-current" : ""}`} 
+                return (
+                  <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
+                    <Card className="group h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-md hover:shadow-lg transition-all duration-300">
+                      <CardContent className="p-0 flex flex-col h-full">
+                        {/* Image Container - Full width with minimal padding */}
+                        <div className="relative w-full aspect-square overflow-hidden bg-gray-100">
+                          <Image
+                            src={optimizedPrimary || "/placeholder.svg"}
+                            alt={product.title}
+                            fill
+                            sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
+                            className="object-cover group-hover:scale-110 transition-transform duration-300"
+                            loading="lazy"
                           />
-                        </button>
-                      </div>
-
-                      {/* Product Info */}
-                      <div className="p-2 flex flex-col flex-1">
-                        <h4 className="text-sm font-medium text-gray-900 line-clamp-2 mb-1 leading-tight">
-                          {product.title}
-                        </h4>
-
-                        {/* Price */}
-                        <div className="mb-1">
-                          <span className="text-base font-bold text-gray-900">
-                            {formatPrice(product.price as any, (product as any).price_type)}
-                            {isNegotiable((product as any).price_type) && (
-                              <span className="text-xs font-normal text-gray-600 ml-1">Negotiable</span>
+                          
+                          {/* Top Right Badges */}
+                          <div className="absolute top-2 right-2 flex flex-col gap-1">
+                            {conditionBadge && (
+                              <Badge className={conditionBadge.className}>
+                                {conditionBadge.text}
+                              </Badge>
                             )}
-                          </span>
-                        </div>
+                          </div>
 
-                        <div className="mt-auto flex items-center justify-between text-xs text-gray-500">
-                          <div className="flex items-center gap-1">
-                            <MapPin className="h-3 w-3 flex-shrink-0" />
-                            <span className="truncate max-w-[60px]">
-                              {provinceOrLocation}
+                          {/* Price Badge */}
+                          <div className="absolute bottom-2 left-2 bg-black/90 text-white px-3 py-1.5 rounded-md">
+                            <span className="text-sm font-bold">
+                              {formatPrice(product.price as any, (product as any).price_type)}
+                              {isNegotiable((product as any).price_type) && (
+                                <span className="text-xs font-normal ml-1">Negotiable</span>
+                              )}
                             </span>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-3 w-3 flex-shrink-0" />
-                            <span>{formatTimePosted(product.created_at as any)}</span>
+
+                          {/* Wishlist Button */}
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                aria-label="Toggle favorite"
+                                className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm hover:bg-white shadow-md h-8 w-8 p-0 rounded-full"
+                                onClick={(e) => toggleFavorite(product.id, e)}
+                              >
+                                <Heart
+                                  className={`h-4 w-4 ${
+                                    favorites.has(product.id) ? "fill-red-500 text-red-500" : "text-gray-600"
+                                  }`}
+                                />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="text-xs">{favorites.has(product.id) ? "Remove from favorites" : "Add to favorites"}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+
+                        {/* Product Info - Minimal details */}
+                        <div className="p-3 flex flex-col flex-1">
+                          <h4 className="text-sm font-semibold text-gray-900 leading-tight line-clamp-2 mb-2 group-hover:text-green-700 transition-colors">
+                            {product.title}
+                          </h4>
+
+                          <div className="mt-auto space-y-2">
+                            {/* Seller info if available */}
+                            {product.seller && (
+                              <div className="flex items-center text-xs text-gray-600">
+                                <span className="font-medium">{product.seller.full_name}</span>
+                                {product.seller.rating && (
+                                  <span className="ml-2 bg-green-100 text-green-800 px-1.5 py-0.5 rounded">
+                                    {product.seller.rating}★
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Location and Time */}
+                            <div className="flex items-center justify-between text-xs text-gray-500">
+                              <div className="flex items-center gap-1">
+                                <MapPin className="h-3 w-3 flex-shrink-0" />
+                                <span className="truncate">
+                                  {provinceOrLocation}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Clock className="h-3 w-3 flex-shrink-0" />
+                                <span>{formatTimePosted(product.created_at as any)}</span>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              )
-            })}
-          </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                )
+              })}
+            </div>
+          </TooltipProvider>
         </div>
 
         {/* Right sidebar for vertical ad */}
         <div className="hidden lg:block w-64 flex-shrink-0">
           <div className="sticky top-4">
-            {/* Sidebar Ad with your image */}
-            <div className="border border-gray-200 rounded-md overflow-hidden bg-white">
-              <Image 
-                src="https://gkaeeayfwrgekssmtuzn.supabase.co/storage/v1/object/public/product-images/fe09ea77-0be8-426e-9a88-9b4127f04a3c/side%20image.webp" 
-                alt="Canada's #1 Growing Marketplace" 
-                width={256} 
-                height={600} 
-                className="w-full h-auto object-cover"
-              />
+            {/* Placeholder for your vertical ad */}
+            <div className="bg-gray-100 border border-gray-200 rounded-md overflow-hidden h-[600px] flex items-center justify-center">
+              <span className="text-gray-500 text-sm">Vertical Ad Space</span>
+              {/* Replace with your actual ad component */}
+              {/* <Image src="/your-vertical-ad.jpg" alt="Advertisement" width={256} height={600} className="object-cover" /> */}
             </div>
           </div>
         </div>
