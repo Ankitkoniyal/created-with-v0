@@ -1,783 +1,296 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import type React from "react"
 import { Card, CardContent } from "@/components/ui/card"
+import { Heart, MapPin, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
-import { Badge } from "@/components/ui/badge"
+import Link from "next/link"
+import { useState, useEffect } from "react"
 import Image from "next/image"
-import {
-  Heart,
-  Share2,
-  Flag,
-  MapPin,
-  Eye,
-  Calendar,
-  Star,
-  Shield,
-  Clock,
-  Phone,
-  X,
-  Copy,
-  Check,
-  Tag,
-  CheckCircle,
-} from "lucide-react"
-import { ContactSellerModal } from "@/components/messaging/contact-seller-modal"
-import { SafetyBanner } from "@/components/ui/safety-banner"
-import { SafetyWarningModal } from "@/components/ui/safety-warning-modal"
-import { createClient } from "@/lib/supabase/client"
-import { useAuth } from "@/hooks/use-auth"
+import { LoadingSkeleton } from "@/components/loading-skeleton"
 import { getOptimizedImageUrl } from "@/lib/images"
-import { toast } from "@/components/ui/use-toast"
-import { UserRatings } from "@/components/user-ratings"
+import { createClient } from "@/lib/supabase/client"
 
 interface Product {
   id: string
   title: string
-  price: string
-  originalPrice?: string
+  price: number
+  price_type: string
   location: string
-  images: string[]
-  description: string
-  youtube_url?: string | null
-  website_url?: string | null
-  category: string
-  subcategory?: string | null
+  city: string
+  province: string
   condition: string
-  brand?: string | null
-  model?: string | null
-  tags?: string[] | null
-  postedDate: string
-  views: number
-  seller: {
+  category: string
+  subcategory?: string
+  brand?: string
+  model?: string
+  description: string
+  images: string[]
+  created_at: string
+  user_id: string
+  featured?: boolean
+  seller?: {
     id: string
-    name: string
-    rating: number
-    totalReviews: number
-    memberSince: string
-    verified: boolean
-    responseTime: string
-    avatar?: string
+    full_name: string
+    avatar_url?: string
+    rating?: number
   }
-  features?: string[]
-  storage?: string | null
-  color?: string | null
-  adId?: string
-  [key: string]: any
 }
 
-interface ProductDetailProps {
-  product: Product
-}
+const PRODUCTS_PER_PAGE = 20
 
-export function ProductDetail({ product }: ProductDetailProps) {
-  const { user } = useAuth()
-  const [selectedImage, setSelectedImage] = useState(0)
-  const [isFavorited, setIsFavorited] = useState(false)
-  const [showReportDialog, setShowReportDialog] = useState(false)
-  const [showMobileNumber, setShowMobileNumber] = useState(false)
-  const [showShareMenu, setShowShareMenu] = useState(false)
-  const [linkCopied, setLinkCopied] = useState(false)
-  const [showContactWarning, setShowContactWarning] = useState(false)
-  const [showPhoneWarning, setShowPhoneWarning] = useState(false)
-  const [pendingContactAction, setPendingContactAction] = useState<(() => void) | null>(null)
-  const [sellerVerified, setSellerVerified] = useState(product.seller.verified)
+export function ProductGrid({ products: overrideProducts }: { products?: Product[] }) {
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [favorites, setFavorites] = useState<Set<string>>(new Set())
+  const [shouldFetch, setShouldFetch] = useState(false)
 
-  const isValidUUID = (str: string) => {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-    return uuidRegex.test(str)
-  }
+  const hasOverride = Array.isArray(overrideProducts)
 
   useEffect(() => {
-    const checkFavoriteStatus = async () => {
-      if (!user || !isValidUUID(product.id)) {
-        console.log("[v0] Skipping favorite check - invalid UUID or no user:", product.id)
-        return
-      }
+    if (typeof window !== "undefined") {
+      const p = window.location.pathname
+      const allow =
+        p === "/" ||
+        p.startsWith("/search") ||
+        p.startsWith("/category") ||
+        p.startsWith("/seller") ||
+        p.startsWith("/product")
+      setShouldFetch(allow)
+    }
+  }, [])
 
+  useEffect(() => {
+    async function fetchProducts() {
       try {
         const supabase = createClient()
-        const { data, error } = await supabase
-          .from("favorites")
-          .select("id")
-          .eq("user_id", user.id)
-          .eq("product_id", product.id)
-          .single()
-
-        if (error && error.code !== "PGRST116") {
-          console.error("Error checking favorite status:", error)
-        } else {
-          setIsFavorited(!!data)
+        
+        if (!supabase) {
+          throw new Error('Supabase client not available. Check your environment variables.')
         }
-      } catch (error) {
-        console.error("Error checking favorite status:", error)
-      }
-    }
 
-    const checkSellerVerification = async () => {
-      if (!product.seller.id) return
-      
-      try {
-        const supabase = createClient()
         const { data, error } = await supabase
-          .from("users")
-          .select("verified")
-          .eq("id", product.seller.id)
-          .single()
-
-        if (!error && data) {
-          setSellerVerified(data.verified)
-        }
-      } catch (error) {
-        console.error("Error checking seller verification:", error)
-      }
-    }
-
-    checkFavoriteStatus()
-    checkSellerVerification()
-  }, [user, product.id, product.seller.id])
-
-  const toggleFavorite = async () => {
-    if (!user) {
-      alert("Please log in to save favorites")
-      return
-    }
-
-    if (!isValidUUID(product.id)) {
-      alert("This is a demo product. Favorites are only available for real listings.")
-      return
-    }
-
-    try {
-      const supabase = createClient()
-
-      if (isFavorited) {
-        const { error } = await supabase.from("favorites").delete().eq("user_id", user.id).eq("product_id", product.id)
+          .from('products')
+          .select('*')
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(PRODUCTS_PER_PAGE)
 
         if (error) {
-          console.error("Error removing favorite:", error)
-          alert("Failed to remove from favorites")
-        } else {
-          console.log("[v0] Removed from favorites:", product.id)
-          setIsFavorited(false)
+          throw error
         }
-      } else {
-        const { error } = await supabase.from("favorites").insert({
-          user_id: user.id,
-          product_id: product.id,
-        })
 
-        if (error) {
-          console.error("Error adding favorite:", error)
-          alert("Failed to add to favorites")
-        } else {
-          console.log("[v0] Added to favorites:", product.id)
-          setIsFavorited(true)
-        }
+        setProducts(data || [])
+      } catch (err) {
+        setError(err.message)
+        console.error('Error fetching products:', err)
+      } finally {
+        setLoading(false)
       }
-    } catch (error) {
-      console.error("Error adding favorite:", error)
-      alert("Failed to update favorites")
     }
+
+    if (!hasOverride && shouldFetch) {
+      fetchProducts()
+    } else if (hasOverride) {
+      setProducts(overrideProducts as Product[])
+      setLoading(false)
+    } else {
+      setLoading(false)
+    }
+  }, [hasOverride, overrideProducts, shouldFetch])
+
+  const toggleFavorite = (productId: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    setFavorites((prev) => {
+      const next = new Set(prev)
+      next.has(productId) ? next.delete(productId) : next.add(productId)
+      return next
+    })
   }
 
-  const handleReportAd = () => {
-    if (!user) {
-      alert("Please log in to report this ad")
-      return
+  const formatPrice = (price?: number, priceType?: string) => {
+    if (priceType === "free") return "Free"
+    if (priceType === "contact") return "Contact"
+    if (typeof price === "number") {
+      return `$${price.toLocaleString()}`
     }
+    return "Contact"
+  }
 
-    const confirmed = window.confirm(
-      "Are you sure you want to report this ad? This will notify our moderation team for review.",
+  const isNegotiable = (priceType?: string) => {
+    return priceType === "negotiable" || priceType === "contact"
+  }
+
+  const formatTimePosted = (createdAt?: string) => {
+    if (!createdAt) return ""
+    const now = new Date()
+    const posted = new Date(createdAt)
+    const diffInHours = Math.floor((now.getTime() - posted.getTime()) / (1000 * 60 * 60))
+
+    if (diffInHours < 1) return "Now"
+    if (diffInHours < 24) return `${diffInHours}h`
+    if (diffInHours < 48) return "1d"
+    if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}d`
+    return posted.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
+
+  const capitalizeFirstLetter = (str: string) => {
+    if (!str) return ""
+    return str.charAt(0).toUpperCase() + str.slice(1)
+  }
+
+  if (!hasOverride && !shouldFetch) {
+    return null
+  }
+
+  if (loading) {
+    return (
+      <section className="py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            <LoadingSkeleton type="card" count={12} />
+          </div>
+        </div>
+      </section>
     )
-
-    if (confirmed) {
-      console.log("[v0] Reporting ad:", product.id)
-      alert("Thank you for your report. Our team will review this ad shortly.")
-    }
   }
 
-  const shareToWhatsApp = () => {
-    const text = encodeURIComponent(`Check out this ${product.title} for ${product.price}`)
-    const url = encodeURIComponent(window.location.href)
-    window.open(`https://wa.me/?text=${text}%20${url}`, "_blank")
-    setShowShareMenu(false)
-  }
-
-  const shareToFacebook = () => {
-    const url = encodeURIComponent(window.location.href)
-    window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, "_blank")
-    setShowShareMenu(false)
-  }
-
-  const shareToTikTok = () => {
-    const url = encodeURIComponent(window.location.href)
-    const text = encodeURIComponent(`Check out this ${product.title}`)
-    window.open(`https://www.tiktok.com/share?url=${url}&title=${text}`, "_blank")
-    setShowShareMenu(false)
-  }
-
-  const shareToEmail = () => {
-    const subject = encodeURIComponent(`Check out this ${product.title}`)
-    const body = encodeURIComponent(
-      `I found this ${product.title} for ${product.price}. Check it out: ${window.location.href}`,
+  if (!hasOverride && error) {
+    return (
+      <section className="py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center py-8">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Unable to Load Ads</h3>
+            <p className="text-gray-600 mb-4 text-sm">{error}</p>
+            <Button onClick={() => window.location.reload()} className="bg-green-900 hover:bg-green-950 text-xs h-8">
+              Try Again
+            </Button>
+          </div>
+        </div>
+      </section>
     )
-    window.open(`mailto:?subject=${subject}&body=${body}`)
-    setShowShareMenu(false)
   }
 
-  const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href)
-      setLinkCopied(true)
-      setTimeout(() => {
-        setLinkCopied(false)
-        setShowShareMenu(false)
-      }, 2000)
-    } catch (error) {
-      console.error("Failed to copy link:", error)
-      const url = window.location.href
-      prompt("Copy this link:", url)
-      setShowShareMenu(false)
-    }
+  if (products.length === 0) {
+    return (
+      <section className="py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center py-8">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Ads Found</h3>
+            <p className="text-gray-600 mb-4 text-sm">Be the first to post an ad in your area!</p>
+            <Button asChild className="bg-green-900 hover:bg-green-950 text-xs h-8">
+              <Link href="/post">Post Your First Ad</Link>
+            </Button>
+          </div>
+        </div>
+      </section>
+    )
   }
 
-  const handleShare = () => {
-    setShowShareMenu(!showShareMenu)
-  }
-
-  const handleViewAllAds = () => {
-    window.location.href = `/seller/${product.seller.id || "unknown"}`
-  }
-
-  const handleShowMobile = () => {
-    if (!user) {
-      alert("Please log in to view seller's contact information")
-      return
-    }
-    setShowPhoneWarning(true)
-    setPendingContactAction(() => () => setShowMobileNumber(true))
-  }
-
-  const handleContactWithWarning = (contactAction: () => void) => {
-    setShowContactWarning(true)
-    setPendingContactAction(() => contactAction)
-  }
-
-  const proceedWithContact = () => {
-    if (pendingContactAction) {
-      pendingContactAction()
-      setPendingContactAction(null)
-    }
-  }
-
-  // The return statement should be the last thing in the component function
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2">
-        {/* Image Gallery */}
-        <Card>
-          <CardContent className="p-0">
-            <div className="relative h-80 bg-gray-50 rounded-t-lg">
-              <Image
-                src={
-                  getOptimizedImageUrl(product.images?.[selectedImage], "detail") ||
-                  "/placeholder.svg"
-                }
-                alt={product.title}
-                fill
-                priority
-                sizes="(max-width: 1024px) 100vw, 66vw"
-                className="object-contain"
-              />
-              {product.images && product.images.length > 1 && (
-                <>
-                  <button
-                    onClick={() => setSelectedImage(selectedImage > 0 ? selectedImage - 1 : product.images.length - 1)}
-                    className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-all"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => setSelectedImage(selectedImage < product.images.length - 1 ? selectedImage + 1 : 0)}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-all"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                </>
-              )}
-            </div>
+    <section className="py-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-4">
+        {/* Main products grid */}
+        <div className="flex-1">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {/* Product Cards */}
+            {products.map((product) => {
+              const primaryImage = product.images?.[0] || "/diverse-products-still-life.png"
+              const optimizedPrimary = getOptimizedImageUrl(primaryImage, "thumb") || primaryImage
+              const provinceOrLocation = product.province || product.location || ""
 
-            <div className="p-3">
-              <div className="flex space-x-2 overflow-x-auto">
-                {product.images?.map((image, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setSelectedImage(index)}
-                    className={`flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden border-2 ${
-                      selectedImage === index ? "border-primary" : "border-border"
-                    }`}
-                  >
-                    <Image
-                      src={getOptimizedImageUrl(image, "thumb") || "/placeholder.svg"}
-                      alt={`${product.title} ${index + 1}`}
-                      width={48}
-                      height={48}
-                      className="object-cover w-full h-full"
-                    />
-                  </button>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Description */}
-        <Card className="mt-4">
-          <CardContent className="p-4">
-            <h3 className="font-semibold text-foreground mb-3">Description</h3>
-            <p className="text-muted-foreground leading-relaxed whitespace-pre-line">{product.description}</p>
-
-            {(product.youtube_url || product.website_url) && (
-              <>
-                <Separator className="my-4" />
-                <div className="space-y-3">
-                  {product.youtube_url && (
-                    <div className="flex items-center space-x-3 p-3 bg-red-50 rounded-lg border border-red-100">
-                      <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
-                        <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
-                        </svg>
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900">YouTube Video</p>
-                        <a
-                          href={product.youtube_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-red-600 hover:text-red-700 hover:underline break-all"
+              return (
+                <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
+                  <Card className="group h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-md hover:border-green-600 hover:shadow-sm transition-all duration-200">
+                    <CardContent className="p-0 flex flex-col h-full">
+                      {/* Image Container */}
+                      <div className="relative w-full aspect-square overflow-hidden bg-gray-100">
+                        <Image
+                          src={optimizedPrimary || "/placeholder.svg"}
+                          alt={product.title}
+                          fill
+                          sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
+                          className="object-cover"
+                          loading="lazy"
+                        />
+                        
+                        {/* Wishlist Button */}
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            toggleFavorite(product.id, e)
+                          }}
+                          className={`absolute top-2 right-2 p-1.5 rounded-md ${
+                            favorites.has(product.id) 
+                              ? "text-red-500 bg-white/90" 
+                              : "text-gray-400 hover:text-red-500 bg-white/80"
+                          } transition-colors shadow-sm`}
                         >
-                          {product.youtube_url}
-                        </a>
-                      </div>
-                    </div>
-                  )}
-
-                  {product.website_url && (
-                    <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                      <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9"
+                          <Heart 
+                            className={`h-3.5 w-3.5 ${favorites.has(product.id) ? "fill-current" : ""}`} 
                           />
-                        </svg>
+                        </button>
                       </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900">Website</p>
-                        <a
-                          href={
-                            product.website_url.startsWith("http")
-                              ? product.website_url
-                              : `https://${product.website_url}`
-                          }
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-blue-600 hover:text-blue-700 hover:underline break-all"
-                        >
-                          {product.website_url}
-                        </a>
+
+                      {/* Product Info */}
+                      <div className="p-2 flex flex-col flex-1">
+                        <h4 className="text-sm font-medium text-gray-900 line-clamp-2 group-hover:text-green-700 transition-colors mb-1">
+                          {capitalizeFirstLetter(product.title)}
+                        </h4>
+
+                        {/* Price */}
+                        <div className="mb-1.5">
+                          <span className="text-base font-bold text-gray-900">
+                            {formatPrice(product.price as any, (product as any).price_type)}
+                            {isNegotiable((product as any).price_type) && (
+                              <span className="text-xs font-normal text-gray-600 ml-1">Negotiable</span>
+                            )}
+                          </span>
+                        </div>
+
+                        <div className="mt-auto flex items-center justify-between text-xs text-gray-500">
+                          <div className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3 flex-shrink-0" />
+                            <span className="truncate max-w-[70px]">
+                              {provinceOrLocation}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Clock className="h-3 w-3 flex-shrink-0" />
+                            <span>{formatTimePosted(product.created_at as any)}</span>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
+                    </CardContent>
+                  </Card>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
 
-        {/* Product Details */}
-        <Card className="mt-4">
-          <CardContent className="p-4">
-            <h2 className="text-lg font-bold text-foreground mb-3">Product Details</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-              <div>
-                <span className="text-muted-foreground">Condition:</span>
-                <span className="ml-2 font-medium">{product.condition}</span>
-              </div>
-              {product.brand && (
-                <div>
-                  <span className="text-muted-foreground">Brand:</span>
-                  <span className="ml-2 font-medium">{product.brand}</span>
-                </div>
-              )}
-              {product.model && (
-                <div>
-                  <span className="text-muted-foreground">Model:</span>
-                  <span className="ml-2 font-medium">{product.model}</span>
-                </div>
-              )}
-              <div>
-                <span className="text-muted-foreground">Category:</span>
-                <span className="ml-2 font-medium">{product.category}</span>
-              </div>
-              {product.subcategory && (
-                <div>
-                  <span className="text-muted-foreground">Subcategory:</span>
-                  <span className="ml-2 font-medium">{product.subcategory}</span>
-                </div>
-              )}
-              {product.storage && (
-                <div>
-                  <span className="text-muted-foreground">Storage:</span>
-                  <span className="ml-2 font-medium">{product.storage}</span>
-                </div>
-              )}
-              {product.color && (
-                <div>
-                  <span className="text-muted-foreground">Color:</span>
-                  <span className="ml-2 font-medium">{product.color}</span>
-                </div>
-              )}
+        {/* Right sidebar for vertical ad */}
+        <div className="hidden lg:block w-64 flex-shrink-0">
+          <div className="sticky top-4">
+            {/* Sidebar Ad with your image */}
+            <div className="border border-gray-200 rounded-md overflow-hidden bg-white">
+              {/* Your image */}
+              <Image 
+                src="https://gkaeeayfwrgekssmtuzn.supabase.co/storage/v1/object/public/product-images/fe09ea77-0be8-426e-9a88-9b4127f04a3c/side%20image.webp" 
+                alt="Canada's #1 Growing Marketplace" 
+                width={256} 
+                height={600} 
+                className="w-full h-auto object-cover"
+              />
             </div>
-
-            {product.tags && product.tags.length > 0 && (
-              <>
-                <Separator className="my-4" />
-                <h3 className="font-semibold text-foreground mb-2 flex items-center">
-                  <Tag className="h-4 w-4 mr-2" />
-                  Tags
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {product.tags.map((tag, index) => (
-                    <Badge key={index} variant="secondary" className="text-xs">
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {product.features && product.features.length > 0 && (
-              <>
-                <Separator className="my-4" />
-                <h3 className="font-semibold text-foreground mb-2">Key Features</h3>
-                <ul className="space-y-1">
-                  {product.features.map((feature, index) => (
-                    <li key={index} className="flex items-center text-sm">
-                      <div className="w-2 h-2 bg-primary rounded-full mr-3" />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* User Ratings */}
-        <Card className="mt-4">
-          <CardContent className="p-4">
-            <UserRatings
-              sellerId={product.seller.id}
-              sellerName={product.seller.name}
-              sellerAvatar={product.seller.avatar}
-              productId={product.id}
-              productTitle={product.title}
-            />
-          </CardContent>
-        </Card>
-
-        {/* Report Ad */}
-        <Card className="mt-4">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-center">
-              <Button
-                variant="ghost"
-                onClick={handleReportAd}
-                className="text-red-600 hover:text-red-700 hover:bg-red-50 flex items-center"
-              >
-                <Flag className="h-4 w-4 mr-2" />
-                Report this Ad
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
-
-      <div className="space-y-4">
-        {/* Product Info Card - Reorganized layout */}
-        <Card>
-          <CardContent className="p-4">
-            {/* Title and Price */}
-            <div className="mb-3">
-              <h1 className="text-xl font-bold text-foreground mb-2">{product.title}</h1>
-              <div className="flex items-center space-x-2">
-                <span className="text-2xl font-bold text-primary">{product.price}</span>
-                {product.originalPrice && (
-                  <span className="text-lg text-muted-foreground line-through">{product.originalPrice}</span>
-                )}
-              </div>
-            </div>
-
-            {/* Location and Views */}
-            <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mb-4">
-              <div className="flex items-center">
-                <MapPin className="h-4 w-4 mr-1" />
-                {product.location}
-              </div>
-              <div className="flex items-center">
-                <Eye className="h-4 w-4 mr-1" />
-                {product.views} views
-              </div>
-              <div className="flex items-center">
-                <Calendar className="h-4 w-4 mr-1" />
-                Posted {new Date(product.postedDate).toLocaleDateString()}
-              </div>
-            </div>
-
-            {/* Save and Share Buttons */}
-            <div className="flex items-center space-x-2 mb-4">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={toggleFavorite}
-                className="flex-1 sm:flex-none text-primary hover:bg-green-900 hover:text-white border-primary/20 bg-transparent"
-              >
-                <Heart className={`h-4 w-4 mr-1 ${isFavorited ? "fill-red-500 text-red-500" : ""}`} />
-                {isFavorited ? "Saved" : "Save"}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleShare}
-                className="flex-1 sm:flex-none text-primary hover:bg-green-900 hover:text-white border-primary/20 bg-transparent"
-              >
-                <Share2 className="h-4 w-4 mr-1" />
-                Share
-              </Button>
-
-              {showShareMenu && (
-                <div className="absolute top-full right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-                  <div className="p-2">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-gray-700">Share this ad</span>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setShowShareMenu(false)}
-                        className="h-6 w-6 p-0"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <div className="space-y-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={shareToWhatsApp}
-                        className="w-full justify-start text-left hover:bg-green-900 hover:text-white"
-                      >
-                        <div className="w-5 h-5 mr-3 bg-green-500 rounded-full flex items-center justify-center">
-                          <span className="text-white text-xs font-bold">W</span>
-                        </div>
-                        WhatsApp
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={shareToFacebook}
-                        className="w-full justify-start text-left hover:bg-green-900 hover:text-white"
-                      >
-                        <div className="w-5 h-5 mr-3 bg-blue-600 rounded-full flex items-center justify-center">
-                          <span className="text-white text-xs font-bold">f</span>
-                        </div>
-                        Facebook
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={shareToTikTok}
-                        className="w-full justify-start text-left hover:bg-green-900 hover:text-white"
-                      >
-                        <div className="w-5 h-5 mr-3 bg-black rounded-full flex items-center justify-center">
-                          <span className="text-white text-xs font-bold">T</span>
-                        </div>
-                        TikTok
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={shareToEmail}
-                        className="w-full justify-start text-left hover:bg-green-900 hover:text-white"
-                      >
-                        <div className="w-5 h-5 mr-3 bg-gray-600 rounded-full flex items-center justify-center">
-                          <span className="text-white text-xs font-bold">@</span>
-                        </div>
-                        Email
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={copyLink}
-                        className="w-full justify-start text-left hover:bg-green-900 hover:text-white"
-                      >
-                        {linkCopied ? (
-                          <Check className="w-5 h-5 mr-3 text-green-600" />
-                        ) : (
-                          <Copy className="w-5 h-5 mr-3" />
-                        )}
-                        {linkCopied ? "Link Copied!" : "Copy Link"}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Ad ID */}
-            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border mb-4">
-              <div>
-                <span className="text-sm text-muted-foreground">Ad ID: </span>
-                <span className="text-lg font-bold text-primary">{product.adId || product.id.slice(-8)}</span>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  navigator.clipboard.writeText(product.adId || product.id.slice(-8))
-                  toast({ title: "Ad ID copied to clipboard!" })
-                }}
-                className="text-xs hover:bg-green-900 hover:text-white"
-              >
-                Copy ID
-              </Button>
-            </div>
-
-            {/* Contact Buttons */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <ContactSellerModal
-                product={{
-                  id: product.id,
-                  title: product.title,
-                  price: product.price,
-                  image: product.images?.[0] || "/placeholder.svg",
-                }}
-                seller={{
-                  name: product.seller.name,
-                  verified: sellerVerified,
-                  rating: product.seller.rating,
-                  totalReviews: product.seller.totalReviews,
-                }}
-              >
-                <Button
-                  className="w-full bg-green-900 hover:bg-green-950"
-                  onClick={() => handleContactWithWarning(() => {})}
-                >
-                  Chat with Seller
-                </Button>
-              </ContactSellerModal>
-              <Button
-                className="w-full bg-green-900 hover:bg-green-950 flex items-center justify-center"
-                onClick={handleShowMobile}
-              >
-                <Phone className="h-4 w-4 mr-2" />
-                {showMobileNumber ? "+1 (555) 123-****" : "Show Mobile"}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Seller Information */}
-        <Card>
-          <CardContent className="p-4">
-            <h3 className="font-semibold text-foreground mb-3">Seller Information</h3>
-
-            <div className="flex items-center space-x-3 mb-3">
-              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-                <span className="text-primary font-semibold">
-                  {product.seller.name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")}
-                </span>
-              </div>
-              <div>
-                <div className="flex items-center space-x-2">
-                  <span className="font-medium">{product.seller.name}</span>
-                  {sellerVerified && (
-                    <Badge variant="outline" className="flex items-center text-xs bg-green-50 text-green-700 border-green-200">
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                      Verified
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex items-center space-x-1 text-sm text-muted-foreground">
-                  <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                  <span>{product.seller.rating}</span>
-                  <span>({product.seller.totalReviews} reviews)</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center">
-                <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-                <span>Member since {product.seller.memberSince}</span>
-              </div>
-              <div className="flex items-center">
-                <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
-                <span>{product.seller.responseTime}</span>
-              </div>
-            </div>
-
-            <div className="space-y-2 mt-3">
-              <Button
-                className="w-full bg-green-900 hover:bg-green-950"
-                onClick={() => (window.location.href = `/seller/${product.seller.id || "unknown"}`)}
-              >
-                View Seller Profile
-              </Button>
-              <Button
-                className="w-full bg-green-900 hover:bg-green-950"
-                onClick={handleViewAllAds}
-              >
-                See All Ads
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Safety Banner - Moved below seller profile */}
-        <SafetyBanner />
-      </div>
-
-      <SafetyWarningModal
-        isOpen={showContactWarning}
-        onClose={() => {
-          setShowContactWarning(false)
-          setPendingContactAction(null)
-        }}
-        onProceed={proceedWithContact}
-        type="contact"
-      />
-
-      <SafetyWarningModal
-        isOpen={showPhoneWarning}
-        onClose={() => {
-          setShowPhoneWarning(false)
-          setPendingContactAction(null)
-        }}
-        onProceed={proceedWithContact}
-        type="phone"
-      />
-    </div>
+    </section>
   )
 }
