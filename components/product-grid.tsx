@@ -2,7 +2,6 @@
 
 import type React from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Heart, MapPin, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -39,7 +38,7 @@ interface Product {
   }
 }
 
-const PRODUCTS_PER_PAGE = 20 // Adjusted for new layout
+const PRODUCTS_PER_PAGE = 20
 
 export function ProductGrid({ products: overrideProducts }: { products?: Product[] }) {
   const [products, setProducts] = useState<Product[]>([])
@@ -118,23 +117,9 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     if (priceType === "free") return "Free"
     if (priceType === "contact") return "Contact"
     if (typeof price === "number") {
-      if (price >= 1000) return `¥${(price/1000).toFixed(0)}k`
-      return `¥${price}`
+      return `$${price.toLocaleString()}`
     }
     return "Contact"
-  }
-
-  const getConditionBadge = (condition?: string) => {
-    switch (condition?.toLowerCase()) {
-      case "new":
-        return { text: "New", className: "bg-green-500 text-white text-xs px-2 py-1" }
-      case "like new":
-        return { text: "Like New", className: "bg-green-400 text-white text-xs px-2 py-1" }
-      case "second hand":
-        return { text: "Second Hand", className: "bg-blue-500 text-white text-xs px-2 py-1" }
-      default:
-        return null
-    }
   }
 
   const isNegotiable = (priceType?: string) => {
@@ -162,7 +147,7 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     return (
       <section className="py-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             <LoadingSkeleton type="card" count={12} />
           </div>
         </div>
@@ -204,51 +189,31 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
 
   return (
     <section className="py-4">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-4">
         {/* Main products grid */}
         <div className="flex-1">
           <TooltipProvider>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               {products.map((product) => {
-                const conditionBadge = getConditionBadge(product.condition)
                 const primaryImage = product.images?.[0] || "/diverse-products-still-life.png"
                 const optimizedPrimary = getOptimizedImageUrl(primaryImage, "thumb") || primaryImage
                 const provinceOrLocation = product.province || product.location || ""
 
                 return (
                   <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
-                    <Card className="group h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-md hover:shadow-lg transition-all duration-300">
+                    <Card className="group h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-sm hover:border-green-600 transition-all duration-200">
                       <CardContent className="p-0 flex flex-col h-full">
-                        {/* Image Container - Full width with minimal padding */}
+                        {/* Image Container - Full width with no extra space */}
                         <div className="relative w-full aspect-square overflow-hidden bg-gray-100">
                           <Image
                             src={optimizedPrimary || "/placeholder.svg"}
                             alt={product.title}
                             fill
                             sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
-                            className="object-cover group-hover:scale-110 transition-transform duration-300"
+                            className="object-cover"
                             loading="lazy"
                           />
                           
-                          {/* Top Right Badges */}
-                          <div className="absolute top-2 right-2 flex flex-col gap-1">
-                            {conditionBadge && (
-                              <Badge className={conditionBadge.className}>
-                                {conditionBadge.text}
-                              </Badge>
-                            )}
-                          </div>
-
-                          {/* Price Badge */}
-                          <div className="absolute bottom-2 left-2 bg-black/90 text-white px-3 py-1.5 rounded-md">
-                            <span className="text-sm font-bold">
-                              {formatPrice(product.price as any, (product as any).price_type)}
-                              {isNegotiable((product as any).price_type) && (
-                                <span className="text-xs font-normal ml-1">Negotiable</span>
-                              )}
-                            </span>
-                          </div>
-
                           {/* Wishlist Button */}
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -256,11 +221,11 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
                                 size="icon"
                                 variant="ghost"
                                 aria-label="Toggle favorite"
-                                className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm hover:bg-white shadow-md h-8 w-8 p-0 rounded-full"
+                                className="absolute top-1 right-1 bg-white/90 hover:bg-white shadow-sm h-6 w-6 p-0 rounded-sm"
                                 onClick={(e) => toggleFavorite(product.id, e)}
                               >
                                 <Heart
-                                  className={`h-4 w-4 ${
+                                  className={`h-3 w-3 ${
                                     favorites.has(product.id) ? "fill-red-500 text-red-500" : "text-gray-600"
                                   }`}
                                 />
@@ -273,29 +238,27 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
                         </div>
 
                         {/* Product Info - Minimal details */}
-                        <div className="p-3 flex flex-col flex-1">
-                          <h4 className="text-sm font-semibold text-gray-900 leading-tight line-clamp-2 mb-2 group-hover:text-green-700 transition-colors">
+                        <div className="p-2 flex flex-col flex-1">
+                          <h4 className="text-xs font-medium text-gray-900 leading-tight line-clamp-2 mb-1 group-hover:text-green-700 transition-colors">
                             {product.title}
                           </h4>
 
-                          <div className="mt-auto space-y-2">
-                            {/* Seller info if available */}
-                            {product.seller && (
-                              <div className="flex items-center text-xs text-gray-600">
-                                <span className="font-medium">{product.seller.full_name}</span>
-                                {product.seller.rating && (
-                                  <span className="ml-2 bg-green-100 text-green-800 px-1.5 py-0.5 rounded">
-                                    {product.seller.rating}★
-                                  </span>
-                                )}
-                              </div>
-                            )}
+                          {/* Price */}
+                          <div className="mb-1">
+                            <span className="text-sm font-bold text-gray-900">
+                              {formatPrice(product.price as any, (product as any).price_type)}
+                              {isNegotiable((product as any).price_type) && (
+                                <span className="text-xs font-normal text-gray-600 ml-1">Negotiable</span>
+                              )}
+                            </span>
+                          </div>
 
+                          <div className="mt-auto space-y-1">
                             {/* Location and Time */}
                             <div className="flex items-center justify-between text-xs text-gray-500">
                               <div className="flex items-center gap-1">
                                 <MapPin className="h-3 w-3 flex-shrink-0" />
-                                <span className="truncate">
+                                <span className="truncate max-w-[70px]">
                                   {provinceOrLocation}
                                 </span>
                               </div>
@@ -318,11 +281,42 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
         {/* Right sidebar for vertical ad */}
         <div className="hidden lg:block w-64 flex-shrink-0">
           <div className="sticky top-4">
-            {/* Placeholder for your vertical ad */}
-            <div className="bg-gray-100 border border-gray-200 rounded-md overflow-hidden h-[600px] flex items-center justify-center">
-              <span className="text-gray-500 text-sm">Vertical Ad Space</span>
-              {/* Replace with your actual ad component */}
-              {/* <Image src="/your-vertical-ad.jpg" alt="Advertisement" width={256} height={600} className="object-cover" /> */}
+            {/* Sidebar Ad */}
+            <div className="bg-gradient-to-b from-green-700 to-green-900 border border-green-800 rounded-md overflow-hidden text-white">
+              <div className="p-4">
+                <h3 className="text-lg font-bold text-center mb-2">CANADA'S #1 GROWING MARKETPLACE</h3>
+                <p className="text-center text-sm mb-4">BUY. SELL. CONNECT. ALL IN ONE PLACE.</p>
+                
+                <div className="grid grid-cols-2 gap-2 mb-4">
+                  <div className="bg-green-800/50 p-2 rounded text-center text-xs">ELECTRONICS</div>
+                  <div className="bg-green-800/50 p-2 rounded text-center text-xs">CARS</div>
+                  <div className="bg-green-800/50 p-2 rounded text-center text-xs">REAL ESTATE</div>
+                  <div className="bg-green-800/50 p-2 rounded text-center text-xs">JOBS</div>
+                </div>
+                
+                <div className="space-y-2 mb-4">
+                  <div className="flex items-center text-xs">
+                    <span className="bg-green-500 rounded-full h-4 w-4 flex items-center justify-center mr-2">✔</span>
+                    <span>UNLIMITED ADS</span>
+                  </div>
+                  <div className="flex items-center text-xs">
+                    <span className="bg-green-500 rounded-full h-4 w-4 flex items-center justify-center mr-2">✔</span>
+                    <span>ADD WEBSITE LINK</span>
+                  </div>
+                  <div className="flex items-center text-xs">
+                    <span className="bg-green-500 rounded-full h-4 w-4 flex items-center justify-center mr-2">✔</span>
+                    <span>FREE WEBSITE URL</span>
+                  </div>
+                  <div className="flex items-center text-xs">
+                    <span className="bg-green-500 rounded-full h-4 w-4 flex items-center justify-center mr-2">✔</span>
+                    <span>FREE YOUTUBE VIDEO</span>
+                  </div>
+                </div>
+                
+                <Button className="w-full bg-white text-green-800 hover:bg-gray-100 font-bold py-2 text-sm">
+                  POST FREE AD TODAY
+                </Button>
+              </div>
             </div>
           </div>
         </div>
