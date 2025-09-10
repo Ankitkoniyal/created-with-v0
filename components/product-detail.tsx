@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Heart, MapPin, Clock, Home } from "lucide-react"
+import { Heart, MapPin, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useState, useEffect } from "react"
@@ -64,7 +64,6 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
   useEffect(() => {
     async function fetchProducts() {
       try {
-        setLoading(true)
         const supabase = createClient()
         
         if (!supabase) {
@@ -83,10 +82,9 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
         }
 
         setProducts(data || [])
-        setError(null)
       } catch (err) {
+        setError(err.message)
         console.error('Error fetching products:', err)
-        setError(err.message || 'Failed to load products. Please try again.')
       } finally {
         setLoading(false)
       }
@@ -97,7 +95,6 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     } else if (hasOverride) {
       setProducts(overrideProducts as Product[])
       setLoading(false)
-      setError(null)
     } else {
       setLoading(false)
     }
@@ -141,20 +138,6 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     return posted.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
 
-  const capitalizeFirstLetter = (str: string) => {
-    if (!str) return ""
-    return str.charAt(0).toUpperCase() + str.slice(1)
-  }
-
-  const retryFetch = () => {
-    if (!hasOverride && shouldFetch) {
-      setLoading(true)
-      setTimeout(() => {
-        window.location.reload()
-      }, 500)
-    }
-  }
-
   if (!hasOverride && !shouldFetch) {
     return null
   }
@@ -163,38 +146,24 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     return (
       <section className="py-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            <LoadingSkeleton type="card" count={12} />
+          <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
+            <LoadingSkeleton type="card" count={10} />
           </div>
         </div>
       </section>
     )
   }
 
-  if (error) {
+  if (!hasOverride && error) {
     return (
       <section className="py-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center py-12">
-            <div className="bg-red-50 rounded-lg p-6 max-w-md mx-auto">
-              <h3 className="text-lg font-semibold text-red-800 mb-2">Something went wrong!</h3>
-              <p className="text-red-600 mb-6">We encountered an unexpected error. Please try again or return to the homepage.</p>
-              
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <Button 
-                  onClick={retryFetch} 
-                  className="bg-red-600 hover:bg-red-700 text-white"
-                >
-                  Try Again
-                </Button>
-                <Button asChild variant="outline">
-                  <Link href="/" className="flex items-center gap-2">
-                    <Home className="h-4 w-4" />
-                    Back to Homepage
-                  </Link>
-                </Button>
-              </div>
-            </div>
+          <div className="text-center py-8">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Unable to Load Ads</h3>
+            <p className="text-gray-600 mb-4 text-sm">{error}</p>
+            <Button onClick={() => window.location.reload()} className="bg-green-900 hover:bg-green-950 text-xs h-8">
+              Try Again
+            </Button>
           </div>
         </div>
       </section>
@@ -222,8 +191,7 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-4">
         {/* Main products grid */}
         <div className="flex-1">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {/* Product Cards */}
+          <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
             {products.map((product) => {
               const primaryImage = product.images?.[0] || "/diverse-products-still-life.png"
               const optimizedPrimary = getOptimizedImageUrl(primaryImage, "thumb") || primaryImage
@@ -231,7 +199,7 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
 
               return (
                 <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
-                  <Card className="group h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-md hover:border-green-600 hover:shadow-sm transition-all duration-200">
+                  <Card className="h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-sm">
                     <CardContent className="p-0 flex flex-col h-full">
                       {/* Image Container */}
                       <div className="relative w-full aspect-square overflow-hidden bg-gray-100">
@@ -239,7 +207,7 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
                           src={optimizedPrimary || "/placeholder.svg"}
                           alt={product.title}
                           fill
-                          sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
+                          sizes="(max-width: 768px) 50vw, (max-width: 1200px) 20vw"
                           className="object-cover"
                           loading="lazy"
                         />
@@ -251,11 +219,11 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
                             e.stopPropagation()
                             toggleFavorite(product.id, e)
                           }}
-                          className={`absolute top-2 right-2 p-1.5 rounded-md ${
+                          className={`absolute top-1 right-1 p-1 rounded ${
                             favorites.has(product.id) 
                               ? "text-red-500 bg-white/90" 
-                              : "text-gray-400 hover:text-red-500 bg-white/80"
-                          } transition-colors shadow-sm`}
+                              : "text-gray-400 bg-white/80"
+                          }`}
                         >
                           <Heart 
                             className={`h-3.5 w-3.5 ${favorites.has(product.id) ? "fill-current" : ""}`} 
@@ -265,12 +233,12 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
 
                       {/* Product Info */}
                       <div className="p-2 flex flex-col flex-1">
-                        <h4 className="text-sm font-medium text-gray-900 line-clamp-2 group-hover:text-green-700 transition-colors mb-1">
-                          {capitalizeFirstLetter(product.title)}
+                        <h4 className="text-sm font-medium text-gray-900 line-clamp-2 mb-1 leading-tight">
+                          {product.title}
                         </h4>
 
                         {/* Price */}
-                        <div className="mb-1.5">
+                        <div className="mb-1">
                           <span className="text-base font-bold text-gray-900">
                             {formatPrice(product.price as any, (product as any).price_type)}
                             {isNegotiable((product as any).price_type) && (
@@ -282,7 +250,7 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
                         <div className="mt-auto flex items-center justify-between text-xs text-gray-500">
                           <div className="flex items-center gap-1">
                             <MapPin className="h-3 w-3 flex-shrink-0" />
-                            <span className="truncate max-w-[70px]">
+                            <span className="truncate max-w-[60px]">
                               {provinceOrLocation}
                             </span>
                           </div>
@@ -305,7 +273,6 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
           <div className="sticky top-4">
             {/* Sidebar Ad with your image */}
             <div className="border border-gray-200 rounded-md overflow-hidden bg-white">
-              {/* Your image */}
               <Image 
                 src="https://gkaeeayfwrgekssmtuzn.supabase.co/storage/v1/object/public/product-images/fe09ea77-0be8-426e-9a88-9b4127f04a3c/side%20image.webp" 
                 alt="Canada's #1 Growing Marketplace" 
