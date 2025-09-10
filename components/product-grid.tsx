@@ -139,6 +139,10 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     return posted.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
 
+  const capitalizeFirstLetter = (str: string) => {
+    return str.charAt(0).toUpperCase() + str.slice(1)
+  }
+
   if (!hasOverride && !shouldFetch) {
     return null
   }
@@ -147,7 +151,7 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     return (
       <section className="py-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
             <LoadingSkeleton type="card" count={12} />
           </div>
         </div>
@@ -193,7 +197,7 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
         {/* Main products grid */}
         <div className="flex-1">
           <TooltipProvider>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
               {products.map((product) => {
                 const primaryImage = product.images?.[0] || "/diverse-products-still-life.png"
                 const optimizedPrimary = getOptimizedImageUrl(primaryImage, "thumb") || primaryImage
@@ -203,7 +207,7 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
                   <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
                     <Card className="group h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-sm hover:border-green-600 transition-all duration-200">
                       <CardContent className="p-0 flex flex-col h-full">
-                        {/* Image Container - Full width with no extra space */}
+                        {/* Image Container - Minimal spacing */}
                         <div className="relative w-full aspect-square overflow-hidden bg-gray-100">
                           <Image
                             src={optimizedPrimary || "/placeholder.svg"}
@@ -237,10 +241,10 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
                           </Tooltip>
                         </div>
 
-                        {/* Product Info - Minimal details */}
-                        <div className="p-2 flex flex-col flex-1">
-                          <h4 className="text-xs font-medium text-gray-900 leading-tight line-clamp-2 mb-1 group-hover:text-green-700 transition-colors">
-                            {product.title}
+                        {/* Product Info - Minimal spacing */}
+                        <div className="p-1.5 flex flex-col flex-1">
+                          <h4 className="text-xs font-medium text-gray-900 leading-tight line-clamp-2 mb-0.5 group-hover:text-green-700 transition-colors">
+                            {capitalizeFirstLetter(product.title)}
                           </h4>
 
                           {/* Price */}
@@ -248,21 +252,21 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
                             <span className="text-sm font-bold text-gray-900">
                               {formatPrice(product.price as any, (product as any).price_type)}
                               {isNegotiable((product as any).price_type) && (
-                                <span className="text-xs font-normal text-gray-600 ml-1">Negotiable</span>
+                                <span className="text-xs font-normal text-gray-600 ml-0.5">Negotiable</span>
                               )}
                             </span>
                           </div>
 
-                          <div className="mt-auto space-y-1">
+                          <div className="mt-auto space-y-0.5">
                             {/* Location and Time */}
                             <div className="flex items-center justify-between text-xs text-gray-500">
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-0.5">
                                 <MapPin className="h-3 w-3 flex-shrink-0" />
                                 <span className="truncate max-w-[70px]">
                                   {provinceOrLocation}
                                 </span>
                               </div>
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-0.5">
                                 <Clock className="h-3 w-3 flex-shrink-0" />
                                 <span>{formatTimePosted(product.created_at as any)}</span>
                               </div>
@@ -281,39 +285,43 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
         {/* Right sidebar for vertical ad */}
         <div className="hidden lg:block w-64 flex-shrink-0">
           <div className="sticky top-4">
-            {/* Sidebar Ad */}
-            <div className="bg-gradient-to-b from-green-700 to-green-900 border border-green-800 rounded-md overflow-hidden text-white">
-              <div className="p-4">
-                <h3 className="text-lg font-bold text-center mb-2">CANADA'S #1 GROWING MARKETPLACE</h3>
-                <p className="text-center text-sm mb-4">BUY. SELL. CONNECT. ALL IN ONE PLACE.</p>
-                
-                <div className="grid grid-cols-2 gap-2 mb-4">
-                  <div className="bg-green-800/50 p-2 rounded text-center text-xs">ELECTRONICS</div>
-                  <div className="bg-green-800/50 p-2 rounded text-center text-xs">CARS</div>
-                  <div className="bg-green-800/50 p-2 rounded text-center text-xs">REAL ESTATE</div>
-                  <div className="bg-green-800/50 p-2 rounded text-center text-xs">JOBS</div>
+            {/* Sidebar Ad with your image */}
+            <div className="border border-gray-200 rounded-md overflow-hidden bg-white">
+              <div className="p-3 bg-gradient-to-r from-green-700 to-green-900 text-white">
+                <h3 className="text-sm font-bold text-center">CANADA'S #1 MARKETPLACE</h3>
+              </div>
+              <div className="p-3">
+                <div className="aspect-[3/4] w-full bg-gray-100 mb-2 flex items-center justify-center">
+                  <span className="text-gray-500 text-xs">Your Side Ad Image</span>
                 </div>
                 
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-center text-xs">
-                    <span className="bg-green-500 rounded-full h-4 w-4 flex items-center justify-center mr-2">✔</span>
+                <div className="grid grid-cols-2 gap-1 mb-2">
+                  <div className="bg-green-100 p-1 rounded text-center text-xs text-green-800">ELECTRONICS</div>
+                  <div className="bg-green-100 p-1 rounded text-center text-xs text-green-800">CARS</div>
+                  <div className="bg-green-100 p-1 rounded text-center text-xs text-green-800">REAL ESTATE</div>
+                  <div className="bg-green-100 p-1 rounded text-center text-xs text-green-800">JOBS</div>
+                </div>
+                
+                <div className="space-y-1 mb-2 text-xs">
+                  <div className="flex items-center">
+                    <span className="text-green-600 mr-1">✔</span>
                     <span>UNLIMITED ADS</span>
                   </div>
-                  <div className="flex items-center text-xs">
-                    <span className="bg-green-500 rounded-full h-4 w-4 flex items-center justify-center mr-2">✔</span>
+                  <div className="flex items-center">
+                    <span className="text-green-600 mr-1">✔</span>
                     <span>ADD WEBSITE LINK</span>
                   </div>
-                  <div className="flex items-center text-xs">
-                    <span className="bg-green-500 rounded-full h-4 w-4 flex items-center justify-center mr-2">✔</span>
+                  <div className="flex items-center">
+                    <span className="text-green-600 mr-1">✔</span>
                     <span>FREE WEBSITE URL</span>
                   </div>
-                  <div className="flex items-center text-xs">
-                    <span className="bg-green-500 rounded-full h-4 w-4 flex items-center justify-center mr-2">✔</span>
+                  <div className="flex items-center">
+                    <span className="text-green-600 mr-1">✔</span>
                     <span>FREE YOUTUBE VIDEO</span>
                   </div>
                 </div>
                 
-                <Button className="w-full bg-white text-green-800 hover:bg-gray-100 font-bold py-2 text-sm">
+                <Button className="w-full bg-green-700 hover:bg-green-800 text-white font-bold py-1.5 text-xs">
                   POST FREE AD TODAY
                 </Button>
               </div>
