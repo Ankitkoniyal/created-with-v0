@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Heart, MapPin, Clock } from "lucide-react"
+import { Heart, MapPin, Clock, Eye, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useState, useEffect } from "react"
@@ -46,6 +46,7 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
   const [error, setError] = useState<string | null>(null)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
   const [shouldFetch, setShouldFetch] = useState(false)
+  const [user, setUser] = useState(null)
 
   const hasOverride = Array.isArray(overrideProducts)
 
@@ -140,6 +141,7 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
   }
 
   const capitalizeFirstLetter = (str: string) => {
+    if (!str) return ""
     return str.charAt(0).toUpperCase() + str.slice(1)
   }
 
@@ -198,6 +200,22 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
         <div className="flex-1">
           <TooltipProvider>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+              {/* Post Ad Card */}
+              <Link href="/post" className="block" prefetch={false}>
+                <Card className="h-full flex flex-col overflow-hidden border border-dashed border-gray-300 bg-gray-50 rounded-sm hover:border-green-600 hover:bg-green-50 transition-all duration-200">
+                  <CardContent className="p-0 flex flex-col h-full items-center justify-center">
+                    <div className="p-4 text-center">
+                      <div className="bg-green-100 w-12 h-12 rounded-full flex items-center justify-center mb-3 mx-auto">
+                        <Plus className="text-green-600 h-5 w-5" />
+                      </div>
+                      <h3 className="font-medium text-sm text-gray-800">Post Your Ad</h3>
+                      <p className="text-gray-500 text-xs mt-1">It's free and easy</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+
+              {/* Product Cards */}
               {products.map((product) => {
                 const primaryImage = product.images?.[0] || "/diverse-products-still-life.png"
                 const optimizedPrimary = getOptimizedImageUrl(primaryImage, "thumb") || primaryImage
@@ -207,7 +225,7 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
                   <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
                     <Card className="group h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-sm hover:border-green-600 transition-all duration-200">
                       <CardContent className="p-0 flex flex-col h-full">
-                        {/* Image Container - Minimal spacing */}
+                        {/* Image Container */}
                         <div className="relative w-full aspect-square overflow-hidden bg-gray-100">
                           <Image
                             src={optimizedPrimary || "/placeholder.svg"}
@@ -219,31 +237,27 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
                           />
                           
                           {/* Wishlist Button */}
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                aria-label="Toggle favorite"
-                                className="absolute top-1 right-1 bg-white/90 hover:bg-white shadow-sm h-6 w-6 p-0 rounded-sm"
-                                onClick={(e) => toggleFavorite(product.id, e)}
-                              >
-                                <Heart
-                                  className={`h-3 w-3 ${
-                                    favorites.has(product.id) ? "fill-red-500 text-red-500" : "text-gray-600"
-                                  }`}
-                                />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p className="text-xs">{favorites.has(product.id) ? "Remove from favorites" : "Add to favorites"}</p>
-                            </TooltipContent>
-                          </Tooltip>
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              toggleFavorite(product.id, e)
+                            }}
+                            className={`absolute top-1.5 right-1.5 p-1.5 rounded-sm ${
+                              favorites.has(product.id) 
+                                ? "text-red-500 bg-white/90" 
+                                : "text-gray-400 hover:text-red-500 bg-white/80"
+                            } transition-colors`}
+                          >
+                            <Heart 
+                              className={`h-3.5 w-3.5 ${favorites.has(product.id) ? "fill-current" : ""}`} 
+                            />
+                          </button>
                         </div>
 
-                        {/* Product Info - Minimal spacing */}
-                        <div className="p-1.5 flex flex-col flex-1">
-                          <h4 className="text-xs font-medium text-gray-900 leading-tight line-clamp-2 mb-0.5 group-hover:text-green-700 transition-colors">
+                        {/* Product Info */}
+                        <div className="p-2 flex flex-col flex-1">
+                          <h4 className="text-xs font-medium text-gray-900 leading-tight line-clamp-2 mb-1 group-hover:text-green-700 transition-colors">
                             {capitalizeFirstLetter(product.title)}
                           </h4>
 
@@ -257,19 +271,16 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
                             </span>
                           </div>
 
-                          <div className="mt-auto space-y-0.5">
-                            {/* Location and Time */}
-                            <div className="flex items-center justify-between text-xs text-gray-500">
-                              <div className="flex items-center gap-0.5">
-                                <MapPin className="h-3 w-3 flex-shrink-0" />
-                                <span className="truncate max-w-[70px]">
-                                  {provinceOrLocation}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-0.5">
-                                <Clock className="h-3 w-3 flex-shrink-0" />
-                                <span>{formatTimePosted(product.created_at as any)}</span>
-                              </div>
+                          <div className="mt-auto flex items-center justify-between text-xs text-gray-500">
+                            <div className="flex items-center gap-0.5">
+                              <MapPin className="h-3 w-3 flex-shrink-0" />
+                              <span className="truncate max-w-[70px]">
+                                {provinceOrLocation}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-0.5">
+                              <Clock className="h-3 w-3 flex-shrink-0" />
+                              <span>{formatTimePosted(product.created_at as any)}</span>
                             </div>
                           </div>
                         </div>
@@ -285,14 +296,14 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
         {/* Right sidebar for vertical ad */}
         <div className="hidden lg:block w-64 flex-shrink-0">
           <div className="sticky top-4">
-            {/* Sidebar Ad with your image */}
-            <div className="border border-gray-200 rounded-md overflow-hidden bg-white">
+            {/* Sidebar Ad */}
+            <div className="border border-gray-200 rounded-sm overflow-hidden bg-white">
               <div className="p-3 bg-gradient-to-r from-green-700 to-green-900 text-white">
                 <h3 className="text-sm font-bold text-center">CANADA'S #1 MARKETPLACE</h3>
               </div>
               <div className="p-3">
-                <div className="aspect-[3/4] w-full bg-gray-100 mb-2 flex items-center justify-center">
-                  <span className="text-gray-500 text-xs">Your Side Ad Image</span>
+                <div className="aspect-[3/4] w-full bg-gray-100 mb-2 flex items-center justify-center text-gray-500 text-xs">
+                  Your Side Ad Image
                 </div>
                 
                 <div className="grid grid-cols-2 gap-1 mb-2">
