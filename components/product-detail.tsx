@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Heart, MapPin, Clock } from "lucide-react"
+import { Heart, MapPin, Clock, Home } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useState, useEffect } from "react"
@@ -64,6 +64,7 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
   useEffect(() => {
     async function fetchProducts() {
       try {
+        setLoading(true)
         const supabase = createClient()
         
         if (!supabase) {
@@ -82,9 +83,10 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
         }
 
         setProducts(data || [])
+        setError(null)
       } catch (err) {
-        setError(err.message)
         console.error('Error fetching products:', err)
+        setError(err.message || 'Failed to load products. Please try again.')
       } finally {
         setLoading(false)
       }
@@ -95,6 +97,7 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     } else if (hasOverride) {
       setProducts(overrideProducts as Product[])
       setLoading(false)
+      setError(null)
     } else {
       setLoading(false)
     }
@@ -143,6 +146,15 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     return str.charAt(0).toUpperCase() + str.slice(1)
   }
 
+  const retryFetch = () => {
+    if (!hasOverride && shouldFetch) {
+      setLoading(true)
+      setTimeout(() => {
+        window.location.reload()
+      }, 500)
+    }
+  }
+
   if (!hasOverride && !shouldFetch) {
     return null
   }
@@ -159,16 +171,30 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     )
   }
 
-  if (!hasOverride && error) {
+  if (error) {
     return (
       <section className="py-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center py-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Unable to Load Ads</h3>
-            <p className="text-gray-600 mb-4 text-sm">{error}</p>
-            <Button onClick={() => window.location.reload()} className="bg-green-900 hover:bg-green-950 text-xs h-8">
-              Try Again
-            </Button>
+          <div className="text-center py-12">
+            <div className="bg-red-50 rounded-lg p-6 max-w-md mx-auto">
+              <h3 className="text-lg font-semibold text-red-800 mb-2">Something went wrong!</h3>
+              <p className="text-red-600 mb-6">We encountered an unexpected error. Please try again or return to the homepage.</p>
+              
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Button 
+                  onClick={retryFetch} 
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  Try Again
+                </Button>
+                <Button asChild variant="outline">
+                  <Link href="/" className="flex items-center gap-2">
+                    <Home className="h-4 w-4" />
+                    Back to Homepage
+                  </Link>
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </section>
