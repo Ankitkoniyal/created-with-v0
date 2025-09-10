@@ -39,7 +39,7 @@ interface Product {
   }
 }
 
-const PRODUCTS_PER_PAGE = 24 // Show more products in compact view
+const PRODUCTS_PER_PAGE = 20 // Adjusted for new layout
 
 export function ProductGrid({ products: overrideProducts }: { products?: Product[] }) {
   const [products, setProducts] = useState<Product[]>([])
@@ -118,8 +118,8 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     if (priceType === "free") return "Free"
     if (priceType === "contact") return "Contact"
     if (typeof price === "number") {
-      if (price >= 1000) return `$${(price/1000).toFixed(0)}k`
-      return `$${price}`
+      if (price >= 1000) return `¥${(price/1000).toFixed(0)}k`
+      return `¥${price}`
     }
     return "Contact"
   }
@@ -127,9 +127,11 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
   const getConditionBadge = (condition?: string) => {
     switch (condition?.toLowerCase()) {
       case "new":
-        return { text: "New", className: "bg-green-500 text-white text-[10px] px-1.5 py-0.5" }
+        return { text: "New", className: "bg-green-500 text-white text-xs px-2 py-1" }
       case "like new":
-        return { text: "Like New", className: "bg-green-400 text-white text-[10px] px-1.5 py-0.5" }
+        return { text: "Like New", className: "bg-green-400 text-white text-xs px-2 py-1" }
+      case "second hand":
+        return { text: "Second Hand", className: "bg-blue-500 text-white text-xs px-2 py-1" }
       default:
         return null
     }
@@ -158,10 +160,10 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
 
   if (loading) {
     return (
-      <section className="py-2">
+      <section className="py-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
-            <LoadingSkeleton type="card" count={16} />
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <LoadingSkeleton type="card" count={12} />
           </div>
         </div>
       </section>
@@ -170,7 +172,7 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
 
   if (!hasOverride && error) {
     return (
-      <section className="py-2">
+      <section className="py-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center py-8">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Unable to Load Ads</h3>
@@ -186,7 +188,7 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
 
   if (products.length === 0) {
     return (
-      <section className="py-2">
+      <section className="py-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center py-8">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">No Ads Found</h3>
@@ -201,99 +203,129 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
   }
 
   return (
-    <section className="py-2">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <TooltipProvider>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
-            {products.map((product) => {
-              const conditionBadge = getConditionBadge(product.condition)
-              const primaryImage = product.images?.[0] || "/diverse-products-still-life.png"
-              const optimizedPrimary = getOptimizedImageUrl(primaryImage, "thumb") || primaryImage
-              const provinceOrLocation = product.province || product.location || ""
+    <section className="py-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-6">
+        {/* Main products grid */}
+        <div className="flex-1">
+          <TooltipProvider>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {products.map((product) => {
+                const conditionBadge = getConditionBadge(product.condition)
+                const primaryImage = product.images?.[0] || "/diverse-products-still-life.png"
+                const optimizedPrimary = getOptimizedImageUrl(primaryImage, "thumb") || primaryImage
+                const provinceOrLocation = product.province || product.location || ""
 
-              return (
-                <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
-                  <Card className="group h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-sm hover:shadow-md transition-shadow">
-                    <CardContent className="p-0 flex flex-col h-full">
-                      {/* Image Container */}
-                      <div className="relative w-full aspect-square overflow-hidden bg-gray-100">
-                        <Image
-                          src={optimizedPrimary || "/placeholder.svg"}
-                          alt={product.title}
-                          fill
-                          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 12.5vw"
-                          className="object-cover group-hover:scale-105 transition-transform duration-200"
-                          loading="lazy"
-                        />
-                        
-                        {/* Top Right Badges */}
-                        <div className="absolute top-1 right-1 flex flex-col gap-1">
-                          {conditionBadge && (
-                            <Badge className={conditionBadge.className}>
-                              {conditionBadge.text}
-                            </Badge>
-                          )}
+                return (
+                  <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
+                    <Card className="group h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-md hover:shadow-lg transition-all duration-300">
+                      <CardContent className="p-0 flex flex-col h-full">
+                        {/* Image Container - Full width with minimal padding */}
+                        <div className="relative w-full aspect-square overflow-hidden bg-gray-100">
+                          <Image
+                            src={optimizedPrimary || "/placeholder.svg"}
+                            alt={product.title}
+                            fill
+                            sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
+                            className="object-cover group-hover:scale-110 transition-transform duration-300"
+                            loading="lazy"
+                          />
+                          
+                          {/* Top Right Badges */}
+                          <div className="absolute top-2 right-2 flex flex-col gap-1">
+                            {conditionBadge && (
+                              <Badge className={conditionBadge.className}>
+                                {conditionBadge.text}
+                              </Badge>
+                            )}
+                          </div>
+
+                          {/* Price Badge */}
+                          <div className="absolute bottom-2 left-2 bg-black/90 text-white px-3 py-1.5 rounded-md">
+                            <span className="text-sm font-bold">
+                              {formatPrice(product.price as any, (product as any).price_type)}
+                              {isNegotiable((product as any).price_type) && (
+                                <span className="text-xs font-normal ml-1">Negotiable</span>
+                              )}
+                            </span>
+                          </div>
+
+                          {/* Wishlist Button */}
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                aria-label="Toggle favorite"
+                                className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm hover:bg-white shadow-md h-8 w-8 p-0 rounded-full"
+                                onClick={(e) => toggleFavorite(product.id, e)}
+                              >
+                                <Heart
+                                  className={`h-4 w-4 ${
+                                    favorites.has(product.id) ? "fill-red-500 text-red-500" : "text-gray-600"
+                                  }`}
+                                />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="text-xs">{favorites.has(product.id) ? "Remove from favorites" : "Add to favorites"}</p>
+                            </TooltipContent>
+                          </Tooltip>
                         </div>
 
-                        {/* Price Badge */}
-                        <div className="absolute bottom-1 left-1 bg-black/80 text-white px-1.5 py-0.5 rounded-sm">
-                          <span className="text-xs font-bold">
-                            {formatPrice(product.price as any, (product as any).price_type)}
-                          </span>
-                        </div>
+                        {/* Product Info - Minimal details */}
+                        <div className="p-3 flex flex-col flex-1">
+                          <h4 className="text-sm font-semibold text-gray-900 leading-tight line-clamp-2 mb-2 group-hover:text-green-700 transition-colors">
+                            {product.title}
+                          </h4>
 
-                        {/* Wishlist Button */}
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              aria-label="Toggle favorite"
-                              className="absolute top-1 right-1 bg-white/80 backdrop-blur-sm hover:bg-white shadow-xs h-6 w-6 p-0 rounded-sm"
-                              onClick={(e) => toggleFavorite(product.id, e)}
-                            >
-                              <Heart
-                                className={`h-3 w-3 ${
-                                  favorites.has(product.id) ? "fill-red-500 text-red-500" : "text-gray-600"
-                                }`}
-                              />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p className="text-xs">{favorites.has(product.id) ? "Remove from favorites" : "Add to favorites"}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
+                          <div className="mt-auto space-y-2">
+                            {/* Seller info if available */}
+                            {product.seller && (
+                              <div className="flex items-center text-xs text-gray-600">
+                                <span className="font-medium">{product.seller.full_name}</span>
+                                {product.seller.rating && (
+                                  <span className="ml-2 bg-green-100 text-green-800 px-1.5 py-0.5 rounded">
+                                    {product.seller.rating}★
+                                  </span>
+                                )}
+                              </div>
+                            )}
 
-                      {/* Product Info - Compact */}
-                      <div className="p-1.5 flex flex-col flex-1">
-                        <h4 className="text-xs text-gray-800 leading-tight line-clamp-2 mb-1 font-medium group-hover:text-primary transition-colors">
-                          {product.title}
-                        </h4>
-
-                        <div className="mt-auto space-y-1">
-                          {/* Location and Time */}
-                          <div className="flex items-center justify-between text-xs text-gray-600">
-                            <div className="flex items-center gap-1">
-                              <MapPin className="h-3 w-3 flex-shrink-0" />
-                              <span className="truncate max-w-[60px]">
-                                {provinceOrLocation}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Clock className="h-3 w-3 flex-shrink-0" />
-                              <span>{formatTimePosted(product.created_at as any)}</span>
+                            {/* Location and Time */}
+                            <div className="flex items-center justify-between text-xs text-gray-500">
+                              <div className="flex items-center gap-1">
+                                <MapPin className="h-3 w-3 flex-shrink-0" />
+                                <span className="truncate">
+                                  {provinceOrLocation}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Clock className="h-3 w-3 flex-shrink-0" />
+                                <span>{formatTimePosted(product.created_at as any)}</span>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              )
-            })}
+                      </CardContent>
+                    </Card>
+                  </Link>
+                )
+              })}
+            </div>
+          </TooltipProvider>
+        </div>
+
+        {/* Right sidebar for vertical ad */}
+        <div className="hidden lg:block w-64 flex-shrink-0">
+          <div className="sticky top-4">
+            {/* Placeholder for your vertical ad */}
+            <div className="bg-gray-100 border border-gray-200 rounded-md overflow-hidden h-[600px] flex items-center justify-center">
+              <span className="text-gray-500 text-sm">Vertical Ad Space</span>
+              {/* Replace with your actual ad component */}
+              {/* <Image src="/your-vertical-ad.jpg" alt="Advertisement" width={256} height={600} className="object-cover" /> */}
+            </div>
           </div>
-        </TooltipProvider>
+        </div>
       </div>
     </section>
   )
