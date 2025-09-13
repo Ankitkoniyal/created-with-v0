@@ -113,7 +113,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
           <div className="space-y-4">
             <div className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden">
               <Image
-                src={getOptimizedImageUrl(product.images[selectedImage], "large") || "/placeholder.svg"}
+                src={getOptimizedImageUrl(product.images[selectedImage], "large")}
                 alt={product.title}
                 fill
                 className="object-cover"
