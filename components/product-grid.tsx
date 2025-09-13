@@ -2,14 +2,16 @@
 
 import type React from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Heart, MapPin, Clock } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Heart, Loader2, MapPin, Clock, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useState, useEffect } from "react"
+import useSWRInfinite from "swr/infinite"
 import Image from "next/image"
 import { LoadingSkeleton } from "@/components/loading-skeleton"
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { getOptimizedImageUrl } from "@/lib/images"
-import { createClient } from "@/lib/supabase/client"
 
 interface Product {
   id: string
@@ -39,14 +41,93 @@ interface Product {
 
 const PRODUCTS_PER_PAGE = 20
 
+const MOCK_PRODUCTS: Product[] = [
+  {
+    id: "1",
+    title: "iPhone 13 - Good Condition",
+    price: 599,
+    price_type: "fixed",
+    location: "Toronto",
+    city: "Toronto",
+    province: "Ontario",
+    condition: "like new",
+    category: "Electronics",
+    description: "Excellent condition iPhone 13",
+    images: ["/modern-smartphone.png"],
+    created_at: new Date().toISOString(),
+    user_id: "user1",
+  },
+  {
+    id: "2",
+    title: "Dining Table Set - Oak Wood",
+    price: 350,
+    price_type: "negotiable",
+    location: "Vancouver",
+    city: "Vancouver",
+    province: "British Columbia",
+    condition: "new",
+    category: "Furniture",
+    description: "Beautiful oak dining table",
+    images: ["/elegant-dining-table.png"],
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+    user_id: "user2",
+  },
+  {
+    id: "3",
+    title: "Samsung Galaxy S23 Ultra",
+    price: 750,
+    price_type: "fixed",
+    location: "Calgary",
+    city: "Calgary",
+    province: "Alberta",
+    condition: "like new",
+    category: "Electronics",
+    description: "Latest Samsung flagship phone",
+    images: ["/samsung-smartphone.png"],
+    created_at: new Date(Date.now() - 172800000).toISOString(),
+    user_id: "user3",
+  },
+  {
+    id: "4",
+    title: "MacBook Air M2 - Like New",
+    price: 1100,
+    price_type: "negotiable",
+    location: "Montreal",
+    city: "Montreal",
+    province: "Quebec",
+    condition: "like new",
+    category: "Electronics",
+    description: "Barely used MacBook Air",
+    images: ["/macbook.png"],
+    created_at: new Date(Date.now() - 259200000).toISOString(),
+    user_id: "user4",
+  },
+  {
+    id: "5",
+    title: "Sectional Couch - Grey",
+    price: 800,
+    price_type: "fixed",
+    location: "Ottawa",
+    city: "Ottawa",
+    province: "Ontario",
+    condition: "new",
+    category: "Furniture",
+    description: "Comfortable sectional sofa",
+    images: ["/sectional-couch.png"],
+    created_at: new Date(Date.now() - 345600000).toISOString(),
+    user_id: "user5",
+  },
+]
+
 export function ProductGrid({ products: overrideProducts }: { products?: Product[] }) {
-  const [products, setProducts] = useState<Product[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [productsState, setProductsState] = useState<Product[]>([]) // kept for compatibility; no longer primary source
+  const [page, setPage] = useState(0)
+  const [hasMoreState, setHasMoreState] = useState(true)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
   const [shouldFetch, setShouldFetch] = useState(false)
 
   const hasOverride = Array.isArray(overrideProducts)
+  const fetcher = (url: string) => fetch(url, { cache: "no-store" }).then((r) => r.json())
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -61,44 +142,28 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     }
   }, [])
 
-  useEffect(() => {
-    async function fetchProducts() {
-      try {
-        const supabase = createClient()
-        
-        if (!supabase) {
-          throw new Error('Supabase client not available. Check your environment variables.')
-        }
+  const swrEnabled = !hasOverride && shouldFetch
 
-        const { data, error } = await supabase
-          .from('products')
-          .select('*')
-          .eq('status', 'active')
-          .order('created_at', { ascending: false })
-          .limit(PRODUCTS_PER_PAGE)
+  const getKey = (index: number, prev: any) => {
+    if (!swrEnabled) return null
+    if (index === 0) return `/api/products?limit=${PRODUCTS_PER_PAGE}`
+    if (!prev?.next) return null
+    const n = prev.next
+    return `/api/products?limit=${PRODUCTS_PER_PAGE}&afterCreatedAt=${encodeURIComponent(
+      n.afterCreatedAt,
+    )}&afterId=${encodeURIComponent(n.afterId)}`
+  }
 
-        if (error) {
-          throw error
-        }
+  const { data, error, size, setSize, isValidating, mutate } = useSWRInfinite(getKey, fetcher, {
+    revalidateOnFocus: false,
+    revalidateFirstPage: false,
+  })
 
-        setProducts(data || [])
-      } catch (err) {
-        setError(err.message)
-        console.error('Error fetching products:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    if (!hasOverride && shouldFetch) {
-      fetchProducts()
-    } else if (hasOverride) {
-      setProducts(overrideProducts as Product[])
-      setLoading(false)
-    } else {
-      setLoading(false)
-    }
-  }, [hasOverride, overrideProducts, shouldFetch])
+  const isLoading = swrEnabled && !data && !error
+  const productsFetched: Product[] = (data ? data.flatMap((p: any) => p?.products || []) : []) as Product[]
+  const productsToRender: Product[] = hasOverride ? (overrideProducts as Product[]) : productsFetched
+  const hasMore = swrEnabled ? Boolean(data && data[data.length - 1]?.next) : false
+  const isLoadingMore = swrEnabled && isValidating && !!data
 
   const toggleFavorite = (productId: string, e?: React.MouseEvent) => {
     if (e) {
@@ -114,11 +179,20 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
 
   const formatPrice = (price?: number, priceType?: string) => {
     if (priceType === "free") return "Free"
-    if (priceType === "contact") return "Contact"
-    if (typeof price === "number") {
-      return `$${price.toLocaleString()}`
+    if (priceType === "contact") return "Contact for Price"
+    if (typeof price === "number") return `$${price.toLocaleString()}`
+    return "Contact for Price"
+  }
+
+  const getConditionBadge = (condition?: string) => {
+    switch (condition?.toLowerCase()) {
+      case "new":
+        return { text: "New", className: "bg-green-500 text-white" }
+      case "like new":
+        return { text: "Like New", className: "bg-green-400 text-white" }
+      default:
+        return null
     }
-    return "Contact"
   }
 
   const isNegotiable = (priceType?: string) => {
@@ -131,28 +205,26 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     const posted = new Date(createdAt)
     const diffInHours = Math.floor((now.getTime() - posted.getTime()) / (1000 * 60 * 60))
 
-    if (diffInHours < 1) return "Now"
-    if (diffInHours < 24) return `${diffInHours}h`
-    if (diffInHours < 48) return "1d"
-    if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}d`
-    return posted.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  }
-
-  const capitalizeFirstLetter = (str: string) => {
-    if (!str) return ""
-    return str.charAt(0).toUpperCase() + str.slice(1)
+    if (diffInHours < 1) return "Just now"
+    if (diffInHours < 24) return `${diffInHours}h ago`
+    if (diffInHours < 48) return "1d ago"
+    if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}d ago`
+    return posted.toLocaleDateString()
   }
 
   if (!hasOverride && !shouldFetch) {
     return null
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <section className="py-2">
-        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1">
-            <LoadingSkeleton type="card" count={12} />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xl font-bold text-foreground">Latest Ads</h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <LoadingSkeleton type="card" count={15} />
           </div>
         </div>
       </section>
@@ -162,27 +234,32 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
   if (!hasOverride && error) {
     return (
       <section className="py-2">
-        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">
-          <div className="text-center py-6">
-            <h3 className="text-base font-semibold text-gray-900 mb-1">Unable to Load Ads</h3>
-            <p className="text-gray-600 mb-2 text-xs">{error}</p>
-            <Button onClick={() => window.location.reload()} className="bg-green-900 hover:bg-green-950 text-xs h-7">
-              Try Again
-            </Button>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center py-12">
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">Unable to Load Ads</h3>
+            <p className="text-gray-600 mb-6">We're having trouble fetching ads. Please try again.</p>
+            <div className="space-x-3">
+              <Button onClick={() => mutate()} className="bg-green-900 hover:bg-green-950">
+                Try Again
+              </Button>
+              <Button variant="outline" onClick={() => window.location.reload()}>
+                Refresh Page
+              </Button>
+            </div>
           </div>
         </div>
       </section>
     )
   }
 
-  if (products.length === 0) {
+  if (productsToRender.length === 0) {
     return (
       <section className="py-2">
-        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">
-          <div className="text-center py-6">
-            <h3 className="text-base font-semibold text-gray-900 mb-1">No Ads Found</h3>
-            <p className="text-gray-600 mb-2 text-xs">Be the first to post an ad in your area!</p>
-            <Button asChild className="bg-green-900 hover:bg-green-950 text-xs h-7">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center py-12">
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">No Ads Found</h3>
+            <p className="text-gray-600 mb-6">Be the first to post an ad in your area!</p>
+            <Button asChild className="bg-green-900 hover:bg-green-950">
               <Link href="/post">Post Your First Ad</Link>
             </Button>
           </div>
@@ -192,78 +269,122 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
   }
 
   return (
-    <section className="py-2">
-      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 flex gap-2">
-        {/* Main products grid */}
-        <div className="flex-1">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1">
-            {/* Product Cards */}
-            {products.map((product) => {
+    <section className="py-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-2xl font-bold text-foreground">Latest Ads</h3>
+          <p className="text-sm text-gray-600">{productsToRender.length} ads found</p>
+        </div>
+
+        <TooltipProvider>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            {productsToRender.map((product) => {
+              const conditionBadge = getConditionBadge(product.condition)
               const primaryImage = product.images?.[0] || "/diverse-products-still-life.png"
-              const optimizedPrimary = getOptimizedImageUrl(primaryImage, "thumb") || primaryImage
+              const optimizedPrimary = getOptimizedImageUrl(primaryImage, "card") || primaryImage
               const provinceOrLocation = product.province || product.location || ""
 
               return (
                 <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
-                  <Card className="group h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-none hover:border-green-600 transition-all duration-150">
+                  <Card className="group h-full flex flex-col overflow-hidden border-0 bg-white rounded-xl shadow-sm">
                     <CardContent className="p-0 flex flex-col h-full">
-                      {/* Image Container */}
-                      <div className="relative w-full aspect-square overflow-hidden bg-gray-100">
+                      <div className="relative w-full aspect-square overflow-hidden bg-gray-50 rounded-xl">
                         <Image
                           src={optimizedPrimary || "/placeholder.svg"}
                           alt={product.title}
                           fill
-                          sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
+                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 33vw, 20vw"
                           className="object-cover"
                           loading="lazy"
                         />
-                        
-                        {/* Wishlist Button */}
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            toggleFavorite(product.id, e)
-                          }}
-                          className={`absolute top-1 right-1 p-1 rounded ${
-                            favorites.has(product.id) 
-                              ? "text-red-500 bg-white/90" 
-                              : "text-gray-400 hover:text-red-500 bg-white/80"
-                          } transition-colors`}
-                        >
-                          <Heart 
-                            className={`h-3 w-3 ${favorites.has(product.id) ? "fill-current" : ""}`} 
-                          />
-                        </button>
+                        <div className="absolute top-3 right-3 flex flex-col gap-2">
+                          {conditionBadge && (
+                            <Badge
+                              className={`text-xs font-medium px-3 py-1 rounded-full shadow-sm ${conditionBadge.className}`}
+                            >
+                              {conditionBadge.text}
+                            </Badge>
+                          )}
+
+                          {isNegotiable(product.price_type) && (
+                            <Badge className="bg-blue-500 text-white text-xs font-medium px-3 py-1 rounded-full shadow-sm">
+                              Negotiable
+                            </Badge>
+                          )}
+                        </div>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              aria-label="Toggle favorite"
+                              className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-sm hover:bg-white shadow-md h-10 w-10 p-0 rounded-full border-0"
+                              onClick={(e) => toggleFavorite(product.id, e)}
+                            >
+                              <Heart
+                                className={`h-5 w-5 ${
+                                  favorites.has(product.id) ? "fill-red-500 text-red-500" : "text-gray-600"
+                                }`}
+                              />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{favorites.has(product.id) ? "Remove from favorites" : "Add to favorites"}</p>
+                          </TooltipContent>
+                        </Tooltip>
                       </div>
 
-                      {/* Product Info */}
-                      <div className="p-1 flex flex-col flex-1">
-                        <h4 className="text-xs font-medium text-gray-900 line-clamp-2 group-hover:text-green-700 transition-colors leading-none">
-                          {capitalizeFirstLetter(product.title)}
+                      <div className="p-3 flex flex-col flex-1 space-y-1">
+                        <h4 className="text-base font-semibold text-gray-900 leading-5 line-clamp-2">
+                          {product.title}
                         </h4>
-
-                        {/* Price */}
-                        <div className="my-0.5">
-                          <span className="text-xs font-bold text-gray-900">
+                        {product.description && (
+                          <p className="text-sm text-gray-600 line-clamp-2 mb-1">{product.description}</p>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <p className="text-lg font-bold text-green-800">
                             {formatPrice(product.price as any, (product as any).price_type)}
-                            {isNegotiable((product as any).price_type) && (
-                              <span className="text-[10px] font-normal text-gray-600 ml-0.5">Negotiable</span>
-                            )}
-                          </span>
+                          </p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex items-center space-x-1 cursor-help">
+                                <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                                <span className="text-sm font-semibold text-gray-700">4.2</span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Seller rating (4.2/5 stars)</p>
+                            </TooltipContent>
+                          </Tooltip>
                         </div>
+                        <div className="flex items-center justify-between text-sm text-gray-500">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex items-center gap-1 cursor-help">
+                                <MapPin className="h-3 w-3 text-gray-400" />
+                                <span className="truncate text-xs font-medium">{provinceOrLocation}</span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Item location</p>
+                            </TooltipContent>
+                          </Tooltip>
 
-                        <div className="mt-auto flex items-center justify-between text-[10px] text-gray-500">
-                          <div className="flex items-center gap-0.5">
-                            <MapPin className="h-2.5 w-2.5 flex-shrink-0" />
-                            <span className="truncate max-w-[60px]">
-                              {provinceOrLocation}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-0.5">
-                            <Clock className="h-2.5 w-2.5 flex-shrink-0" />
-                            <span>{formatTimePosted(product.created_at as any)}</span>
-                          </div>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex items-center gap-1 text-gray-400 cursor-help">
+                                <Clock className="h-3 w-3" />
+                                <span className="text-xs font-medium">
+                                  {formatTimePosted(product.created_at as any)}
+                                </span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>
+                                Posted on {product.created_at ? new Date(product.created_at).toLocaleDateString() : "—"}
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
                         </div>
                       </div>
                     </CardContent>
@@ -272,24 +393,20 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
               )
             })}
           </div>
-        </div>
+        </TooltipProvider>
 
-        {/* Right sidebar for vertical ad */}
-        <div className="hidden lg:block w-56 flex-shrink-0">
-          <div className="sticky top-2">
-            {/* Sidebar Ad with your image */}
-            <div className="border border-gray-200 rounded-none overflow-hidden bg-white">
-              {/* Your image */}
-              <Image 
-                src="https://gkaeeayfwrgekssmtuzn.supabase.co/storage/v1/object/public/product-images/fe09ea77-0be8-426e-9a88-9b4127f04a3c/side%20image.webp" 
-                alt="Canada's #1 Growing Marketplace" 
-                width={224} 
-                height={300} 
-                className="w-full h-auto object-cover"
-              />
-            </div>
+        {hasMore && (
+          <div className="text-center mt-8">
+            <Button
+              onClick={() => setSize(size + 1)}
+              disabled={isLoadingMore}
+              className="bg-green-900 hover:bg-green-950 text-white px-8 py-3 text-sm font-medium rounded-lg"
+            >
+              {isLoadingMore ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              {isLoadingMore ? "Loading..." : "Show More"}
+            </Button>
           </div>
-        </div>
+        )}
       </div>
     </section>
   )
