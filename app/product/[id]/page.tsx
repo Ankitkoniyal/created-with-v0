@@ -140,6 +140,20 @@ async function getProduct(id: string) {
     return null
   }
 }
+export default async function ProductPage({ params }: ProductPageProps) {
+  const { id } = params
+  console.log('🛠️ Product page loading for ID:', id)
+  
+  const product = await getProduct(id)
+  console.log('🛠️ Product data received:', product ? 'YES' : 'NO')
+  
+  if (!product) {
+    console.log('🛠️ Product not found, showing 404')
+    notFound()
+  }
+
+  console.log('🛠️ Product title:', product.title)
+  console.log('🛠️ Product category:', product.category)
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { id } = params // NO AWAIT - params is not a Promise
