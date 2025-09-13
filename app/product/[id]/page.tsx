@@ -1,7 +1,7 @@
 import { ProductDetail } from "@/components/product-detail"
 import { RelatedProducts } from "@/components/related-products"
 import { Breadcrumb } from "@/components/breadcrumb"
-import { createClient } from "@/lib/supabase/client"
+import { createClient } from "@/lib/supabase/server" // ← FIXED THIS IMPORT
 import { notFound } from "next/navigation"
 
 interface ProductPageProps {
@@ -17,7 +17,7 @@ async function getProduct(id: string) {
     return null
   }
 
-  const supabase = createClient()
+  const supabase = await createClient() // ← ADDED 'await' HERE
 
   try {
     const { data: products, error } = await supabase.from("products").select("*").eq("id", id)
