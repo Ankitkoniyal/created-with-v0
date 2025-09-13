@@ -3,6 +3,7 @@ import { RelatedProducts } from "@/components/related-products"
 import { Breadcrumb } from "@/components/breadcrumb"
 import { createClient } from "@/lib/supabase/server"
 import { notFound } from "next/navigation"
+import { SafeProductDetail } from "@/components/safe-product-detail" // Add this import
 
 interface ProductPageProps {
   params: {
@@ -140,6 +141,7 @@ async function getProduct(id: string) {
     return null
   }
 }
+
 export default async function ProductPage({ params }: ProductPageProps) {
   const { id } = params
   console.log('🛠️ Product page loading for ID:', id)
@@ -154,14 +156,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
   console.log('🛠️ Product title:', product.title)
   console.log('🛠️ Product category:', product.category)
-
-export default async function ProductPage({ params }: ProductPageProps) {
-  const { id } = params // NO AWAIT - params is not a Promise
-  const product = await getProduct(id)
-
-  if (!product) {
-    notFound()
-  }
 
   // SAFE BREADCRUMB ITEMS WITH DEFAULTS
   const breadcrumbItems = [
@@ -180,7 +174,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <Breadcrumb items={breadcrumbItems} />
-      <SafeProductDetail product={product} />
+        <SafeProductDetail product={product} />
         <RelatedProducts 
           currentProductId={product.id} 
           category={product.category || "Other"} 
