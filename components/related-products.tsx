@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import Image from "next/image"
-import Link from "next/link"
 import {
   Heart,
   Share2,
@@ -22,7 +21,6 @@ import {
   Copy,
   Check,
   Tag,
-  MessageCircle,
 } from "lucide-react"
 import { ContactSellerModal } from "@/components/messaging/contact-seller-modal"
 import { SafetyBanner } from "@/components/ui/safety-banner"
@@ -83,6 +81,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
   const [showContactWarning, setShowContactWarning] = useState(false)
   const [showPhoneWarning, setShowPhoneWarning] = useState(false)
   const [pendingContactAction, setPendingContactAction] = useState<(() => void) | null>(null)
+  const [relatedAds, setRelatedAds] = useState<Product[]>([])
 
   const adDisplayId = (product.adId || product.id).slice(-6)
 
@@ -111,6 +110,29 @@ export function ProductDetail({ product }: ProductDetailProps) {
     }
     checkFavoriteStatus()
   }, [user, product.id])
+
+  useEffect(() => {
+    // Fetch related ads
+    const fetchRelatedAds = async () => {
+      try {
+        const supabase = createClient()
+        const { data, error } = await supabase
+          .from("products")
+          .select("*")
+          .eq("category", product.category)
+          .neq("id", product.id)
+          .limit(3)
+
+        if (!error && data) {
+          setRelatedAds(data)
+        }
+      } catch (err) {
+        console.error("Error fetching related ads:", err)
+      }
+    }
+    
+    fetchRelatedAds()
+  }, [product.id, product.category])
 
   const toggleFavorite = async () => {
     if (!user) {
@@ -225,17 +247,12 @@ export function ProductDetail({ product }: ProductDetailProps) {
     }
   }
 
-  // Placeholder for related ads
-  const relatedAds = [
-    { id: '1', title: 'Related Product 1', price: '$200', location: 'City A', image: '/placeholder.svg' },
-    { id: '2', title: 'Related Product 2', price: '$350', location: 'City B', image: '/placeholder.svg' },
-    { id: '3', title: 'Related Product 3', price: '$150', location: 'City C', image: '/placeholder.svg' },
-  ];
-
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* LEFT SIDE */}
       <div className="lg:col-span-2">
+        <SafetyBanner />
+
         {/* IMAGES */}
         <Card>
           <CardContent className="p-0">
@@ -304,7 +321,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
           </CardContent>
         </Card>
 
-        {/* DESCRIPTION */}
+        {/* DESCRIPTION - Moved below images */}
         <Card className="mt-4">
           <CardContent className="p-4">
             <h2 className="text-lg font-bold mb-3">Description</h2>
@@ -349,11 +366,62 @@ export function ProductDetail({ product }: ProductDetailProps) {
                   </div>
                 </div>
               </div>
+              <div className="flex items-center space-x-2 relative">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={toggleFavorite}
+                  className="bg-green-900 text-white hover:bg-green-800 border-green-900"
+                >
+                  <Heart
+                    className={`h-4 w-4 mr-1 ${
+                      isFavorited ? "fill-white text-white" : ""
+                    }`}
+                  />
+                  {isFavorited ? "Saved" : "Wishlist"}
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => setShowShareMenu(!showShareMenu)}
+                  className="bg-green-900 text-white hover:bg-green-800 border-green-900"
+                >
+                  <Share2 className="h-4 w-4 mr-1" /> Share
+                </Button>
+
+                {showShareMenu && (
+                  <div className="absolute top-full right-0 mt-2 w-48 bg-white border rounded-lg shadow-lg z-50">
+                    <div className="p-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">Share this ad</span>
+                        <Button size="sm" variant="ghost" onClick={() => setShowShareMenu(false)}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="space-y-1">
+                        <Button variant="ghost" size="sm" onClick={() => shareTo("whatsapp")} className="w-full justify-start">
+                          WhatsApp
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => shareTo("facebook")} className="w-full justify-start">
+                          Facebook
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => shareTo("email")} className="w-full justify-start">
+                          Email
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={copyLink} className="w-full justify-start">
+                          {linkCopied ? <Check className="w-4 h-4 mr-2 text-green-600" /> : <Copy className="w-4 h-4 mr-2" />}
+                          {linkCopied ? "Link Copied!" : "Copy Link"}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* AD ID */}
             <div className="mb-2">
-              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border">
+              <div className="flex items-center justify-between mb-3 p-3 bg-muted/50 rounded-lg border">
                 <div>
                   <span className="text-sm text-muted-foreground">Ad ID: </span>
                   <span className="text-lg font-bold text-primary">{adDisplayId}</span>
@@ -392,59 +460,50 @@ export function ProductDetail({ product }: ProductDetailProps) {
             </div>
 
             {/* ACTIONS */}
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
+              <ContactSellerModal
+                product={{
+                  id: product.id,
+                  title: product.title,
+                  price: product.price,
+                  image: product.images?.[0] || "/placeholder.svg",
+                }}
+                seller={{
+                  name: product.seller.name,
+                  verified: product.seller.verified,
+                  rating: product.seller.rating,
+                  totalReviews: product.seller.totalReviews,
+                }}
+              >
                 <Button
-                    className="bg-green-900 hover:bg-green-950"
-                    onClick={() => handleContactWithWarning(() => {})}
+                  className="w-full bg-green-900 hover:bg-green-950 text-white"
+                  onClick={() => handleContactWithWarning(() => {})}
                 >
-                    <MessageCircle className="h-4 w-4 mr-2" /> Chat
+                  Chat with Seller
                 </Button>
-                <Button
-                    className="bg-green-900 hover:bg-green-950"
-                    onClick={toggleFavorite}
-                >
-                    <Heart className={`h-4 w-4 mr-2 ${isFavorited ? "fill-red-500 text-red-500" : ""}`} /> 
-                    {isFavorited ? "Saved" : "Save"}
-                </Button>
-                <div className="relative">
-                    <Button
-                        className="w-full bg-green-900 hover:bg-green-950"
-                        onClick={() => setShowShareMenu(!showShareMenu)}
-                    >
-                        <Share2 className="h-4 w-4 mr-2" /> Share
-                    </Button>
-                    {showShareMenu && (
-                        <div className="absolute top-full right-0 mt-2 w-48 bg-white border rounded-lg shadow-lg z-50 p-2">
-                            <div className="space-y-1">
-                                <Button variant="ghost" size="sm" onClick={() => shareTo("whatsapp")}>
-                                    WhatsApp
-                                </Button>
-                                <Button variant="ghost" size="sm" onClick={() => shareTo("facebook")}>
-                                    Facebook
-                                </Button>
-                                <Button variant="ghost" size="sm" onClick={() => shareTo("email")}>
-                                    Email
-                                </Button>
-                                <Button variant="ghost" size="sm" onClick={copyLink}>
-                                    {linkCopied ? <Check className="w-5 h-5 mr-2 text-green-600" /> : <Copy className="w-5 h-5 mr-2" />}
-                                    {linkCopied ? "Link Copied!" : "Copy Link"}
-                                </Button>
-                                <Button variant="ghost" size="sm" onClick={() => setShowShareMenu(false)}>
-                                    <X className="h-4 w-4 mr-2" /> Close
-                                </Button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
-            <Button
+              </ContactSellerModal>
+              <Button
                 variant="outline"
-                className="w-full mt-2"
+                className="w-full bg-green-900 text-white hover:bg-green-800 border-green-900"
                 onClick={handleShowMobile}
-            >
+              >
                 <Phone className="h-4 w-4 mr-2" />
                 {showMobileNumber ? product.seller.phone || "N/A" : "Show Mobile"}
-            </Button>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* RATINGS */}
+        <Card className="mt-4">
+          <CardContent className="p-4">
+            <UserRatings
+              sellerId={product.seller.id}
+              sellerName={product.seller.name}
+              sellerAvatar={product.seller.avatar}
+              productId={product.id}
+              productTitle={product.title}
+            />
           </CardContent>
         </Card>
 
@@ -511,51 +570,33 @@ export function ProductDetail({ product }: ProductDetailProps) {
           </CardContent>
         </Card>
 
-        {/* RATINGS */}
-        <Card className="mt-4">
-          <CardContent className="p-4">
-            <UserRatings
-              sellerId={product.seller.id}
-              sellerName={product.seller.name}
-              sellerAvatar={product.seller.avatar}
-              productId={product.id}
-              productTitle={product.title}
-            />
-          </CardContent>
-        </Card>
-
         {/* RELATED ADS */}
-        <Card className="mt-4">
-          <CardContent className="p-4">
-            <h2 className="text-lg font-bold mb-3">Related Ads</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {relatedAds.map((ad) => (
-                <Link key={ad.id} href={`/ad/${ad.id}`} passHref>
-                  <a className="block">
-                    <div className="rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
-                      <div className="relative h-32 bg-gray-100">
-                        <Image
-                          src={ad.image}
-                          alt={ad.title}
-                          fill
-                          sizes="(max-width: 768px) 100vw, 33vw"
-                          className="object-cover"
-                        />
-                      </div>
-                      <div className="p-3 bg-white">
-                        <h3 className="text-sm font-semibold truncate">{ad.title}</h3>
-                        <p className="text-sm text-primary font-bold mt-1">{ad.price}</p>
-                        <div className="flex items-center text-xs text-muted-foreground mt-1">
-                          <MapPin className="h-3 w-3 mr-1" /> {ad.location}
-                        </div>
-                      </div>
+        {relatedAds.length > 0 && (
+          <Card className="mt-4">
+            <CardContent className="p-4">
+              <h2 className="text-lg font-bold mb-3">Related Ads</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {relatedAds.map((ad) => (
+                  <div key={ad.id} className="border rounded-lg overflow-hidden cursor-pointer hover:shadow-md transition-shadow">
+                    <div className="relative h-40 bg-gray-100">
+                      <Image
+                        src={getOptimizedImageUrl(ad.images?.[0], "thumb") || "/placeholder.svg"}
+                        alt={ad.title}
+                        fill
+                        className="object-cover"
+                      />
                     </div>
-                  </a>
-                </Link>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                    <div className="p-3">
+                      <h3 className="font-semibold text-sm truncate">{ad.title}</h3>
+                      <p className="text-primary font-bold text-sm">{ad.price}</p>
+                      <p className="text-xs text-muted-foreground">{ad.location}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* RIGHT SIDE */}
@@ -609,19 +650,45 @@ export function ProductDetail({ product }: ProductDetailProps) {
           </CardContent>
         </Card>
 
-        {/* SAFETY & REPORTING */}
+        {/* STAY SAFE SECTION - Moved below Seller Info */}
         <Card>
-            <CardContent className="p-4">
-                <h2 className="text-lg font-bold mb-3">Stay Safe & Reporting</h2>
-                <SafetyBanner />
-                <Separator className="my-4" />
-                <p className="text-sm text-muted-foreground mb-3">
-                    Help us keep the marketplace safe. Report suspicious ads.
-                </p>
-                <Button variant="destructive" size="sm" onClick={handleReportAd} className="w-full">
-                    <Flag className="h-4 w-4 mr-2" /> Report this Ad
-                </Button>
-            </CardContent>
+          <CardContent className="p-4">
+            <h2 className="text-lg font-bold mb-3">Stay Safe</h2>
+            <p className="text-sm text-muted-foreground mb-3">
+              When meeting in person:
+            </p>
+            <ul className="text-sm text-muted-foreground space-y-2 mb-4">
+              <li className="flex items-start">
+                <Shield className="h-4 w-4 mr-2 mt-0.5 text-green-600" />
+                <span>Choose public meeting places</span>
+              </li>
+              <li className="flex items-start">
+                <Shield className="h-4 w-4 mr-2 mt-0.5 text-green-600" />
+                <span>Inspect items before purchase</span>
+              </li>
+              <li className="flex items-start">
+                <Shield className="h-4 w-4 mr-2 mt-0.5 text-green-600" />
+                <span>Avoid too-good-to-be-true deals</span>
+              </li>
+              <li className="flex items-start">
+                <Shield className="h-4 w-4 mr-2 mt-0.5 text-green-600" />
+                <span>Never wire money in advance</span>
+              </li>
+            </ul>
+          </CardContent>
+        </Card>
+
+        {/* REPORT */}
+        <Card>
+          <CardContent className="p-4">
+            <h2 className="text-lg font-bold mb-3">Safety & Reporting</h2>
+            <p className="text-sm text-muted-foreground mb-3">
+              Help us keep the marketplace safe. Report suspicious ads.
+            </p>
+            <Button variant="destructive" size="sm" onClick={handleReportAd} className="w-full">
+              <Flag className="h-4 w-4 mr-2" /> Report this Ad
+            </Button>
+          </CardContent>
         </Card>
       </div>
 
