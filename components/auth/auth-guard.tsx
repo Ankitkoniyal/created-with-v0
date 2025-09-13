@@ -1,10 +1,9 @@
 "use client"
 
 import type React from "react"
-
 import { useAuth } from "@/hooks/use-auth"
-import { useRouter, useSearchParams } from "next/navigation"
-import { useEffect } from "react"
+import { useRouter, usePathname } from "next/navigation"
+import { useEffect, useState } from "react"
 
 interface AuthGuardProps {
   children: React.ReactNode
@@ -12,26 +11,41 @@ interface AuthGuardProps {
 }
 
 export function AuthGuard({ children, requireAuth = true }: AuthGuardProps) {
-  const { user, profile, isLoading } = useAuth()
+  const { user, isLoading } = useAuth()
   const router = useRouter()
-  const searchParams = useSearchParams()
+  const pathname = usePathname()
+  const [isClient, setIsClient] = useState(false)
 
   useEffect(() => {
-    if (!isLoading && requireAuth && !user) {
-      const currentPath = window.location.pathname + window.location.search
+    setIsClient(true)
+  }, [])
 
-      if (
-        !currentPath.includes("/auth/login") &&
-        !currentPath.includes("/auth/signup") &&
-        !currentPath.includes("/auth/callback")
-      ) {
-        const cleanPath = currentPath.replace(/[?&]redirectedFrom=[^&]*/, "")
-        router.push(`/auth/login?redirectedFrom=${encodeURIComponent(cleanPath)}`)
-      }
+  useEffect(() => {
+    if (!isClient || isLoading || !requireAuth || user) return
+
+    const publicPages = [
+      '/',
+      '/auth/login',
+      '/auth/signup', 
+      '/auth/callback',
+      '/auth/update-password',
+      '/product/',
+      '/category/',
+      '/search',
+      '/seller/'
+    ]
+
+    const isPublicPage = publicPages.some(publicPath => 
+      pathname.startsWith(publicPath)
+    )
+
+    if (!isPublicPage) {
+      const cleanPath = pathname.replace(/[?&]redirectedFrom=[^&]*/, "")
+      router.push(`/auth/login?redirectedFrom=${encodeURIComponent(cleanPath)}`)
     }
-  }, [user, isLoading, requireAuth, router])
+  }, [isClient, user, isLoading, requireAuth, router, pathname])
 
-  if (isLoading) {
+  if (!isClient || isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -46,7 +60,7 @@ export function AuthGuard({ children, requireAuth = true }: AuthGuardProps) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <p className="text-muted-foreground mb-4">Redirecting to login...</p>
+          <p className="text-muted-foreground">Please sign in to access this page</p>
         </div>
       </div>
     )

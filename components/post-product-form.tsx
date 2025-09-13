@@ -27,6 +27,7 @@ interface ProductFormData {
   model: string
   address: string
   location: string
+  postalCode: string
   youtubeUrl: string
   websiteUrl: string
   showMobileNumber: boolean
@@ -175,15 +176,17 @@ const CANADIAN_LOCATIONS = [
   { province: "Yukon", cities: ["Whitehorse", "Dawson City"] },
 ]
 
-const conditions = ["New", "Like New", "Good", "Fair", "Poor"]
+// Updated conditions with only three options
+const conditions = ["New", "Like New", "Fair"]
 
 const mapConditionToDatabase = (condition: string): string => {
   const conditionMap: { [key: string]: string } = {
     New: "new",
-    "Like New": "like_new",
-    Good: "good",
+    "Like New": "like_new", 
     Fair: "fair",
-    Poor: "poor",
+    // Add these if needed:
+    Good: "good",
+    Poor: "poor"
   }
   return conditionMap[condition] || condition.toLowerCase()
 }
@@ -214,6 +217,7 @@ export function PostProductForm() {
     model: "",
     address: "",
     location: "",
+    postalCode: "",
     youtubeUrl: "",
     websiteUrl: "",
     showMobileNumber: true,
@@ -235,7 +239,7 @@ export function PostProductForm() {
       try {
         const supabase = createClient()
         if (!supabase) {
-          console.error("[v0] Supabase client unavailable. Skipping edit data fetch.")
+          console.error("Supabase client unavailable. Skipping edit data fetch.")
           toast.error("Service temporarily unavailable. Please try again in a moment.")
           router.push("/dashboard/listings")
           return
@@ -254,27 +258,28 @@ export function PostProductForm() {
           return
         }
 
-        if (data) {
-          setFormData({
-            title: data.title || "",
-            description: data.description || "",
-            price: data.price ? data.price.toString() : "",
-            priceType: data.price > 0 ? "amount" : "contact",
-            category: data.category || "",
-            subcategory: data.subcategory || "",
-            condition: data.condition || "",
-            brand: data.brand || "",
-            model: data.model || "",
-            address: data.location?.split(",")[0]?.trim() || "",
-            location: `${data.city}, ${data.province}` || "",
-            youtubeUrl: data.youtube_url || "",
-            websiteUrl: data.website_url || "",
-            showMobileNumber: data.show_mobile_number ?? true,
-            tags: data.tags || [],
-            images: [], // Will be handled separately for existing images
-            features: data.features || [],
-          })
-        }
+       if (data) {
+  setFormData({
+    title: data.title || "",
+    description: data.description || "",
+    price: data.price ? data.price.toString() : "",
+    priceType: data.price_type || (data.price > 0 ? "amount" : "contact"),
+    category: data.category || "",
+    subcategory: data.subcategory || "",
+    condition: data.condition || "",
+    brand: data.brand || "",
+    model: data.model || "",
+    address: data.location || "", // Use location for address field
+    location: data.city && data.province ? `${data.city}, ${data.province}` : "",
+    postalCode: data.postal_code || "",
+    youtubeUrl: data.youtube_url || "",
+    websiteUrl: data.website_url || "",
+    showMobileNumber: data.show_mobile_number ?? true,
+    tags: data.tags || [],
+    images: [],
+    features: data.features || [],
+  })
+}
       } catch (error) {
         console.error("Error fetching product:", error)
         toast.error("Failed to load product data")
@@ -297,12 +302,13 @@ export function PostProductForm() {
     }))
   }
 
+  // Updated to 3MB limit
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
 
     const validFiles = files.filter((file) => {
-      if (file.size > 2 * 1024 * 1024) {
-        toast.error(`${file.name} is too large. Maximum size is 2MB per image.`)
+      if (file.size > 3 * 1024 * 1024) {
+        toast.error(`${file.name} is too large. Maximum size is 3MB per image.`)
         return false
       }
       return true
@@ -366,39 +372,39 @@ export function PostProductForm() {
     setIsSubmitting(true)
 
     try {
-      console.log(`[v0] Starting ${isEditMode ? "ad update" : "ad submission"} process`)
+      console.log(`Starting ${isEditMode ? "ad update" : "ad submission"} process`)
 
       const supabase = createClient()
       if (!supabase) {
-        console.error("[v0] Supabase client unavailable. Aborting submission.")
+        console.error("Supabase client unavailable. Aborting submission.")
         setSubmitError(
           "Service temporarily unavailable. Please refresh the page or try again shortly. If this persists, contact support.",
         )
         return
       }
 
-      console.log("[v0] Supabase client created successfully")
+      console.log("Supabase client created successfully")
 
       const imageUrls: string[] = []
       if (formData.images.length > 0) {
-        console.log("[v0] Uploading images:", formData.images.length)
+        console.log("Uploading images:", formData.images.length)
 
         for (const image of formData.images) {
           const fileExt = image.name.split(".").pop()
           const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
 
-          console.log("[v0] Uploading image:", fileName)
+          console.log("Uploading image:", fileName)
 
           const { data, error } = await supabase.storage.from("product-images").upload(fileName, image)
 
           if (error) {
-            console.error("[v0] Image upload error:", error)
+            console.error("Image upload error:", error)
             throw new Error(`Failed to upload image: ${error.message}`)
           }
 
           const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(fileName)
           imageUrls.push(urlData.publicUrl)
-          console.log("[v0] Image uploaded successfully:", urlData.publicUrl)
+          console.log("Image uploaded successfully:", urlData.publicUrl)
         }
       }
 
@@ -406,7 +412,7 @@ export function PostProductForm() {
       const city = locationParts.city || formData.location.split(",")[0]?.trim() || ""
       const province = locationParts.province || formData.location.split(",")[1]?.trim() || ""
 
-      console.log("[v0] Preparing product data...")
+      console.log("Preparing product data...")
 
       const selectedCategory = categories.find((cat) => cat.name === formData.category)
       const selectedSubcategory = selectedCategory?.subcategories.find((sub) => sub === formData.subcategory)
@@ -414,32 +420,38 @@ export function PostProductForm() {
       const categoryIndex = categories.findIndex((cat) => cat.name === formData.category) + 1
 
       const productData = {
-        user_id: user.id,
-        title: formData.title.trim(),
-        description: formData.description.trim(),
-        price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
-        condition: mapConditionToDatabase(formData.condition),
-        location: `${formData.address}, ${city}`.trim(),
-        city: city,
-        province: province,
-        ...(imageUrls.length > 0 && { images: imageUrls }),
-        category_id: categoryIndex,
-        brand: formData.brand.trim() || null,
-        model: formData.model.trim() || null,
-        tags: formData.tags.length > 0 ? formData.tags : null,
-        youtube_url: formData.youtubeUrl.trim() || null,
-        website_url: formData.websiteUrl.trim() || null,
-        status: "active",
-        updated_at: new Date().toISOString(),
-        ...(!isEditMode && { created_at: new Date().toISOString() }),
-      }
+  user_id: user.id,
+  title: formData.title.trim(),
+  description: formData.description.trim(),
+  price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
+  price_type: formData.priceType, // This should match your DB enum values
+  condition: mapConditionToDatabase(formData.condition),
+  location: formData.address, // Use address for location field
+  province: province,
+  city: city,
+  postal_code: formData.postalCode.trim(),
+  images: imageUrls,
+  category_id: categoryIndex, // REQUIRED by your database schema
+  category: formData.category, // Also send category text
+  subcategory: formData.subcategory || null,
+  brand: formData.brand.trim() || null,
+  model: formData.model.trim() || null,
+  tags: formData.tags.length > 0 ? formData.tags : null,
+  youtube_url: formData.youtubeUrl.trim() || null,
+  website_url: formData.websiteUrl.trim() || null,
+  show_mobile_number: formData.showMobileNumber,
+  features: formData.features.length > 0 ? formData.features : null,
+  status: "active",
+  updated_at: new Date().toISOString(),
+  ...(!isEditMode && { created_at: new Date().toISOString() }),
+}
 
-      console.log("[v0] Product data prepared:", JSON.stringify(productData, null, 2))
+      console.log("Product data prepared:", JSON.stringify(productData, null, 2))
 
       let data, error
 
       if (isEditMode) {
-        console.log("[v0] Updating existing product...")
+        console.log("Updating existing product...")
         const result = await supabase
           .from("products")
           .update(productData)
@@ -451,14 +463,14 @@ export function PostProductForm() {
         data = result.data
         error = result.error
       } else {
-        console.log("[v0] Inserting new product...")
+        console.log("Inserting new product...")
         const result = await supabase.from("products").insert(productData).select().single()
         data = result.data
         error = result.error
       }
 
       if (error) {
-        console.error("[v0] Database error details:", {
+        console.error("Database error details:", {
           message: error.message,
           details: error.details,
           hint: error.hint,
@@ -471,7 +483,7 @@ export function PostProductForm() {
           )
           return
         } else if (error.message.includes("column") && error.message.includes("does not exist")) {
-          console.error("[v0] Missing database column:", error.message)
+          console.error("Missing database column:", error.message)
           setSubmitError(`Database schema issue: ${error.message}. Please run the required database migrations.`)
           return
         } else if (error.message.includes("duplicate key") || error.message.includes("unique constraint")) {
@@ -483,13 +495,13 @@ export function PostProductForm() {
         }
       }
 
-      console.log(`[v0] Product ${isEditMode ? "updated" : "saved"} successfully:`, data)
+      console.log(`Product ${isEditMode ? "updated" : "saved"} successfully:`, data)
 
       const successMessage = isEditMode
         ? "Your ad has been updated successfully!"
         : "Your ad has been posted successfully!"
 
-      console.log("[v0] Redirecting to success page with ID:", data.id)
+      console.log("Redirecting to success page with ID:", data.id)
       sessionStorage.setItem("adPostSuccess", successMessage)
 
       if (isEditMode) {
@@ -498,7 +510,7 @@ export function PostProductForm() {
         router.push(`/sell/success?id=${data.id}`)
       }
     } catch (error) {
-      console.error("[v0] Submission error details:", {
+      console.error("Submission error details:", {
         error,
         message: error instanceof Error ? error.message : "Unknown error",
         stack: error instanceof Error ? error.stack : undefined,
@@ -508,14 +520,13 @@ export function PostProductForm() {
       )
     } finally {
       setIsSubmitting(false)
-      console.log(`[v0] ${isEditMode ? "Ad update" : "Ad submission"} process completed`)
+      console.log(`${isEditMode ? "Ad update" : "Ad submission"} process completed`)
     }
   }
 
-  const isStep1Valid = formData.images.length > 0
-  const isStep2Valid =
-    formData.title && formData.category && formData.condition && (formData.priceType !== "amount" || formData.price)
-  const isStep3Valid = formData.description && formData.address && formData.location
+  const isStep1Valid = formData.images.length > 0 && formData.title.trim() && formData.description.trim()
+  const isStep2Valid = formData.category && formData.condition && (formData.priceType !== "amount" || formData.price)
+  const isStep3Valid = formData.address && formData.location && formData.postalCode
   const canProceed =
     currentStep === 1 ? isStep1Valid : currentStep === 2 ? isStep2Valid : currentStep === 3 ? isStep3Valid : true
 
@@ -553,64 +564,98 @@ export function PostProductForm() {
 
         {currentStep === 1 && (
           <div className="space-y-6">
-            <p className="text-muted-foreground">
-              Add up to 5 photos (max 2MB each). The first photo will be your main image.
-            </p>
-
-            <section aria-labelledby="photos" className="mt-6">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {formData.images.map((image, index) => (
-                  <div key={index} className="relative overflow-hidden rounded-lg border bg-background aspect-square">
-                    <div className="w-full overflow-hidden">
-                      <img
-                        src={URL.createObjectURL(image) || "/placeholder.svg"}
-                        alt={`Product ${index + 1}`}
-                        className="h-full w-full object-cover"
-                      />
-                    </div>
-                    {index === 0 ? (
-                      <span className="absolute left-2 top-2 rounded-md bg-black/70 px-2 py-0.5 text-xs font-medium text-white">
-                        Main
-                      </span>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => removeImage(index)}
-                      className="absolute right-2 top-2 rounded-full bg-red-500 hover:bg-red-600 text-white p-1 transition-colors shadow-lg"
-                      aria-label={`Remove image ${index + 1}`}
-                    >
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                ))}
-
-                {/* Hidden input that triggers the file picker - visually matches image tiles */}
-                <label
-                  htmlFor="add-photo-input"
-                  className="relative overflow-hidden rounded-lg border-2 border-dashed bg-muted/40 hover:bg-muted/60 transition-colors cursor-pointer aspect-square"
-                >
-                  <div className="w-full grid place-items-center">
-                    <div className="text-center">
-                      <div className="mx-auto mb-2 h-10 w-10 rounded-full border grid place-items-center text-foreground/70">
-                        +
-                      </div>
-                      <p className="text-sm text-muted-foreground">Add Photo</p>
-                      <p className="text-xs text-muted-foreground">Max 2MB</p>
-                    </div>
-                  </div>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="title" className="block text-sm font-medium text-gray-700">
+                  Title *
                 </label>
                 <input
-                  id="add-photo-input"
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="sr-only"
-                  onChange={handleImageUpload}
+                  id="title"
+                  type="text"
+                  placeholder="Enter a clear, descriptive title for your item"
+                  value={formData.title}
+                  onChange={(e) => handleInputChange("title", e.target.value)}
+                  className="w-full px-3 py-2 border-2 border-gray-200 rounded-md focus:border-primary focus:outline-none"
+                  required
                 />
+                <p className="text-xs text-muted-foreground">Be specific about what you're selling</p>
               </div>
-            </section>
+
+              <div className="space-y-2">
+                <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+                  Description *
+                </label>
+                <textarea
+                  id="description"
+                  placeholder="Describe your item in detail. Include condition, features, and any relevant information for buyers."
+                  value={formData.description}
+                  onChange={(e) => handleInputChange("description", e.target.value)}
+                  rows={4}
+                  className="w-full px-3 py-2 border-2 border-gray-200 rounded-md focus:border-primary focus:outline-none"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">Provide detailed information to attract buyers</p>
+              </div>
+            </div>
+
+            <div className="pt-4">
+              <p className="text-muted-foreground mb-4">
+                Add up to 5 photos (max 3MB each). The first photo will be your main image.
+              </p>
+
+              <section aria-labelledby="photos" className="mt-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {formData.images.map((image, index) => (
+                    <div key={index} className="relative overflow-hidden rounded-lg border bg-background aspect-square">
+                      <div className="w-full overflow-hidden">
+                        <img
+                          src={URL.createObjectURL(image) || "/placeholder.svg"}
+                          alt={`Product ${index + 1}`}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                      {index === 0 ? (
+                        <span className="absolute left-2 top-2 rounded-md bg-black/70 px-2 py-0.5 text-xs font-medium text-white">
+                          Main
+                        </span>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => removeImage(index)}
+                        className="absolute right-2 top-2 rounded-full bg-red-500 hover:bg-red-600 text-white p-1 transition-colors shadow-lg"
+                        aria-label={`Remove image ${index + 1}`}
+                      >
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Updated Add Photo UI */}
+                  <label
+                    htmlFor="add-photo-input"
+                    className="relative overflow-hidden rounded-lg border-2 border-dashed border-green-600 bg-green-50 hover:bg-green-100 transition-colors cursor-pointer aspect-square flex items-center justify-center"
+                  >
+                    <div className="text-center">
+                      <div className="mx-auto mb-2 h-10 w-10 rounded-full border-2 border-green-600 grid place-items-center text-green-600">
+                        <i className="fas fa-camera text-lg"></i>
+                      </div>
+                      <p className="text-sm text-green-700 font-medium">Add Photos</p>
+                      <p className="text-xs text-green-600">Max 3MB</p>
+                    </div>
+                  </label>
+                  <input
+                    id="add-photo-input"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="sr-only"
+                    onChange={handleImageUpload}
+                  />
+                </div>
+              </section>
+            </div>
           </div>
         )}
 
@@ -819,7 +864,7 @@ export function PostProductForm() {
                     type="button"
                     onClick={addTag}
                     disabled={!newTag.trim() || formData.tags.length >= 5 || formData.tags.includes(newTag.trim())}
-                    className="bg-primary text-white px-3 py-2 rounded"
+                    className="bg-green-700 hover:bg-green-800 text-white px-3 py-2 rounded"
                   >
                     Add
                   </button>
@@ -852,7 +897,7 @@ export function PostProductForm() {
                   onKeyPress={(e) => e.key === "Enter" && addFeature()}
                   className="border-2 border-gray-200 focus:border-primary"
                 />
-                <button type="button" onClick={addFeature} className="bg-primary text-white px-3 py-2 rounded">
+                <button type="button" onClick={addFeature} className="bg-green-700 hover:bg-green-800 text-white px-3 py-2 rounded">
                   Add
                 </button>
               </div>
@@ -910,6 +955,22 @@ export function PostProductForm() {
                   </select>
                 </div>
               </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-4">
+                <div className="space-y-2">
+                  <label htmlFor="postalCode" className="block text-sm font-medium text-gray-700">
+                    Postal Code *
+                  </label>
+                  <input
+                    id="postalCode"
+                    placeholder="e.g., M5V 2T6"
+                    className="w-full border-2 border-gray-200 focus:border-primary"
+                    value={formData.postalCode}
+                    onChange={(e) => handleInputChange("postalCode", e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -955,6 +1016,9 @@ export function PostProductForm() {
                     <span className="text-muted-foreground">Location:</span>{" "}
                     {formData.address && `${formData.address}, `}
                     {formData.location}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Postal Code:</span> {formData.postalCode}
                   </p>
                   {formData.youtubeUrl && (
                     <p>
@@ -1028,19 +1092,31 @@ export function PostProductForm() {
         <button
           type="button"
           onClick={() => setCurrentStep((prev) => Math.max(1, prev - 1))}
-          className="rounded-md bg-black text-white px-4 py-2 disabled:opacity-50"
+          className="rounded-md bg-gray-500 text-white px-4 py-2 disabled:opacity-50 hover:bg-gray-600"
           disabled={currentStep <= 1}
         >
           Previous
         </button>
-        <button
-          type="button"
-          onClick={() => setCurrentStep((prev) => Math.min(4, prev + 1))}
-          className="rounded-md bg-black text-white px-4 py-2 disabled:opacity-50"
-          disabled={!canProceed || currentStep >= 4}
-        >
-          Next
-        </button>
+        
+        {currentStep === 4 ? (
+          <button
+            type="button"
+            onClick={handleSubmit}
+            className="rounded-md bg-green-700 hover:bg-green-800 text-white px-6 py-2 disabled:opacity-50"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Publishing..." : "Publish Ad"}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setCurrentStep((prev) => Math.min(4, prev + 1))}
+            className="rounded-md bg-green-700 hover:bg-green-800 text-white px-4 py-2 disabled:opacity-50"
+            disabled={!canProceed}
+          >
+            Next
+          </button>
+        )}
       </div>
     </div>
   )

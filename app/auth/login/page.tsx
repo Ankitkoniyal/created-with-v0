@@ -1,12 +1,15 @@
-import { LoginForm } from "@/components/auth/login-form"
-import { Breadcrumb } from "@/components/breadcrumb"
-import Link from "next/link"
+"use client";
+
+import { Suspense } from "react";
+import { LoginForm } from "@/components/auth/login-form";
+import { Breadcrumb } from "@/components/breadcrumb";
+import Link from "next/link";
 
 export default function LoginPage() {
   const breadcrumbItems = [
     { label: "Home", href: "/" },
     { label: "Login", href: "/auth/login" },
-  ]
+  ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -15,20 +18,28 @@ export default function LoginPage() {
 
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">Welcome Back</h1>
-          <p className="text-muted-foreground">Sign in to your MarketPlace account</p>
+          <p className="text-muted-foreground">
+            Sign in to your MarketPlace account
+          </p>
         </div>
 
-        <LoginForm />
+        {/* Wrap LoginForm in Suspense */}
+        <Suspense fallback={<div>Loading login form...</div>}>
+          <LoginForm />
+        </Suspense>
 
         <div className="text-center mt-6">
           <p className="text-muted-foreground">
             Don&apos;t have an account?{" "}
-            <Link href="/auth/signup" className="text-primary hover:underline font-medium">
+            <Link
+              href="/auth/signup"
+              className="text-primary hover:underline font-medium"
+            >
               Sign up here
             </Link>
           </p>
         </div>
       </div>
     </div>
-  )
+  );
 }
