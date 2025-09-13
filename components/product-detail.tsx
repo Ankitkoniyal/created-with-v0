@@ -2,7 +2,7 @@
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Heart, MapPin, Clock, Share2, Eye } from "lucide-react"
+import { Heart, MapPin, Clock, Share2, Eye, MessageCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useState } from "react"
 import Image from "next/image"
@@ -88,16 +88,19 @@ export function ProductDetail({ product }: ProductDetailProps) {
     }
   }
 
+  // Get last 6 digits of real product ID
+  const realAdId = product.id.slice(-6).toUpperCase()
+  
   const badge = conditionBadge()
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       <TooltipProvider>
         {/* Product Header */}
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">{product.title}</h1>
-          <div className="flex items-center gap-4 text-sm text-gray-600">
-            <span>Ad ID: {product.adId}</span>
+          <div className="flex items-center gap-4 text-sm text-gray-600 flex-wrap">
+            <span className="bg-gray-100 px-2 py-1 rounded-md">Ad ID: {realAdId}</span>
             <span>•</span>
             <span>{formatTimePosted(product.postedDate)}</span>
             <span>•</span>
@@ -105,6 +108,8 @@ export function ProductDetail({ product }: ProductDetailProps) {
               <Eye className="h-4 w-4" />
               <span>{product.views} views</span>
             </div>
+            <span>•</span>
+            <span className="capitalize">{product.condition}</span>
           </div>
         </div>
 
@@ -122,7 +127,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
               <Button
                 size="icon"
                 variant="secondary"
-                className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm"
+                className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm shadow-md"
                 onClick={() => toggleFavorite(product.id)}
               >
                 <Heart
@@ -139,12 +144,12 @@ export function ProductDetail({ product }: ProductDetailProps) {
                   <button
                     key={index}
                     onClick={() => setSelectedImage(index)}
-                    className={`aspect-square bg-gray-100 rounded-md overflow-hidden border-2 ${
-                      selectedImage === index ? "border-green-500" : "border-transparent"
+                    className={`aspect-square bg-gray-100 rounded-md overflow-hidden border-2 transition-all ${
+                      selectedImage === index ? "border-green-500 scale-105" : "border-transparent hover:border-gray-300"
                     }`}
                   >
                     <Image
-                      src={getOptimizedImageUrl(image, "thumb") || "/placeholder.svg"}
+                      src={getOptimizedImageUrl(image, "thumb")}
                       alt={`${product.title} ${index + 1}`}
                       width={80}
                       height={80}
@@ -162,95 +167,135 @@ export function ProductDetail({ product }: ProductDetailProps) {
             <div className="flex items-start justify-between">
               <div>
                 <div className="text-3xl font-bold text-green-600 mb-2">{product.price}</div>
-                <Badge className={badge.className}>{badge.text}</Badge>
+                <Badge className={`${badge.className} text-sm`}>{badge.text}</Badge>
               </div>
-              <Button variant="outline" size="icon">
-                <Share2 className="h-4 w-4" />
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" size="icon" className="h-10 w-10">
+                  <Share2 className="h-4 w-4" />
+                </Button>
+                <Button 
+                  variant={favorites.has(product.id) ? "default" : "outline"} 
+                  size="icon" 
+                  className="h-10 w-10"
+                  onClick={() => toggleFavorite(product.id)}
+                >
+                  <Heart className={`h-4 w-4 ${favorites.has(product.id) ? "fill-white" : ""}`} />
+                </Button>
+              </div>
             </div>
 
             {/* Location */}
-            <div className="flex items-center gap-2 text-gray-600">
-              <MapPin className="h-5 w-5" />
-              <span>{product.location}</span>
+            <div className="flex items-center gap-2 text-gray-600 p-3 bg-gray-50 rounded-lg">
+              <MapPin className="h-5 w-5 text-green-600" />
+              <span className="font-medium">{product.location}</span>
             </div>
 
             {/* Description */}
-            <div className="prose prose-sm">
-              <h3 className="font-semibold text-gray-900 mb-2">Description</h3>
-              <p className="text-gray-700 whitespace-pre-line">{product.description}</p>
-            </div>
+            <Card>
+              <CardContent className="p-4">
+                <h3 className="font-semibold text-gray-900 mb-3 text-lg">Description</h3>
+                <p className="text-gray-700 whitespace-pre-line leading-relaxed">
+                  {product.description || "No description provided."}
+                </p>
+              </CardContent>
+            </Card>
 
             {/* Features */}
             {product.features && product.features.length > 0 && (
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-2">Features</h3>
-                <div className="flex flex-wrap gap-2">
-                  {product.features.map((feature, index) => (
-                    <Badge key={index} variant="secondary" className="text-xs">
-                      {feature}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
+              <Card>
+                <CardContent className="p-4">
+                  <h3 className="font-semibold text-gray-900 mb-3 text-lg">Features</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {product.features.map((feature, index) => (
+                      <Badge key={index} variant="secondary" className="text-xs py-1 px-2">
+                        {feature}
+                      </Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
             )}
 
             {/* Additional Details */}
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              {product.brand && (
-                <div>
-                  <span className="font-semibold text-gray-600">Brand:</span>
-                  <span className="ml-2">{product.brand}</span>
-                </div>
-              )}
-              {product.model && (
-                <div>
-                  <span className="font-semibold text-gray-600">Model:</span>
-                  <span className="ml-2">{product.model}</span>
-                </div>
-              )}
-              {product.storage && (
-                <div>
-                  <span className="font-semibold text-gray-600">Storage:</span>
-                  <span className="ml-2">{product.storage}</span>
-                </div>
-              )}
-              {product.color && (
-                <div>
-                  <span className="font-semibold text-gray-600">Color:</span>
-                  <span className="ml-2">{product.color}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Seller Info */}
             <Card>
               <CardContent className="p-4">
-                <h3 className="font-semibold text-gray-900 mb-3">Seller Information</h3>
-                <div className="space-y-2">
+                <h3 className="font-semibold text-gray-900 mb-3 text-lg">Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  {product.brand && (
+                    <div className="flex justify-between py-2 border-b">
+                      <span className="font-semibold text-gray-600">Brand:</span>
+                      <span className="text-gray-900">{product.brand}</span>
+                    </div>
+                  )}
+                  {product.model && (
+                    <div className="flex justify-between py-2 border-b">
+                      <span className="font-semibold text-gray-600">Model:</span>
+                      <span className="text-gray-900">{product.model}</span>
+                    </div>
+                  )}
+                  {product.storage && (
+                    <div className="flex justify-between py-2 border-b">
+                      <span className="font-semibold text-gray-600">Storage:</span>
+                      <span className="text-gray-900">{product.storage}</span>
+                    </div>
+                  )}
+                  {product.color && (
+                    <div className="flex justify-between py-2 border-b">
+                      <span className="font-semibold text-gray-600">Color:</span>
+                      <span className="text-gray-900">{product.color}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="font-semibold text-gray-600">Condition:</span>
+                    <span className="text-gray-900 capitalize">{product.condition}</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="font-semibold text-gray-600">Category:</span>
+                    <span className="text-gray-900">{product.category}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Seller Info */}
+            <Card className="border-green-200">
+              <CardContent className="p-6">
+                <h3 className="font-semibold text-gray-900 mb-4 text-lg">Seller Information</h3>
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="font-medium">{product.seller.name}</span>
+                    <span className="font-medium text-lg">{product.seller.name}</span>
                     {product.seller.verified && (
-                      <Badge variant="outline" className="text-green-600 border-green-200">
-                        Verified
+                      <Badge variant="outline" className="text-green-600 border-green-300 bg-green-50">
+                        ✓ Verified
                       </Badge>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <span>{product.seller.rating}★</span>
-                    <span>•</span>
-                    <span>{product.seller.totalReviews} reviews</span>
+                  
+                  <div className="flex items-center gap-4 text-sm">
+                    <div className="flex items-center gap-1 bg-blue-50 px-3 py-1 rounded-full">
+                      <span className="text-blue-700 font-semibold">{product.seller.rating}★</span>
+                      <span className="text-blue-600">({product.seller.totalReviews} reviews)</span>
+                    </div>
                   </div>
+                  
                   <div className="text-sm text-gray-600">
-                    Member since {product.seller.memberSince}
+                    <strong>Member since:</strong> {product.seller.memberSince}
                   </div>
+                  
                   <div className="text-sm text-gray-600">
-                    {product.seller.responseTime}
+                    <strong>Response time:</strong> {product.seller.responseTime}
                   </div>
                 </div>
-                <Button className="w-full mt-4 bg-green-600 hover:bg-green-700">
-                  Contact Seller
-                </Button>
+                
+                <div className="flex gap-3 mt-6">
+                  <Button className="flex-1 bg-green-600 hover:bg-green-700 h-12">
+                    <MessageCircle className="h-4 w-4 mr-2" />
+                    Contact Seller
+                  </Button>
+                  <Button variant="outline" className="h-12 px-6">
+                    View Profile
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </div>
