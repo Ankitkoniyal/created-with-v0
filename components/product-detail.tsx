@@ -21,6 +21,8 @@ import {
   Copy,
   Check,
   Tag,
+  AlertCircle,
+  Home,
 } from "lucide-react"
 import { ContactSellerModal } from "@/components/messaging/contact-seller-modal"
 import { SafetyBanner } from "@/components/ui/safety-banner"
@@ -30,6 +32,8 @@ import { useAuth } from "@/hooks/use-auth"
 import { getOptimizedImageUrl } from "@/lib/images"
 import { toast } from "@/components/ui/use-toast"
 import { UserRatings } from "@/components/user-ratings"
+import { useRouter } from "next/navigation"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface Product {
   id: string
@@ -73,6 +77,7 @@ interface ProductDetailProps {
 
 export function ProductDetail({ product }: ProductDetailProps) {
   const { user } = useAuth()
+  const router = useRouter()
   const [selectedImage, setSelectedImage] = useState(0)
   const [isFavorited, setIsFavorited] = useState(false)
   const [showMobileNumber, setShowMobileNumber] = useState(false)
@@ -82,6 +87,8 @@ export function ProductDetail({ product }: ProductDetailProps) {
   const [showPhoneWarning, setShowPhoneWarning] = useState(false)
   const [pendingContactAction, setPendingContactAction] = useState<(() => void) | null>(null)
   const [relatedAds, setRelatedAds] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const adDisplayId = (product.adId || product.id).slice(-6)
 
@@ -92,47 +99,57 @@ export function ProductDetail({ product }: ProductDetailProps) {
   }
 
   useEffect(() => {
-    const checkFavoriteStatus = async () => {
-      if (!user || !isValidUUID(product.id)) return
+    const initializeData = async () => {
       try {
-        const supabase = createClient()
-        const { data, error } = await supabase
-          .from("favorites")
-          .select("id")
-          .eq("user_id", user.id)
-          .eq("product_id", product.id)
-          .single()
-
-        if (!error) setIsFavorited(!!data)
+        setLoading(true)
+        await Promise.all([checkFavoriteStatus(), fetchRelatedAds()])
       } catch (err) {
-        console.error("Error checking favorite status:", err)
+        console.error("Error initializing data:", err)
+        setError("Failed to load product details. Please try again.")
+      } finally {
+        setLoading(false)
       }
     }
-    checkFavoriteStatus()
-  }, [user, product.id])
 
-  useEffect(() => {
-    // Fetch related ads
-    const fetchRelatedAds = async () => {
-      try {
-        const supabase = createClient()
-        const { data, error } = await supabase
-          .from("products")
-          .select("*")
-          .eq("category", product.category)
-          .neq("id", product.id)
-          .limit(3)
-
-        if (!error && data) {
-          setRelatedAds(data)
-        }
-      } catch (err) {
-        console.error("Error fetching related ads:", err)
-      }
+    if (product) {
+      initializeData()
     }
-    
-    fetchRelatedAds()
-  }, [product.id, product.category])
+  }, [user, product])
+
+  const checkFavoriteStatus = async () => {
+    if (!user || !isValidUUID(product.id)) return
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("favorites")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("product_id", product.id)
+        .single()
+
+      if (!error) setIsFavorited(!!data)
+    } catch (err) {
+      console.error("Error checking favorite status:", err)
+    }
+  }
+
+  const fetchRelatedAds = async () => {
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .eq("category", product.category)
+        .neq("id", product.id)
+        .limit(3)
+
+      if (!error && data) {
+        setRelatedAds(data)
+      }
+    } catch (err) {
+      console.error("Error fetching related ads:", err)
+    }
+  }
 
   const toggleFavorite = async () => {
     if (!user) {
@@ -185,7 +202,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
     }
   }
 
-  const shareTo = (platform: "whatsapp" | "facebook" | "tiktok" | "email") => {
+  const shareTo = (platform: "whatsapp" | "facebook" | "email") => {
     const url = encodeURIComponent(window.location.href)
     const text = encodeURIComponent(`Check out this ${product.title}`)
     let shareUrl = ""
@@ -196,9 +213,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
         break
       case "facebook":
         shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${url}`
-        break
-      case "tiktok":
-        shareUrl = `https://www.tiktok.com/share?url=${url}&title=${text}`
         break
       case "email":
         shareUrl = `mailto:?subject=${text}&body=${text}%20${url}`
@@ -223,7 +237,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
   }
 
   const handleViewAllAds = () => {
-    window.location.href = `/seller/${product.seller.id || "unknown"}`
+    router.push(`/seller/${product.seller.id || "unknown"}`)
   }
 
   const handleShowMobile = () => {
@@ -245,6 +259,54 @@ export function ProductDetail({ product }: ProductDetailProps) {
       pendingContactAction()
       setPendingContactAction(null)
     }
+  }
+
+  const tryAgain = () => {
+    setError(null)
+    setLoading(true)
+    setTimeout(() => {
+      fetchRelatedAds()
+      setLoading(false)
+    }, 1000)
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] p-4">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md w-full text-center">
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-red-800 mb-2">Something went wrong!</h2>
+          <p className="text-red-600 mb-6">
+            We encountered an unexpected error. Please try again or return to the homepage.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Button onClick={tryAgain} className="bg-red-600 hover:bg-red-700">
+              Try Again
+            </Button>
+            <Button onClick={() => router.push("/")} variant="outline">
+              <Home className="h-4 w-4 mr-2" />
+              Back to Homepage
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-4">
+          <Skeleton className="h-80 w-full" />
+          <Skeleton className="h-40 w-full" />
+          <Skeleton className="h-60 w-full" />
+        </div>
+        <div className="space-y-4">
+          <Skeleton className="h-60 w-full" />
+          <Skeleton className="h-40 w-full" />
+        </div>
+      </div>
+    )
   }
 
   return (
