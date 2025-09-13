@@ -1,112 +1,62 @@
 "use client"
 
-import type React from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Heart, MapPin, Clock } from "lucide-react"
+import { Heart, MapPin, Clock, Share2, Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import Link from "next/link"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import Image from "next/image"
-import { LoadingSkeleton } from "@/components/loading-skeleton"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { getOptimizedImageUrl } from "@/lib/images"
-import { createClient } from "@/lib/supabase/client"
 
-interface Product {
-  id: string
-  title: string
-  price: number
-  price_type: string
-  location: string
-  city: string
-  province: string
-  condition: string
-  category: string
-  subcategory?: string
-  brand?: string
-  model?: string
-  description: string
-  images: string[]
-  created_at: string
-  user_id: string
-  featured?: boolean
-  seller?: {
+interface ProductDetailProps {
+  product: {
     id: string
-    full_name: string
-    avatar_url?: string
-    rating?: number
+    title: string
+    price: string
+    location: string
+    images: string[]
+    description: string
+    category: string
+    condition: string
+    brand?: string
+    model?: string
+    postedDate: string
+    views: number
+    adId: string
+    seller: {
+      id: string
+      name: string
+      rating: number
+      totalReviews: number
+      memberSince: string
+      verified: boolean
+      responseTime: string
+    }
+    features: string[]
+    storage?: string
+    color?: string
+    youtube_url?: string
+    website_url?: string
   }
 }
 
-const PRODUCTS_PER_PAGE = 20 // Adjusted for new layout
-
-export function ProductGrid({ products: overrideProducts }: { products?: Product[] }) {
-  const [products, setProducts] = useState<Product[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+export function ProductDetail({ product }: ProductDetailProps) {
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
-  const [shouldFetch, setShouldFetch] = useState(false)
+  const [selectedImage, setSelectedImage] = useState(0)
 
-  const hasOverride = Array.isArray(overrideProducts)
+  if (!product) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-red-600 mb-4">Product Not Found</h2>
+          <p className="text-gray-600">The product you're looking for doesn't exist or may have been removed.</p>
+        </div>
+      </div>
+    )
+  }
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const p = window.location.pathname
-      const allow =
-        p === "/" ||
-        p.startsWith("/search") ||
-        p.startsWith("/category") ||
-        p.startsWith("/seller") ||
-        p.startsWith("/product")
-      setShouldFetch(allow)
-    }
-  }, [])
-
-  useEffect(() => {
-    async function fetchProducts() {
-      try {
-        const supabase = createClient()
-        
-        if (!supabase) {
-          throw new Error('Supabase client not available. Check your environment variables.')
-        }
-
-        const { data, error } = await supabase
-          .from('products')
-          .select('*')
-          .eq('status', 'active')
-          .order('created_at', { ascending: false })
-          .limit(PRODUCTS_PER_PAGE)
-
-        if (error) {
-          throw error
-        }
-
-        setProducts(data || [])
-      } catch (err) {
-        setError(err.message)
-        console.error('Error fetching products:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    if (!hasOverride && shouldFetch) {
-      fetchProducts()
-    } else if (hasOverride) {
-      setProducts(overrideProducts as Product[])
-      setLoading(false)
-    } else {
-      setLoading(false)
-    }
-  }, [hasOverride, overrideProducts, shouldFetch])
-
-  const toggleFavorite = (productId: string, e?: React.MouseEvent) => {
-    if (e) {
-      e.preventDefault()
-      e.stopPropagation()
-    }
+  const toggleFavorite = (productId: string) => {
     setFavorites((prev) => {
       const next = new Set(prev)
       next.has(productId) ? next.delete(productId) : next.add(productId)
@@ -114,219 +64,198 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     })
   }
 
-  const formatPrice = (price?: number, priceType?: string) => {
-    if (priceType === "free") return "Free"
-    if (priceType === "contact") return "Contact"
-    if (typeof price === "number") {
-      if (price >= 1000) return `¥${(price/1000).toFixed(0)}k`
-      return `¥${price}`
-    }
-    return "Contact"
-  }
-
-  const getConditionBadge = (condition?: string) => {
-    switch (condition?.toLowerCase()) {
-      case "new":
-        return { text: "New", className: "bg-green-500 text-white text-xs px-2 py-1" }
-      case "like new":
-        return { text: "Like New", className: "bg-green-400 text-white text-xs px-2 py-1" }
-      case "second hand":
-        return { text: "Second Hand", className: "bg-blue-500 text-white text-xs px-2 py-1" }
-      default:
-        return null
-    }
-  }
-
-  const isNegotiable = (priceType?: string) => {
-    return priceType === "negotiable" || priceType === "contact"
-  }
-
-  const formatTimePosted = (createdAt?: string) => {
-    if (!createdAt) return ""
+  const formatTimePosted = (createdAt: string) => {
     const now = new Date()
     const posted = new Date(createdAt)
     const diffInHours = Math.floor((now.getTime() - posted.getTime()) / (1000 * 60 * 60))
 
-    if (diffInHours < 1) return "Now"
-    if (diffInHours < 24) return `${diffInHours}h`
-    if (diffInHours < 48) return "1d"
-    if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}d`
-    return posted.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    if (diffInHours < 1) return "Just now"
+    if (diffInHours < 24) return `${diffInHours} hours ago`
+    if (diffInHours < 48) return "1 day ago"
+    return `${Math.floor(diffInHours / 24)} days ago`
   }
 
-  if (!hasOverride && !shouldFetch) {
-    return null
+  const conditionBadge = () => {
+    switch (product.condition?.toLowerCase()) {
+      case "new":
+        return { text: "New", className: "bg-green-500 text-white" }
+      case "like new":
+        return { text: "Like New", className: "bg-green-400 text-white" }
+      case "used":
+        return { text: "Used", className: "bg-blue-500 text-white" }
+      default:
+        return { text: product.condition || "Unknown", className: "bg-gray-500 text-white" }
+    }
   }
 
-  if (loading) {
-    return (
-      <section className="py-4">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            <LoadingSkeleton type="card" count={12} />
-          </div>
-        </div>
-      </section>
-    )
-  }
-
-  if (!hasOverride && error) {
-    return (
-      <section className="py-4">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center py-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Unable to Load Ads</h3>
-            <p className="text-gray-600 mb-4 text-sm">{error}</p>
-            <Button onClick={() => window.location.reload()} className="bg-green-900 hover:bg-green-950 text-xs h-8">
-              Try Again
-            </Button>
-          </div>
-        </div>
-      </section>
-    )
-  }
-
-  if (products.length === 0) {
-    return (
-      <section className="py-4">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center py-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Ads Found</h3>
-            <p className="text-gray-600 mb-4 text-sm">Be the first to post an ad in your area!</p>
-            <Button asChild className="bg-green-900 hover:bg-green-950 text-xs h-8">
-              <Link href="/post">Post Your First Ad</Link>
-            </Button>
-          </div>
-        </div>
-      </section>
-    )
-  }
+  const badge = conditionBadge()
 
   return (
-    <section className="py-4">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-6">
-        {/* Main products grid */}
-        <div className="flex-1">
-          <TooltipProvider>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {products.map((product) => {
-                const conditionBadge = getConditionBadge(product.condition)
-                const primaryImage = product.images?.[0] || "/diverse-products-still-life.png"
-                const optimizedPrimary = getOptimizedImageUrl(primaryImage, "thumb") || primaryImage
-                const provinceOrLocation = product.province || product.location || ""
-
-                return (
-                  <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
-                    <Card className="group h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-md hover:shadow-lg transition-all duration-300">
-                      <CardContent className="p-0 flex flex-col h-full">
-                        {/* Image Container - Full width with minimal padding */}
-                        <div className="relative w-full aspect-square overflow-hidden bg-gray-100">
-                          <Image
-                            src={optimizedPrimary || "/placeholder.svg"}
-                            alt={product.title}
-                            fill
-                            sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
-                            className="object-cover group-hover:scale-110 transition-transform duration-300"
-                            loading="lazy"
-                          />
-                          
-                          {/* Top Right Badges */}
-                          <div className="absolute top-2 right-2 flex flex-col gap-1">
-                            {conditionBadge && (
-                              <Badge className={conditionBadge.className}>
-                                {conditionBadge.text}
-                              </Badge>
-                            )}
-                          </div>
-
-                          {/* Price Badge */}
-                          <div className="absolute bottom-2 left-2 bg-black/90 text-white px-3 py-1.5 rounded-md">
-                            <span className="text-sm font-bold">
-                              {formatPrice(product.price as any, (product as any).price_type)}
-                              {isNegotiable((product as any).price_type) && (
-                                <span className="text-xs font-normal ml-1">Negotiable</span>
-                              )}
-                            </span>
-                          </div>
-
-                          {/* Wishlist Button */}
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                aria-label="Toggle favorite"
-                                className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm hover:bg-white shadow-md h-8 w-8 p-0 rounded-full"
-                                onClick={(e) => toggleFavorite(product.id, e)}
-                              >
-                                <Heart
-                                  className={`h-4 w-4 ${
-                                    favorites.has(product.id) ? "fill-red-500 text-red-500" : "text-gray-600"
-                                  }`}
-                                />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p className="text-xs">{favorites.has(product.id) ? "Remove from favorites" : "Add to favorites"}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </div>
-
-                        {/* Product Info - Minimal details */}
-                        <div className="p-3 flex flex-col flex-1">
-                          <h4 className="text-sm font-semibold text-gray-900 leading-tight line-clamp-2 mb-2 group-hover:text-green-700 transition-colors">
-                            {product.title}
-                          </h4>
-
-                          <div className="mt-auto space-y-2">
-                            {/* Seller info if available */}
-                            {product.seller && (
-                              <div className="flex items-center text-xs text-gray-600">
-                                <span className="font-medium">{product.seller.full_name}</span>
-                                {product.seller.rating && (
-                                  <span className="ml-2 bg-green-100 text-green-800 px-1.5 py-0.5 rounded">
-                                    {product.seller.rating}★
-                                  </span>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Location and Time */}
-                            <div className="flex items-center justify-between text-xs text-gray-500">
-                              <div className="flex items-center gap-1">
-                                <MapPin className="h-3 w-3 flex-shrink-0" />
-                                <span className="truncate">
-                                  {provinceOrLocation}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Clock className="h-3 w-3 flex-shrink-0" />
-                                <span>{formatTimePosted(product.created_at as any)}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                )
-              })}
-            </div>
-          </TooltipProvider>
-        </div>
-
-        {/* Right sidebar for vertical ad */}
-        <div className="hidden lg:block w-64 flex-shrink-0">
-          <div className="sticky top-4">
-            {/* Placeholder for your vertical ad */}
-            <div className="bg-gray-100 border border-gray-200 rounded-md overflow-hidden h-[600px] flex items-center justify-center">
-              <span className="text-gray-500 text-sm">Vertical Ad Space</span>
-              {/* Replace with your actual ad component */}
-              {/* <Image src="/your-vertical-ad.jpg" alt="Advertisement" width={256} height={600} className="object-cover" /> */}
+    <div className="max-w-6xl mx-auto">
+      <TooltipProvider>
+        {/* Product Header */}
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">{product.title}</h1>
+          <div className="flex items-center gap-4 text-sm text-gray-600">
+            <span>Ad ID: {product.adId}</span>
+            <span>•</span>
+            <span>{formatTimePosted(product.postedDate)}</span>
+            <span>•</span>
+            <div className="flex items-center gap-1">
+              <Eye className="h-4 w-4" />
+              <span>{product.views} views</span>
             </div>
           </div>
         </div>
-      </div>
-    </section>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Image Gallery */}
+          <div className="space-y-4">
+            <div className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden">
+              <Image
+                src={getOptimizedImageUrl(product.images[selectedImage], "large") || "/placeholder.svg"}
+                alt={product.title}
+                fill
+                className="object-cover"
+                priority
+              />
+              <Button
+                size="icon"
+                variant="secondary"
+                className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm"
+                onClick={() => toggleFavorite(product.id)}
+              >
+                <Heart
+                  className={`h-5 w-5 ${
+                    favorites.has(product.id) ? "fill-red-500 text-red-500" : "text-gray-600"
+                  }`}
+                />
+              </Button>
+            </div>
+
+            {product.images.length > 1 && (
+              <div className="grid grid-cols-4 gap-2">
+                {product.images.map((image, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setSelectedImage(index)}
+                    className={`aspect-square bg-gray-100 rounded-md overflow-hidden border-2 ${
+                      selectedImage === index ? "border-green-500" : "border-transparent"
+                    }`}
+                  >
+                    <Image
+                      src={getOptimizedImageUrl(image, "thumb") || "/placeholder.svg"}
+                      alt={`${product.title} ${index + 1}`}
+                      width={80}
+                      height={80}
+                      className="object-cover w-full h-full"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Product Info */}
+          <div className="space-y-6">
+            {/* Price and Condition */}
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="text-3xl font-bold text-green-600 mb-2">{product.price}</div>
+                <Badge className={badge.className}>{badge.text}</Badge>
+              </div>
+              <Button variant="outline" size="icon">
+                <Share2 className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Location */}
+            <div className="flex items-center gap-2 text-gray-600">
+              <MapPin className="h-5 w-5" />
+              <span>{product.location}</span>
+            </div>
+
+            {/* Description */}
+            <div className="prose prose-sm">
+              <h3 className="font-semibold text-gray-900 mb-2">Description</h3>
+              <p className="text-gray-700 whitespace-pre-line">{product.description}</p>
+            </div>
+
+            {/* Features */}
+            {product.features && product.features.length > 0 && (
+              <div>
+                <h3 className="font-semibold text-gray-900 mb-2">Features</h3>
+                <div className="flex flex-wrap gap-2">
+                  {product.features.map((feature, index) => (
+                    <Badge key={index} variant="secondary" className="text-xs">
+                      {feature}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Additional Details */}
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              {product.brand && (
+                <div>
+                  <span className="font-semibold text-gray-600">Brand:</span>
+                  <span className="ml-2">{product.brand}</span>
+                </div>
+              )}
+              {product.model && (
+                <div>
+                  <span className="font-semibold text-gray-600">Model:</span>
+                  <span className="ml-2">{product.model}</span>
+                </div>
+              )}
+              {product.storage && (
+                <div>
+                  <span className="font-semibold text-gray-600">Storage:</span>
+                  <span className="ml-2">{product.storage}</span>
+                </div>
+              )}
+              {product.color && (
+                <div>
+                  <span className="font-semibold text-gray-600">Color:</span>
+                  <span className="ml-2">{product.color}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Seller Info */}
+            <Card>
+              <CardContent className="p-4">
+                <h3 className="font-semibold text-gray-900 mb-3">Seller Information</h3>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{product.seller.name}</span>
+                    {product.seller.verified && (
+                      <Badge variant="outline" className="text-green-600 border-green-200">
+                        Verified
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <span>{product.seller.rating}★</span>
+                    <span>•</span>
+                    <span>{product.seller.totalReviews} reviews</span>
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    Member since {product.seller.memberSince}
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    {product.seller.responseTime}
+                  </div>
+                </div>
+                <Button className="w-full mt-4 bg-green-600 hover:bg-green-700">
+                  Contact Seller
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </TooltipProvider>
+    </div>
   )
 }
