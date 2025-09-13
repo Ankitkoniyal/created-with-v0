@@ -2,135 +2,642 @@
 
 import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Heart, MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import Link from "next/link"
+import { Separator } from "@/components/ui/separator"
+import { Badge } from "@/components/ui/badge"
 import Image from "next/image"
+import Link from "next/link"
+import {
+  Heart,
+  Share2,
+  Flag,
+  MapPin,
+  Eye,
+  Calendar,
+  Star,
+  Shield,
+  Clock,
+  Phone,
+  X,
+  Copy,
+  Check,
+  Tag,
+  MessageCircle,
+} from "lucide-react"
+import { ContactSellerModal } from "@/components/messaging/contact-seller-modal"
+import { SafetyBanner } from "@/components/ui/safety-banner"
+import { SafetyWarningModal } from "@/components/ui/safety-warning-modal"
 import { createClient } from "@/lib/supabase/client"
+import { useAuth } from "@/hooks/use-auth"
 import { getOptimizedImageUrl } from "@/lib/images"
+import { toast } from "@/components/ui/use-toast"
+import { UserRatings } from "@/components/user-ratings"
 
 interface Product {
   id: string
   title: string
-  price: number
-  city: string
-  province: string
+  price: string
+  originalPrice?: string
   location: string
-  image_urls: string[]
+  images: string[]
+  description: string
+  youtube_url?: string | null
+  website_url?: string | null
   category: string
+  subcategory?: string | null
+  condition: string
+  brand?: string | null
+  model?: string | null
+  tags?: string[] | null
+  postedDate: string
+  views: number
+  seller: {
+    id: string
+    name: string
+    rating: number
+    totalReviews: number
+    memberSince: string
+    verified: boolean
+    responseTime: string
+    avatar?: string | null
+    phone?: string | null
+  }
+  features?: string[]
+  storage?: string | null
+  color?: string | null
+  adId?: string
+  [key: string]: any
 }
 
-interface RelatedProductsProps {
-  currentProductId: string
-  category: string
+interface ProductDetailProps {
+  product: Product
 }
 
-export function RelatedProducts({ currentProductId, category }: RelatedProductsProps) {
-  const [relatedProducts, setRelatedProducts] = useState<Product[]>([])
-  const [loading, setLoading] = useState(true)
+export function ProductDetail({ product }: ProductDetailProps) {
+  const { user } = useAuth()
+  const [selectedImage, setSelectedImage] = useState(0)
+  const [isFavorited, setIsFavorited] = useState(false)
+  const [showMobileNumber, setShowMobileNumber] = useState(false)
+  const [showShareMenu, setShowShareMenu] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
+  const [showContactWarning, setShowContactWarning] = useState(false)
+  const [showPhoneWarning, setShowPhoneWarning] = useState(false)
+  const [pendingContactAction, setPendingContactAction] = useState<(() => void) | null>(null)
+
+  const adDisplayId = (product.adId || product.id).slice(-6)
+
+  const isValidUUID = (str: string) => {
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    return uuidRegex.test(str)
+  }
 
   useEffect(() => {
-    const fetchRelatedProducts = async () => {
+    const checkFavoriteStatus = async () => {
+      if (!user || !isValidUUID(product.id)) return
       try {
         const supabase = createClient()
-
         const { data, error } = await supabase
-          .from("products")
-          .select("*")
-          .eq("category", category)
-          .neq("id", currentProductId)
-          .limit(3)
-          .order("created_at", { ascending: false })
+          .from("favorites")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("product_id", product.id)
+          .single()
 
-        if (error) {
-          console.error("[v0] Error fetching related products:", error.message)
-        } else {
-          console.log("[v0] Fetched related products:", data?.length || 0)
-          setRelatedProducts(data || [])
-        }
-      } catch (error) {
-        console.error("[v0] Error fetching related products:", error)
-      } finally {
-        setLoading(false)
+        if (!error) setIsFavorited(!!data)
+      } catch (err) {
+        console.error("Error checking favorite status:", err)
       }
     }
+    checkFavoriteStatus()
+  }, [user, product.id])
 
-    fetchRelatedProducts()
-  }, [currentProductId, category])
+  const toggleFavorite = async () => {
+    if (!user) {
+      toast({ title: "Please log in to save favorites" })
+      return
+    }
+    if (!isValidUUID(product.id)) {
+      toast({
+        title: "Demo product",
+        description: "Favorites are only available for real listings.",
+      })
+      return
+    }
 
-  if (loading) {
-    return (
-      <section className="mt-12">
-        <h2 className="text-2xl font-bold text-foreground mb-6">Related Products</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1, 2, 3].map((i) => (
-            <Card key={i} className="animate-pulse">
-              <CardContent className="p-0">
-                <div className="w-full h-48 bg-gray-200 rounded-t-lg"></div>
-                <div className="p-4">
-                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                  <div className="h-6 bg-gray-200 rounded w-1/2 mb-2"></div>
-                  <div className="h-4 bg-gray-200 rounded w-2/3"></div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </section>
-    )
+    try {
+      const supabase = createClient()
+      if (isFavorited) {
+        const { error } = await supabase
+          .from("favorites")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("product_id", product.id)
+
+        if (!error) {
+          setIsFavorited(false)
+          toast({ title: "Removed from favorites" })
+        }
+      } else {
+        const { error } = await supabase.from("favorites").insert({
+          user_id: user.id,
+          product_id: product.id,
+        })
+        if (!error) {
+          setIsFavorited(true)
+          toast({ title: "Added to favorites" })
+        }
+      }
+    } catch {
+      toast({ title: "Failed to update favorites" })
+    }
   }
 
-  if (relatedProducts.length === 0) {
-    return null
+  const handleReportAd = () => {
+    if (!user) {
+      toast({ title: "Please log in to report this ad" })
+      return
+    }
+    if (confirm("Report this ad? Our moderation team will review.")) {
+      toast({ title: "Report submitted. Thank you!" })
+    }
   }
+
+  const shareTo = (platform: "whatsapp" | "facebook" | "tiktok" | "email") => {
+    const url = encodeURIComponent(window.location.href)
+    const text = encodeURIComponent(`Check out this ${product.title}`)
+    let shareUrl = ""
+
+    switch (platform) {
+      case "whatsapp":
+        shareUrl = `https://wa.me/?text=${text}%20${url}`
+        break
+      case "facebook":
+        shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${url}`
+        break
+      case "tiktok":
+        shareUrl = `https://www.tiktok.com/share?url=${url}&title=${text}`
+        break
+      case "email":
+        shareUrl = `mailto:?subject=${text}&body=${text}%20${url}`
+        break
+    }
+    window.open(shareUrl, "_blank")
+    setShowShareMenu(false)
+  }
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+      setLinkCopied(true)
+      toast({ title: "Link copied to clipboard!" })
+      setTimeout(() => {
+        setLinkCopied(false)
+        setShowShareMenu(false)
+      }, 2000)
+    } catch {
+      toast({ title: "Failed to copy link" })
+    }
+  }
+
+  const handleViewAllAds = () => {
+    window.location.href = `/seller/${product.seller.id || "unknown"}`
+  }
+
+  const handleShowMobile = () => {
+    if (!user) {
+      toast({ title: "Please log in to view seller's contact" })
+      return
+    }
+    setShowPhoneWarning(true)
+    setPendingContactAction(() => () => setShowMobileNumber(true))
+  }
+
+  const handleContactWithWarning = (contactAction: () => void) => {
+    setShowContactWarning(true)
+    setPendingContactAction(() => contactAction)
+  }
+
+  const proceedWithContact = () => {
+    if (pendingContactAction) {
+      pendingContactAction()
+      setPendingContactAction(null)
+    }
+  }
+
+  // Placeholder for related ads
+  const relatedAds = [
+    { id: '1', title: 'Related Product 1', price: '$200', location: 'City A', image: '/placeholder.svg' },
+    { id: '2', title: 'Related Product 2', price: '$350', location: 'City B', image: '/placeholder.svg' },
+    { id: '3', title: 'Related Product 3', price: '$150', location: 'City C', image: '/placeholder.svg' },
+  ];
 
   return (
-    <section className="mt-12">
-      <h2 className="text-2xl font-bold text-foreground mb-6">Related Products</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {relatedProducts.map((product) => (
-          <Link key={product.id} href={`/product/${product.id}`}>
-            <Card className="group cursor-pointer hover:shadow-lg transition-shadow">
-              <CardContent className="p-0">
-                <div className="relative h-48">
-                  <Image
-                    src={
-                      getOptimizedImageUrl(product.image_urls?.[0], "thumb") ||
-                      "/placeholder.svg?height=192&width=256&query=related%20product" ||
-                      "/placeholder.svg" ||
-                      "/placeholder.svg"
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* LEFT SIDE */}
+      <div className="lg:col-span-2">
+        {/* IMAGES */}
+        <Card>
+          <CardContent className="p-0">
+            <div className="relative h-80 bg-gray-50 rounded-t-lg">
+              <Image
+                src={
+                  getOptimizedImageUrl(product.images?.[selectedImage], "detail") ||
+                  "/placeholder.svg"
+                }
+                alt={product.title}
+                fill
+                priority
+                sizes="(max-width: 1024px) 100vw, 66vw"
+                className="object-contain"
+              />
+              {product.images?.length > 1 && (
+                <>
+                  <button
+                    onClick={() =>
+                      setSelectedImage(
+                        selectedImage > 0 ? selectedImage - 1 : product.images.length - 1
+                      )
                     }
-                    alt={product.title}
-                    fill
-                    sizes="(max-width: 1024px) 50vw, 33vw"
-                    className="object-cover rounded-t-lg"
-                  />
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="absolute top-2 right-2 bg-background/80 hover:bg-background"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                    }}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-2"
                   >
-                    <Heart className="h-4 w-4" />
-                  </Button>
-                </div>
+                    <svg className="w-5 h-5" viewBox="0 0 24 24">
+                      <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth={2} fill="none" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() =>
+                      setSelectedImage(
+                        selectedImage < product.images.length - 1 ? selectedImage + 1 : 0
+                      )
+                    }
+                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-2"
+                  >
+                    <svg className="w-5 h-5" viewBox="0 0 24 24">
+                      <path d="M9 5l7 7-7 7" stroke="currentColor" strokeWidth={2} fill="none" />
+                    </svg>
+                  </button>
+                </>
+              )}
+            </div>
 
-                <div className="p-4">
-                  <h4 className="font-semibold text-foreground mb-2 line-clamp-2">{product.title}</h4>
-                  <p className="text-2xl font-bold text-primary mb-2">${product.price.toLocaleString()}</p>
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <MapPin className="h-4 w-4 mr-1" />
-                    {product.city && product.province ? `${product.city}, ${product.province}` : product.location}
+            {/* THUMBNAILS */}
+            <div className="p-3 flex space-x-2 overflow-x-auto">
+              {product.images?.map((image, index) => (
+                <button
+                  key={index}
+                  onClick={() => setSelectedImage(index)}
+                  className={`flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden border-2 ${
+                    selectedImage === index ? "border-primary" : "border-border"
+                  }`}
+                >
+                  <Image
+                    src={getOptimizedImageUrl(image, "thumb") || "/placeholder.svg"}
+                    alt={`${product.title} thumbnail ${index + 1}`}
+                    width={48}
+                    height={48}
+                    className="object-cover w-full h-full"
+                  />
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* DESCRIPTION */}
+        <Card className="mt-4">
+          <CardContent className="p-4">
+            <h2 className="text-lg font-bold mb-3">Description</h2>
+            <p className="text-sm whitespace-pre-line">{product.description}</p>
+            {product.youtube_url && (
+              <div className="mt-4 aspect-video">
+                <iframe
+                  src={product.youtube_url}
+                  title="Product Video"
+                  allowFullScreen
+                  className="w-full h-full rounded-lg"
+                />
+              </div>
+            )}
+            {product.website_url && (
+              <div className="mt-4">
+                <a
+                  href={product.website_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  Visit official website
+                </a>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* INFO */}
+        <Card className="mt-4">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h1 className="text-xl font-bold">{product.title}</h1>
+                <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+                  <div className="flex items-center">
+                    <MapPin className="h-4 w-4 mr-1" /> {product.location}
+                  </div>
+                  <div className="flex items-center">
+                    <Eye className="h-4 w-4 mr-1" /> {product.views} views
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
+              </div>
+            </div>
+
+            {/* AD ID */}
+            <div className="mb-2">
+              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border">
+                <div>
+                  <span className="text-sm text-muted-foreground">Ad ID: </span>
+                  <span className="text-lg font-bold text-primary">{adDisplayId}</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(adDisplayId)
+                      toast({ title: "Ad ID copied to clipboard!" })
+                    } catch {
+                      toast({ title: "Failed to copy Ad ID" })
+                    }
+                  }}
+                  className="text-xs"
+                >
+                  Copy ID
+                </Button>
+              </div>
+            </div>
+
+            {/* PRICE */}
+            <div className="flex items-center space-x-2 mb-3">
+              <span className="text-2xl font-bold text-primary">{product.price}</span>
+              {product.originalPrice && (
+                <span className="text-lg text-muted-foreground line-through">
+                  {product.originalPrice}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center text-sm text-muted-foreground mb-4">
+              <Calendar className="h-4 w-4 mr-1" />
+              Posted on {new Date(product.postedDate).toLocaleDateString()}
+            </div>
+
+            {/* ACTIONS */}
+            <div className="grid grid-cols-3 gap-2">
+                <Button
+                    className="bg-green-900 hover:bg-green-950"
+                    onClick={() => handleContactWithWarning(() => {})}
+                >
+                    <MessageCircle className="h-4 w-4 mr-2" /> Chat
+                </Button>
+                <Button
+                    className="bg-green-900 hover:bg-green-950"
+                    onClick={toggleFavorite}
+                >
+                    <Heart className={`h-4 w-4 mr-2 ${isFavorited ? "fill-red-500 text-red-500" : ""}`} /> 
+                    {isFavorited ? "Saved" : "Save"}
+                </Button>
+                <div className="relative">
+                    <Button
+                        className="w-full bg-green-900 hover:bg-green-950"
+                        onClick={() => setShowShareMenu(!showShareMenu)}
+                    >
+                        <Share2 className="h-4 w-4 mr-2" /> Share
+                    </Button>
+                    {showShareMenu && (
+                        <div className="absolute top-full right-0 mt-2 w-48 bg-white border rounded-lg shadow-lg z-50 p-2">
+                            <div className="space-y-1">
+                                <Button variant="ghost" size="sm" onClick={() => shareTo("whatsapp")}>
+                                    WhatsApp
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => shareTo("facebook")}>
+                                    Facebook
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => shareTo("email")}>
+                                    Email
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={copyLink}>
+                                    {linkCopied ? <Check className="w-5 h-5 mr-2 text-green-600" /> : <Copy className="w-5 h-5 mr-2" />}
+                                    {linkCopied ? "Link Copied!" : "Copy Link"}
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => setShowShareMenu(false)}>
+                                    <X className="h-4 w-4 mr-2" /> Close
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+            <Button
+                variant="outline"
+                className="w-full mt-2"
+                onClick={handleShowMobile}
+            >
+                <Phone className="h-4 w-4 mr-2" />
+                {showMobileNumber ? product.seller.phone || "N/A" : "Show Mobile"}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* DETAILS */}
+        <Card className="mt-4">
+          <CardContent className="p-4">
+            <h2 className="text-lg font-bold mb-3">Product Details</h2>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <span className="text-muted-foreground">Condition:</span>
+                <span className="ml-2 font-medium">{product.condition}</span>
+              </div>
+              {product.brand && (
+                <div>
+                  <span className="text-muted-foreground">Brand:</span>
+                  <span className="ml-2 font-medium">{product.brand}</span>
+                </div>
+              )}
+              {product.model && (
+                <div>
+                  <span className="text-muted-foreground">Model:</span>
+                  <span className="ml-2 font-medium">{product.model}</span>
+                </div>
+              )}
+              <div>
+                <span className="text-muted-foreground">Category:</span>
+                <span className="ml-2 font-medium">{product.category}</span>
+              </div>
+              {product.subcategory && (
+                <div>
+                  <span className="text-muted-foreground">Subcategory:</span>
+                  <span className="ml-2 font-medium">{product.subcategory}</span>
+                </div>
+              )}
+              {product.storage && (
+                <div>
+                  <span className="text-muted-foreground">Storage:</span>
+                  <span className="ml-2 font-medium">{product.storage}</span>
+                </div>
+              )}
+              {product.color && (
+                <div>
+                  <span className="text-muted-foreground">Color:</span>
+                  <span className="ml-2 font-medium">{product.color}</span>
+                </div>
+              )}
+            </div>
+
+            {product.tags?.length > 0 && (
+              <>
+                <Separator className="my-4" />
+                <h3 className="font-semibold mb-2 flex items-center">
+                  <Tag className="h-4 w-4 mr-2" /> Tags
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {product.tags.map((tag, index) => (
+                    <Badge key={index} variant="secondary">
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* RATINGS */}
+        <Card className="mt-4">
+          <CardContent className="p-4">
+            <UserRatings
+              sellerId={product.seller.id}
+              sellerName={product.seller.name}
+              sellerAvatar={product.seller.avatar}
+              productId={product.id}
+              productTitle={product.title}
+            />
+          </CardContent>
+        </Card>
+
+        {/* RELATED ADS */}
+        <Card className="mt-4">
+          <CardContent className="p-4">
+            <h2 className="text-lg font-bold mb-3">Related Ads</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              {relatedAds.map((ad) => (
+                <Link key={ad.id} href={`/ad/${ad.id}`} passHref>
+                  <a className="block">
+                    <div className="rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
+                      <div className="relative h-32 bg-gray-100">
+                        <Image
+                          src={ad.image}
+                          alt={ad.title}
+                          fill
+                          sizes="(max-width: 768px) 100vw, 33vw"
+                          className="object-cover"
+                        />
+                      </div>
+                      <div className="p-3 bg-white">
+                        <h3 className="text-sm font-semibold truncate">{ad.title}</h3>
+                        <p className="text-sm text-primary font-bold mt-1">{ad.price}</p>
+                        <div className="flex items-center text-xs text-muted-foreground mt-1">
+                          <MapPin className="h-3 w-3 mr-1" /> {ad.location}
+                        </div>
+                      </div>
+                    </div>
+                  </a>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
-    </section>
+
+      {/* RIGHT SIDE */}
+      <div className="space-y-4">
+        {/* SELLER INFO */}
+        <Card>
+          <CardContent className="p-4">
+            <h2 className="text-lg font-bold mb-3">Seller Information</h2>
+            <div className="flex items-center space-x-3 mb-3">
+              {product.seller.avatar ? (
+                <Image
+                  src={product.seller.avatar}
+                  alt={product.seller.name}
+                  width={48}
+                  height={48}
+                  className="rounded-full"
+                />
+              ) : (
+                <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                  <span className="text-primary font-semibold">
+                    {product.seller.name
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")}
+                  </span>
+                </div>
+              )}
+              <div>
+                <div className="font-semibold">{product.seller.name}</div>
+                <div className="flex items-center text-sm text-muted-foreground">
+                  <Star className="h-4 w-4 text-yellow-500 mr-1" /> {product.seller.rating} (
+                  {product.seller.totalReviews} reviews)
+                </div>
+              </div>
+            </div>
+            <div className="text-sm text-muted-foreground space-y-1 mb-3">
+              <div className="flex items-center">
+                <Calendar className="h-4 w-4 mr-1" /> Member since {product.seller.memberSince}
+              </div>
+              <div className="flex items-center">
+                <Shield className="h-4 w-4 mr-1" />{" "}
+                {product.seller.verified ? "Verified Seller" : "Unverified"}
+              </div>
+              <div className="flex items-center">
+                <Clock className="h-4 w-4 mr-1" /> {product.seller.responseTime}
+              </div>
+            </div>
+            <Button variant="outline" className="w-full" onClick={handleViewAllAds}>
+              View All Ads
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* SAFETY & REPORTING */}
+        <Card>
+            <CardContent className="p-4">
+                <h2 className="text-lg font-bold mb-3">Stay Safe & Reporting</h2>
+                <SafetyBanner />
+                <Separator className="my-4" />
+                <p className="text-sm text-muted-foreground mb-3">
+                    Help us keep the marketplace safe. Report suspicious ads.
+                </p>
+                <Button variant="destructive" size="sm" onClick={handleReportAd} className="w-full">
+                    <Flag className="h-4 w-4 mr-2" /> Report this Ad
+                </Button>
+            </CardContent>
+        </Card>
+      </div>
+
+      {/* WARNING MODALS */}
+      <SafetyWarningModal
+        open={showContactWarning}
+        onOpenChange={setShowContactWarning}
+        onProceed={proceedWithContact}
+        type="contact"
+      />
+      <SafetyWarningModal
+        open={showPhoneWarning}
+        onOpenChange={setShowPhoneWarning}
+        onProceed={proceedWithContact}
+        type="phone"
+      />
+    </div>
   )
 }
