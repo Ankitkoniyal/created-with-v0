@@ -9,25 +9,7 @@ import { useState, useEffect } from "react"
 import Image from "next/image"
 import { LoadingSkeleton } from "@/components/loading-skeleton"
 import { getOptimizedImageUrl } from "@/lib/images"
-
-// Check if this import path is correct
-let supabaseClient: any = null;
-
-// Dynamic import to avoid SSR issues
-const getSupabaseClient = async () => {
-  if (typeof window === "undefined") return null;
-  
-  if (!supabaseClient) {
-    try {
-      const { createClient } = await import("@/lib/supabase/client");
-      supabaseClient = createClient();
-    } catch (error) {
-      console.error("Failed to import supabase client:", error);
-      return null;
-    }
-  }
-  return supabaseClient;
-};
+import { createClient } from "@/lib/supabase/client"
 
 interface Product {
   id: string
@@ -82,7 +64,7 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
   useEffect(() => {
     async function fetchProducts() {
       try {
-        const supabase = await getSupabaseClient()
+        const supabase = createClient()
         
         if (!supabase) {
           throw new Error('Supabase client not available. Check your environment variables.')
