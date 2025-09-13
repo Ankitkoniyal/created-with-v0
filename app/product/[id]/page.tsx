@@ -1,13 +1,13 @@
 import { ProductDetail } from "@/components/product-detail"
 import { RelatedProducts } from "@/components/related-products"
 import { Breadcrumb } from "@/components/breadcrumb"
-import { createClient } from "@/lib/supabase/server" // ← FIXED THIS IMPORT
+import { createClient } from "@/lib/supabase/server"
 import { notFound } from "next/navigation"
 
 interface ProductPageProps {
-  params: Promise<{
+  params: {
     id: string
-  }>
+  }
 }
 
 async function getProduct(id: string) {
@@ -17,7 +17,7 @@ async function getProduct(id: string) {
     return null
   }
 
-  const supabase = await createClient() // ← ADDED 'await' HERE
+  const supabase = await createClient()
 
   try {
     const { data: products, error } = await supabase.from("products").select("*").eq("id", id)
@@ -45,7 +45,7 @@ async function getProduct(id: string) {
       profileData = profile
     }
 
-    let parsedTags = null
+    let parsedTags = []
     if (product.tags) {
       try {
         parsedTags = Array.isArray(product.tags) ? product.tags : JSON.parse(product.tags)
@@ -55,7 +55,7 @@ async function getProduct(id: string) {
       }
     }
 
-    let parsedFeatures = null
+    let parsedFeatures = []
     if (product.features) {
       try {
         parsedFeatures = Array.isArray(product.features) ? product.features : JSON.parse(product.features)
@@ -72,12 +72,10 @@ async function getProduct(id: string) {
       const youtubeMatches = description.match(youtubeRegex) || []
       const websiteMatches = description.match(websiteRegex) || []
 
-      // Filter out YouTube URLs from website matches
       const filteredWebsiteMatches = websiteMatches.filter(
         (url) => !url.includes("youtube.com") && !url.includes("youtu.be"),
       )
 
-      // Remove URLs from description
       let cleanDescription = description
       youtubeMatches.forEach((url) => {
         cleanDescription = cleanDescription.replace(url, "").trim()
@@ -100,33 +98,31 @@ async function getProduct(id: string) {
       const year = date.getFullYear()
       const month = (date.getMonth() + 1).toString().padStart(2, "0")
       const day = date.getDate().toString().padStart(2, "0")
-
-      // Use first 4 characters of product ID for consistency
       const idSuffix = productId.replace(/-/g, "").substring(0, 4).toUpperCase()
-
       return `AD${year}${month}${day}${idSuffix}`
     }
 
+    // RETURN WITH SAFE DEFAULTS - NO UNDEFINED VALUES
     return {
       id: product.id,
-      title: product.title,
-      price: `$${product.price.toLocaleString()}`,
-      location: product.city && product.province ? `${product.city}, ${product.province}` : product.location,
-      images: product.images || ["/placeholder.svg"], // Use images field from database
-      description: cleanDescription,
-      youtube_url: product.youtube_url || youtubeUrl, // Use database field first, fallback to extracted
-      website_url: product.website_url || websiteUrl, // Use database field first, fallback to extracted
+      title: product.title || "Untitled Product",
+      price: product.price ? `$${product.price.toLocaleString()}` : "Price on request",
+      location: (product.city && product.province) ? `${product.city}, ${product.province}` : product.location || "Location not specified",
+      images: product.images || ["/placeholder.svg"],
+      description: cleanDescription || "No description available",
+      youtube_url: product.youtube_url || youtubeUrl,
+      website_url: product.website_url || websiteUrl,
       category: product.category || "Other",
       subcategory: product.subcategory || null,
       condition: product.condition || "Used",
-      brand: product.brand || null, // Use database field directly
-      model: product.model || null, // Use database field directly
-      tags: parsedTags, // Include parsed tags from database
+      brand: product.brand || null,
+      model: product.model || null,
+      tags: parsedTags,
       postedDate: product.created_at,
       views: product.views || 0,
       adId: generateAdId(product.id, product.created_at),
       seller: {
-        id: product.user_id, // Include seller ID for profile navigation
+        id: product.user_id,
         name: profileData?.full_name || "Anonymous Seller",
         rating: 4.5,
         totalReviews: 0,
@@ -134,7 +130,7 @@ async function getProduct(id: string) {
         verified: true,
         responseTime: "Usually responds within 2 hours",
       },
-      features: parsedFeatures || [], // Include parsed features from database
+      features: parsedFeatures,
       storage: product.storage || null,
       color: product.color || null,
       featured: false,
@@ -146,17 +142,24 @@ async function getProduct(id: string) {
 }
 
 export default async function ProductPage({ params }: ProductPageProps) {
-  const { id } = await params
+  const { id } = params // NO AWAIT - params is not a Promise
   const product = await getProduct(id)
 
   if (!product) {
     notFound()
   }
 
+  // SAFE BREADCRUMB ITEMS WITH DEFAULTS
   const breadcrumbItems = [
     { label: "Home", href: "/" },
-    { label: product.category, href: `/search?category=${encodeURIComponent(product.category)}` },
-    { label: product.title, href: `/product/${product.id}` },
+    { 
+      label: product.category || "Other", 
+      href: `/search?category=${encodeURIComponent(product.category || "Other")}` 
+    },
+    { 
+      label: product.title || "Product", 
+      href: `/product/${product.id}` 
+    },
   ]
 
   return (
@@ -164,7 +167,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <Breadcrumb items={breadcrumbItems} />
         <ProductDetail product={product} />
-        <RelatedProducts currentProductId={product.id} category={product.category} />
+        <RelatedProducts 
+          currentProductId={product.id} 
+          category={product.category || "Other"} 
+        />
       </div>
     </div>
   )
