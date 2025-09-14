@@ -30,6 +30,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { getOptimizedImageUrl } from "@/lib/images"
 import { toast } from "@/components/ui/use-toast"
 import { UserRatings } from "@/components/user-ratings"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface Product {
   id: string
@@ -69,9 +70,10 @@ interface Product {
 interface ProductDetailProps {
   product: Product | null
   error?: string
+  loading?: boolean
 }
 
-export function ProductDetail({ product, error }: ProductDetailProps) {
+export function ProductDetail({ product, error, loading = false }: ProductDetailProps) {
   const { user } = useAuth()
   const [selectedImage, setSelectedImage] = useState(0)
   const [isFavorited, setIsFavorited] = useState(false)
@@ -82,6 +84,45 @@ export function ProductDetail({ product, error }: ProductDetailProps) {
   const [showContactWarning, setShowContactWarning] = useState(false)
   const [showPhoneWarning, setShowPhoneWarning] = useState(false)
   const [pendingContactAction, setPendingContactAction] = useState<(() => void) | null>(null)
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <SafetyBanner />
+          <Card>
+            <CardContent className="p-0">
+              <Skeleton className="h-80 w-full" />
+            </CardContent>
+          </Card>
+          <Card className="mt-4">
+            <CardContent className="p-4">
+              <Skeleton className="h-8 w-3/4 mb-2" />
+              <Skeleton className="h-4 w-1/2 mb-4" />
+              <Skeleton className="h-10 w-full mb-4" />
+              <div className="grid grid-cols-2 gap-2">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        <div className="space-y-4">
+          <Card>
+            <CardContent className="p-4">
+              <Skeleton className="h-6 w-1/2 mb-4" />
+              <Skeleton className="h-12 w-12 rounded-full mb-2" />
+              <Skeleton className="h-4 w-full mb-2" />
+              <Skeleton className="h-4 w-3/4 mb-4" />
+              <Skeleton className="h-10 w-full mb-2" />
+              <Skeleton className="h-10 w-full" />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
 
   // If there's an error or no product, show error message
   if (error || !product) {
