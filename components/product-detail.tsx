@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
-import Image from "next/image"
+import Image from "next/image" // import Next Image for optimized delivery
 import {
   Heart,
   Share2,
@@ -30,7 +30,6 @@ import { useAuth } from "@/hooks/use-auth"
 import { getOptimizedImageUrl } from "@/lib/images"
 import { toast } from "@/components/ui/use-toast"
 import { UserRatings } from "@/components/user-ratings"
-import { Skeleton } from "@/components/ui/skeleton"
 
 interface Product {
   id: string
@@ -38,42 +37,40 @@ interface Product {
   price: string
   originalPrice?: string
   location: string
-  images: string[]
+  images: string[] // Changed from image_urls to images to match database
   description: string
-  youtube_url?: string | null
-  website_url?: string | null
+  youtube_url?: string | null // Changed from youtubeUrl to youtube_url
+  website_url?: string | null // Changed from websiteUrl to website_url
   category: string
   subcategory?: string | null
   condition: string
-  brand?: string | null
-  model?: string | null
-  tags?: string[] | null
+  brand?: string | null // Made optional since it can be null
+  model?: string | null // Made optional since it can be null
+  tags?: string[] | null // Added tags field
   postedDate: string
   views: number
   seller: {
-    id: string
+    id: string // Added seller ID field
     name: string
     rating: number
     totalReviews: number
     memberSince: string
     verified: boolean
     responseTime: string
-    avatar?: string
+    avatar?: string // Added avatar field
   }
-  features?: string[]
+  features?: string[] // Made optional since it might not exist
   storage?: string | null
   color?: string | null
-  adId?: string
+  adId?: string // Added adId field
   [key: string]: any
 }
 
 interface ProductDetailProps {
-  product: Product | null
-  error?: string
-  loading?: boolean
+  product: Product
 }
 
-export function ProductDetail({ product, error, loading = false }: ProductDetailProps) {
+export function ProductDetail({ product }: ProductDetailProps) {
   const { user } = useAuth()
   const [selectedImage, setSelectedImage] = useState(0)
   const [isFavorited, setIsFavorited] = useState(false)
@@ -84,70 +81,6 @@ export function ProductDetail({ product, error, loading = false }: ProductDetail
   const [showContactWarning, setShowContactWarning] = useState(false)
   const [showPhoneWarning, setShowPhoneWarning] = useState(false)
   const [pendingContactAction, setPendingContactAction] = useState<(() => void) | null>(null)
-
-  // Show loading state
-  if (loading) {
-    return (
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <SafetyBanner />
-          <Card>
-            <CardContent className="p-0">
-              <Skeleton className="h-80 w-full" />
-            </CardContent>
-          </Card>
-          <Card className="mt-4">
-            <CardContent className="p-4">
-              <Skeleton className="h-8 w-3/4 mb-2" />
-              <Skeleton className="h-4 w-1/2 mb-4" />
-              <Skeleton className="h-10 w-full mb-4" />
-              <div className="grid grid-cols-2 gap-2">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-        <div className="space-y-4">
-          <Card>
-            <CardContent className="p-4">
-              <Skeleton className="h-6 w-1/2 mb-4" />
-              <Skeleton className="h-12 w-12 rounded-full mb-2" />
-              <Skeleton className="h-4 w-full mb-2" />
-              <Skeleton className="h-4 w-3/4 mb-4" />
-              <Skeleton className="h-10 w-full mb-2" />
-              <Skeleton className="h-10 w-full" />
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    )
-  }
-
-  // If there's an error or no product, show error message
-  if (error || !product) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Something went wrong!</h1>
-          <p className="text-muted-foreground mb-6">
-            {error || "We couldn't find the product you're looking for."}
-          </p>
-          <div className="flex gap-4 justify-center">
-            <Button onClick={() => window.location.reload()}>
-              Try Again
-            </Button>
-            <Button 
-              variant="outline" 
-              onClick={() => window.location.href = "/"}
-            >
-              Back to Homepage
-            </Button>
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   const isValidUUID = (str: string) => {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -293,7 +226,7 @@ export function ProductDetail({ product, error, loading = false }: ProductDetail
   }
 
   const handleViewAllAds = () => {
-    window.location.href = `/seller/${product.seller?.id || "unknown"}`
+    window.location.href = `/seller/${product.seller.id || "unknown"}`
   }
 
   const handleShowMobile = () => {
@@ -328,7 +261,10 @@ export function ProductDetail({ product, error, loading = false }: ProductDetail
               <Image
                 src={
                   getOptimizedImageUrl(product.images?.[selectedImage], "detail") ||
-                  "/placeholder.svg?height=400&width=600&query=product%20image"
+                  "/placeholder.svg?height=400&width=600&query=product%20image" ||
+                  "/placeholder.svg" ||
+                  "/placeholder.svg" ||
+                  "/placeholder.svg"
                 }
                 alt={product.title}
                 fill
@@ -538,10 +474,10 @@ export function ProductDetail({ product, error, loading = false }: ProductDetail
                   image: product.images?.[0] || "/placeholder.svg",
                 }}
                 seller={{
-                  name: product.seller?.name || "Unknown Seller",
-                  verified: product.seller?.verified || false,
-                  rating: product.seller?.rating || 0,
-                  totalReviews: product.seller?.totalReviews || 0,
+                  name: product.seller.name,
+                  verified: product.seller.verified,
+                  rating: product.seller.rating,
+                  totalReviews: product.seller.totalReviews,
                 }}
               >
                 <Button
@@ -566,9 +502,9 @@ export function ProductDetail({ product, error, loading = false }: ProductDetail
         <Card className="mt-4">
           <CardContent className="p-4">
             <UserRatings
-              sellerId={product.seller?.id}
-              sellerName={product.seller?.name}
-              sellerAvatar={product.seller?.avatar}
+              sellerId={product.seller.id}
+              sellerName={product.seller.name}
+              sellerAvatar={product.seller.avatar}
               productId={product.id}
               productTitle={product.title}
             />
@@ -677,21 +613,21 @@ export function ProductDetail({ product, error, loading = false }: ProductDetail
             <div className="flex items-center space-x-3 mb-3">
               <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
                 <span className="text-primary font-semibold">
-                  {product.seller?.name
-                    ?.split(" ")
+                  {product.seller.name
+                    .split(" ")
                     .map((n) => n[0])
                     .join("")}
                 </span>
               </div>
               <div>
                 <div className="flex items-center space-x-2">
-                  <span className="font-medium">{product.seller?.name || "Unknown Seller"}</span>
-                  {product.seller?.verified && <Shield className="h-4 w-4 text-primary" />}
+                  <span className="font-medium">{product.seller.name}</span>
+                  {product.seller.verified && <Shield className="h-4 w-4 text-primary" />}
                 </div>
                 <div className="flex items-center space-x-1 text-sm text-muted-foreground">
                   <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                  <span>{product.seller?.rating || 0}</span>
-                  <span>({product.seller?.totalReviews || 0} reviews)</span>
+                  <span>{product.seller.rating}</span>
+                  <span>({product.seller.totalReviews} reviews)</span>
                 </div>
               </div>
             </div>
@@ -699,11 +635,11 @@ export function ProductDetail({ product, error, loading = false }: ProductDetail
             <div className="space-y-2 text-sm">
               <div className="flex items-center">
                 <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-                <span>Member since {product.seller?.memberSince || "Unknown"}</span>
+                <span>Member since {product.seller.memberSince}</span>
               </div>
               <div className="flex items-center">
                 <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
-                <span>{product.seller?.responseTime || "Unknown"}</span>
+                <span>{product.seller.responseTime}</span>
               </div>
             </div>
 
@@ -711,7 +647,7 @@ export function ProductDetail({ product, error, loading = false }: ProductDetail
               <Button
                 variant="outline"
                 className="w-full bg-transparent hover:bg-green-900/10 hover:text-green-900"
-                onClick={() => (window.location.href = `/seller/${product.seller?.id || "unknown"}`)}
+                onClick={() => (window.location.href = `/seller/${product.seller.id || "unknown"}`)}
               >
                 View Seller Profile
               </Button>
