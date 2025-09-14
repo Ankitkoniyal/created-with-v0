@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
-import Image from "next/image"
+import Image from "next/image" // import Next Image for optimized delivery
 import {
   Heart,
   Share2,
@@ -21,8 +21,6 @@ import {
   Copy,
   Check,
   Tag,
-  AlertCircle,
-  Home,
 } from "lucide-react"
 import { ContactSellerModal } from "@/components/messaging/contact-seller-modal"
 import { SafetyBanner } from "@/components/ui/safety-banner"
@@ -32,8 +30,6 @@ import { useAuth } from "@/hooks/use-auth"
 import { getOptimizedImageUrl } from "@/lib/images"
 import { toast } from "@/components/ui/use-toast"
 import { UserRatings } from "@/components/user-ratings"
-import { useRouter } from "next/navigation"
-import { Skeleton } from "@/components/ui/skeleton"
 
 interface Product {
   id: string
@@ -41,33 +37,32 @@ interface Product {
   price: string
   originalPrice?: string
   location: string
-  images: string[]
+  images: string[] // Changed from image_urls to images to match database
   description: string
-  youtube_url?: string | null
-  website_url?: string | null
+  youtube_url?: string | null // Changed from youtubeUrl to youtube_url
+  website_url?: string | null // Changed from websiteUrl to website_url
   category: string
   subcategory?: string | null
   condition: string
-  brand?: string | null
-  model?: string | null
-  tags?: string[] | null
+  brand?: string | null // Made optional since it can be null
+  model?: string | null // Made optional since it can be null
+  tags?: string[] | null // Added tags field
   postedDate: string
   views: number
   seller: {
-    id: string
+    id: string // Added seller ID field
     name: string
     rating: number
     totalReviews: number
     memberSince: string
     verified: boolean
     responseTime: string
-    avatar?: string | null
-    phone?: string | null
+    avatar?: string // Added avatar field
   }
-  features?: string[]
+  features?: string[] // Made optional since it might not exist
   storage?: string | null
   color?: string | null
-  adId?: string
+  adId?: string // Added adId field
   [key: string]: any
 }
 
@@ -77,148 +72,136 @@ interface ProductDetailProps {
 
 export function ProductDetail({ product }: ProductDetailProps) {
   const { user } = useAuth()
-  const router = useRouter()
   const [selectedImage, setSelectedImage] = useState(0)
   const [isFavorited, setIsFavorited] = useState(false)
+  const [showReportDialog, setShowReportDialog] = useState(false)
   const [showMobileNumber, setShowMobileNumber] = useState(false)
   const [showShareMenu, setShowShareMenu] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
   const [showContactWarning, setShowContactWarning] = useState(false)
   const [showPhoneWarning, setShowPhoneWarning] = useState(false)
   const [pendingContactAction, setPendingContactAction] = useState<(() => void) | null>(null)
-  const [relatedAds, setRelatedAds] = useState<Product[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const adDisplayId = (product.adId || product.id).slice(-6)
 
   const isValidUUID = (str: string) => {
-    const uuidRegex =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
     return uuidRegex.test(str)
   }
 
   useEffect(() => {
-    const initializeData = async () => {
+    const checkFavoriteStatus = async () => {
+      if (!user || !isValidUUID(product.id)) {
+        console.log("[v0] Skipping favorite check - invalid UUID or no user:", product.id)
+        return
+      }
+
       try {
-        setLoading(true)
-        await Promise.all([checkFavoriteStatus(), fetchRelatedAds()])
-      } catch (err) {
-        console.error("Error initializing data:", err)
-        setError("Failed to load product details. Please try again.")
-      } finally {
-        setLoading(false)
+        const supabase = createClient()
+        const { data, error } = await supabase
+          .from("favorites")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("product_id", product.id)
+          .single()
+
+        if (error && error.code !== "PGRST116") {
+          console.error("Error checking favorite status:", error)
+        } else {
+          setIsFavorited(!!data)
+        }
+      } catch (error) {
+        console.error("Error checking favorite status:", error)
       }
     }
 
-    if (product) {
-      initializeData()
-    }
-  }, [user, product])
-
-  const checkFavoriteStatus = async () => {
-    if (!user || !isValidUUID(product.id)) return
-    try {
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from("favorites")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("product_id", product.id)
-        .single()
-
-      if (!error) setIsFavorited(!!data)
-    } catch (err) {
-      console.error("Error checking favorite status:", err)
-    }
-  }
-
-  const fetchRelatedAds = async () => {
-    try {
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .eq("category", product.category)
-        .neq("id", product.id)
-        .limit(3)
-
-      if (!error && data) {
-        setRelatedAds(data)
-      }
-    } catch (err) {
-      console.error("Error fetching related ads:", err)
-    }
-  }
+    checkFavoriteStatus()
+  }, [user, product.id])
 
   const toggleFavorite = async () => {
     if (!user) {
-      toast({ title: "Please log in to save favorites" })
+      alert("Please log in to save favorites")
       return
     }
+
     if (!isValidUUID(product.id)) {
-      toast({
-        title: "Demo product",
-        description: "Favorites are only available for real listings.",
-      })
+      alert("This is a demo product. Favorites are only available for real listings.")
       return
     }
 
     try {
       const supabase = createClient()
-      if (isFavorited) {
-        const { error } = await supabase
-          .from("favorites")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("product_id", product.id)
 
-        if (!error) {
+      if (isFavorited) {
+        const { error } = await supabase.from("favorites").delete().eq("user_id", user.id).eq("product_id", product.id)
+
+        if (error) {
+          console.error("Error removing favorite:", error)
+          alert("Failed to remove from favorites")
+        } else {
+          console.log("[v0] Removed from favorites:", product.id)
           setIsFavorited(false)
-          toast({ title: "Removed from favorites" })
         }
       } else {
         const { error } = await supabase.from("favorites").insert({
           user_id: user.id,
           product_id: product.id,
         })
-        if (!error) {
+
+        if (error) {
+          console.error("Error adding favorite:", error)
+          alert("Failed to add to favorites")
+        } else {
+          console.log("[v0] Added to favorites:", product.id)
           setIsFavorited(true)
-          toast({ title: "Added to favorites" })
         }
       }
-    } catch {
-      toast({ title: "Failed to update favorites" })
+    } catch (error) {
+      console.error("Error adding favorite:", error)
+      alert("Failed to update favorites")
     }
   }
 
   const handleReportAd = () => {
     if (!user) {
-      toast({ title: "Please log in to report this ad" })
+      alert("Please log in to report this ad")
       return
     }
-    if (confirm("Report this ad? Our moderation team will review.")) {
-      toast({ title: "Report submitted. Thank you!" })
+
+    const confirmed = window.confirm(
+      "Are you sure you want to report this ad? This will notify our moderation team for review.",
+    )
+
+    if (confirmed) {
+      console.log("[v0] Reporting ad:", product.id)
+      alert("Thank you for your report. Our team will review this ad shortly.")
     }
   }
 
-  const shareTo = (platform: "whatsapp" | "facebook" | "email") => {
+  const shareToWhatsApp = () => {
+    const text = encodeURIComponent(`Check out this ${product.title} for ${product.price}`)
+    const url = encodeURIComponent(window.location.href)
+    window.open(`https://wa.me/?text=${text}%20${url}`, "_blank")
+    setShowShareMenu(false)
+  }
+
+  const shareToFacebook = () => {
+    const url = encodeURIComponent(window.location.href)
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, "_blank")
+    setShowShareMenu(false)
+  }
+
+  const shareToTikTok = () => {
     const url = encodeURIComponent(window.location.href)
     const text = encodeURIComponent(`Check out this ${product.title}`)
-    let shareUrl = ""
+    window.open(`https://www.tiktok.com/share?url=${url}&title=${text}`, "_blank")
+    setShowShareMenu(false)
+  }
 
-    switch (platform) {
-      case "whatsapp":
-        shareUrl = `https://wa.me/?text=${text}%20${url}`
-        break
-      case "facebook":
-        shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${url}`
-        break
-      case "email":
-        shareUrl = `mailto:?subject=${text}&body=${text}%20${url}`
-        break
-    }
-    window.open(shareUrl, "_blank")
+  const shareToEmail = () => {
+    const subject = encodeURIComponent(`Check out this ${product.title}`)
+    const body = encodeURIComponent(
+      `I found this ${product.title} for ${product.price}. Check it out: ${window.location.href}`,
+    )
+    window.open(`mailto:?subject=${subject}&body=${body}`)
     setShowShareMenu(false)
   }
 
@@ -226,23 +209,29 @@ export function ProductDetail({ product }: ProductDetailProps) {
     try {
       await navigator.clipboard.writeText(window.location.href)
       setLinkCopied(true)
-      toast({ title: "Link copied to clipboard!" })
       setTimeout(() => {
         setLinkCopied(false)
         setShowShareMenu(false)
       }, 2000)
-    } catch {
-      toast({ title: "Failed to copy link" })
+    } catch (error) {
+      console.error("Failed to copy link:", error)
+      const url = window.location.href
+      prompt("Copy this link:", url)
+      setShowShareMenu(false)
     }
   }
 
+  const handleShare = () => {
+    setShowShareMenu(!showShareMenu)
+  }
+
   const handleViewAllAds = () => {
-    router.push(`/seller/${product.seller.id || "unknown"}`)
+    window.location.href = `/seller/${product.seller.id || "unknown"}`
   }
 
   const handleShowMobile = () => {
     if (!user) {
-      toast({ title: "Please log in to view seller's contact" })
+      alert("Please log in to view seller's contact information")
       return
     }
     setShowPhoneWarning(true)
@@ -261,67 +250,20 @@ export function ProductDetail({ product }: ProductDetailProps) {
     }
   }
 
-  const tryAgain = () => {
-    setError(null)
-    setLoading(true)
-    setTimeout(() => {
-      fetchRelatedAds()
-      setLoading(false)
-    }, 1000)
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh] p-4">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md w-full text-center">
-          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-red-800 mb-2">Something went wrong!</h2>
-          <p className="text-red-600 mb-6">
-            We encountered an unexpected error. Please try again or return to the homepage.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Button onClick={tryAgain} className="bg-red-600 hover:bg-red-700">
-              Try Again
-            </Button>
-            <Button onClick={() => router.push("/")} variant="outline">
-              <Home className="h-4 w-4 mr-2" />
-              Back to Homepage
-            </Button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (loading) {
-    return (
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-4">
-          <Skeleton className="h-80 w-full" />
-          <Skeleton className="h-40 w-full" />
-          <Skeleton className="h-60 w-full" />
-        </div>
-        <div className="space-y-4">
-          <Skeleton className="h-60 w-full" />
-          <Skeleton className="h-40 w-full" />
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* LEFT SIDE */}
       <div className="lg:col-span-2">
         <SafetyBanner />
 
-        {/* IMAGES */}
         <Card>
           <CardContent className="p-0">
             <div className="relative h-80 bg-gray-50 rounded-t-lg">
               <Image
                 src={
                   getOptimizedImageUrl(product.images?.[selectedImage], "detail") ||
+                  "/placeholder.svg?height=400&width=600&query=product%20image" ||
+                  "/placeholder.svg" ||
+                  "/placeholder.svg" ||
                   "/placeholder.svg"
                 }
                 alt={product.title}
@@ -330,148 +272,158 @@ export function ProductDetail({ product }: ProductDetailProps) {
                 sizes="(max-width: 1024px) 100vw, 66vw"
                 className="object-contain"
               />
-              {product.images?.length > 1 && (
+              {product.images && product.images.length > 1 && (
                 <>
                   <button
-                    onClick={() =>
-                      setSelectedImage(
-                        selectedImage > 0 ? selectedImage - 1 : product.images.length - 1
-                      )
-                    }
-                    className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-2"
+                    onClick={() => setSelectedImage(selectedImage > 0 ? selectedImage - 1 : product.images.length - 1)}
+                    className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-all"
                   >
-                    <svg className="w-5 h-5" viewBox="0 0 24 24">
-                      <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth={2} fill="none" />
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                     </svg>
                   </button>
                   <button
-                    onClick={() =>
-                      setSelectedImage(
-                        selectedImage < product.images.length - 1 ? selectedImage + 1 : 0
-                      )
-                    }
-                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-2"
+                    onClick={() => setSelectedImage(selectedImage < product.images.length - 1 ? selectedImage + 1 : 0)}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-all"
                   >
-                    <svg className="w-5 h-5" viewBox="0 0 24 24">
-                      <path d="M9 5l7 7-7 7" stroke="currentColor" strokeWidth={2} fill="none" />
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </button>
                 </>
               )}
             </div>
 
-            {/* THUMBNAILS */}
-            <div className="p-3 flex space-x-2 overflow-x-auto">
-              {product.images?.map((image, index) => (
-                <button
-                  key={index}
-                  onClick={() => setSelectedImage(index)}
-                  className={`flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden border-2 ${
-                    selectedImage === index ? "border-primary" : "border-border"
-                  }`}
-                >
-                  <Image
-                    src={getOptimizedImageUrl(image, "thumb") || "/placeholder.svg"}
-                    alt={`${product.title} thumbnail ${index + 1}`}
-                    width={48}
-                    height={48}
-                    className="object-cover w-full h-full"
-                  />
-                </button>
-              ))}
+            <div className="p-3">
+              <div className="flex space-x-2 overflow-x-auto">
+                {product.images?.map((image, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setSelectedImage(index)}
+                    className={`flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden border-2 ${
+                      selectedImage === index ? "border-primary" : "border-border"
+                    }`}
+                  >
+                    <Image
+                      src={getOptimizedImageUrl(image, "thumb") || "/placeholder.svg?height=96&width=96&query=thumb"}
+                      alt={`${product.title} ${index + 1}`}
+                      width={48}
+                      height={48}
+                      className="object-cover w-full h-full"
+                    />
+                  </button>
+                ))}
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* DESCRIPTION - Moved below images */}
-        <Card className="mt-4">
-          <CardContent className="p-4">
-            <h2 className="text-lg font-bold mb-3">Description</h2>
-            <p className="text-sm whitespace-pre-line">{product.description}</p>
-            {product.youtube_url && (
-              <div className="mt-4 aspect-video">
-                <iframe
-                  src={product.youtube_url}
-                  title="Product Video"
-                  allowFullScreen
-                  className="w-full h-full rounded-lg"
-                />
-              </div>
-            )}
-            {product.website_url && (
-              <div className="mt-4">
-                <a
-                  href={product.website_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  Visit official website
-                </a>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* INFO */}
         <Card className="mt-4">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h1 className="text-xl font-bold">{product.title}</h1>
+                <h1 className="text-xl font-bold text-foreground mb-1">{product.title}</h1>
                 <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                   <div className="flex items-center">
-                    <MapPin className="h-4 w-4 mr-1" /> {product.location}
+                    <MapPin className="h-4 w-4 mr-1" />
+                    {product.location}
                   </div>
                   <div className="flex items-center">
-                    <Eye className="h-4 w-4 mr-1" /> {product.views} views
+                    <Eye className="h-4 w-4 mr-1" />
+                    {product.views} views
                   </div>
                 </div>
               </div>
               <div className="flex items-center space-x-2 relative">
-                <Button 
-                  size="sm" 
-                  variant="outline" 
+                <Button
+                  size="sm"
+                  variant="outline"
                   onClick={toggleFavorite}
-                  className="bg-green-900 text-white hover:bg-green-800 border-green-900"
+                  className="text-primary hover:bg-green-900/10 hover:text-green-900 border-primary/20 bg-transparent"
                 >
-                  <Heart
-                    className={`h-4 w-4 mr-1 ${
-                      isFavorited ? "fill-white text-white" : ""
-                    }`}
-                  />
-                  {isFavorited ? "Saved" : "Wishlist"}
+                  <Heart className={`h-4 w-4 mr-1 ${isFavorited ? "fill-red-500 text-red-500" : ""}`} />
+                  {isFavorited ? "Saved" : "Save"}
                 </Button>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  onClick={() => setShowShareMenu(!showShareMenu)}
-                  className="bg-green-900 text-white hover:bg-green-800 border-green-900"
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleShare}
+                  className="text-primary hover:bg-green-900/10 hover:text-green-900 border-primary/20 bg-transparent"
                 >
-                  <Share2 className="h-4 w-4 mr-1" /> Share
+                  <Share2 className="h-4 w-4 mr-1" />
+                  Share
                 </Button>
 
                 {showShareMenu && (
-                  <div className="absolute top-full right-0 mt-2 w-48 bg-white border rounded-lg shadow-lg z-50">
+                  <div className="absolute top-full right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
                     <div className="p-2">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium">Share this ad</span>
-                        <Button size="sm" variant="ghost" onClick={() => setShowShareMenu(false)}>
+                        <span className="text-sm font-medium text-gray-700">Share this ad</span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setShowShareMenu(false)}
+                          className="h-6 w-6 p-0"
+                        >
                           <X className="h-4 w-4" />
                         </Button>
                       </div>
                       <div className="space-y-1">
-                        <Button variant="ghost" size="sm" onClick={() => shareTo("whatsapp")} className="w-full justify-start">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={shareToWhatsApp}
+                          className="w-full justify-start text-left hover:bg-green-900/10 hover:text-green-900"
+                        >
+                          <div className="w-5 h-5 mr-3 bg-green-500 rounded-full flex items-center justify-center">
+                            <span className="text-white text-xs font-bold">W</span>
+                          </div>
                           WhatsApp
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => shareTo("facebook")} className="w-full justify-start">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={shareToFacebook}
+                          className="w-full justify-start text-left hover:bg-green-900/10 hover:text-green-900"
+                        >
+                          <div className="w-5 h-5 mr-3 bg-blue-600 rounded-full flex items-center justify-center">
+                            <span className="text-white text-xs font-bold">f</span>
+                          </div>
                           Facebook
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => shareTo("email")} className="w-full justify-start">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={shareToTikTok}
+                          className="w-full justify-start text-left hover:bg-green-900/10 hover:text-green-900"
+                        >
+                          <div className="w-5 h-5 mr-3 bg-black rounded-full flex items-center justify-center">
+                            <span className="text-white text-xs font-bold">T</span>
+                          </div>
+                          TikTok
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={shareToEmail}
+                          className="w-full justify-start text-left hover:bg-green-900/10 hover:text-green-900"
+                        >
+                          <div className="w-5 h-5 mr-3 bg-gray-600 rounded-full flex items-center justify-center">
+                            <span className="text-white text-xs font-bold">@</span>
+                          </div>
                           Email
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={copyLink} className="w-full justify-start">
-                          {linkCopied ? <Check className="w-4 h-4 mr-2 text-green-600" /> : <Copy className="w-4 h-4 mr-2" />}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={copyLink}
+                          className="w-full justify-start text-left hover:bg-green-900/10 hover:text-green-900"
+                        >
+                          {linkCopied ? (
+                            <Check className="w-5 h-5 mr-3 text-green-600" />
+                          ) : (
+                            <Copy className="w-5 h-5 mr-3" />
+                          )}
                           {linkCopied ? "Link Copied!" : "Copy Link"}
                         </Button>
                       </div>
@@ -481,23 +433,18 @@ export function ProductDetail({ product }: ProductDetailProps) {
               </div>
             </div>
 
-            {/* AD ID */}
             <div className="mb-2">
               <div className="flex items-center justify-between mb-3 p-3 bg-muted/50 rounded-lg border">
                 <div>
                   <span className="text-sm text-muted-foreground">Ad ID: </span>
-                  <span className="text-lg font-bold text-primary">{adDisplayId}</span>
+                  <span className="text-lg font-bold text-primary">{product.adId || product.id.slice(-8)}</span>
                 </div>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(adDisplayId)
-                      toast({ title: "Ad ID copied to clipboard!" })
-                    } catch {
-                      toast({ title: "Failed to copy Ad ID" })
-                    }
+                  onClick={() => {
+                    navigator.clipboard.writeText(product.adId || product.id.slice(-8))
+                    toast({ title: "Ad ID copied to clipboard!" })
                   }}
                   className="text-xs"
                 >
@@ -506,13 +453,10 @@ export function ProductDetail({ product }: ProductDetailProps) {
               </div>
             </div>
 
-            {/* PRICE */}
             <div className="flex items-center space-x-2 mb-3">
               <span className="text-2xl font-bold text-primary">{product.price}</span>
               {product.originalPrice && (
-                <span className="text-lg text-muted-foreground line-through">
-                  {product.originalPrice}
-                </span>
+                <span className="text-lg text-muted-foreground line-through">{product.originalPrice}</span>
               )}
             </div>
 
@@ -521,7 +465,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
               Posted on {new Date(product.postedDate).toLocaleDateString()}
             </div>
 
-            {/* ACTIONS */}
             <div className="grid grid-cols-2 gap-2">
               <ContactSellerModal
                 product={{
@@ -538,7 +481,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                 }}
               >
                 <Button
-                  className="w-full bg-green-900 hover:bg-green-950 text-white"
+                  className="w-full bg-green-900 hover:bg-green-950"
                   onClick={() => handleContactWithWarning(() => {})}
                 >
                   Chat with Seller
@@ -546,17 +489,16 @@ export function ProductDetail({ product }: ProductDetailProps) {
               </ContactSellerModal>
               <Button
                 variant="outline"
-                className="w-full bg-green-900 text-white hover:bg-green-800 border-green-900"
+                className="w-full bg-transparent hover:bg-green-900/10 hover:text-green-900 flex items-center justify-center"
                 onClick={handleShowMobile}
               >
                 <Phone className="h-4 w-4 mr-2" />
-                {showMobileNumber ? product.seller.phone || "N/A" : "Show Mobile"}
+                {showMobileNumber ? "+1 (555) 123-****" : "Show Mobile"}
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* RATINGS */}
         <Card className="mt-4">
           <CardContent className="p-4">
             <UserRatings
@@ -569,10 +511,9 @@ export function ProductDetail({ product }: ProductDetailProps) {
           </CardContent>
         </Card>
 
-        {/* DETAILS */}
         <Card className="mt-4">
           <CardContent className="p-4">
-            <h2 className="text-lg font-bold mb-3">Product Details</h2>
+            <h2 className="text-lg font-bold text-foreground mb-3">Product Details</h2>
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
                 <span className="text-muted-foreground">Condition:</span>
@@ -614,156 +555,195 @@ export function ProductDetail({ product }: ProductDetailProps) {
               )}
             </div>
 
-            {product.tags?.length > 0 && (
+            {product.tags && product.tags.length > 0 && (
               <>
                 <Separator className="my-4" />
-                <h3 className="font-semibold mb-2 flex items-center">
-                  <Tag className="h-4 w-4 mr-2" /> Tags
+                <h3 className="font-semibold text-foreground mb-2 flex items-center">
+                  <Tag className="h-4 w-4 mr-2" />
+                  Tags
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {product.tags.map((tag, index) => (
-                    <Badge key={index} variant="secondary">
+                    <Badge key={index} variant="secondary" className="text-xs">
                       {tag}
                     </Badge>
                   ))}
                 </div>
               </>
             )}
+
+            {product.features && product.features.length > 0 && (
+              <>
+                <Separator className="my-4" />
+                <h3 className="font-semibold text-foreground mb-2">Key Features</h3>
+                <ul className="space-y-1">
+                  {product.features.map((feature, index) => (
+                    <li key={index} className="flex items-center text-sm">
+                      <div className="w-2 h-2 bg-primary rounded-full mr-3" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
           </CardContent>
         </Card>
 
-        {/* RELATED ADS */}
-        {relatedAds.length > 0 && (
-          <Card className="mt-4">
-            <CardContent className="p-4">
-              <h2 className="text-lg font-bold mb-3">Related Ads</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {relatedAds.map((ad) => (
-                  <div key={ad.id} className="border rounded-lg overflow-hidden cursor-pointer hover:shadow-md transition-shadow">
-                    <div className="relative h-40 bg-gray-100">
-                      <Image
-                        src={getOptimizedImageUrl(ad.images?.[0], "thumb") || "/placeholder.svg"}
-                        alt={ad.title}
-                        fill
-                        className="object-cover"
-                      />
-                    </div>
-                    <div className="p-3">
-                      <h3 className="font-semibold text-sm truncate">{ad.title}</h3>
-                      <p className="text-primary font-bold text-sm">{ad.price}</p>
-                      <p className="text-xs text-muted-foreground">{ad.location}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-center">
+              <Button
+                variant="ghost"
+                onClick={handleReportAd}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50 flex items-center"
+              >
+                <Flag className="h-4 w-4 mr-2" />
+                Report this Ad
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* RIGHT SIDE */}
       <div className="space-y-4">
-        {/* SELLER INFO */}
         <Card>
           <CardContent className="p-4">
-            <h2 className="text-lg font-bold mb-3">Seller Information</h2>
+            <h3 className="font-semibold text-foreground mb-3">Seller Information</h3>
+
             <div className="flex items-center space-x-3 mb-3">
-              {product.seller.avatar ? (
-                <Image
-                  src={product.seller.avatar}
-                  alt={product.seller.name}
-                  width={48}
-                  height={48}
-                  className="rounded-full"
-                />
-              ) : (
-                <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-                  <span className="text-primary font-semibold">
-                    {product.seller.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")}
-                  </span>
-                </div>
-              )}
+              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                <span className="text-primary font-semibold">
+                  {product.seller.name
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")}
+                </span>
+              </div>
               <div>
-                <div className="font-semibold">{product.seller.name}</div>
-                <div className="flex items-center text-sm text-muted-foreground">
-                  <Star className="h-4 w-4 text-yellow-500 mr-1" /> {product.seller.rating} (
-                  {product.seller.totalReviews} reviews)
+                <div className="flex items-center space-x-2">
+                  <span className="font-medium">{product.seller.name}</span>
+                  {product.seller.verified && <Shield className="h-4 w-4 text-primary" />}
+                </div>
+                <div className="flex items-center space-x-1 text-sm text-muted-foreground">
+                  <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                  <span>{product.seller.rating}</span>
+                  <span>({product.seller.totalReviews} reviews)</span>
                 </div>
               </div>
             </div>
-            <div className="text-sm text-muted-foreground space-y-1 mb-3">
+
+            <div className="space-y-2 text-sm">
               <div className="flex items-center">
-                <Calendar className="h-4 w-4 mr-1" /> Member since {product.seller.memberSince}
+                <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
+                <span>Member since {product.seller.memberSince}</span>
               </div>
               <div className="flex items-center">
-                <Shield className="h-4 w-4 mr-1" />{" "}
-                {product.seller.verified ? "Verified Seller" : "Unverified"}
-              </div>
-              <div className="flex items-center">
-                <Clock className="h-4 w-4 mr-1" /> {product.seller.responseTime}
+                <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
+                <span>{product.seller.responseTime}</span>
               </div>
             </div>
-            <Button variant="outline" className="w-full" onClick={handleViewAllAds}>
-              View All Ads
-            </Button>
+
+            <div className="space-y-2 mt-3">
+              <Button
+                variant="outline"
+                className="w-full bg-transparent hover:bg-green-900/10 hover:text-green-900"
+                onClick={() => (window.location.href = `/seller/${product.seller.id || "unknown"}`)}
+              >
+                View Seller Profile
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full bg-transparent hover:bg-green-900/10 hover:text-green-900"
+                onClick={handleViewAllAds}
+              >
+                See All Ads
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
-        {/* STAY SAFE SECTION - Moved below Seller Info */}
         <Card>
           <CardContent className="p-4">
-            <h2 className="text-lg font-bold mb-3">Stay Safe</h2>
-            <p className="text-sm text-muted-foreground mb-3">
-              When meeting in person:
-            </p>
-            <ul className="text-sm text-muted-foreground space-y-2 mb-4">
-              <li className="flex items-start">
-                <Shield className="h-4 w-4 mr-2 mt-0.5 text-green-600" />
-                <span>Choose public meeting places</span>
-              </li>
-              <li className="flex items-start">
-                <Shield className="h-4 w-4 mr-2 mt-0.5 text-green-600" />
-                <span>Inspect items before purchase</span>
-              </li>
-              <li className="flex items-start">
-                <Shield className="h-4 w-4 mr-2 mt-0.5 text-green-600" />
-                <span>Avoid too-good-to-be-true deals</span>
-              </li>
-              <li className="flex items-start">
-                <Shield className="h-4 w-4 mr-2 mt-0.5 text-green-600" />
-                <span>Never wire money in advance</span>
-              </li>
-            </ul>
-          </CardContent>
-        </Card>
+            <h3 className="font-semibold text-foreground mb-3">Description</h3>
+            <p className="text-muted-foreground leading-relaxed whitespace-pre-line">{product.description}</p>
 
-        {/* REPORT */}
-        <Card>
-          <CardContent className="p-4">
-            <h2 className="text-lg font-bold mb-3">Safety & Reporting</h2>
-            <p className="text-sm text-muted-foreground mb-3">
-              Help us keep the marketplace safe. Report suspicious ads.
-            </p>
-            <Button variant="destructive" size="sm" onClick={handleReportAd} className="w-full">
-              <Flag className="h-4 w-4 mr-2" /> Report this Ad
-            </Button>
+            {(product.youtube_url || product.website_url) && (
+              <>
+                <Separator className="my-4" />
+                <div className="space-y-3">
+                  {product.youtube_url && (
+                    <div className="flex items-center space-x-3 p-3 bg-red-50 rounded-lg border border-red-100">
+                      <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
+                        <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">YouTube Video</p>
+                        <a
+                          href={product.youtube_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-red-600 hover:text-red-700 hover:underline break-all"
+                        >
+                          {product.youtube_url}
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
+                  {product.website_url && (
+                    <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                      <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9"
+                          />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">Website</p>
+                        <a
+                          href={
+                            product.website_url.startsWith("http")
+                              ? product.website_url
+                              : `https://${product.website_url}`
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-blue-600 hover:text-blue-700 hover:underline break-all"
+                        >
+                          {product.website_url}
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* WARNING MODALS */}
       <SafetyWarningModal
-        open={showContactWarning}
-        onOpenChange={setShowContactWarning}
+        isOpen={showContactWarning}
+        onClose={() => {
+          setShowContactWarning(false)
+          setPendingContactAction(null)
+        }}
         onProceed={proceedWithContact}
         type="contact"
       />
+
       <SafetyWarningModal
-        open={showPhoneWarning}
-        onOpenChange={setShowPhoneWarning}
+        isOpen={showPhoneWarning}
+        onClose={() => {
+          setShowPhoneWarning(false)
+          setPendingContactAction(null)
+        }}
         onProceed={proceedWithContact}
         type="phone"
       />
