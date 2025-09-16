@@ -1,46 +1,28 @@
 "use client"
 
 import { useMemo } from "react"
+import { useSearchParams } from "next/navigation"
 import { SearchResults } from "@/components/search/search-results"
 import SearchFilters from "@/components/search/search-filters"
 import { SubcategoryNav } from "@/components/subcategory-nav"
 import { Breadcrumb } from "@/components/breadcrumb"
 
-interface SearchPageProps {
-  searchParams: {
-    q?: string
-    category?: string
-    subcategory?: string
-    minPrice?: string
-    maxPrice?: string
-    condition?: string
-    location?: string
-    sortBy?: string
-  }
-}
+export default function SearchPage() {
+  const searchParams = useSearchParams()
 
-export default function SearchPage({ searchParams }: SearchPageProps) {
-  const query = searchParams.q || ""
+  const query = searchParams.get("q") || ""
 
   const filters = useMemo(
     () => ({
-      category: searchParams.category || "",
-      subcategory: searchParams.subcategory || "",
-      minPrice: searchParams.minPrice || "",
-      maxPrice: searchParams.maxPrice || "",
-      condition: searchParams.condition || "",
-      location: searchParams.location || "",
-      sortBy: searchParams.sortBy || "relevance",
+      category: searchParams.get("category") || "",
+      subcategory: searchParams.get("subcategory") || "",
+      minPrice: searchParams.get("minPrice") || "",
+      maxPrice: searchParams.get("maxPrice") || "",
+      condition: searchParams.get("condition") || "",
+      location: searchParams.get("location") || "",
+      sortBy: searchParams.get("sortBy") || "relevance",
     }),
-    [
-      searchParams.category,
-      searchParams.subcategory,
-      searchParams.minPrice,
-      searchParams.maxPrice,
-      searchParams.condition,
-      searchParams.location,
-      searchParams.sortBy,
-    ],
+    [searchParams],
   )
 
   const breadcrumbItems = [

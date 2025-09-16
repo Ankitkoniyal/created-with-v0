@@ -35,11 +35,6 @@ export function ProfileSettings() {
     location: "",
     bio: "",
     mobile: "",
-    notifications: {
-      email: true,
-      sms: false,
-      push: true,
-    },
   })
 
   useEffect(() => {
@@ -67,14 +62,9 @@ export function ProfileSettings() {
 
         setFormData({
           name: profileData?.full_name || user.user_metadata?.full_name || user.email?.split("@")[0] || "",
-          location: profileData?.location || user.user_metadata?.location || "Toronto, ON",
-          bio: profileData?.bio || user.user_metadata?.bio || "New to the marketplace. Looking forward to great deals!",
-          mobile: profileData?.phone || user.phone || "",
-          notifications: {
-            email: profileData?.email_notifications ?? true,
-            sms: profileData?.sms_notifications ?? false,
-            push: profileData?.push_notifications ?? true,
-          },
+          location: profileData?.location || user.user_metadata?.location || "",
+          bio: profileData?.bio || user.user_metadata?.bio || "",
+          mobile: profileData?.phone || user.user_metadata?.phone || "",
         })
 
         console.log("[v0] Form data initialized:", {
@@ -156,25 +146,40 @@ export function ProfileSettings() {
         throw authUpdateError
       }
 
+      // FIXED: Add required email field and remove notification fields
       const profileUpdateData = {
         id: user.id,
+        email: user.email!, // Required field in your schema
         full_name: formData.name,
         location: formData.location,
         bio: formData.bio,
         avatar_url: avatarUrl,
         phone: formData.mobile,
-        email_notifications: formData.notifications.email,
-        sms_notifications: formData.notifications.sms,
-        push_notifications: formData.notifications.push,
         updated_at: new Date().toISOString(),
       }
 
-      const { error: profileUpdateError } = await supabase
+      console.log("Updating profile with data:", profileUpdateData)
+
+      // FIXED: Better error handling with detailed logging
+      const { data: updateResult, error: profileUpdateError } = await supabase
         .from("profiles")
         .upsert(profileUpdateData, { onConflict: "id" })
+        .select()
+
+      console.log("Update result:", updateResult)
+      console.log("Update error:", profileUpdateError)
 
       if (profileUpdateError) {
         console.error("Profile update error:", profileUpdateError)
+        console.error("Error code:", profileUpdateError.code)
+        console.error("Error message:", profileUpdateError.message)
+        
+        toast({
+          variant: "destructive",
+          title: "Database Error",
+          description: `Failed to update profile: ${profileUpdateError.message || 'Unknown error'}`,
+        })
+        return
       }
 
       toast({
@@ -186,12 +191,12 @@ export function ProfileSettings() {
       setPreviewUrl(null)
 
       setProfileData({ ...profileData, ...profileUpdateData })
-    } catch (error) {
+    } catch (error: any) {
       console.error("Profile save error:", error)
       toast({
         variant: "destructive",
         title: "Update Failed",
-        description: "Failed to update profile. Please try again.",
+        description: error.message || "Failed to update profile. Please try again.",
       })
     } finally {
       setIsSaving(false)
@@ -590,64 +595,7 @@ export function ProfileSettings() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Notification Preferences</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h4 className="font-medium">Email Notifications</h4>
-              <p className="text-sm text-muted-foreground">Receive updates about your listings and messages</p>
-            </div>
-            <Switch
-              checked={formData.notifications.email}
-              onCheckedChange={(checked) =>
-                setFormData({
-                  ...formData,
-                  notifications: { ...formData.notifications, email: checked },
-                })
-              }
-            />
-          </div>
-
-          <Separator />
-
-          <div className="flex items-center justify-between">
-            <div>
-              <h4 className="font-medium">SMS Notifications</h4>
-              <p className="text-sm text-muted-foreground">Get text messages for urgent updates</p>
-            </div>
-            <Switch
-              checked={formData.notifications.sms}
-              onCheckedChange={(checked) =>
-                setFormData({
-                  ...formData,
-                  notifications: { ...formData.notifications, sms: checked },
-                })
-              }
-            />
-          </div>
-
-          <Separator />
-
-          <div className="flex items-center justify-between">
-            <div>
-              <h4 className="font-medium">Push Notifications</h4>
-              <p className="text-sm text-muted-foreground">Browser notifications for real-time updates</p>
-            </div>
-            <Switch
-              checked={formData.notifications.push}
-              onCheckedChange={(checked) =>
-                setFormData({
-                  ...formData,
-                  notifications: { ...formData.notifications, push: checked },
-                })
-              }
-            />
-          </div>
-        </CardContent>
-      </Card>
+      {/* REMOVED: Notification Preferences Section - Not in your schema */}
     </div>
   )
 }

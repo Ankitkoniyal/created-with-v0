@@ -3,7 +3,7 @@ import { RelatedProducts } from "@/components/related-products"
 import { Breadcrumb } from "@/components/breadcrumb"
 import { createClient } from "@/lib/supabase/server"
 import { notFound } from "next/navigation"
-import { SafeProductDetail } from "@/components/safe-product-detail" // Add this import
+import { SafeProductDetail } from "@/components/safe-product-detail"
 
 interface ProductPageProps {
   params: {
@@ -39,7 +39,7 @@ async function getProduct(id: string) {
     if (product.user_id) {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("full_name, avatar_url, created_at")
+        .select("full_name, avatar_url, created_at, phone") // I added 'phone' here
         .eq("id", product.user_id)
         .single()
 
@@ -130,6 +130,7 @@ async function getProduct(id: string) {
         memberSince: profileData?.created_at ? new Date(profileData.created_at).getFullYear().toString() : "2024",
         verified: true,
         responseTime: "Usually responds within 2 hours",
+        phone: profileData?.phone || null, // I added this line to pass the phone number
       },
       features: parsedFeatures,
       storage: product.storage || null,
