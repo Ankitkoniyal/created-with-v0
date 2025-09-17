@@ -33,7 +33,11 @@ export function RelatedProducts({ currentProductId, category }: RelatedProductsP
           .select("id, title, price, images")
           .eq("category", category)
           .neq("id", currentProductId)
+<<<<<<< HEAD
           .limit(8) // fetch more since we show 4 per row
+=======
+          .limit(8)
+>>>>>>> d69efb21dcb75af0a3ea3592a875add2b5eb3bb1
 
         if (error) {
           console.error("Error fetching related products:", error)
@@ -78,7 +82,11 @@ export function RelatedProducts({ currentProductId, category }: RelatedProductsP
               {/* Square Image */}
               <div className="relative w-full aspect-square">
                 <Image
+<<<<<<< HEAD
                   src={product.images[0] || "/placeholder.svg"}
+=======
+                  src={product.images?.[0] || "/placeholder.svg"}
+>>>>>>> d69efb21dcb75af0a3ea3592a875add2b5eb3bb1
                   alt={product.title}
                   fill
                   className="object-cover group-hover:scale-105 transition-transform duration-300"
