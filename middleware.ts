@@ -57,13 +57,15 @@ export async function middleware(request: NextRequest) {
       }
     }
 
-    // Optional: if already logged in and visiting auth pages, send to home.
-    // (Auth pages are already allowed early above.)
-    // Client-side guards handle dashboard/sell/profile; enforce only admin surfaces here.
-    const protectedRoutes = ["/admin", "/superadmin"]
-    const isProtectedRoute = protectedRoutes.some((route) => request.nextUrl.pathname.startsWith(route))
+    // Protect all authenticated routes (not just admin routes)
+    const publicRoutes = ["/", "/auth", "/api/auth", "/public"];
+    const isPublicRoute = publicRoutes.some(route => 
+      request.nextUrl.pathname === route || 
+      request.nextUrl.pathname.startsWith(route + "/")
+    );
 
-    if (isProtectedRoute && !user) {
+    // If user is not authenticated and trying to access protected route, redirect to login
+    if (!user && !isPublicRoute) {
       const redirectUrl = new URL("/auth/login", request.url)
       redirectUrl.searchParams.set("redirectedFrom", request.nextUrl.pathname + request.nextUrl.search)
 
@@ -73,6 +75,94 @@ export async function middleware(request: NextRequest) {
       })
 
       return NextResponse.redirect(redirectUrl)
+    }
+
+    // If user is authenticated and trying to access auth pages, redirect to appropriate dashboard
+    if (user && request.nextUrl.pathname.startsWith("/auth")) {
+      // Fetch user profile to determine where to redirect
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+
+      if (profileError) {
+        logger.error("Error fetching user profile in auth redirect", profileError, {
+          userId: user.id,
+          path: request.nextUrl.pathname,
+        })
+        
+        // Default to home if we can't verify the user's role
+        return NextResponse.redirect(new URL('/', request.url))
+      }
+
+      // Normalize role comparison
+      const userRole = String(profile.role).trim().toLowerCase();
+      
+      // For extra security, verify the email matches the expected super admin email
+      const expectedSuperAdminEmail = "ankit.koniyal000@gmail.com";
+      const isSuperAdmin = userRole === 'super_admin' && user.email === expectedSuperAdminEmail;
+
+      const redirectPath = isSuperAdmin ? '/superadmin' : '/dashboard';
+      
+      logger.info("Redirecting authenticated user from auth page", {
+        userId: user.id,
+        userRole: profile.role,
+        userEmail: user.email,
+        redirectPath: redirectPath,
+      })
+
+      return NextResponse.redirect(new URL(redirectPath, request.url))
+    }
+
+    // Check for superadmin role if accessing superadmin routes
+    if (request.nextUrl.pathname.startsWith("/superadmin") && user) {
+      // Fetch user profile to check role
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+
+      if (profileError) {
+        logger.error("Error fetching user profile", profileError, {
+          userId: user.id,
+          path: request.nextUrl.pathname,
+        })
+        
+        // Redirect to dashboard if we can't verify the user's role
+        return NextResponse.redirect(new URL('/dashboard', request.url))
+      }
+
+      // DEBUG: Log role information
+      console.log("[MIDDLEWARE DEBUG] User role:", profile.role);
+      console.log("[MIDDLEWARE DEBUG] User role type:", typeof profile.role);
+      console.log("[MIDDLEWARE DEBUG] User email:", user.email);
+
+      // Normalize role comparison (case-insensitive, trim whitespace)
+      const userRole = String(profile.role).trim().toLowerCase();
+      
+      // For extra security, verify the email matches the expected super admin email
+      const expectedSuperAdminEmail = "ankit.koniyal000@gmail.com";
+      
+      // ONLY allow the specific super_admin user to access superadmin routes
+      const isSuperAdmin = userRole === 'super_admin' && user.email === expectedSuperAdminEmail;
+
+      console.log("[MIDDLEWARE DEBUG] Normalized role:", userRole);
+      console.log("[MIDDLEWARE DEBUG] Is super admin:", isSuperAdmin);
+
+      if (!isSuperAdmin) {
+        logger.info("Access denied to superadmin route for non-superadmin user", {
+          userId: user.id,
+          userRole: profile.role,
+          userEmail: user.email,
+          normalizedRole: userRole,
+          path: request.nextUrl.pathname,
+        })
+        
+        // Redirect to regular dashboard if not the specific super admin
+        return NextResponse.redirect(new URL('/dashboard', request.url))
+      }
     }
 
     const responseTime = Date.now() - startTime
@@ -95,5 +185,15 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/superadmin/:path*"],
+  // Protect all routes except public ones
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public folder
+     */
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
 }

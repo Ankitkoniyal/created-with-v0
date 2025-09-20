@@ -1,108 +1,102 @@
+// File: components/related-products.tsx
 "use client"
 
-import { useState, useEffect } from "react"
-import { Card, CardContent } from "@/components/ui/card"
-import Image from "next/image"
+import { useEffect, useState } from "react"
 import Link from "next/link"
-import { createClient } from "@/lib/supabase/client"
+import Image from "next/image"
+import { getSupabaseClient } from "@/lib/supabase/client"
 
 interface RelatedProduct {
   id: string
   title: string
-  price: string
+  price: number
   images: string[]
 }
 
 interface RelatedProductsProps {
-  currentProductId: string
   category: string
+  currentProductId: string
 }
 
-export function RelatedProducts({ currentProductId, category }: RelatedProductsProps) {
-  const [relatedProducts, setRelatedProducts] = useState<RelatedProduct[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+export function RelatedProducts({ category, currentProductId }: RelatedProductsProps) {
+  const [products, setProducts] = useState<RelatedProduct[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const fetchRelatedProducts = async () => {
-      setIsLoading(true)
-      const supabase = createClient()
-      
+    async function fetchRelatedProducts() {
       try {
+        const supabase = await getSupabaseClient()
+        if (!supabase) {
+          console.error("Supabase client not available")
+          setLoading(false)
+          return
+        }
+
         const { data, error } = await supabase
-          .from("products") 
+          .from("products")
           .select("id, title, price, images")
           .eq("category", category)
           .neq("id", currentProductId)
-<<<<<<< HEAD
-          .limit(8) // fetch more since we show 4 per row
-=======
-          .limit(8)
->>>>>>> d69efb21dcb75af0a3ea3592a875add2b5eb3bb1
+          .limit(8) // fetch 8 products to show 2 rows of 4
 
         if (error) {
           console.error("Error fetching related products:", error)
-          setRelatedProducts([])
         } else {
-          setRelatedProducts(data || [])
+          setProducts(data || [])
         }
-      } catch (e) {
-        console.error("An error occurred during fetch:", e)
-        setRelatedProducts([])
+      } catch (error) {
+        console.error("Error in fetchRelatedProducts:", error)
       } finally {
-        setIsLoading(false)
+        setLoading(false)
       }
     }
 
     fetchRelatedProducts()
   }, [category, currentProductId])
 
-  if (isLoading) {
+  if (loading) {
     return (
-      <div className="flex justify-center items-center h-48 text-gray-500">
-        Loading related ads...
+      <div className="mt-12">
+        <h2 className="text-2xl font-bold mb-6">Related Products</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="animate-pulse">
+              <div className="bg-gray-200 h-48 rounded-lg"></div>
+              <div className="h-4 bg-gray-200 rounded mt-2"></div>
+              <div className="h-4 bg-gray-200 rounded mt-1 w-3/4"></div>
+            </div>
+          ))}
+        </div>
       </div>
     )
   }
 
-  if (relatedProducts.length === 0) {
-    return (
-      <div className="text-center text-gray-500 py-8">
-        No related products found in this category.
-      </div>
-    )
+  if (products.length === 0) {
+    return null
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-xl font-semibold">Related Ads</h2>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-        {relatedProducts.map((product) => (
-          <Link key={product.id} href={`/product/${product.id}`} passHref>
-            <Card className="group overflow-hidden rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer">
-              {/* Square Image */}
-              <div className="relative w-full aspect-square">
-                <Image
-<<<<<<< HEAD
-                  src={product.images[0] || "/placeholder.svg"}
-=======
-                  src={product.images?.[0] || "/placeholder.svg"}
->>>>>>> d69efb21dcb75af0a3ea3592a875add2b5eb3bb1
-                  alt={product.title}
-                  fill
-                  className="object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-              </div>
-
-              {/* Content */}
-              <CardContent className="p-3">
-                <h3 className="text-sm font-medium text-gray-900 truncate">
-                  {product.title}
-                </h3>
-                <p className="text-base font-bold text-green-700 mt-1">
-                  ${Number(product.price).toLocaleString()}
-                </p>
-              </CardContent>
-            </Card>
+    <div className="mt-12">
+      <h2 className="text-2xl font-bold mb-6">Related Products</h2>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {products.map((product) => (
+          <Link
+            key={product.id}
+            href={`/product/${product.id}`}
+            className="group block overflow-hidden rounded-lg border border-gray-200 hover:shadow-md transition-shadow"
+          >
+            <div className="relative aspect-square overflow-hidden">
+              <Image
+                src={product.images[0] || "/placeholder-product.jpg"}
+                alt={product.title}
+                fill
+                className="object-cover group-hover:scale-105 transition-transform"
+              />
+            </div>
+            <div className="p-3">
+              <h3 className="font-medium text-sm line-clamp-2">{product.title}</h3>
+              <p className="text-lg font-bold mt-1">${product.price}</p>
+            </div>
           </Link>
         ))}
       </div>

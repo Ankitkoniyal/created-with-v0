@@ -1,3 +1,4 @@
+// components/superadmin/super-admin-nav.tsx
 "use client";
 
 import {
@@ -6,13 +7,10 @@ import {
   Users,
   BarChart3,
   FileText,
-  DollarSign,
   Search,
   LogOut,
-  AlertTriangle,
   MapPin,
   Tag,
-  Shield,
   Database,
   Eye,
   Clock,
@@ -46,28 +44,28 @@ const superAdminNavItems = [
     title: "Dashboard",
     href: "/superadmin",
     icon: BarChart3,
-    badgeKey: null,
+    badgeKey: "pendingReview" as keyof NavStats,
     view: "overview" as const,
   },
   {
     title: "Ads Management",
     href: "/superadmin/ads",
     icon: FileText,
-    badgeKey: null,
+    badgeKey: "activeAds" as keyof NavStats,
     view: "ads" as const,
   },
   {
     title: "Pending Review",
     href: "/superadmin/pending",
     icon: Clock,
-    badgeKey: null,
+    badgeKey: "pendingReview" as keyof NavStats,
     view: "pending" as const,
   },
   {
     title: "Reported Ads",
     href: "/superadmin/reported",
     icon: Flag,
-    badgeKey: null,
+    badgeKey: "reportedAds" as keyof NavStats,
     view: "reported" as const,
   },
   {
@@ -94,7 +92,7 @@ const superAdminNavItems = [
   {
     title: "Analytics",
     href: "/superadmin/analytics",
-    icon: DollarSign,
+    icon: Database,
     badgeKey: null,
     view: "analytics" as const,
   },
@@ -113,11 +111,13 @@ export function SuperAdminNav({ stats = defaultStats, onNavigate, activeView }: 
 
   const handleSignOut = async () => {
     // Implement sign out logic here
-    console.log("Signing out...");
+    const supabase = await getSupabaseClient();
+    await supabase.auth.signOut();
+    window.location.href = "/";
   };
 
   return (
-    <div className="w-72 bg-gray-950 text-white p-6 flex flex-col h-full">
+    <div className="w-72 bg-gray-900 text-white p-6 flex flex-col h-full">
       <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-700">
         <div className="w-12 h-12 bg-gradient-to-r from-green-700 to-green-800 rounded-lg flex items-center justify-center">
           <Crown className="w-6 h-6 text-white" />
@@ -142,15 +142,15 @@ export function SuperAdminNav({ stats = defaultStats, onNavigate, activeView }: 
           const isActive = activeView === item.view;
           const Icon = item.icon;
           const badgeValue = item.badgeKey ? safeStats[item.badgeKey] : null;
-
+          
           return (
             <button
               key={item.view}
               onClick={() => onNavigate(item.view)}
               className={cn(
                 "flex items-center justify-between w-full text-left px-3 py-3 rounded-lg text-sm font-medium transition-colors",
-                isActive
-                  ? "bg-green-700 text-white"
+                isActive 
+                  ? "bg-green-700 text-white" 
                   : "text-gray-300 hover:bg-gray-800 hover:text-white",
               )}
             >
@@ -171,19 +171,13 @@ export function SuperAdminNav({ stats = defaultStats, onNavigate, activeView }: 
       </nav>
 
       <div className="pt-4 border-t border-gray-700">
-        <div className="space-y-2">
-          <button className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-2">
-            <Database className="w-4 h-4" />
-            Backup Data
-          </button>
-          <button
-            onClick={handleSignOut}
-            className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-red-900 rounded-lg transition-colors flex items-center gap-2"
-          >
-            <LogOut className="w-4 h-4" />
-            Sign Out
-          </button>
-        </div>
+        <button 
+          onClick={handleSignOut}
+          className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-red-900 rounded-lg transition-colors flex items-center gap-2"
+        >
+          <LogOut className="w-4 h-4" />
+          Sign Out
+        </button>
       </div>
     </div>
   );

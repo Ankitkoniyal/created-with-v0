@@ -1,183 +1,181 @@
-"use client"
-import { useState, useEffect } from "react"
-import type React from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react"
-import { SuccessOverlay } from "@/components/ui/success-overlay"
-import { getSupabaseClient } from "@/lib/supabase/client"
+// File: components/auth/login-form.tsx
+"use client";
+
+import { useState, useEffect } from "react";
+import type React from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react";
+import { SuccessOverlay } from "@/components/ui/success-overlay";
+import { getSupabaseClient } from "@/lib/supabase/client";
 
 export function LoginForm() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const [showPassword, setShowPassword] = useState(false)
-  const [rememberMe, setRememberMe] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [successOpen, setSuccessOpen] = useState(false)
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [successOpen, setSuccessOpen] = useState(false);
 
-  const rawRedirect = searchParams.get("redirectedFrom") || "/"
+  const rawRedirect = searchParams.get("redirectedFrom") || "/";
   const getSafeRedirect = (v: string) => {
     try {
-      const val = (v || "/").trim()
-      if (!val.startsWith("/")) return "/"
+      const val = (v || "/").trim();
+      if (!val.startsWith("/")) return "/";
       // prevent redirect loops to auth pages
-      if (val.startsWith("/auth")) return "/"
+      if (val.startsWith("/auth")) return "/";
       // optionally block login/signup words anywhere
-      if (/\/(login|signup|sign-up|sign-in)/i.test(val)) return "/"
-      return val
+      if (/\/(login|signup|sign-up|sign-in)/i.test(val)) return "/";
+      return val;
     } catch {
-      return "/"
+      return "/";
     }
-  }
-  const redirectedFrom = getSafeRedirect(rawRedirect)
+  };
+  const redirectedFrom = getSafeRedirect(rawRedirect);
 
   useEffect(() => {
     try {
-      const savedCredentials = localStorage.getItem("rememberedCredentials")
+      const savedCredentials = localStorage.getItem("rememberedCredentials");
       if (savedCredentials) {
-        const { email: savedEmail, rememberMe: savedRememberMe } = JSON.parse(savedCredentials)
+        const { email: savedEmail, rememberMe: savedRememberMe } = JSON.parse(savedCredentials);
         if (savedRememberMe && savedEmail) {
-          setEmail(savedEmail)
-          setRememberMe(true)
+          setEmail(savedEmail);
+          setRememberMe(true);
         }
       }
     } catch (error) {
-      console.error("Error loading saved credentials:", error)
+      console.error("Error loading saved credentials:", error);
     }
-  }, [])
+  }, []);
 
   const isValidEmail = (email: string) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-  }
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    if (isSubmitting) return
+    e.preventDefault();
+    if (isSubmitting) return;
 
-    setError(null)
-    setIsSubmitting(true)
+    setError(null);
+    setIsSubmitting(true);
 
     try {
       if (!email.trim() || !password) {
-        setError("Please fill in all required fields")
-        return
+        setError("Please fill in all required fields");
+        return;
       }
 
       if (!isValidEmail(email.trim())) {
-        setError("Please enter a valid email address")
-        return
+        setError("Please enter a valid email address");
+        return;
       }
 
-      console.log("[v0] Login attempt for email:", email.trim())
+      console.log("[v0] Login attempt for email:", email.trim());
 
-      await new Promise((resolve) => setTimeout(resolve, 200))
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
-      const supabase = await getSupabaseClient()
+      const supabase = await getSupabaseClient();
       if (!supabase) {
-        setError("Authentication service is not available. Please refresh the page and try again.")
-        return
-      }
-
-      if (rememberMe) {
-        localStorage.setItem("rememberedCredentials", JSON.stringify({ email: email.trim(), rememberMe: true }))
-      } else {
-        localStorage.removeItem("rememberedCredentials")
+        setError("Authentication service is not available. Please refresh the page and try again.");
+        return;
       }
 
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password: password,
-      })
+      });
 
       if (authError) {
-        console.error("[v0] Auth error:", authError.message)
-        const errorMessage = String(authError.message || authError)
-        let userFriendlyError = "An error occurred during login"
+        console.error("[v0] Auth error:", authError?.message);
+        const errorMessage = authError?.message || "An error occurred during login";
+        let userFriendlyError = "An error occurred during login";
 
         if (/invalid login credentials|invalid email or password/i.test(errorMessage)) {
-          userFriendlyError = "Invalid email or password. Please check your credentials and try again."
+          userFriendlyError = "Invalid email or password. Please check your credentials and try again.";
         } else if (/email not confirmed|confirmation/i.test(errorMessage)) {
-          userFriendlyError = "Please confirm your email before signing in. Check your inbox for a confirmation link."
+          userFriendlyError = "Please confirm your email before signing in. Check your inbox for a confirmation link.";
         } else if (/too many|rate/i.test(errorMessage)) {
-          userFriendlyError = "Too many login attempts. Please wait a few minutes and try again."
+          userFriendlyError = "Too many login attempts. Please wait a few minutes and try again.";
         } else if (/network|fetch/i.test(errorMessage)) {
-          userFriendlyError = "Network error. Please check your connection and try again."
+          userFriendlyError = "Network error. Please check your connection and try again.";
         } else if (/signup|sign up/i.test(errorMessage)) {
-          userFriendlyError = "Account not found. Please sign up first or check your email address."
+          userFriendlyError = "Account not found. Please sign up first or check your email address.";
         }
 
-        setError(userFriendlyError)
-        return
+        setError(userFriendlyError);
+        setIsSubmitting(false);
+        return;
       }
 
       if (data.session && data.user) {
-        console.log("[v0] Login successful for:", data.user.email)
+        console.log("[v0] Login successful for:", data.user.email);
 
-        Promise.allSettled([
-          fetch("/api/auth/set", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              access_token: data.session.access_token,
-              refresh_token: data.session.refresh_token,
-            }),
-          }),
-          fetch("/api/profile/ensure", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-          }),
-        ]).then((results) => {
-          results.forEach((result, index) => {
-            if (result.status === "rejected") {
-              console.log(`[v0] Background operation ${index} failed (non-blocking):`, result.reason)
-            }
-          })
-        })
+        // Step 1: Fetch the user's profile to check their role
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', data.user.id)
+          .single();
 
-        setSuccessOpen(true)
+        if (profileError) {
+          console.error("[v0] Profile fetch error:", profileError.message);
+          setError("Failed to retrieve user profile. Please contact support.");
+          setIsSubmitting(false);
+          return;
+        }
 
-        setIsSubmitting(false)
+        // Step 2: Determine the redirection path based on the user's role
+        // FIXED: Changed 'superadmin' to 'super_admin' to match middleware
+        const redirectPath = profileData.role === 'super_admin' ? '/superadmin' : redirectedFrom;
+        console.log("[v0] User role is:", profileData.role);
+        console.log("[v0] Redirecting to:", redirectPath);
+        
+        if (rememberMe) {
+          localStorage.setItem("rememberedCredentials", JSON.stringify({ email: email.trim(), rememberMe: true }));
+        } else {
+          localStorage.removeItem("rememberedCredentials");
+        }
+
+        setSuccessOpen(true);
+        setIsSubmitting(false);
 
         setTimeout(() => {
-          setSuccessOpen(false)
-          console.log("[v0] Redirecting to:", redirectedFrom)
-
+          setSuccessOpen(false);
           try {
-            router.replace(redirectedFrom)
+            router.replace(redirectPath);
           } catch (routerError) {
-            console.log("[v0] Router failed, using window.location:", routerError)
-            window.location.href = redirectedFrom
+            console.log("[v0] Router failed, using window.location:", routerError);
+            window.location.href = redirectPath;
           }
-        }, 1200)
+        }, 1200);
+
       } else {
-        setError("Sign in failed. Please try again.")
+        setError("Sign in failed. Please try again.");
+        setIsSubmitting(false);
       }
     } catch (err) {
-      console.error("[v0] Login error:", err)
-      const errorMessage = String(err)
+      console.error("[v0] Login error:", err);
+      const errorMessage = String(err);
       if (/fetch/i.test(errorMessage)) {
-        setError("Network error. Please check your connection and try again.")
+        setError("Network error. Please check your connection and try again.");
       } else {
-        setError("An unexpected error occurred. Please try again.")
+        setError("An unexpected error occurred. Please try again.");
       }
-    } finally {
-      if (!successOpen) {
-        setIsSubmitting(false)
-      }
+      setIsSubmitting(false);
     }
-  }
+  };
 
   return (
     <>
-      <Card className="w-full max-w-md mx-auto">
+      <Card className="w-full">
         <CardHeader>
           <CardTitle className="text-2xl font-bold text-center">Sign In</CardTitle>
           {redirectedFrom !== "/" && (
@@ -287,11 +285,11 @@ export function LoginForm() {
         title="Signed in"
         message="You have been successfully logged in."
         onClose={() => {
-          setSuccessOpen(false)
-          setIsSubmitting(false)
+          setSuccessOpen(false);
+          setIsSubmitting(false);
         }}
         actionLabel="Continue"
       />
     </>
-  )
+  );
 }
