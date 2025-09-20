@@ -1,4 +1,3 @@
-// components/superadmin/ads-management.tsx
 "use client"
 
 import { useState, useEffect } from "react"
@@ -29,6 +28,7 @@ interface Ad {
   status: 'active' | 'inactive' | 'sold' | 'rejected' | 'pending'
   created_at: string
   user_email: string
+  user_id: string; // Add user_id to the interface
 }
 
 export function AdsManagement() {
@@ -46,7 +46,8 @@ export function AdsManagement() {
     try {
       const supabase = await getSupabaseClient()
       
-      const { data, error } = await supabase
+      // Step 1: Fetch all products
+      const { data: products, error } = await supabase
         .from('products')
         .select('*')
         .order('created_at', { ascending: false })
@@ -54,21 +55,33 @@ export function AdsManagement() {
 
       if (error) throw error
 
-      // Get user emails for each ad
-      const adsWithEmails = await Promise.all(
-        data.map(async (ad) => {
-          const { data: userData } = await supabase
-            .from('profiles')
-            .select('email')
-            .eq('id', ad.user_id)
-            .single()
+      if (products.length === 0) {
+        setAds([])
+        return
+      }
 
-          return {
-            ...ad,
-            user_email: userData?.email || 'Unknown'
-          }
-        })
-      )
+      // Step 2: Get a unique list of all user IDs from the products
+      const userIds = [...new Set(products.map(ad => ad.user_id))]
+
+      // Step 3: Fetch all user profiles for those IDs in a single, batched query
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, email')
+        .in('id', userIds)
+
+      if (profilesError) throw profilesError
+
+      // Step 4: Create a map for quick lookup of emails by user ID
+      const userEmailMap = profilesData.reduce((acc, profile) => {
+        acc[profile.id] = profile.email
+        return acc
+      }, {} as Record<string, string>)
+
+      // Step 5: Combine the product data with the user emails
+      const adsWithEmails = products.map(ad => ({
+        ...ad,
+        user_email: userEmailMap[ad.user_id] || 'Unknown'
+      }))
 
       setAds(adsWithEmails)
     } catch (error) {
