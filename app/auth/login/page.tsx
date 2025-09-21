@@ -30,9 +30,7 @@ export default function LoginForm() {
     try {
       const val = (v || "/").trim()
       if (!val.startsWith("/")) return "/"
-      // prevent redirect loops to auth pages
       if (val.startsWith("/auth")) return "/"
-      // optionally block login/signup words anywhere
       if (/\/(login|signup|sign-up|sign-in)/i.test(val)) return "/"
       return val
     } catch {
@@ -78,9 +76,7 @@ export default function LoginForm() {
         return
       }
 
-      console.log("[v0] Login attempt for email:", email.trim())
-
-      await new Promise((resolve) => setTimeout(resolve, 200))
+      console.log("Login attempt for email:", email.trim())
 
       const supabase = await getSupabaseClient()
       if (!supabase) {
@@ -94,7 +90,7 @@ export default function LoginForm() {
       })
 
       if (authError) {
-        console.error("[v0] Auth error:", authError?.message)
+        console.error("Auth error:", authError?.message)
         const errorMessage = authError?.message || "An error occurred during login"
         let userFriendlyError = "An error occurred during login"
 
@@ -116,9 +112,9 @@ export default function LoginForm() {
       }
 
       if (data.session && data.user) {
-        console.log("[v0] Login successful for:", data.user.email)
+        console.log("Login successful for:", data.user.email)
 
-        // Step 1: Fetch the user's profile to check their role
+        // Fetch the user's profile to check their role
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('role')
@@ -126,36 +122,22 @@ export default function LoginForm() {
           .single();
 
         if (profileError) {
-          console.error("[v0] Profile fetch error:", profileError.message);
+          console.error("Profile fetch error:", profileError.message);
           setError("Failed to retrieve user profile. Please contact support.");
           setIsSubmitting(false);
           return;
         }
 
-        // DEBUG: Log the role information
-        console.log("[DEBUG] Raw role value:", profileData.role);
-        console.log("[DEBUG] Raw role type:", typeof profileData.role);
-
-        // Step 2: Determine the redirection path based on the user's role
-        // Handle different role formats - trim whitespace and check case
+        // Determine the redirection path based on the user's role
         const userRole = String(profileData.role).trim().toLowerCase();
-        console.log("[DEBUG] Normalized role:", userRole);
+        const isSuperAdmin = userRole === 'super_admin';
 
-        // Check for super_admin role (case-insensitive) - FIXED to match your database
-        const isSuperAdmin = userRole === 'super_admin'; // Only super_admin should access superadmin dashboard
+        console.log("User role:", profileData.role);
+        console.log("Is super admin:", isSuperAdmin);
 
-        console.log("[DEBUG] Is super admin:", isSuperAdmin);
-
-        // For extra security, verify the email matches the expected super admin email
-        const expectedSuperAdminEmail = "ankit.koniya1000@gmail.com";
-        const isExpectedSuperAdmin = data.user.email === expectedSuperAdminEmail && isSuperAdmin;
-
-        // Redirect to superadmin ONLY for the specific super_admin user, otherwise to dashboard
-        const redirectPath = isExpectedSuperAdmin ? '/superadmin' : '/dashboard';
-        console.log("[v0] User role is:", profileData.role);
-        console.log("[v0] User email is:", data.user.email);
-        console.log("[v0] Is expected super admin:", isExpectedSuperAdmin);
-        console.log("[v0] Redirecting to:", redirectPath);
+        // Redirect based on role - FIXED: Only check the role
+        const redirectPath = isSuperAdmin ? '/superadmin' : '/dashboard';
+        console.log("Redirecting to:", redirectPath);
         
         if (rememberMe) {
           localStorage.setItem("rememberedCredentials", JSON.stringify({ email: email.trim(), rememberMe: true }))
@@ -171,7 +153,7 @@ export default function LoginForm() {
           try {
             router.replace(redirectPath)
           } catch (routerError) {
-            console.log("[v0] Router failed, using window.location:", routerError)
+            console.log("Router failed, using window.location:", routerError)
             window.location.href = redirectPath
           }
         }, 1200)
@@ -181,7 +163,7 @@ export default function LoginForm() {
         setIsSubmitting(false)
       }
     } catch (err) {
-      console.error("[v0] Login error:", err)
+      console.error("Login error:", err)
       const errorMessage = String(err)
       if (/fetch/i.test(errorMessage)) {
         setError("Network error. Please check your connection and try again.")
@@ -194,138 +176,136 @@ export default function LoginForm() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <>
-        <Card className="w-full max-w-md mx-auto">
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold text-center">Sign In</CardTitle>
-            {redirectedFrom !== "/" && (
-              <p className="text-sm text-muted-foreground text-center">Please sign in to continue</p>
+      <Card className="w-full max-w-md mx-auto">
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold text-center">Sign In</CardTitle>
+          {redirectedFrom !== "/" && (
+            <p className="text-sm text-muted-foreground text-center">Please sign in to continue</p>
+          )}
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <Alert variant="destructive" role="alert" aria-live="assertive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
             )}
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {error && (
-                <Alert variant="destructive" role="alert" aria-live="assertive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
 
-              <div className="space-y-2">
-                <Label htmlFor="email">Email *</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    placeholder="Enter your email"
-                    className="pl-10"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    disabled={isSubmitting}
-                    autoComplete="email"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">Password *</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Enter your password"
-                    className="pl-10 pr-10"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    disabled={isSubmitting}
-                    minLength={6}
-                    autoComplete="current-password"
-                  />
-                  <button
-                    type="button"
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    onClick={() => setShowPassword(!showPassword)}
-                    disabled={isSubmitting}
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="remember"
-                    checked={rememberMe}
-                    onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-                    className="border-2 border-gray-300 data-[state=checked]:bg-green-900 data-[state=checked]:border-green-900"
-                    disabled={isSubmitting}
-                  />
-                  <Label htmlFor="remember" className="text-sm cursor-pointer font-medium">
-                    Remember me
-                  </Label>
-                </div>
-                <Button
-                  type="button"
-                  variant="link"
-                  className="p-0 h-auto text-sm"
+            <div className="space-y-2">
+              <Label htmlFor="email">Email *</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  placeholder="Enter your email"
+                  className="pl-10"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
                   disabled={isSubmitting}
-                  onClick={() => router.push("/auth/forgot-password")}
-                >
-                  Forgot password?
-                </Button>
+                  autoComplete="email"
+                />
               </div>
-
-              <Button
-                type="submit"
-                className="w-full bg-green-900 hover:bg-green-950"
-                disabled={isSubmitting || !email || !password}
-              >
-                {isSubmitting ? (
-                  <div className="flex items-center">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Signing In...
-                  </div>
-                ) : (
-                  "Sign In"
-                )}
-              </Button>
-            </form>
-            
-            <div className="mt-6 text-center">
-              <p className="text-sm text-muted-foreground">
-                Don't have an account?{" "}
-                <Button
-                  type="button"
-                  variant="link"
-                  className="p-0 h-auto text-sm"
-                  disabled={isSubmitting}
-                  onClick={() => router.push("/auth/signup")}
-                >
-                  Sign up
-                </Button>
-              </p>
             </div>
-          </CardContent>
-        </Card>
-        <SuccessOverlay
-          open={successOpen}
-          title="Signed in"
-          message="You have been successfully logged in."
-          onClose={() => {
-            setSuccessOpen(false)
-            setIsSubmitting(false)
-          }}
-          actionLabel="Continue"
-        />
-      </>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Password *</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Enter your password"
+                  className="pl-10 pr-10"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={isSubmitting}
+                  minLength={6}
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={isSubmitting}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="remember"
+                  checked={rememberMe}
+                  onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                  className="border-2 border-gray-300 data-[state=checked]:bg-green-900 data-[state=checked]:border-green-900"
+                  disabled={isSubmitting}
+                />
+                <Label htmlFor="remember" className="text-sm cursor-pointer font-medium">
+                  Remember me
+                </Label>
+              </div>
+              <Button
+                type="button"
+                variant="link"
+                className="p-0 h-auto text-sm"
+                disabled={isSubmitting}
+                onClick={() => router.push("/auth/forgot-password")}
+              >
+                Forgot password?
+              </Button>
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full bg-green-900 hover:bg-green-950"
+              disabled={isSubmitting || !email || !password}
+            >
+              {isSubmitting ? (
+                <div className="flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Signing In...
+                </div>
+              ) : (
+                "Sign In"
+              )}
+            </Button>
+          </form>
+          
+          <div className="mt-6 text-center">
+            <p className="text-sm text-muted-foreground">
+              Don't have an account?{" "}
+              <Button
+                type="button"
+                variant="link"
+                className="p-0 h-auto text-sm"
+                disabled={isSubmitting}
+                onClick={() => router.push("/auth/signup")}
+              >
+                Sign up
+              </Button>
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+      <SuccessOverlay
+        open={successOpen}
+        title="Signed in"
+        message="You have been successfully logged in."
+        onClose={() => {
+          setSuccessOpen(false)
+          setIsSubmitting(false)
+        }}
+        actionLabel="Continue"
+      />
     </div>
   )
 }
