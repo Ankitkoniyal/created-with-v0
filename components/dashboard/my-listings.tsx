@@ -34,6 +34,7 @@ export function MyListings() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [accountStatus, setAccountStatus] = useState("active")
 
   useEffect(() => {
     const fetchUserListings = async () => {
@@ -44,6 +45,18 @@ export function MyListings() {
       
       try {
         const supabase = createClient()
+        
+        // Check account status
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("status")
+          .eq("id", user.id)
+          .single()
+        
+        if (profile?.status) {
+          setAccountStatus(profile.status)
+        }
+
         const { data, error } = await supabase
           .from("products")
           .select("*")
@@ -87,6 +100,10 @@ export function MyListings() {
   }
 
   const handleEditAd = (id: string) => {
+    if (accountStatus === "deactivated") {
+      alert("Your account is deactivated. Please reactivate it to edit ads.")
+      return
+    }
     router.push(`/sell?edit=${id}`)
   }
 
@@ -165,6 +182,35 @@ export function MyListings() {
 
   return (
     <div className="space-y-6">
+      {accountStatus === "deactivated" && (
+        <div className="bg-red-100 border border-red-300 rounded-lg p-4">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-600" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">Account Deactivated</h3>
+              <div className="mt-2 text-sm text-red-700">
+                <p>Your account is currently deactivated. You cannot post new ads until you reactivate your account.</p>
+              </div>
+              <div className="mt-4">
+                <div className="-mx-2 -my-1.5 flex">
+                  <Button
+                    variant="outline"
+                    className="bg-red-100 text-red-800 hover:bg-red-200 border-red-300"
+                    asChild
+                  >
+                    <Link href="/dashboard/settings">Reactivate Account</Link>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header Actions */}
       <div className="flex flex-col sm:flex-row gap-4 justify-between">
         <div className="flex flex-col sm:flex-row gap-4">
@@ -189,7 +235,7 @@ export function MyListings() {
             </SelectContent>
           </Select>
         </div>
-        <Button asChild>
+        <Button asChild disabled={accountStatus === "deactivated"}>
           <Link href="/sell">
             <Plus className="h-4 w-4 mr-2" />
             Post New Ad
@@ -224,7 +270,7 @@ export function MyListings() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleEditAd(listing.id)}>
+                    <DropdownMenuItem onClick={() => handleEditAd(listing.id)} disabled={accountStatus === "deactivated"}>
                       <Edit className="h-4 w-4 mr-2" />
                       Edit Ad
                     </DropdownMenuItem>
@@ -272,7 +318,7 @@ export function MyListings() {
                 </div>
 
                 <div className="flex space-x-2">
-                  <Button size="sm" variant="outline" onClick={() => handleEditAd(listing.id)}>
+                  <Button size="sm" variant="outline" onClick={() => handleEditAd(listing.id)} disabled={accountStatus === "deactivated"}>
                     <Edit className="h-4 w-4" />
                   </Button>
                   <Button size="sm" variant="outline" asChild>
@@ -302,7 +348,7 @@ export function MyListings() {
                 ? "Try adjusting your search or filter criteria"
                 : "You haven't created any listings yet"}
             </p>
-            <Button asChild>
+            <Button asChild disabled={accountStatus === "deactivated"}>
               <Link href="/sell">Post Your First Ad</Link>
             </Button>
           </CardContent>
