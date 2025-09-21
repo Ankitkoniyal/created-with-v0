@@ -1,3 +1,4 @@
+// components/superadmin/super-admin-nav.tsx
 "use client";
 
 import {
@@ -19,6 +20,7 @@ import {
   Flag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getSupabaseClient } from "@/lib/supabase/client"; // ADD THIS IMPORT
 
 interface NavStats {
   totalAds: number;
@@ -112,8 +114,9 @@ export function SuperAdminNav({ stats = defaultStats, onNavigate, activeView }: 
   const safeStats = { ...defaultStats, ...stats };
 
   const handleSignOut = async () => {
-    // Implement sign out logic here
-    console.log("Signing out...");
+    const supabase = await getSupabaseClient();
+    await supabase.auth.signOut();
+    window.location.href = "/";
   };
 
   return (
