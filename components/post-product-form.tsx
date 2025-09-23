@@ -818,24 +818,7 @@ export function PostProductForm() {
               </div>
             </div>
 
-            <div className="space-y-4 p-4 border-2 border-primary/20 bg-primary/5 rounded-lg">
-              <Checkbox
-                id="showMobileNumber"
-                checked={formData.showMobileNumber}
-                onCheckedChange={(checked) => handleInputChange("showMobileNumber", checked as boolean)}
-                className="w-5 h-5 border-2 border-primary data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-              />
-              <div className="flex-1">
-                <label htmlFor="showMobileNumber" className="text-sm font-medium cursor-pointer">
-                  Show my mobile number on this ad
-                </label>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Your number will be partially hidden. Only logged-in users can view the full number.
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
+           <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
               <label className="flex items-center text-base font-semibold">
                 <Tag className="h-5 w-5 mr-2" />
                 Tags (Max 5 words)
