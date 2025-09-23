@@ -24,6 +24,8 @@ import {
   ChevronLeft,
   ChevronRight,
   List,
+  Youtube,
+  Globe,
 } from "lucide-react"
 import { ContactSellerModal } from "@/components/messaging/contact-seller-modal"
 import { SafetyBanner } from "@/components/ui/safety-banner"
@@ -338,6 +340,24 @@ export function ProductDetail({ product }: ProductDetailProps) {
       .join(' ')
   }
 
+  const openYouTubeVideo = () => {
+    if (product.youtube_url) {
+      window.open(product.youtube_url, '_blank', 'noopener,noreferrer')
+    }
+  }
+
+  const openWebsiteUrl = () => {
+    if (product.website_url) {
+      window.open(product.website_url, '_blank', 'noopener,noreferrer')
+    }
+  }
+
+  // Check if YouTube URL exists and is valid
+  const hasYouTubeUrl = product.youtube_url && product.youtube_url.trim() !== ""
+  
+  // Check if Website URL exists and is valid
+  const hasWebsiteUrl = product.website_url && product.website_url.trim() !== ""
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-4 md:p-6">
       <div className="lg:col-span-2 space-y-6">
@@ -441,6 +461,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
               </div>
             </div>
 
+            
             <div className="flex flex-col space-y-3 mb-4">
               <ContactSellerModal
                 product={{
@@ -452,7 +473,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                 seller={{
                   name: product.seller.name,
                   verified: product.seller.verified,
-                                 }}
+                }}
               >
                 <Button
                   className="w-full bg-green-950 hover:bg-green-800 text-white h-12"
@@ -481,6 +502,32 @@ export function ProductDetail({ product }: ProductDetailProps) {
               >
                 <Heart className={`h-4 w-4 ${isFavorited ? "fill-red-500 text-red-500" : ""}`} />
               </Button>
+              
+              {/* YouTube and Website Icons - Mobile */}
+              {hasYouTubeUrl && (
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={openYouTubeVideo}
+                  className="w-10 h-10 rounded-full bg-red-50 hover:bg-red-100 border-red-200 text-red-600"
+                  title="Watch YouTube Video"
+                >
+                  <Youtube className="h-4 w-4" />
+                </Button>
+              )}
+              
+              {hasWebsiteUrl && (
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={openWebsiteUrl}
+                  className="w-10 h-10 rounded-full bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-600"
+                  title="Visit Website"
+                >
+                  <Globe className="h-4 w-4" />
+                </Button>
+              )}
+              
               <div className="relative" ref={shareMenuRef}>
                 <Button
                   size="icon"
@@ -700,6 +747,8 @@ export function ProductDetail({ product }: ProductDetailProps) {
               </div>
             </div>
 
+          
+
             <div className="flex flex-col space-y-3 mb-4">
               <ContactSellerModal
                 product={{
@@ -711,7 +760,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                 seller={{
                   name: product.seller.name,
                   verified: product.seller.verified,
-                                  }}
+                }}
               >
                 <Button
                   className="w-full bg-green-950 hover:bg-green-800 text-white h-12"
@@ -740,6 +789,32 @@ export function ProductDetail({ product }: ProductDetailProps) {
               >
                 <Heart className={`h-4 w-4 ${isFavorited ? "fill-red-500 text-red-500" : ""}`} />
               </Button>
+              
+              {/* YouTube and Website Icons - Desktop */}
+              {hasYouTubeUrl && (
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={openYouTubeVideo}
+                  className="w-10 h-10 rounded-full bg-red-50 hover:bg-red-100 border-red-200 text-red-600"
+                  title="Watch YouTube Video"
+                >
+                  <Youtube className="h-4 w-4" />
+                </Button>
+              )}
+              
+              {hasWebsiteUrl && (
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={openWebsiteUrl}
+                  className="w-10 h-10 rounded-full bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-600"
+                  title="Visit Website"
+                >
+                  <Globe className="h-4 w-4" />
+                </Button>
+              )}
+              
               <div className="relative" ref={shareMenuRef}>
                 <Button
                   size="icon"
