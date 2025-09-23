@@ -441,7 +441,7 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
         </Link>
       </Button>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
         <div className="lg:col-span-2">
           <Card className="h-[600px] flex flex-col">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
@@ -499,7 +499,7 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
                 const isFromMe = message.sender_id === user?.id
 
                 return (
-                    <div key={`${message.id}-${message.created_at}-${index}`}>
+                  <div key={`${message.id}-${message.created_at}-${index}`}>
                     {showDate && (
                       <div className="text-center text-xs text-muted-foreground my-4">
                         {formatDate(message.created_at)}
@@ -547,63 +547,8 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
         </div>
 
         <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Package className="h-5 w-5 mr-2" />
-                Product Details
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Link href={`/product/${conversationData.product.id}`} className="block hover:opacity-80">
-                <img
-                  src={
-                    conversationData.product.images?.[0] || "/placeholder.svg?height=128&width=256&query=product-detail"
-                  }
-                  alt={conversationData.product.title}
-                  className="w-full h-32 object-cover rounded-lg mb-3"
-                  loading="lazy"
-                  decoding="async"
-                />
-                <h4 className="font-semibold text-foreground mb-2">{conversationData.product.title}</h4>
-                <p className="text-2xl font-bold text-primary mb-2">${conversationData.product.price}</p>
-                <div className="flex items-center justify-between text-sm text-muted-foreground">
-                  <span>{conversationData.product.condition}</span>
-                  <span>{conversationData.product.location}</span>
-                </div>
-              </Link>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>User Information</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center space-x-3 mb-4">
-                <Avatar>
-                  <AvatarImage src={conversationData.participant.avatar_url || "/placeholder.svg"} />
-                  <AvatarFallback>
-                    {conversationData.participant.full_name
-                      ?.split(" ")
-                      .map((n) => n[0])
-                      .join("") || "U"}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <span className="font-medium">{conversationData.participant.full_name}</span>
-                  </div>
-                </div>
-              </div>
-
-              <Button variant="outline" className="w-full mt-4 bg-transparent">
-                View Profile
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
+          
+         <Card>
             <CardHeader>
               <CardTitle className="text-sm">Safety Tips</CardTitle>
             </CardHeader>
