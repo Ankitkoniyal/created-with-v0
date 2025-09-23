@@ -48,13 +48,13 @@ export async function middleware(request: NextRequest) {
       error,
     } = await supabase.auth.getUser()
 
-    if (error && error.message !== "Auth session missing!") {
-      logger.warn("Middleware auth error", { error: error.message, path: request.nextUrl.pathname })
-
-      if (error.message.includes("invalid") || error.message.includes("expired")) {
-        await supabase.auth.signOut()
-        logger.info("Cleared invalid session", { path: request.nextUrl.pathname })
-      }
+    // FIXED: Remove the automatic signOut on session errors
+    if (error) {
+      logger.warn("Middleware auth error", { 
+        error: error.message, 
+        path: request.nextUrl.pathname,
+        // Don't sign out automatically - let client handle this
+      })
     }
 
     // Protect all authenticated routes (not just admin routes)
@@ -134,11 +134,6 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL('/dashboard', request.url))
       }
 
-      // DEBUG: Log role information
-      console.log("[MIDDLEWARE DEBUG] User role:", profile.role);
-      console.log("[MIDDLEWARE DEBUG] User role type:", typeof profile.role);
-      console.log("[MIDDLEWARE DEBUG] User email:", user.email);
-
       // Normalize role comparison (case-insensitive, trim whitespace)
       const userRole = String(profile.role).trim().toLowerCase();
       
@@ -147,9 +142,6 @@ export async function middleware(request: NextRequest) {
       
       // ONLY allow the specific super_admin user to access superadmin routes
       const isSuperAdmin = userRole === 'super_admin' && user.email === expectedSuperAdminEmail;
-
-      console.log("[MIDDLEWARE DEBUG] Normalized role:", userRole);
-      console.log("[MIDDLEWARE DEBUG] Is super admin:", isSuperAdmin);
 
       if (!isSuperAdmin) {
         logger.info("Access denied to superadmin route for non-superadmin user", {
@@ -185,15 +177,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Protect all routes except public ones
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
