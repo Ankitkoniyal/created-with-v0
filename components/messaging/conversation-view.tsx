@@ -499,7 +499,7 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
                 const isFromMe = message.sender_id === user?.id
 
                 return (
-                  <div key={message.id}>
+                    <div key={`${message.id}-${message.created_at}-${index}`}>
                     {showDate && (
                       <div className="text-center text-xs text-muted-foreground my-4">
                         {formatDate(message.created_at)}
