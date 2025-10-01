@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Camera, Shield, Star, Calendar, Loader2, AlertCircle } from "lucide-react"
+import { Camera, Shield, Calendar, Loader2, AlertCircle } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
@@ -56,7 +56,6 @@ export function ProfileSettings() {
       try {
         const supabase = createClient()
 
-        // Try to fetch profile data with a simpler query first
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select("*")
@@ -65,39 +64,6 @@ export function ProfileSettings() {
 
         if (profileError) {
           console.error("Profile fetch error:", profileError)
-          
-          // If there's an RLS policy error, provide specific guidance
-          if (profileError.message?.includes('row-level security') || profileError.code === '42501') {
-            toast({
-              variant: "destructive",
-              title: "Permissions Issue",
-              description: (
-                <div>
-                  <p>Your Supabase RLS policies need configuration.</p>
-                  <p className="text-sm mt-1">
-                    Please check your database policies for the 'profiles' table.
-                  </p>
-                </div>
-              ),
-              action: (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => window.open('https://supabase.com/docs/guides/auth/row-level-security', '_blank')}
-                  className="mt-2"
-                >
-                  <AlertCircle className="h-4 w-4 mr-2" />
-                  View RLS Documentation
-                </Button>
-              )
-            })
-          } else {
-            toast({
-              variant: "destructive",
-              title: "Error loading profile",
-              description: "Failed to load your profile data. Please try again.",
-            })
-          }
         }
 
         setProfileData(profileData)
@@ -149,117 +115,71 @@ export function ProfileSettings() {
 
     try {
       const supabase = createClient()
-      let avatarUrl = profileData?.avatar_url || user.user_metadata?.avatar_url
+      let avatarUrl = profileData?.avatar_url
 
       // Handle image upload if a new file is selected
       if (imageUpload) {
-        const fileExt = imageUpload.name.split(".").pop()
-        const fileName = `${user.id}/avatar.${fileExt}`
-
         try {
-          // First try to delete any existing avatars
-          const existingFiles = [`${user.id}/avatar.png`, `${user.id}/avatar.jpg`, `${user.id}/avatar.jpeg`, `${user.id}/avatar.webp`]
-          await supabase.storage
-            .from("avatars")
-            .remove(existingFiles)
-            .catch(error => {
-              console.log("No existing avatars to delete or delete failed:", error)
-            })
+          // Create unique file name
+          const fileExt = imageUpload.name.split('.').pop()
+          const fileName = `${user.id}-${Date.now()}.${fileExt}`
+          const filePath = `avatars/${fileName}`
 
-          // Upload the new image
-          const { error: uploadError } = await supabase.storage
-            .from("avatars")
-            .upload(fileName, imageUpload, { 
+          console.log('Uploading image:', filePath)
+
+          // Upload the image
+          const { error: uploadError, data: uploadData } = await supabase.storage
+            .from('avatars')
+            .upload(filePath, imageUpload, {
               upsert: true,
               cacheControl: '3600'
             })
 
           if (uploadError) {
-            console.error("Upload error details:", uploadError)
-            
-            if (uploadError.message?.includes('row-level security policy') || uploadError.message?.includes('policy')) {
-              throw new Error(
-                "Storage permissions issue. Please check your Supabase storage policies. " +
-                "You need to configure RLS policies for the 'avatars' bucket."
-              )
-            }
-            throw new Error(uploadError.message || "Failed to upload image")
+            console.error('Upload error:', uploadError)
+            throw new Error(`Upload failed: ${uploadError.message}`)
           }
 
-          // Get the public URL with cache busting
-          const { data: { publicUrl } } = supabase.storage
-            .from("avatars")
-            .getPublicUrl(fileName)
+          console.log('Upload successful:', uploadData)
 
-          avatarUrl = `${publicUrl}?t=${Date.now()}`
+          // Get public URL
+          const { data: { publicUrl } } = supabase.storage
+            .from('avatars')
+            .getPublicUrl(filePath)
+
+          avatarUrl = publicUrl
+          console.log('Generated public URL:', avatarUrl)
 
           toast({
             title: "Image Uploaded",
             description: "Profile picture updated successfully!",
           })
+
         } catch (uploadError: any) {
           console.error("Image upload failed:", uploadError)
-          
-          if (uploadError.message.includes('row-level security policy') || uploadError.message.includes('policy')) {
-            toast({
-              variant: "destructive",
-              title: "Storage Configuration Issue",
-              description: (
-                <div>
-                  <p>Your Supabase storage policies need to be configured.</p>
-                  <p className="text-sm mt-1">
-                    Please check the storage policies for the 'avatars' bucket.
-                  </p>
-                </div>
-              ),
-              action: (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => window.open('https://supabase.com/docs/guides/storage/security/row-level-security', '_blank')}
-                  className="mt-2"
-                >
-                  <AlertCircle className="h-4 w-4 mr-2" />
-                  View Documentation
-                </Button>
-              )
-            })
-          } else {
-            toast({
-              variant: "destructive",
-              title: "Upload Failed",
-              description: uploadError.message || "Failed to upload image. Please try again.",
-            })
-          }
+          toast({
+            variant: "destructive",
+            title: "Upload Failed",
+            description: uploadError.message || "Failed to upload image. Please try again.",
+          })
+          setUiState(prev => ({ ...prev, isSaving: false }))
+          return
         }
       }
 
-      // Update user metadata in Supabase Auth
-      const { error: authUpdateError } = await supabase.auth.updateUser({
-        data: {
-          full_name: formData.name,
-          location: formData.location,
-          bio: formData.bio,
-          avatar_url: avatarUrl,
-          phone: formData.mobile,
-        },
-      })
-
-      if (authUpdateError) {
-        throw authUpdateError
-      }
-
-      // Prepare data for upserting into the `profiles` table
+      // Update profile data
       const profileUpdateData = {
         id: user.id,
         email: user.email!,
         full_name: formData.name,
         location: formData.location,
         bio: formData.bio,
-        avatar_url: avatarUrl,
         phone: formData.mobile,
         updated_at: new Date().toISOString(),
+        ...(avatarUrl && { avatar_url: avatarUrl }) // Only include avatar_url if it exists
       }
+
+      console.log('Updating profile with:', profileUpdateData)
 
       const { data: updatedProfile, error: profileUpdateError } = await supabase
         .from("profiles")
@@ -269,36 +189,16 @@ export function ProfileSettings() {
 
       if (profileUpdateError) {
         console.error("Profile update error:", profileUpdateError)
-        
-        // Check if this is an RLS policy error
-        if (profileUpdateError.message?.includes('row-level security') || profileUpdateError.code === '42501') {
-          toast({
-            variant: "destructive",
-            title: "Database Permissions Issue",
-            description: (
-              <div>
-                <p>Your Supabase RLS policies need configuration.</p>
-                <p className="text-sm mt-1">
-                  Please check your database policies for the 'profiles' table.
-                </p>
-              </div>
-            ),
-            action: (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => window.open('https://supabase.com/docs/guides/auth/row-level-security', '_blank')}
-                className="mt-2"
-              >
-                <AlertCircle className="h-4 w-4 mr-2" />
-                View RLS Documentation
-              </Button>
-            )
-          })
-        } else {
-          throw new Error(profileUpdateError.message || 'Failed to update profile')
-        }
+        throw new Error(profileUpdateError.message || 'Failed to update profile')
       }
+
+      // Also update user metadata
+      await supabase.auth.updateUser({
+        data: {
+          full_name: formData.name,
+          avatar_url: avatarUrl,
+        },
+      })
 
       // Update state with the new data
       setProfileData(updatedProfile)
@@ -306,6 +206,19 @@ export function ProfileSettings() {
       // Clear the image upload state
       setImageUpload(null)
       setPreviewUrl(null)
+
+      // Force refresh all components
+      window.dispatchEvent(new CustomEvent('profileUpdated'))
+      
+      // Refetch data to ensure consistency
+      setTimeout(async () => {
+        const { data: freshData } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .single()
+        setProfileData(freshData)
+      }, 500)
 
       toast({
         title: "Profile Updated",
@@ -429,8 +342,16 @@ export function ProfileSettings() {
     fileInputRef.current?.click()
   }
 
-  // Get the avatar URL with proper priority
-  const avatarUrl = previewUrl || profileData?.avatar_url || user?.user_metadata?.avatar_url
+  // Get the avatar URL with cache busting
+  const getAvatarUrl = () => {
+    const url = previewUrl || profileData?.avatar_url
+    if (url && !url.includes('blob:')) {
+      return `${url}?t=${Date.now()}`
+    }
+    return url
+  }
+
+  const avatarUrl = getAvatarUrl()
 
   if (uiState.isLoading) {
     return (
@@ -452,13 +373,18 @@ export function ProfileSettings() {
         <CardContent className="p-6">
           <div className="flex items-center space-x-6">
             <div className="relative">
-              <Avatar className="h-24 w-24">
+              <Avatar className="h-24 w-24 border-2 border-green-700">
                 <AvatarImage
                   src={avatarUrl || "/placeholder.svg"}
                   alt={formData.name}
-                  key={avatarUrl ? `${avatarUrl}-${Date.now()}` : undefined}
+                  className="object-cover"
+                  onError={(e) => {
+                    console.error("Failed to load avatar image:", avatarUrl)
+                    const target = e.target as HTMLImageElement
+                    target.style.display = 'none'
+                  }}
                 />
-                <AvatarFallback className="text-2xl">
+                <AvatarFallback className="text-2xl bg-green-100 text-green-800 font-semibold">
                   {formData.name
                     ? formData.name
                         .split(" ")
@@ -468,14 +394,7 @@ export function ProfileSettings() {
                     : "U"}
                 </AvatarFallback>
               </Avatar>
-              <Button
-                size="sm"
-                className="absolute -bottom-2 -right-2 rounded-full h-10 w-10 p-0 shadow-lg hover:shadow-xl transition-shadow"
-                type="button"
-                onClick={handleAvatarClick}
-              >
-                <Camera className="h-5 w-5" />
-              </Button>
+              
               <input
                 ref={fileInputRef}
                 id="avatar-upload"
@@ -484,6 +403,7 @@ export function ProfileSettings() {
                 className="hidden"
                 onChange={handleImageUpload}
               />
+              
             </div>
 
             <div className="flex-1">
@@ -506,10 +426,6 @@ export function ProfileSettings() {
 
               <div className="flex items-center space-x-4 text-sm text-muted-foreground mb-3">
                 <div className="flex items-center">
-                  <Star className="h-4 w-4 mr-1 fill-yellow-400 text-yellow-400" />
-                  <span>New Member</span>
-                </div>
-                <div className="flex items-center">
                   <Calendar className="h-4 w-4 mr-1" />
                   <span>
                     Member since{" "}
@@ -520,7 +436,7 @@ export function ProfileSettings() {
                 </div>
               </div>
 
-              <p className="text-muted-foreground">{formData.bio}</p>
+              <p className="text-muted-foreground">{formData.bio || "No bio yet."}</p>
             </div>
           </div>
         </CardContent>
@@ -576,9 +492,6 @@ export function ProfileSettings() {
                 disabled={!uiState.isEditing}
                 placeholder="Enter your phone number"
               />
-              <p className="text-xs text-muted-foreground">
-                {uiState.isEditing ? "Update your phone number for better communication" : "Phone number for contact purposes"}
-              </p>
             </div>
 
             <div className="space-y-2">
