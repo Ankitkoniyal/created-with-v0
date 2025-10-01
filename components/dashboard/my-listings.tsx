@@ -27,10 +27,14 @@ interface Product {
   user_id: string
 }
 
+interface ProductWithMessages extends Product {
+  messageCount: number
+}
+
 export function MyListings() {
   const { user } = useAuth()
   const router = useRouter()
-  const [listings, setListings] = useState<Product[]>([])
+  const [listings, setListings] = useState<ProductWithMessages[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -57,7 +61,8 @@ export function MyListings() {
           setAccountStatus(profile.status)
         }
 
-        const { data, error } = await supabase
+        // Fetch user's products
+        const { data: products, error } = await supabase
           .from("products")
           .select("*")
           .eq("user_id", user.id)
@@ -67,7 +72,23 @@ export function MyListings() {
           console.error("Error fetching listings:", error)
           setListings([])
         } else {
-          setListings(data || [])
+          // Fetch message counts for each product
+          const productsWithMessages = await Promise.all(
+            (products || []).map(async (product) => {
+              const { count, error: messageError } = await supabase
+                .from("messages")
+                .select("*", { count: 'exact', head: true })
+                .eq("product_id", product.id)
+                .eq("receiver_id", user.id)
+
+              return {
+                ...product,
+                messageCount: messageError ? 0 : count || 0
+              }
+            })
+          )
+
+          setListings(productsWithMessages)
         }
       } catch (err) {
         console.error("Error fetching listings:", err)
@@ -78,6 +99,27 @@ export function MyListings() {
     }
 
     fetchUserListings()
+
+    // Real-time subscription for message updates
+    const supabase = createClient()
+    const subscription = supabase
+      .channel('my-listings-messages')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'messages',
+          filter: `receiver_id=eq.${user?.id}`
+        }, 
+        () => {
+          fetchUserListings() // Refresh data when messages change
+        }
+      )
+      .subscribe()
+
+    return () => {
+      subscription.unsubscribe()
+    }
   }, [user])
 
   const filteredListings = listings.filter((listing) => {
@@ -313,7 +355,8 @@ export function MyListings() {
                     {listing.views || 0}
                   </div>
                   <div className="flex items-center">
-                    <MessageSquare className="h-4 w-4 mr-1" />0
+                    <MessageSquare className="h-4 w-4 mr-1" />
+                    {listing.messageCount}
                   </div>
                 </div>
 
