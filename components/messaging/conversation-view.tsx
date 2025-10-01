@@ -82,6 +82,9 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
 
       if (error) {
         console.error("Error marking messages as read:", error)
+      } else {
+        // Trigger message count refresh
+        window.dispatchEvent(new Event('messagesUpdated'))
       }
     } catch (error) {
       console.error("Error:", error)
@@ -89,18 +92,12 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
   }
 
   const parseConversationId = (conversationId: string) => {
-    // UUID format: 8-4-4-4-12 characters (36 total including hyphens)
-    // Conversation ID format: {productId}-{participantId}
-    // We need to find where the first UUID ends and second begins
-
     const parts = conversationId.split("-")
     if (parts.length < 8) {
       throw new Error("Invalid conversation ID format")
     }
 
-    // First UUID: parts[0]-parts[1]-parts[2]-parts[3]-parts[4]
     const productId = parts.slice(0, 5).join("-")
-    // Second UUID: parts[5]-parts[6]-parts[7]-parts[8]-parts[9]
     const participantId = parts.slice(5, 10).join("-")
 
     return { productId, participantId }
@@ -200,6 +197,11 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
                           }
                         : null,
                     )
+                    
+                    // Mark new message as read if it's for current user
+                    if (newMessage.receiver_id === user.id) {
+                      await markMessagesAsRead(productId, participantId)
+                    }
                   }
                 }
               },
@@ -441,128 +443,108 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
         </Link>
       </Button>
 
-      <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
-        <div className="lg:col-span-2">
-          <Card className="h-[600px] flex flex-col">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-              <div className="flex items-center space-x-3">
-                <Avatar>
-                  <AvatarImage src={conversationData.participant.avatar_url || "/placeholder.svg"} />
-                  <AvatarFallback>
-                    {conversationData.participant.full_name
-                      ?.split(" ")
-                      .map((n) => n[0])
-                      .join("") || "U"}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <h3 className="font-semibold">{conversationData.participant.full_name}</h3>
-                  </div>
-                  <p className="text-sm text-muted-foreground">Active user</p>
+      <div className="grid grid-cols-1 gap-6">
+        <Card className="h-[600px] flex flex-col">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+            <div className="flex items-center space-x-3">
+              <Avatar>
+                <AvatarImage src={conversationData.participant.avatar_url || "/placeholder.svg"} />
+                <AvatarFallback>
+                  {conversationData.participant.full_name
+                    ?.split(" ")
+                    .map((n) => n[0])
+                    .join("") || "U"}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <h3 className="font-semibold">{conversationData.participant.full_name}</h3>
                 </div>
+                <p className="text-sm text-muted-foreground">Active user</p>
               </div>
+            </div>
 
-              <div className="flex items-center space-x-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={handleBlockUser} disabled={isBlocking}>
-                      {isBlocking ? "Blocking..." : "Block User"}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleReportConversation} disabled={isReporting}>
-                      {isReporting ? "Reporting..." : "Report Conversation"}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-destructive"
-                      onClick={handleDeleteConversation}
-                      disabled={isDeleting}
-                    >
-                      {isDeleting ? "Deleting..." : "Delete Conversation"}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </CardHeader>
+            <div className="flex items-center space-x-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleBlockUser} disabled={isBlocking}>
+                    {isBlocking ? "Blocking..." : "Block User"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleReportConversation} disabled={isReporting}>
+                    {isReporting ? "Reporting..." : "Report Conversation"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-destructive"
+                    onClick={handleDeleteConversation}
+                    disabled={isDeleting}
+                  >
+                    {isDeleting ? "Deleting..." : "Delete Conversation"}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </CardHeader>
 
-            <Separator />
+          <Separator />
 
-            <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
-              {conversationData.messages.map((message, index) => {
-                const showDate =
-                  index === 0 ||
-                  formatDate(message.created_at) !== formatDate(conversationData.messages[index - 1].created_at)
-                const isFromMe = message.sender_id === user?.id
+          <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
+            {conversationData.messages.map((message, index) => {
+              const showDate =
+                index === 0 ||
+                formatDate(message.created_at) !== formatDate(conversationData.messages[index - 1].created_at)
+              const isFromMe = message.sender_id === user?.id
 
-                return (
-                  <div key={`${message.id}-${message.created_at}-${index}`}>
-                    {showDate && (
-                      <div className="text-center text-xs text-muted-foreground my-4">
-                        {formatDate(message.created_at)}
+              return (
+                <div key={`${message.id}-${message.created_at}-${index}`}>
+                  {showDate && (
+                    <div className="text-center text-xs text-muted-foreground my-4">
+                      {formatDate(message.created_at)}
+                    </div>
+                  )}
+                  <div className={`flex ${isFromMe ? "justify-end" : "justify-start"}`}>
+                    <div className={`max-w-[70%] ${isFromMe ? "order-2" : "order-1"}`}>
+                      <div
+                        className={`rounded-lg px-4 py-2 ${
+                          isFromMe ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                        }`}
+                      >
+                        <p className="text-sm">{message.message}</p>
                       </div>
-                    )}
-                    <div className={`flex ${isFromMe ? "justify-end" : "justify-start"}`}>
-                      <div className={`max-w-[70%] ${isFromMe ? "order-2" : "order-1"}`}>
-                        <div
-                          className={`rounded-lg px-4 py-2 ${
-                            isFromMe ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
-                          }`}
-                        >
-                          <p className="text-sm">{message.message}</p>
-                        </div>
-                        <div className={`flex items-center gap-1 mt-1 ${isFromMe ? "justify-end" : "justify-start"}`}>
-                          <p className={`text-xs text-muted-foreground`}>{formatTime(message.created_at)}</p>
-                          {isFromMe && (
-                            <span className="text-xs text-muted-foreground">{message.is_read ? "✓✓" : "✓"}</span>
-                          )}
-                        </div>
+                      <div className={`flex items-center gap-1 mt-1 ${isFromMe ? "justify-end" : "justify-start"}`}>
+                        <p className={`text-xs text-muted-foreground`}>{formatTime(message.created_at)}</p>
+                        {isFromMe && (
+                          <span className="text-xs text-muted-foreground">{message.is_read ? "✓✓" : "✓"}</span>
+                        )}
                       </div>
                     </div>
                   </div>
-                )
-              })}
-              <div ref={messagesEndRef} />
-            </CardContent>
+                </div>
+              )
+            })}
+            <div ref={messagesEndRef} />
+          </CardContent>
 
-            <Separator />
+          <Separator />
 
-            <div className="p-4">
-              <form onSubmit={handleSendMessage} className="flex space-x-2">
-                <Input
-                  placeholder="Type your message..."
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  className="flex-1"
-                />
-                <Button type="submit" disabled={!newMessage.trim()}>
-                  <Send className="h-4 w-4" />
-                </Button>
-              </form>
-            </div>
-          </Card>
-        </div>
-
-        <div className="space-y-6">
-          
-         <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Safety Tips</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="text-xs text-muted-foreground space-y-2">
-                <li>• Meet in a public place</li>
-                <li>• Inspect the item before paying</li>
-                <li>• Use secure payment methods</li>
-                <li>• Trust your instincts</li>
-                <li>• Report suspicious activity</li>
-              </ul>
-            </CardContent>
-          </Card>
-        </div>
+          <div className="p-4">
+            <form onSubmit={handleSendMessage} className="flex space-x-2">
+              <Input
+                placeholder="Type your message..."
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                className="flex-1"
+              />
+              <Button type="submit" disabled={!newMessage.trim()}>
+                <Send className="h-4 w-4" />
+              </Button>
+            </form>
+          </div>
+        </Card>
       </div>
     </div>
   )
