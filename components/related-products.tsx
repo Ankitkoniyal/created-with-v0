@@ -1,4 +1,3 @@
-// File: components/related-products.tsx
 "use client"
 
 import { useEffect, useState } from "react"
@@ -11,6 +10,7 @@ interface RelatedProduct {
   title: string
   price: number
   images: string[]
+  subcategory_id?: string
 }
 
 interface RelatedProductsProps {
@@ -32,20 +32,130 @@ export function RelatedProducts({ category, currentProductId }: RelatedProductsP
           return
         }
 
-        const { data, error } = await supabase
+        // Get current product with subcategory info
+        const { data: currentProduct, error: currentError } = await supabase
           .from("products")
-          .select("id, title, price, images")
-          .eq("category", category)
+          .select(`
+            id,
+            category,
+            subcategory_id,
+            title,
+            brand,
+            tags,
+            condition
+          `)
+          .eq("id", currentProductId)
+          .single()
+
+        if (currentError || !currentProduct) {
+          console.error("Error fetching current product:", currentError)
+          // Fallback to simple category matching
+          const { data: fallbackData } = await supabase
+            .from("products")
+            .select("id, title, price, images")
+            .eq("category", category)
+            .neq("id", currentProductId)
+            .limit(8)
+          
+          setProducts(fallbackData || [])
+          setLoading(false)
+          return
+        }
+
+        console.log("Current product:", {
+          title: currentProduct.title,
+          category: currentProduct.category,
+          subcategory_id: currentProduct.subcategory_id
+        })
+
+        // Extract keywords from title
+        const titleKeywords = currentProduct.title
+          .toLowerCase()
+          .split(/\s+/)
+          .filter(word => word.length > 2)
+          .filter(word => !['for', 'and', 'the', 'with', 'new', 'used', 'sale'].includes(word))
+          .slice(0, 5)
+
+        console.log("Extracted keywords:", titleKeywords)
+
+        // Build query with priority-based matching
+        let query = supabase
+          .from("products")
+          .select("id, title, price, images, subcategory_id")
           .neq("id", currentProductId)
-          .limit(8) // fetch 8 products to show 2 rows of 4
+
+        // PRIORITY 1: Same subcategory (most important!)
+        if (currentProduct.subcategory_id) {
+          console.log("Filtering by same subcategory_id:", currentProduct.subcategory_id)
+          query = query.eq("subcategory_id", currentProduct.subcategory_id)
+        }
+        
+        // Always filter by same category
+        query = query.eq("category", currentProduct.category)
+
+        // PRIORITY 2: Keyword matching in title
+        if (titleKeywords.length > 0) {
+          const keywordConditions = titleKeywords.map(keyword => 
+            `title.ilike.%${keyword}%`
+          ).join(',')
+          console.log("Adding keyword matching:", keywordConditions)
+          query = query.or(keywordConditions)
+        }
+
+        // PRIORITY 3: Brand matching
+        if (currentProduct.brand) {
+          query = query.ilike("brand", `%${currentProduct.brand}%`)
+        }
+
+        const { data, error } = await query.limit(8)
 
         if (error) {
-          console.error("Error fetching related products:", error)
-        } else {
-          setProducts(data || [])
+          console.error("Error with intelligent query:", error)
         }
+
+        // If we have enough results with subcategory matching, use them
+        if (data && data.length >= 4) {
+          console.log("Found sufficient related products with subcategory matching:", data.length)
+          setProducts(data)
+        } else {
+          // Fallback: Expand search to same category but different subcategories
+          console.log("Need more products, expanding search...")
+          
+          let fallbackQuery = supabase
+            .from("products")
+            .select("id, title, price, images")
+            .eq("category", currentProduct.category)
+            .neq("id", currentProductId)
+
+          // If we have some data but not enough, combine results
+          if (data && data.length > 0) {
+            const existingIds = data.map(p => p.id)
+            fallbackQuery = fallbackQuery.not('id', 'in', `(${existingIds.join(',')})`)
+            
+            const { data: fallbackData } = await fallbackQuery.limit(8 - data.length)
+            const combinedProducts = [...data, ...(fallbackData || [])]
+            setProducts(combinedProducts.slice(0, 8))
+          } else {
+            // No results from intelligent query, use simple category matching
+            const { data: fallbackData } = await fallbackQuery.limit(8)
+            setProducts(fallbackData || [])
+          }
+        }
+
       } catch (error) {
         console.error("Error in fetchRelatedProducts:", error)
+        // Final fallback
+        const supabase = await getSupabaseClient()
+        if (supabase) {
+          const { data: fallbackData } = await supabase
+            .from("products")
+            .select("id, title, price, images")
+            .eq("category", category)
+            .neq("id", currentProductId)
+            .limit(8)
+          
+          setProducts(fallbackData || [])
+        }
       } finally {
         setLoading(false)
       }
