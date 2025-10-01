@@ -597,3 +597,5 @@ export default function UserManagement() {
     </div>
   )
 }
+
+export default UserManagement
