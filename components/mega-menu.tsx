@@ -1,438 +1,292 @@
 "use client"
-
-import type React from "react"
-import { useState, useEffect, useRef } from "react"
-import {
-  Search,
-  Heart,
-  User,
-  Menu,
-  LogOut,
-  Settings,
-  Package,
-  Bell,
-  MapPin,
-  MessageCircle,
-  ChevronDown,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
+import { useState, useRef, useEffect } from "react"
 import Link from "next/link"
-import { useRouter, usePathname, useSearchParams } from "next/navigation"
-import { useAuth } from "@/hooks/use-auth"
-import MegaMenu from "./mega-menu"
-import { getSupabaseClient } from "@/lib/supabase/client"
+import { 
+  Car, Home, Smartphone, Shirt, Sofa, Briefcase, Wrench, Heart, Book, 
+  Search, TrendingUp, Clock, Star, ChevronRight, X, Gamepad2, 
+  PawPrint, Building, Utensils
+} from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 
-const CANADIAN_LOCATIONS = [
-  { province: "Alberta", cities: ["Calgary", "Edmonton", "Red Deer", "Lethbridge"] },
-  { province: "British Columbia", cities: ["Vancouver", "Victoria", "Surrey", "Burnaby", "Richmond"] },
-  { province: "Manitoba", cities: ["Winnipeg", "Brandon", "Steinbach"] },
-  { province: "New Brunswick", cities: ["Saint John", "Moncton", "Fredericton"] },
-  { province: "Newfoundland and Labrador", cities: ["St. John's", "Corner Brook", "Mount Pearl"] },
-  { province: "Northwest Territories", cities: ["Yellowknife", "Hay River"] },
-  { province: "Nova Scotia", cities: ["Halifax", "Sydney", "Dartmouth"] },
-  { province: "Nunavut", cities: ["Iqaluit", "Rankin Inlet"] },
-  { province: "Ontario", cities: ["Toronto", "Ottawa", "Mississauga", "Brampton", "Hamilton", "London", "Markham"] },
-  { province: "Prince Edward Island", cities: ["Charlottetown", "Summerside"] },
-  { province: "Quebec", cities: ["Montreal", "Quebec City", "Laval", "Gatineau", "Longueuil"] },
-  { province: "Saskatchewan", cities: ["Saskatoon", "Regina", "Prince Albert"] },
-  { province: "Yukon", cities: ["Whitehorse", "Dawson City"] },
+// Enhanced category structure with Real Estate improvements
+const CATEGORIES = [
+  {
+    name: "Vehicles",
+    icon: Car,
+    color: "text-blue-400",
+    bgColor: "bg-blue-900",
+    subcategories: [
+      "Cars", "Motorcycles", "Bikes", "Auto Parts", 
+      "Trucks", "Boats", "Heavy Vehicles", "Car Services"
+    ]
+  },
+  {
+    name: "Real Estate",
+    icon: Home,
+    color: "text-purple-400",
+    bgColor: "bg-purple-900",
+    subcategories: [
+      { name: "For Rent", type: "rent", filters: ["apartment", "house", "condo", "townhouse"] },
+      { name: "For Sale", type: "sale", filters: ["apartment", "house", "condo", "townhouse"] },
+      "Commercial Properties",
+      "Land & Plots",
+      "Roommates",
+      ]
+  },
+  {
+    name: "Electronics",
+    icon: Smartphone,
+    color: "text-green-400",
+    bgColor: "bg-green-900",
+    subcategories: [
+      "Mobile Phones", "Laptops & Computers", "TV & Audio", 
+      "Gaming", "Cameras", "Home Appliances"
+    ]
+  },
+  {
+    name: "Fashion & Beauty",
+    icon: Shirt,
+    color: "text-pink-400",
+    bgColor: "bg-pink-900",
+    subcategories: [
+      "Men", "Women", "Kids & Baby", 
+      "Shoes", "Accessories", "Watches"
+    ]
+  },
+  {
+    name: "Home & Garden",
+    icon: Sofa,
+    color: "text-orange-400",
+    bgColor: "bg-orange-900",
+    subcategories: [
+      "Furniture", "Home Decor", "Garden & Patio", 
+      "Kitchenware", "Tools & DIY", "Lighting"
+    ]
+  },
+  {
+    name: "Jobs & Services",
+    icon: Briefcase,
+    color: "text-yellow-400",
+    bgColor: "bg-yellow-900",
+    subcategories: [
+      "Full Time Jobs", "Part Time Jobs", "Freelance", 
+      "Home Services", "Professional Services", "Tutoring"
+    ]
+  },
+  {
+    name: "Pets & Animals",
+    icon: PawPrint,
+    color: "text-red-400",
+    bgColor: "bg-red-900",
+    subcategories: [
+      "Dogs", "Cats", "Birds", "Fish & Aquarium", 
+      "Pet Supplies", "Pet Services"
+    ]
+  },
+  {
+    name: "Gaming",
+    icon: Gamepad2,
+    color: "text-indigo-400",
+    bgColor: "bg-indigo-900",
+    subcategories: [
+      "Video Games", "Gaming Consoles", "PC Gaming", 
+      "Board Games", "VR Equipment", "Gaming Accessories"
+    ]
+  },
+  {
+    name: "Books & Education",
+    icon: Book,
+    color: "text-emerald-400",
+    bgColor: "bg-emerald-900",
+    subcategories: [
+      "Books & Magazines", "Textbooks", "E-books",
+      "Educational Materials", "Language Courses", "Musical Instruments"
+    ]
+  },
+  {
+    name: "Services",
+    icon: Wrench,
+    color: "text-gray-400",
+    bgColor: "bg-gray-900",
+    subcategories: [
+      "Home Services", "Professional Services", "Personal Care",
+      "Business Services", "Event Services", "Transport Services"
+    ]
+  }
 ]
 
-export function Header() {
-  const { user, profile, logout, isLoading } = useAuth()
-  const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
-  const isAuthRoute = !!pathname && pathname.startsWith("/auth")
-  
-  // Get current location from URL if available
-  const currentLocation = searchParams.get("location") || ""
-  
+// Quick access items
+const QUICK_ACCESS = [
+  { name: "Free Items", icon: "🎁", count: "1.2k" },
+  { name: "Today's Deals", icon: "🔥", count: "456" },
+  { name: "Near You", icon: "📍", count: "3.4k" },
+  { name: "Just Added", icon: "🆕", count: "789" }
+]
+
+interface MegaMenuProps {
+  onCategorySelect?: (category: string, subcategory?: string, filters?: any) => void
+  onClose?: () => void
+  isOpen?: boolean
+}
+
+export default function MegaMenu({ onCategorySelect, onClose, isOpen }: MegaMenuProps) {
   const [searchQuery, setSearchQuery] = useState("")
-  const [selectedLocation, setSelectedLocation] = useState(currentLocation)
-  const [locationInput, setLocationInput] = useState(currentLocation)
-  const [showLocationSuggestions, setShowLocationSuggestions] = useState(false)
-  const [filteredLocations, setFilteredLocations] = useState<string[]>([])
-  const locationInputRef = useRef<HTMLInputElement>(null)
-  const [showMegaMenu, setShowMegaMenu] = useState(false)
-  const [notificationCounts, setNotificationCounts] = useState({
-    favorites: 0,
-    messages: 0,
-    notifications: 0,
-  })
+  const menuRef = useRef<HTMLDivElement>(null)
 
-  const allLocations = CANADIAN_LOCATIONS.flatMap(location => [
-    location.province,
-    ...location.cities.map(city => `${city}, ${location.province}`)
-  ])
+  if (!isOpen) return null
 
-  // Update location when URL changes
+  const filteredCategories = CATEGORIES.filter(category => 
+    category.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    category.subcategories.some(sub => 
+      typeof sub === 'string' ? sub.toLowerCase().includes(searchQuery.toLowerCase()) : sub.name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+  )
+
+  const handleCategoryClick = (category: string, subcategory?: string, filters?: any) => {
+    if (onCategorySelect) {
+      onCategorySelect(category, subcategory, filters)
+    }
+  }
+
+  const handleQuickAccessClick = (item: string) => {
+    setSearchQuery(item)
+  }
+
+  // Close when clicking outside
   useEffect(() => {
-    setSelectedLocation(currentLocation)
-    setLocationInput(currentLocation)
-  }, [currentLocation])
-
-  const handleLocationInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-    setLocationInput(value)
-    if (value.trim() === "") {
-      setFilteredLocations([])
-      setShowLocationSuggestions(false)
-      setSelectedLocation("") 
-      return
-    }
-
-    const filtered = allLocations.filter((location) =>
-      location.toLowerCase().includes(value.toLowerCase())
-    ).slice(0, 8)
-
-    setFilteredLocations(filtered)
-    setShowLocationSuggestions(filtered.length > 0)
-  }
-
-  const handleLocationSelect = (location: string) => {
-    setLocationInput(location)
-    setSelectedLocation(location)
-    setShowLocationSuggestions(false)
-    locationInputRef.current?.blur()
-    
-    // Stay on current page, just update URL with location
-    const params = new URLSearchParams()
-    
-    // Keep existing search query if present
-    if (searchQuery.trim()) {
-      params.set("q", searchQuery.trim())
-    }
-    
-    // Set the location
-    params.set("location", location)
-    
-    // If we're on homepage, reload homepage with location filter
-    if (pathname === "/") {
-      router.push(`/?${params.toString()}`, { scroll: false })
-    } else {
-      // If on other page, go to homepage with location filter
-      router.push(`/?${params.toString()}`)
-    }
-  }
-
-  const handleLocationFocus = () => {
-    setLocationInput("")
-    setShowLocationSuggestions(false)
-  }
-
-  const handleLocationBlur = () => {
-    setTimeout(() => {
-      setShowLocationSuggestions(false)
-    }, 200)
-  }
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    const params = new URLSearchParams()
-    if (searchQuery.trim()) {
-      params.set("q", searchQuery.trim())
-    }
-    const locationValue = selectedLocation || locationInput
-    if (locationValue.trim()) {
-        params.set("location", locationValue)
-    }
-    
-    // Only go to search page when using search button
-    router.push(`/search?${params.toString()}`)
-  }
-
-  const handleLogout = async () => {
-    try {
-      await logout()
-      router.push("/")
-    } catch (error) {
-      console.error("Logout error:", error)
-      router.push("/")
-    }
-  }
-
-  const handleCategorySelect = (category: string, subcategory?: string, filters?: any) => {
-    console.log(`Selected: ${category} - ${subcategory}`, filters)
-    setShowMegaMenu(false)
-    
-    // Navigate to search page with the selected category and filters
-    const params = new URLSearchParams()
-    params.set("category", category)
-    
-    if (subcategory) {
-      params.set("subcategory", subcategory)
-    }
-    
-    // Add type filter for Real Estate (rent/sale)
-    if (filters?.type) {
-      params.set("type", filters.type)
-    }
-    
-    router.push(`/search?${params.toString()}`)
-  }
-
-  useEffect(() => {
-    if (!user?.id) return
-
-    const fetchNotificationCounts = async () => {
-      try {
-        const supabase = await getSupabaseClient()
-        if (!supabase) {
-          return
-        }
-
-        const [favoritesResult, messagesResult] = await Promise.all([
-          supabase.from("favorites").select("*", { count: "exact", head: true }).eq("user_id", user.id),
-          supabase
-            .from("messages")
-            .select("*", { count: "exact", head: true })
-            .eq("receiver_id", user.id)
-            .eq("is_read", false),
-        ])
-
-        setNotificationCounts({
-          favorites: favoritesResult.count || 0,
-          messages: messagesResult.count || 0,
-          notifications: 0,
-        })
-      } catch (error) {
-        console.error("Error fetching notification counts:", error)
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        onClose?.()
       }
     }
 
-    fetchNotificationCounts()
-
-    const interval = setInterval(fetchNotificationCounts, 300000)
-    return () => clearInterval(interval)
-  }, [user?.id])
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [onClose])
 
   return (
-    <header className="sticky top-0 z-50 bg-background border-b border-border">
-      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          <div className="flex items-center flex-shrink-0">
-            <Link href="/">
-              <h1 className="text-2xl sm:text-3xl font-bold text-black cursor-pointer">M</h1>
-            </Link>
+    <div 
+      ref={menuRef}
+      className="fixed inset-x-4 top-20 z-50 w-auto max-w-6xl mx-auto bg-gray-900 shadow-2xl rounded-xl border border-gray-700"
+    >
+      {/* Header */}
+      <div className="border-b border-gray-700 bg-gray-800 px-6 py-4 flex items-center justify-between">
+        <div className="flex-1 max-w-md">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              type="text"
+              placeholder="Search categories..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 pr-4 bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+            />
           </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onClose}
+          className="text-gray-400 hover:text-white ml-4"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
 
-          <div className="flex-1 max-w-4xl mx-2 sm:mx-4 lg:mx-8">
-            <form onSubmit={handleSearch} className="relative">
-              <div className="flex items-center bg-white border-2 border-gray-200 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:border-gray-300">
-                <div className="flex items-center border-r border-gray-200 px-3 flex-1 relative">
-                  <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-2 text-green-600 flex-shrink-0" />
-                  <Input
-                    ref={locationInputRef}
-                    type="text"
-                    placeholder="City or Location"
-                    className="border-0 bg-transparent shadow-none focus:ring-0 focus-visible:ring-0 w-full text-xs sm:text-sm"
-                    value={locationInput}
-                    onChange={handleLocationInputChange}
-                    onFocus={handleLocationFocus}
-                    onBlur={handleLocationBlur}
-                  />
+      {/* Categories */}
+      <div className="p-6 max-h-[60vh] overflow-y-auto">
+        {searchQuery && (
+          <div className="mb-4 text-sm text-gray-400">
+            Found {filteredCategories.length} categories matching "{searchQuery}"
+          </div>
+        )}
 
-                  {showLocationSuggestions && filteredLocations.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 z-50 max-h-64 overflow-y-auto">
-                      {filteredLocations.map((location, index) => (
-                        <button
-                          key={index}
-                          type="button"
-                          className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm border-b border-gray-100 last:border-b-0 flex items-center"
-                          onClick={() => handleLocationSelect(location)}
-                        >
-                          <MapPin className="h-3 w-3 mr-2 text-green-600 flex-shrink-0" />
-                          <span className="truncate">{location}</span>
-                        </button>
-                      ))}
-                    </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {filteredCategories.map((category) => {
+            const IconComponent = category.icon
+            
+            return (
+              <div key={category.name} className="space-y-3">
+                {/* Category Header */}
+                <Link
+                  href={`/search?category=${encodeURIComponent(category.name)}`}
+                  className="flex items-center gap-3 font-semibold text-white hover:text-green-400 text-base group"
+                  onClick={() => handleCategoryClick(category.name)}
+                >
+                  <div className={`w-10 h-10 ${category.bgColor} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                    <IconComponent className={`w-5 h-5 ${category.color}`} />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span>{category.name}</span>
+                    <ChevronRight className="h-4 w-4 text-gray-400 group-hover:text-green-400" />
+                  </div>
+                </Link>
+
+                {/* Subcategories */}
+                <div className="space-y-1.5 ml-13">
+                  {category.subcategories.slice(0, 6).map((sub) => {
+                    const subName = typeof sub === 'string' ? sub : sub.name
+                    const subType = typeof sub === 'object' ? sub.type : undefined
+                    const subFilters = typeof sub === 'object' ? sub.filters : undefined
+
+                    return (
+                      <Link
+                        key={subName}
+                        href={`/search?category=${encodeURIComponent(category.name)}&subcategory=${encodeURIComponent(subName)}${subType ? `&type=${subType}` : ''}`}
+                        className="flex items-center gap-2 text-gray-300 hover:text-green-400 text-sm hover:bg-gray-800 px-3 py-2 rounded-md transition-colors group"
+                        onClick={() => handleCategoryClick(category.name, subName, { type: subType, filters: subFilters })}
+                      >
+                        <span className="truncate">{subName}</span>
+                        {subType && (
+                          <Badge variant="secondary" className={`text-xs px-1.5 py-0 ${subType === 'rent' ? 'bg-green-500' : 'bg-blue-500'} text-white`}>
+                            {subType}
+                          </Badge>
+                        )}
+                      </Link>
+                    )
+                  })}
+                  
+                  {category.subcategories.length > 6 && (
+                    <button className="text-xs text-gray-400 hover:text-green-400 px-3 py-1 transition-colors">
+                      +{category.subcategories.length - 6} more
+                    </button>
                   )}
                 </div>
-
-                <div className="flex-2 flex items-center px-4">
-                  <Search className="h-4 w-4 text-green-600 mr-3" />
-                  <Input
-                    type="search"
-                    placeholder="Search products, brands and more..."
-                    className="border-0 bg-transparent shadow-none focus:ring-0 focus-visible:ring-0 text-sm placeholder:text-gray-500"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                </div>
-
-                <Button type="submit" size="sm" className="rounded-full px-6 py-2 mr-2 shadow-md hover:shadow-lg">
-                  Search
-                </Button>
               </div>
-            </form>
-          </div>
-
-          {/* User Navigation */}
-          <nav className="hidden md:flex items-center space-x-4 flex-shrink-0">
-            {user && (
-              <>
-                <Button variant="ghost" size="sm" className="relative" asChild>
-                  <Link href="/dashboard/favorites" aria-label="Favorites">
-                    <Heart className="h-4 w-4 text-green-800" />
-                    {notificationCounts.favorites > 0 && (
-                      <Badge variant="secondary" className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs">
-                        {notificationCounts.favorites}
-                      </Badge>
-                    )}
-                  </Link>
-                </Button>
-                <Button variant="ghost" size="sm" className="relative" asChild>
-                  <Link href="/dashboard/messages" aria-label="Messages">
-                    <MessageCircle className="h-4 w-4 text-green-800" />
-                    {notificationCounts.messages > 0 && (
-                      <Badge variant="secondary" className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs">
-                        {notificationCounts.messages}
-                      </Badge>
-                    )}
-                  </Link>
-                </Button>
-                <Button variant="ghost" size="sm" className="relative" asChild>
-                  <Link href="/notifications" aria-label="Notifications">
-                    <Bell className="h-4 w-4 text-green-800" />
-                    {notificationCounts.notifications > 0 && (
-                      <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs">
-                        {notificationCounts.notifications}
-                      </Badge>
-                    )}
-                  </Link>
-                </Button>
-              </>
-            )}
-            {user ? (
-              <>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                      <Avatar className="h-8 w-8 border-2 border-green-600">
-                        <AvatarImage 
-                          src={profile?.avatar_url || user?.user_metadata?.avatar_url || ""} 
-                          alt={profile?.name || "User"} 
-                        />
-                        <AvatarFallback className="bg-green-100 text-green-800 font-medium">
-                          {profile?.name || user?.email
-                            ? (profile?.name || user.email)[0]?.toUpperCase()
-                            : "U"}
-                        </AvatarFallback>
-                      </Avatar>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-56" align="end" forceMount>
-                    <DropdownMenuLabel className="font-normal">
-                      <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none">{profile?.name || "User"}</p>
-                        <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
-                      </div>
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild>
-                      <Link href="/dashboard" className="flex items-center">
-                        <Package className="mr-2 h-4 w-4" />
-                        <span>Dashboard</span>
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/dashboard/profile" className="flex items-center">
-                        <Settings className="mr-2 h-4 w-4" />
-                        <span>Settings</span>
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleLogout}>
-                      <LogOut className="mr-2 h-4 w-4" />
-                      <span>Log out</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <Button
-                  size="sm"
-                  className="bg-green-900 hover:bg-green-950 text-white font-medium px-4 py-2 rounded-full shadow-lg hover:shadow-green-900/30 transition-all duration-300 transform hover:scale-105 border border-white/10 hover:border-white/20 relative overflow-hidden group"
-                  onClick={() => {
-                    router.push("/sell")
-                  }}
-                >
-                  <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></span>
-                  <span className="relative z-10 flex items-center gap-2">
-                    <span className="font-semibold">SELL NOW</span>
-                  </span>
-                </Button>
-              </>
-            ) : (
-              <>
-                {!isAuthRoute && (
-                  <Button variant="ghost" size="sm" asChild>
-                    <Link href="/auth/login">
-                      <User className="h-4 w-4 mr-2" />
-                      Login/Sign up
-                    </Link>
-                  </Button>
-                )}
-                <Button
-                  size="sm"
-                  className="bg-green-900 hover:bg-green-950 text-white font-medium px-4 py-2 rounded-full shadow-lg hover:shadow-green-900/30 transition-all duration-300 transform hover:scale-105 border border-white/10 hover:border-white/20 relative overflow-hidden group"
-                  onClick={() => {
-                    router.push("/auth/login?redirectedFrom=" + encodeURIComponent("/sell"))
-                  }}
-                >
-                  <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></span>
-                  <span className="relative z-10 flex items-center gap-2">
-                    <span className="font-semibold">SELL NOW</span>
-                  </span>
-                </Button>
-              </>
-            )}
-          </nav>
-
-          <Button variant="ghost" size="sm" className="md:hidden flex-shrink-0">
-            <Menu className="h-4 w-4" />
-          </Button>
+            )
+          })}
         </div>
 
-        {/* Categories Section - Fixed */}
-        <div className="border-t border-gray-100 bg-gray-50">
-          <div className="flex items-center justify-between py-2 px-4">
-            <div className="relative">
-              <Button
-                variant="ghost"
-                className="flex items-center gap-2 text-black hover:text-gray-800 hover:bg-gray-100 font-semibold px-6 py-2 rounded-lg transition-all duration-200"
-                onClick={() => setShowMegaMenu(!showMegaMenu)}
-              >
-                <span>All Categories</span>
-                <ChevronDown
-                  className={`h-4 w-4 transition-transform duration-200 ${showMegaMenu ? "rotate-180" : ""}`}
-                />
-              </Button>
+        {/* No Results */}
+        {filteredCategories.length === 0 && (
+          <div className="text-center py-8">
+            <Search className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-300 mb-2">No categories found</h3>
+            <p className="text-gray-400">Try searching with different keywords</p>
+          </div>
+        )}
+      </div>
 
-              {/* MegaMenu positioned correctly */}
-              {showMegaMenu && (
-                <div className="absolute left-0 top-full mt-1 z-50">
-                  <MegaMenu 
-                    isOpen={showMegaMenu}
-                    onClose={() => setShowMegaMenu(false)}
-                    onCategorySelect={handleCategorySelect}
-                  />
-                </div>
-              )}
-            </div>
+      {/* Footer */}
+      <div className="border-t border-gray-700 bg-gray-800 px-6 py-4 rounded-b-xl">
+        <div className="flex items-center gap-3">
+          <TrendingUp className="h-4 w-4 text-green-400" />
+          <span className="text-sm font-medium text-gray-300">Popular:</span>
+          <div className="flex gap-4">
+            {["Apartments for Rent", "Used Cars", "iPhone", "Jobs", "Furniture"].map((item) => (
+              <Link
+                key={item}
+                href={`/search?q=${encodeURIComponent(item)}`}
+                className="text-sm text-gray-400 hover:text-green-400 hover:underline"
+              >
+                {item}
+              </Link>
+            ))}
           </div>
         </div>
       </div>
-    </header>
+    </div>
   )
 }
