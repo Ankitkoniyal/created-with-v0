@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -42,10 +41,12 @@ export function ContactSellerModal({ product, seller, children }: ContactSellerM
 
   const handleSendMessage = async () => {
     if (!user) {
-      const redirectedFrom = `${window.location.pathname}${window.location.search}`
-      router.push(`/auth/login?redirectedFrom=${encodeURIComponent(redirectedFrom)}`)
-      return
-    }
+    // REDIRECT TO LOGIN WITH RETURN URL
+    const redirectedFrom = `${window.location.pathname}${window.location.search}`
+    router.push(`/auth/login?redirectedFrom=${encodeURIComponent(redirectedFrom)}`)
+    setIsOpen(false) // Close the modal
+    return
+  }
 
     setIsSending(true)
 
