@@ -28,7 +28,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
-import { useRouter, usePathname } from "next/navigation"
+import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 import { MegaMenu } from "@/components/mega-menu"
 import { getSupabaseClient } from "@/lib/supabase/client"
@@ -53,10 +53,15 @@ export function Header() {
   const { user, profile, logout, isLoading } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const isAuthRoute = !!pathname && pathname.startsWith("/auth")
+  
+  // Get current location from URL if available
+  const currentLocation = searchParams.get("location") || ""
+  
   const [searchQuery, setSearchQuery] = useState("")
-  const [selectedLocation, setSelectedLocation] = useState("")
-  const [locationInput, setLocationInput] = useState("")
+  const [selectedLocation, setSelectedLocation] = useState(currentLocation)
+  const [locationInput, setLocationInput] = useState(currentLocation)
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false)
   const [filteredLocations, setFilteredLocations] = useState<string[]>([])
   const locationInputRef = useRef<HTMLInputElement>(null)
@@ -72,16 +77,23 @@ export function Header() {
     ...location.cities.map(city => `${city}, ${location.province}`)
   ])
 
+  // Update location when URL changes
+  useEffect(() => {
+    setSelectedLocation(currentLocation)
+    setLocationInput(currentLocation)
+  }, [currentLocation])
+
   const handleLocationInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
     setLocationInput(value)
     if (value.trim() === "") {
       setFilteredLocations([])
       setShowLocationSuggestions(false)
+      setSelectedLocation("") 
       return
     }
 
-    const filtered = allLocations.filter((location) => 
+    const filtered = allLocations.filter((location) =>
       location.toLowerCase().includes(value.toLowerCase())
     ).slice(0, 8)
 
@@ -94,6 +106,25 @@ export function Header() {
     setSelectedLocation(location)
     setShowLocationSuggestions(false)
     locationInputRef.current?.blur()
+    
+    // Stay on current page, just update URL with location
+    const params = new URLSearchParams()
+    
+    // Keep existing search query if present
+    if (searchQuery.trim()) {
+      params.set("q", searchQuery.trim())
+    }
+    
+    // Set the location
+    params.set("location", location)
+    
+    // If we're on homepage, reload homepage with location filter
+    if (pathname === "/") {
+      router.push(`/?${params.toString()}`, { scroll: false })
+    } else {
+      // If on other page, go to homepage with location filter
+      router.push(`/?${params.toString()}`)
+    }
   }
 
   const handleLocationFocus = () => {
@@ -113,9 +144,12 @@ export function Header() {
     if (searchQuery.trim()) {
       params.set("q", searchQuery.trim())
     }
-    if (selectedLocation) {
-      params.set("location", selectedLocation)
+    const locationValue = selectedLocation || locationInput
+    if (locationValue.trim()) {
+        params.set("location", locationValue)
     }
+    
+    // Only go to search page when using search button
     router.push(`/search?${params.toString()}`)
   }
 
@@ -129,8 +163,24 @@ export function Header() {
     }
   }
 
-  const handleCategorySelect = (category: string) => {
-    // Implement category selection logic here
+  const handleCategorySelect = (category: string, subcategory?: string, filters?: any) => {
+    console.log(`Selected: ${category} - ${subcategory}`, filters)
+    setShowMegaMenu(false)
+    
+    // Navigate to search page with the selected category and filters
+    const params = new URLSearchParams()
+    params.set("category", category)
+    
+    if (subcategory) {
+      params.set("subcategory", subcategory)
+    }
+    
+    // Add type filter for Real Estate (rent/sale)
+    if (filters?.type) {
+      params.set("type", filters.type)
+    }
+    
+    router.push(`/search?${params.toString()}`)
   }
 
   useEffect(() => {
@@ -229,6 +279,7 @@ export function Header() {
             </form>
           </div>
 
+          {/* User Navigation */}
           <nav className="hidden md:flex items-center space-x-4 flex-shrink-0">
             {user && (
               <>
@@ -353,6 +404,7 @@ export function Header() {
           </Button>
         </div>
 
+        {/* Categories Section - Fixed */}
         <div className="border-t border-gray-100 bg-gray-50">
           <div className="flex items-center justify-between py-2 px-4">
             <div className="relative">
@@ -366,15 +418,20 @@ export function Header() {
                   className={`h-4 w-4 transition-transform duration-200 ${showMegaMenu ? "rotate-180" : ""}`}
                 />
               </Button>
+
+              {/* MegaMenu positioned correctly */}
+              {showMegaMenu && (
+                <div className="absolute left-0 top-full mt-1 z-50">
+                  <MegaMenu 
+                    isOpen={showMegaMenu}
+                    onClose={() => setShowMegaMenu(false)}
+                    onCategorySelect={handleCategorySelect}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>
-
-        {showMegaMenu && (
-          <div className="absolute left-0 right-0 top-full bg-white border-b border-gray-200 shadow-2xl z-50">
-            <MegaMenu onCategorySelect={handleCategorySelect} />
-          </div>
-        )}
       </div>
     </header>
   )
