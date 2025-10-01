@@ -30,7 +30,7 @@ import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
-import MegaMenu from "./mega-menu"
+import MegaMenu from "@/components/mega-menu"
 import { getSupabaseClient } from "@/lib/supabase/client"
 
 const CANADIAN_LOCATIONS = [
