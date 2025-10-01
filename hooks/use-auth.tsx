@@ -27,15 +27,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-const withTimeout = async <T,>(p: Promise<T>, ms: number, onTimeoutValue: T): Promise<T> => {
-  try {
-    return await Promise.race([p, new Promise<T>((resolve) => setTimeout(() => resolve(onTimeoutValue), ms))])
-  } catch (error) {
-    console.log("[v0] Operation failed, returning timeout value:", error)
-    return onTimeoutValue
-  }
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -48,38 +39,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const syncServerSession = async (event: string, session: any | null) => {
       try {
         if (!s) return
-        // If session is missing tokens, try to hydrate once
-        if (!session?.access_token || !session?.refresh_token) {
-          try {
-            const { data } = await s.auth.getSession()
-            session = data?.session ?? session
-          } catch (sessionError) {
-            console.log("[v0] Session hydration failed (non-blocking):", sessionError)
-            return
-          }
-        }
-        if (
-          (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") &&
-          (!session?.access_token || !session?.refresh_token)
-        ) {
-          return
-        }
-        await withTimeout(
-          fetch("/api/auth/set", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            cache: "no-store",
-            body: JSON.stringify({
-              event,
-              access_token: session?.access_token || null,
-              refresh_token: session?.refresh_token || null,
-            }),
+        
+        await fetch("/api/auth/set", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            event,
+            access_token: session?.access_token || null,
+            refresh_token: session?.refresh_token || null,
           }),
-          1200,
-          undefined as any,
-        )
+        })
       } catch (error) {
         console.log("[v0] Server session sync failed (non-blocking):", error)
+      }
+    }
+
+    const ensureProfile = async () => {
+      try {
+        await fetch("/api/profile/ensure", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        })
+      } catch (error) {
+        console.log("[v0] Profile ensure failed (non-blocking):", error)
       }
     }
 
@@ -142,25 +125,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           if (mounted) setIsLoading(false)
 
-          Promise.resolve().then(async () => {
-            try {
-              const profileData = await fetchProfile(session.user.id, session.user, s)
-              if (!profileData) {
-                await fetch("/api/profile/ensure", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  cache: "no-store",
-                  body: JSON.stringify({}),
-                })
-                const retryProfileData = await fetchProfile(session.user.id, session.user, s)
-                if (mounted) setProfile(retryProfileData)
-              } else {
-                if (mounted) setProfile(profileData)
-              }
-            } catch (profileError) {
-              console.log("[v0] Profile fetch error (non-blocking):", profileError)
+          // Fetch profile data
+          try {
+            const profileData = await fetchProfile(session.user.id, session.user, s)
+            if (!profileData) {
+              // If no profile exists, ensure one is created
+              await ensureProfile()
+              const retryProfileData = await fetchProfile(session.user.id, session.user, s)
+              if (mounted) setProfile(retryProfileData)
+            } else {
+              if (mounted) setProfile(profileData)
             }
-          })
+          } catch (profileError) {
+            console.log("[v0] Profile fetch error (non-blocking):", profileError)
+          }
         } else {
           setUser(null)
           setProfile(null)
@@ -190,15 +168,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (!mounted) return
 
           try {
-            if (!session?.access_token || !session?.refresh_token) {
-              try {
-                const { data } = await s.auth.getSession()
-                session = data?.session ?? session
-              } catch (sessionError) {
-                console.log("[v0] Session check failed in auth state change:", sessionError)
-              }
-            }
-
             if (event === "TOKEN_REFRESHED" && (!session?.access_token || !session?.refresh_token)) {
               await clearAllSessionData(s)
               if (mounted) {
@@ -223,13 +192,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setUser(session.user)
               if (mounted) setIsLoading(false)
 
+              // Ensure profile exists and fetch it
               Promise.allSettled([
-                fetch("/api/profile/ensure", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  cache: "no-store",
-                  body: JSON.stringify({}),
-                }),
+                ensureProfile(),
                 fetchProfile(session.user.id, session.user, s),
               ]).then(([ensureResult, profileResult]) => {
                 if (profileResult.status === "fulfilled" && mounted) {
@@ -290,6 +255,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(data.session.user)
 
         if (data.session.access_token && data.session.refresh_token) {
+          // Sync session and ensure profile
           Promise.allSettled([
             fetch("/api/auth/set", {
               method: "POST",
@@ -428,16 +394,12 @@ const fetchProfile = async (userId: string, userData: User, s: any): Promise<Pro
 const clearAllSessionData = async (s: any) => {
   try {
     await Promise.allSettled([
-      withTimeout(
-        fetch("/api/auth/set", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ event: "SIGNED_OUT" }),
-        }),
-        1200,
-        undefined as any,
-      ),
-      withTimeout(s.auth.signOut(), 2000, undefined as any),
+      fetch("/api/auth/set", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event: "SIGNED_OUT" }),
+      }),
+      s.auth.signOut(),
     ])
 
     if (typeof window !== "undefined") {
