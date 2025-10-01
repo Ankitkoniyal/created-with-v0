@@ -58,7 +58,7 @@ export async function middleware(request: NextRequest) {
     }
 
     // Protect all authenticated routes (not just admin routes)
-    const publicRoutes = ["/", "/auth", "/api/auth", "/public"];
+    const publicRoutes = ["/", "/auth", "/api/auth", "/public", "/product", "/search", "/category"];
     const isPublicRoute = publicRoutes.some(route => 
       request.nextUrl.pathname === route || 
       request.nextUrl.pathname.startsWith(route + "/")
