@@ -3,9 +3,7 @@
 import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "react-toastify"
 import { Stepper } from "@/components/sell/stepper"
-
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
@@ -36,129 +34,17 @@ interface ProductFormData {
   features: string[]
 }
 
-interface Category {
+interface DatabaseCategory {
+  slug: string
   name: string
-  subcategories: string[]
 }
 
-const categories: Category[] = [
-  {
-    name: "Vehicles",
-    subcategories: [
-      "Cars",
-      "Motorcycles",
-      "Trucks",
-      "Buses",
-      "Bicycles",
-      "Scooters",
-      "Boats",
-      "RVs",
-      "ATVs",
-      "Parts & Accessories",
-    ],
-  },
-  {
-    name: "Electronics",
-    subcategories: [
-      "TV",
-      "Fridge",
-      "Oven",
-      "AC",
-      "Cooler",
-      "Toaster",
-      "Fan",
-      "Washing Machine",
-      "Microwave",
-      "Computer",
-      "Laptop",
-      "Camera",
-      "Audio System",
-    ],
-  },
-  {
-    name: "Mobile",
-    subcategories: [
-      "Smartphones",
-      "Tablets",
-      "Accessories",
-      "Cases & Covers",
-      "Chargers",
-      "Headphones",
-      "Smart Watches",
-      "Power Banks",
-    ],
-  },
-  {
-    name: "Real Estate",
-    subcategories: [
-      "Houses",
-      "Apartments",
-      "Commercial",
-      "Land",
-      "Rental",
-      "Vacation Rentals",
-      "Office Space",
-      "Warehouse",
-    ],
-  },
-  {
-    name: "Fashion",
-    subcategories: [
-      "Men's Clothing",
-      "Women's Clothing",
-      "Kids Clothing",
-      "Shoes",
-      "Bags",
-      "Jewelry",
-      "Watches",
-      "Accessories",
-    ],
-  },
-  {
-    name: "Pets",
-    subcategories: ["Dogs", "Cats", "Birds", "Fish", "Pet Food", "Pet Accessories", "Pet Care", "Pet Services"],
-  },
-  {
-    name: "Furniture",
-    subcategories: ["Sofa", "Bed", "Table", "Chair", "Wardrobe", "Desk", "Cabinet", "Dining Set", "Home Decor"],
-  },
-  {
-    name: "Jobs",
-    subcategories: ["Full Time", "Part Time", "Freelance", "Internship", "Remote Work", "Contract", "Temporary"],
-  },
-  {
-    name: "Gaming",
-    subcategories: ["Video Games", "Consoles", "PC Gaming", "Mobile Games", "Gaming Accessories", "Board Games"],
-  },
-  {
-    name: "Books",
-    subcategories: ["Fiction", "Non-Fiction", "Educational", "Comics", "Magazines", "E-books", "Audiobooks"],
-  },
-  {
-    name: "Services",
-    subcategories: [
-      "Home Services",
-      "Repair",
-      "Cleaning",
-      "Tutoring",
-      "Photography",
-      "Event Planning",
-      "Transportation",
-    ],
-  },
-  {
-    name: "Other",
-    subcategories: [
-      "Sports Equipment",
-      "Musical Instruments",
-      "Art & Crafts",
-      "Collectibles",
-      "Tools",
-      "Garden",
-      "Baby Items",
-    ],
-  },
-]
+interface DatabaseSubcategory {
+  id: string
+  name: string
+  slug: string
+  category_slug: string
+}
 
 const CANADIAN_LOCATIONS = [
   { province: "Alberta", cities: ["Calgary", "Edmonton", "Red Deer", "Lethbridge"] },
@@ -176,7 +62,6 @@ const CANADIAN_LOCATIONS = [
   { province: "Yukon", cities: ["Whitehorse", "Dawson City"] },
 ]
 
-// Updated conditions with only three options
 const conditions = ["New", "Like New", "Fair"]
 
 const mapConditionToDatabase = (condition: string): string => {
@@ -184,9 +69,6 @@ const mapConditionToDatabase = (condition: string): string => {
     New: "new",
     "Like New": "like_new", 
     Fair: "fair",
-    // Add these if needed:
-    Good: "good",
-    Poor: "poor"
   }
   return conditionMap[condition] || condition.toLowerCase()
 }
@@ -204,7 +86,13 @@ export function PostProductForm() {
   const searchParams = useSearchParams()
   const editId = searchParams.get("edit")
   const isEditMode = !!editId
+  
   const [currentStep, setCurrentStep] = useState<number>(1)
+  const [categories, setCategories] = useState<DatabaseCategory[]>([])
+  const [subcategories, setSubcategories] = useState<DatabaseSubcategory[]>([])
+  const [filteredSubcategories, setFilteredSubcategories] = useState<DatabaseSubcategory[]>([])
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true)
+
   const [formData, setFormData] = useState<ProductFormData>({
     title: "",
     description: "",
@@ -225,11 +113,74 @@ export function PostProductForm() {
     images: [],
     features: [],
   })
+
   const [newFeature, setNewFeature] = useState("")
   const [newTag, setNewTag] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isLoadingEditData, setIsLoadingEditData] = useState(false)
+
+  // Fetch categories and subcategories from Supabase
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const supabase = createClient()
+        if (!supabase) {
+          console.error("Supabase client unavailable")
+          return
+        }
+
+        // Fetch categories
+        const { data: categoriesData, error: categoriesError } = await supabase
+          .from("categories")
+          .select("slug, name")
+          .order("name")
+
+        if (categoriesError) {
+          console.error("Error fetching categories:", categoriesError)
+          return
+        }
+
+        setCategories(categoriesData || [])
+
+        // Fetch all subcategories
+        const { data: subcategoriesData, error: subcategoriesError } = await supabase
+          .from("subcategories")
+          .select("id, name, slug, category_slug")
+          .order("name")
+
+        if (subcategoriesError) {
+          console.error("Error fetching subcategories:", subcategoriesError)
+          return
+        }
+
+        setSubcategories(subcategoriesData || [])
+      } catch (error) {
+        console.error("Error fetching categories:", error)
+      } finally {
+        setIsLoadingCategories(false)
+      }
+    }
+
+    fetchCategories()
+  }, [])
+
+  // Filter subcategories when category changes
+  useEffect(() => {
+    if (formData.category && subcategories.length > 0) {
+      const filtered = subcategories.filter(
+        (subcat) => subcat.category_slug === formData.category
+      )
+      setFilteredSubcategories(filtered)
+    } else {
+      setFilteredSubcategories([])
+    }
+    
+    // Reset subcategory when category changes
+    if (formData.category) {
+      setFormData(prev => ({ ...prev, subcategory: "" }))
+    }
+  }, [formData.category, subcategories])
 
   useEffect(() => {
     const fetchExistingProduct = async () => {
@@ -244,6 +195,7 @@ export function PostProductForm() {
           router.push("/dashboard/listings")
           return
         }
+        
         const { data, error } = await supabase
           .from("products")
           .select("*")
@@ -258,28 +210,28 @@ export function PostProductForm() {
           return
         }
 
-       if (data) {
-  setFormData({
-    title: data.title || "",
-    description: data.description || "",
-    price: data.price ? data.price.toString() : "",
-    priceType: data.price_type || (data.price > 0 ? "amount" : "contact"),
-    category: data.category || "",
-    subcategory: data.subcategory || "",
-    condition: data.condition || "",
-    brand: data.brand || "",
-    model: data.model || "",
-    address: data.location || "", // Use location for address field
-    location: data.city && data.province ? `${data.city}, ${data.province}` : "",
-    postalCode: data.postal_code || "",
-    youtubeUrl: data.youtube_url || "",
-    websiteUrl: data.website_url || "",
-    showMobileNumber: data.show_mobile_number ?? true,
-    tags: data.tags || [],
-    images: [],
-    features: data.features || [],
-  })
-}
+        if (data) {
+          setFormData({
+            title: data.title || "",
+            description: data.description || "",
+            price: data.price ? data.price.toString() : "",
+            priceType: data.price_type || (data.price > 0 ? "amount" : "contact"),
+            category: data.category || "",
+            subcategory: data.subcategory || "",
+            condition: data.condition || "",
+            brand: data.brand || "",
+            model: data.model || "",
+            address: data.location || "",
+            location: data.city && data.province ? `${data.city}, ${data.province}` : "",
+            postalCode: data.postal_code || "",
+            youtubeUrl: data.youtube_url || "",
+            websiteUrl: data.website_url || "",
+            showMobileNumber: data.show_mobile_number ?? true,
+            tags: data.tags || [],
+            images: [],
+            features: data.features || [],
+          })
+        }
       } catch (error) {
         console.error("Error fetching product:", error)
         toast.error("Failed to load product data")
@@ -302,7 +254,6 @@ export function PostProductForm() {
     }))
   }
 
-  // Updated to 3MB limit
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
 
@@ -377,9 +328,7 @@ export function PostProductForm() {
       const supabase = createClient()
       if (!supabase) {
         console.error("Supabase client unavailable. Aborting submission.")
-        setSubmitError(
-          "Service temporarily unavailable. Please refresh the page or try again shortly. If this persists, contact support.",
-        )
+        setSubmitError("Service temporarily unavailable. Please refresh the page or try again shortly.")
         return
       }
 
@@ -414,37 +363,41 @@ export function PostProductForm() {
 
       console.log("Preparing product data...")
 
-      const selectedCategory = categories.find((cat) => cat.name === formData.category)
-      const selectedSubcategory = selectedCategory?.subcategories.find((sub) => sub === formData.subcategory)
-      const primaryCategory = selectedSubcategory || selectedCategory?.name || formData.category
-      const categoryIndex = categories.findIndex((cat) => cat.name === formData.category) + 1
+      // Find the subcategory ID based on the selected subcategory name
+      let subcategoryId = null
+      if (formData.subcategory) {
+        const selectedSubcategory = filteredSubcategories.find(
+          sub => sub.name === formData.subcategory
+        )
+        subcategoryId = selectedSubcategory?.id || null
+      }
 
       const productData = {
-  user_id: user.id,
-  title: formData.title.trim(),
-  description: formData.description.trim(),
-  price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
-  price_type: formData.priceType, // This should match your DB enum values
-  condition: mapConditionToDatabase(formData.condition),
-  location: formData.address, // Use address for location field
-  province: province,
-  city: city,
-  postal_code: formData.postalCode.trim(),
-  images: imageUrls,
-  category_id: categoryIndex, // REQUIRED by your database schema
-  category: formData.category, // Also send category text
-  subcategory: formData.subcategory || null,
-  brand: formData.brand.trim() || null,
-  model: formData.model.trim() || null,
-  tags: formData.tags.length > 0 ? formData.tags : null,
-  youtube_url: formData.youtubeUrl.trim() || null,
-  website_url: formData.websiteUrl.trim() || null,
-  show_mobile_number: formData.showMobileNumber,
-  features: formData.features.length > 0 ? formData.features : null,
-  status: "active",
-  updated_at: new Date().toISOString(),
-  ...(!isEditMode && { created_at: new Date().toISOString() }),
-}
+        user_id: user.id,
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
+        price_type: formData.priceType,
+        condition: mapConditionToDatabase(formData.condition),
+        location: formData.address,
+        province: province,
+        city: city,
+        postal_code: formData.postalCode.trim(),
+        images: imageUrls,
+        category: formData.category,
+        subcategory: formData.subcategory || null,
+        subcategory_id: subcategoryId,
+        brand: formData.brand.trim() || null,
+        model: formData.model.trim() || null,
+        tags: formData.tags.length > 0 ? formData.tags : null,
+        youtube_url: formData.youtubeUrl.trim() || null,
+        website_url: formData.websiteUrl.trim() || null,
+        show_mobile_number: formData.showMobileNumber,
+        features: formData.features.length > 0 ? formData.features : null,
+        status: "active",
+        updated_at: new Date().toISOString(),
+        ...(!isEditMode && { created_at: new Date().toISOString() }),
+      }
 
       console.log("Product data prepared:", JSON.stringify(productData, null, 2))
 
@@ -542,7 +495,7 @@ export function PostProductForm() {
   }
 
   return (
-    <div className="rounded-xl border bg-card">
+    <div className="rounded-xl border bg-card text-card-foreground">
       <div className="p-6">
         {submitError && (
           <Alert variant="destructive">
@@ -566,7 +519,7 @@ export function PostProductForm() {
           <div className="space-y-6">
             <div className="space-y-4">
               <div className="space-y-2">
-                <label htmlFor="title" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="title" className="block text-sm font-medium text-foreground">
                   Title *
                 </label>
                 <input
@@ -575,14 +528,14 @@ export function PostProductForm() {
                   placeholder="Enter a clear, descriptive title for your item"
                   value={formData.title}
                   onChange={(e) => handleInputChange("title", e.target.value)}
-                  className="w-full px-3 py-2 border-2 border-gray-200 rounded-md focus:border-primary focus:outline-none"
+                  className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
                   required
                 />
                 <p className="text-xs text-muted-foreground">Be specific about what you're selling</p>
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="description" className="block text-sm font-medium text-foreground">
                   Description *
                 </label>
                 <textarea
@@ -591,7 +544,7 @@ export function PostProductForm() {
                   value={formData.description}
                   onChange={(e) => handleInputChange("description", e.target.value)}
                   rows={4}
-                  className="w-full px-3 py-2 border-2 border-gray-200 rounded-md focus:border-primary focus:outline-none"
+                  className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
                   required
                 />
                 <p className="text-xs text-muted-foreground">Provide detailed information to attract buyers</p>
@@ -632,17 +585,16 @@ export function PostProductForm() {
                     </div>
                   ))}
 
-                  {/* Updated Add Photo UI */}
                   <label
                     htmlFor="add-photo-input"
-                    className="relative overflow-hidden rounded-lg border-2 border-dashed border-green-600 bg-green-50 hover:bg-green-100 transition-colors cursor-pointer aspect-square flex items-center justify-center"
+                    className="relative overflow-hidden rounded-lg border-2 border-dashed border-green-600 bg-green-50 hover:bg-green-100 transition-colors cursor-pointer aspect-square flex items-center justify-center dark:bg-green-900/20 dark:border-green-400 dark:hover:bg-green-900/30"
                   >
                     <div className="text-center">
-                      <div className="mx-auto mb-2 h-10 w-10 rounded-full border-2 border-green-600 grid place-items-center text-green-600">
+                      <div className="mx-auto mb-2 h-10 w-10 rounded-full border-2 border-green-600 grid place-items-center text-green-600 dark:border-green-400 dark:text-green-400">
                         <i className="fas fa-camera text-lg"></i>
                       </div>
-                      <p className="text-sm text-green-700 font-medium">Add Photos</p>
-                      <p className="text-xs text-green-600">Max 3MB</p>
+                      <p className="text-sm text-green-700 font-medium dark:text-green-300">Add Photos</p>
+                      <p className="text-xs text-green-600 dark:text-green-400">Max 3MB</p>
                     </div>
                   </label>
                   <input
@@ -664,60 +616,63 @@ export function PostProductForm() {
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label htmlFor="category" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="category" className="block text-sm font-medium text-foreground">
                     Category *
                   </label>
-                  <select
-                    id="category"
-                    value={formData.category}
-                    onChange={(e) => handleInputChange("category", e.target.value)}
-                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-md focus:border-primary focus:outline-none"
-                    required
-                  >
-                    <option value="">Select category</option>
-                    {categories.map((category) => (
-                      <option key={category.name} value={category.name}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
+                  {isLoadingCategories ? (
+                    <div className="w-full px-3 py-2 border-2 border-border rounded-md bg-background">
+                      <div className="animate-pulse h-4 bg-gray-200 rounded"></div>
+                    </div>
+                  ) : (
+                    <select
+                      id="category"
+                      value={formData.category}
+                      onChange={(e) => handleInputChange("category", e.target.value)}
+                      className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                      required
+                    >
+                      <option value="">Select category</option>
+                      {categories.map((category) => (
+                        <option key={category.slug} value={category.slug}>
+                          {category.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 <div className="space-y-2">
-                  <label htmlFor="subcategory" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="subcategory" className="block text-sm font-medium text-foreground">
                     Subcategory
                   </label>
                   <select
                     id="subcategory"
                     value={formData.subcategory}
                     onChange={(e) => handleInputChange("subcategory", e.target.value)}
-                    disabled={
-                      !formData.category ||
-                      !categories.find((cat) => cat.name === formData.category)?.subcategories.length
-                    }
-                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-md focus:border-primary disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    disabled={!formData.category || filteredSubcategories.length === 0}
+                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary disabled:bg-muted disabled:cursor-not-allowed bg-background text-foreground"
                   >
                     <option value="">Select subcategory</option>
-                    {formData.category &&
-                      categories
-                        .find((cat) => cat.name === formData.category)
-                        ?.subcategories.map((subcategory) => (
-                          <option key={subcategory} value={subcategory}>
-                            {subcategory}
-                          </option>
-                        ))}
+                    {filteredSubcategories.map((subcategory) => (
+                      <option key={subcategory.id} value={subcategory.name}>
+                        {subcategory.name}
+                      </option>
+                    ))}
                   </select>
+                  {formData.category && filteredSubcategories.length === 0 && (
+                    <p className="text-xs text-muted-foreground">No subcategories available for this category</p>
+                  )}
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label htmlFor="condition">Condition *</label>
+                  <label htmlFor="condition" className="text-foreground">Condition *</label>
                   <select
                     id="condition"
                     value={formData.condition}
                     onChange={(e) => handleInputChange("condition", e.target.value)}
-                    className="w-full border-2 border-gray-200 focus:border-primary"
+                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
                   >
                     <option value="">Select condition</option>
                     {conditions.map((condition) => (
@@ -729,36 +684,25 @@ export function PostProductForm() {
                 </div>
 
                 <div className="space-y-2">
-                  <label htmlFor="brand">Brand</label>
+                  <label htmlFor="brand" className="text-foreground">Brand</label>
                   <input
                     id="brand"
                     placeholder="e.g., Apple, Samsung, Honda"
                     value={formData.brand}
                     onChange={(e) => handleInputChange("brand", e.target.value)}
-                    className="w-full border-2 border-gray-200 focus:border-primary"
+                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label htmlFor="model">Model</label>
-                  <input
-                    id="model"
-                    placeholder="e.g., iPhone 14 Pro Max, Galaxy S23"
-                    value={formData.model}
-                    onChange={(e) => handleInputChange("model", e.target.value)}
-                    className="w-full border-2 border-gray-200 focus:border-primary"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label htmlFor="priceType">Price Type *</label>
+                  <label htmlFor="priceType" className="text-foreground">Price Type *</label>
                   <select
                     id="priceType"
                     value={formData.priceType}
                     onChange={(e) => handleInputChange("priceType", e.target.value)}
-                    className="w-full border-2 border-gray-200 focus:border-primary"
+                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
                   >
                     <option value="amount">Set Price</option>
                     <option value="free">Free</option>
@@ -767,59 +711,70 @@ export function PostProductForm() {
                   </select>
                 </div>
 
-                {formData.priceType === "amount" && (
-                  <div className="space-y-2 sm:col-span-2">
-                    <label htmlFor="price">Price (CAD) *</label>
-                    <input
-                      id="price"
-                      type="number"
-                      placeholder="0.00"
-                      value={formData.price}
-                      onChange={(e) => handleInputChange("price", e.target.value)}
-                      className="w-full border-2 border-gray-200 focus:border-primary"
-                      min="0"
-                      step="0.01"
-                    />
-                  </div>
-                )}
+                <div className="space-y-2">
+                  <label htmlFor="model" className="text-foreground">Model</label>
+                  <input
+                    id="model"
+                    placeholder="e.g., iPhone 14 Pro Max, Galaxy S23"
+                    value={formData.model}
+                    onChange={(e) => handleInputChange("model", e.target.value)}
+                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                  />
+                </div>
               </div>
+
+              {formData.priceType === "amount" && (
+                <div className="space-y-2">
+                  <label htmlFor="price" className="text-foreground">Price *</label>
+                  <input
+                    id="price"
+                    type="number"
+                    placeholder="0.00"
+                    value={formData.price}
+                    onChange={(e) => handleInputChange("price", e.target.value)}
+                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}
 
         {currentStep === 3 && (
           <div className="space-y-6">
-            <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
-              <label className="text-base font-semibold">Additional Links (Optional)</label>
+            <div className="space-y-4 p-4 border-2 border-border rounded-lg bg-background">
+              <label className="text-base font-semibold text-foreground">Additional Links (Optional)</label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label htmlFor="youtubeUrl">YouTube Video Link</label>
+                  <label htmlFor="youtubeUrl" className="text-foreground">YouTube Video Link</label>
                   <input
                     id="youtubeUrl"
                     placeholder="https://youtube.com/watch?v=..."
                     value={formData.youtubeUrl}
                     onChange={(e) => handleInputChange("youtubeUrl", e.target.value)}
-                    className="w-full border-2 border-gray-200 focus:border-primary"
+                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
                   />
                   <p className="text-xs text-muted-foreground">Add a YouTube video showcasing your product</p>
                 </div>
 
                 <div className="space-y-2">
-                  <label htmlFor="websiteUrl">Website Link</label>
+                  <label htmlFor="websiteUrl" className="text-foreground">Website Link</label>
                   <input
                     id="websiteUrl"
                     placeholder="https://example.com"
                     value={formData.websiteUrl}
                     onChange={(e) => handleInputChange("websiteUrl", e.target.value)}
-                    className="w-full border-2 border-gray-200 focus:border-primary"
+                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
                   />
                   <p className="text-xs text-muted-foreground">Link to your website or product page</p>
                 </div>
               </div>
             </div>
 
-           <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
-              <label className="flex items-center text-base font-semibold">
+            <div className="space-y-4 p-4 border-2 border-border rounded-lg bg-background">
+              <label className="flex items-center text-base font-semibold text-foreground">
                 <Tag className="h-5 w-5 mr-2" />
                 Tags (Max 5 words)
               </label>
@@ -841,7 +796,7 @@ export function PostProductForm() {
                     }}
                     maxLength={20}
                     disabled={formData.tags.length >= 5}
-                    className="border-2 border-gray-200 focus:border-primary"
+                    className="flex-1 px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
                   />
                   <button
                     type="button"
@@ -870,15 +825,15 @@ export function PostProductForm() {
               </div>
             </div>
 
-            <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
-              <label className="text-base font-semibold">Key Features (Optional)</label>
+            <div className="space-y-4 p-4 border-2 border-border rounded-lg bg-background">
+              <label className="text-base font-semibold text-foreground">Key Features (Optional)</label>
               <div className="flex space-x-2">
                 <input
                   placeholder="Add a feature"
                   value={newFeature}
                   onChange={(e) => setNewFeature(e.target.value)}
                   onKeyPress={(e) => e.key === "Enter" && addFeature()}
-                  className="border-2 border-gray-200 focus:border-primary"
+                  className="flex-1 px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
                 />
                 <button type="button" onClick={addFeature} className="bg-green-700 hover:bg-green-800 text-white px-3 py-2 rounded">
                   Add
@@ -896,31 +851,31 @@ export function PostProductForm() {
               )}
             </div>
 
-            <div className="space-y-4 p-4 border-2 border-gray-200 rounded-lg">
-              <label className="flex items-center text-base font-semibold">
+            <div className="space-y-4 p-4 border-2 border-border rounded-lg bg-background">
+              <label className="flex items-center text-base font-semibold text-foreground">
                 <MapPin className="h-5 w-5 mr-2" />
                 Location Details *
               </label>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label htmlFor="address">Street Address *</label>
+                  <label htmlFor="address" className="text-foreground">Street Address *</label>
                   <input
                     id="address"
                     placeholder="e.g., 123 Main Street"
-                    className="w-full border-2 border-gray-200 focus:border-primary"
+                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
                     value={formData.address}
                     onChange={(e) => handleInputChange("address", e.target.value)}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <label htmlFor="location">City/Province *</label>
+                  <label htmlFor="location" className="text-foreground">City/Province *</label>
                   <select
                     id="location"
                     value={formData.location}
                     onChange={(e) => handleInputChange("location", e.target.value)}
-                    className="w-full border-2 border-gray-200 focus:border-primary"
+                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
                   >
                     <option value="">Select city/province</option>
                     {CANADIAN_LOCATIONS.map((location) => (
@@ -941,13 +896,13 @@ export function PostProductForm() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-4">
                 <div className="space-y-2">
-                  <label htmlFor="postalCode" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="postalCode" className="block text-sm font-medium text-foreground">
                     Postal Code *
                   </label>
                   <input
                     id="postalCode"
                     placeholder="e.g., M5V 2T6"
-                    className="w-full border-2 border-gray-200 focus:border-primary"
+                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
                     value={formData.postalCode}
                     onChange={(e) => handleInputChange("postalCode", e.target.value)}
                     required
@@ -962,7 +917,7 @@ export function PostProductForm() {
           <div className="space-y-6">
             <div className="space-y-4">
               <div>
-                <h3 className="font-semibold mb-2">Product Details</h3>
+                <h3 className="font-semibold mb-2 text-foreground">Product Details</h3>
                 <div className="space-y-1 text-sm">
                   <p>
                     <span className="text-muted-foreground">Title:</span> {formData.title}
@@ -1013,16 +968,12 @@ export function PostProductForm() {
                       <span className="text-muted-foreground">Website:</span> {formData.websiteUrl}
                     </p>
                   )}
-                  <p>
-                    <span className="text-muted-foreground">Show Mobile:</span>{" "}
-                    {formData.showMobileNumber ? "Yes" : "No"}
-                  </p>
                 </div>
               </div>
 
               {formData.tags.length > 0 && (
                 <div>
-                  <h3 className="font-semibold mb-2">Tags</h3>
+                  <h3 className="font-semibold mb-2 text-foreground">Tags</h3>
                   <div className="flex flex-wrap gap-1">
                     {formData.tags.map((tag) => (
                       <Badge key={tag} variant="outline" className="text-xs">
@@ -1035,7 +986,7 @@ export function PostProductForm() {
 
               {formData.features.length > 0 && (
                 <div>
-                  <h3 className="font-semibold mb-2">Features</h3>
+                  <h3 className="font-semibold mb-2 text-foreground">Features</h3>
                   <div className="flex flex-wrap gap-1">
                     {formData.features.map((feature) => (
                       <Badge key={feature} variant="outline" className="text-xs">
@@ -1049,12 +1000,12 @@ export function PostProductForm() {
 
             <div className="space-y-4">
               <div>
-                <h3 className="font-semibold mb-2">Description</h3>
+                <h3 className="font-semibold mb-2 text-foreground">Description</h3>
                 <p className="text-sm text-muted-foreground">{formData.description}</p>
               </div>
 
               <div>
-                <h3 className="font-semibold mb-2">Photos ({formData.images.length})</h3>
+                <h3 className="font-semibold mb-2 text-foreground">Photos ({formData.images.length})</h3>
                 <div className="grid grid-cols-4 gap-2">
                   {formData.images.slice(0, 4).map((image, index) => (
                     <img
