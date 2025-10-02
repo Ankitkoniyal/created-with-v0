@@ -124,7 +124,7 @@ async function getProduct(id: string) {
       adId: generateAdId(product.id, product.created_at),
       seller: {
         id: product.user_id,
-       name: profileData?.full_name, // Show real user name only
+     name: profileData?.full_name || "User",
         rating: 4.5,
         totalReviews: 0,
         memberSince: profileData?.created_at ? new Date(profileData.created_at).getFullYear().toString() : "2024",
