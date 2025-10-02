@@ -1,15 +1,13 @@
 // app/superadmin/page.tsx
 "use client"
 
-export const runtime = 'nodejs'
-
 import { useState, useEffect } from "react"
 import { SuperAdminNav } from "@/components/superadmin/super-admin-nav"
 import { SuperAdminOverview } from "@/components/superadmin/super-admin-overview"
 import { AdsManagement } from "@/components/superadmin/ads-management"
 import { PendingReview } from "@/components/superadmin/pending-review"
 import { ReportedAds } from "@/components/superadmin/reported-ads"
-import UserManagement from "@/components/superadmin/user-management" // Fixed import
+import UserManagement from "@/components/superadmin/user-management"
 import { CategoriesManagement } from "@/components/superadmin/categories-management"
 import { LocalitiesManagement } from "@/components/superadmin/localities-management"
 import { Analytics } from "@/components/superadmin/analytics"
