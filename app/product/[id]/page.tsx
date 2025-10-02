@@ -39,7 +39,7 @@ async function getProduct(id: string) {
     if (product.user_id) {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("full_name, avatar_url, created_at, phone") // I added 'phone' here
+        .select("full_name, avatar_url, created_at, phone")
         .eq("id", product.user_id)
         .single()
 
@@ -124,13 +124,13 @@ async function getProduct(id: string) {
       adId: generateAdId(product.id, product.created_at),
       seller: {
         id: product.user_id,
-        name: profileData?.full_name || "Anonymous Seller",
+        name: profileData?.full_name || "Marketplace User", // FIXED: Changed from "Anonymous Seller" to "Marketplace User"
         rating: 4.5,
         totalReviews: 0,
         memberSince: profileData?.created_at ? new Date(profileData.created_at).getFullYear().toString() : "2024",
         verified: true,
         responseTime: "Usually responds within 2 hours",
-        phone: profileData?.phone || null, // I added this line to pass the phone number
+        phone: profileData?.phone || null,
       },
       features: parsedFeatures,
       storage: product.storage || null,
