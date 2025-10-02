@@ -11,22 +11,17 @@ import {
   Users, 
   Mail, 
   Calendar, 
-  Shield, 
   MoreVertical, 
   Ban, 
   CheckCircle, 
-  Eye, 
-  Filter,
+  Eye,
   Download,
   RefreshCw,
   Trash2,
   AlertTriangle,
   User,
   Phone,
-  MapPin,
-  FileText,
-  BarChart3,
-  X
+  FileText
 } from "lucide-react"
 import { getSupabaseClient } from "@/lib/supabase/client"
 import {
@@ -53,6 +48,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
+// Types
 interface User {
   id: string
   email: string
@@ -74,6 +70,7 @@ interface UserStats {
   totalViews: number
 }
 
+// Main Component
 export default function UserManagement() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -105,7 +102,6 @@ export default function UserManagement() {
 
       setUsers(data || [])
       
-      // Fetch stats for all users
       if (data && data.length > 0) {
         await fetchUsersStats(data.map(user => user.id))
       }
@@ -162,7 +158,6 @@ export default function UserManagement() {
           newStatus = 'active'
           break
         case 'delete':
-          // Implement soft delete or actual deletion
           await supabase.from('profiles').delete().eq('id', userId)
           setUsers(prev => prev.filter(user => user.id !== userId))
           return
@@ -178,7 +173,6 @@ export default function UserManagement() {
         return
       }
 
-      // Update local state
       setUsers(prev => prev.map(user => 
         user.id === userId ? { ...user, status: newStatus } : user
       ))
@@ -190,7 +184,7 @@ export default function UserManagement() {
     }
   }
 
-  const handleViewUserDetails = async (user: User) => {
+  const handleViewUserDetails = (user: User) => {
     setSelectedUser(user)
     setUserDetailsOpen(true)
   }
@@ -209,9 +203,9 @@ export default function UserManagement() {
 
   const getStatusBadge = (status: User['status']) => {
     const variants = {
-      active: { class: "bg-green-600", label: "Active" },
-      suspended: { class: "bg-yellow-600", label: "Suspended" },
-      banned: { class: "bg-red-600", label: "Banned" }
+      active: "bg-green-600",
+      suspended: "bg-yellow-600", 
+      banned: "bg-red-600"
     }
     
     return variants[status]
@@ -332,7 +326,7 @@ export default function UserManagement() {
           <div className="space-y-4">
             {filteredUsers.map((user, index) => {
               const stats = userStats[user.id] || { totalAds: 0, activeAds: 0, soldAds: 0, totalViews: 0 }
-              const statusBadge = getStatusBadge(user.status)
+              const statusClass = getStatusBadge(user.status)
               
               return (
                 <div
@@ -349,8 +343,8 @@ export default function UserManagement() {
                         <h3 className="font-semibold text-white text-lg">
                           {user.full_name || 'Unknown User'}
                         </h3>
-                        <Badge className={statusBadge.class}>
-                          {statusBadge.label}
+                        <Badge className={statusClass}>
+                          {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
                         </Badge>
                         <span className="text-sm text-gray-400">#{index + 1}</span>
                       </div>
@@ -597,5 +591,3 @@ export default function UserManagement() {
     </div>
   )
 }
-
-export default UserManagement
