@@ -1,6 +1,21 @@
+// components/safe-product-detail.tsx
 "use client"
 
 import { ProductDetail } from "@/components/product-detail"
+
+// Safe link component for external URLs
+function SafeLink({ href, children, className = "" }: { href: string; children: React.ReactNode; className?: string }) {
+  return (
+    <a 
+      href={href}
+      target="_blank"
+      rel="nofollow noopener noreferrer"
+      className={className}
+    >
+      {children}
+    </a>
+  )
+}
 
 export function SafeProductDetail({ product }: { product: any }) {
   // Debug what's actually received
@@ -31,9 +46,49 @@ export function SafeProductDetail({ product }: { product: any }) {
     description: product.description || 'No description available',
     category: product.category || 'Other',
     condition: product.condition || 'Not specified',
+    youtube_url: product.youtube_url || null,
+    website_url: product.website_url || null,
     // Add all other properties with safe defaults
     ...product
   }
 
-  return <ProductDetail product={safeProduct} />
+  return (
+    <div>
+      <ProductDetail product={safeProduct} />
+      
+      {/* Render safe external links if they exist */}
+      {(safeProduct.youtube_url || safeProduct.website_url) && (
+        <div className="mt-6 p-4 bg-gray-50 rounded-lg border">
+          <h3 className="font-semibold text-lg mb-3">External Links</h3>
+          <div className="space-y-2">
+            {safeProduct.youtube_url && (
+              <div className="flex items-center">
+                <span className="text-sm text-gray-600 mr-3">YouTube:</span>
+                <SafeLink 
+                  href={safeProduct.youtube_url}
+                  className="text-blue-600 hover:text-blue-800 underline text-sm"
+                >
+                  Watch Video
+                </SafeLink>
+              </div>
+            )}
+            {safeProduct.website_url && (
+              <div className="flex items-center">
+                <span className="text-sm text-gray-600 mr-3">Website:</span>
+                <SafeLink 
+                  href={safeProduct.website_url}
+                  className="text-blue-600 hover:text-blue-800 underline text-sm"
+                >
+                  Visit Website
+                </SafeLink>
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            External links open in new window and are marked as no-follow for SEO.
+          </p>
+        </div>
+      )}
+    </div>
+  )
 }
