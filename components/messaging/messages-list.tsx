@@ -189,7 +189,7 @@ export function MessagesList() {
     return () => subscription.unsubscribe()
   }, [user])
 
-  // Delete conversation
+  // Delete conversation - FIXED
   const deleteConversation = async (conversationId: string) => {
     if (!user || !confirm("Are you sure you want to delete this conversation? This action cannot be undone.")) return
 
@@ -204,20 +204,23 @@ export function MessagesList() {
         .eq("product_id", productId)
         .or(`and(sender_id.eq.${user.id},receiver_id.eq.${participantId}),and(sender_id.eq.${participantId},receiver_id.eq.${user.id})`)
 
-      if (error) throw error
+      if (error) {
+        console.error("Delete conversation error:", error)
+        throw error
+      }
 
       setConversations(prev => prev.filter(conv => conv.id !== conversationId))
       window.dispatchEvent(new CustomEvent('messagesUpdated'))
       toast.success("Conversation deleted successfully")
     } catch (error) {
       console.error("Error deleting conversation:", error)
-      toast.error("Failed to delete conversation")
+      toast.error("Failed to delete conversation. Please try again.")
     } finally {
       setDeletingId(null)
     }
   }
 
-  // Block user functionality
+  // Block user functionality - FIXED
   const blockUser = async (userId: string, userName: string) => {
     if (!user) return
     if (!confirm(`Are you sure you want to block ${userName}? You will no longer receive messages from them.`)) return
@@ -225,16 +228,29 @@ export function MessagesList() {
     try {
       const supabase = createClient()
       
-      // First check if blocked_users table exists
       const { error } = await supabase
         .from("blocked_users")
-        .insert({ user_id: user.id, blocked_user_id: userId })
+        .insert({ 
+          user_id: user.id, 
+          blocked_user_id: userId,
+          created_at: new Date().toISOString()
+        })
 
       if (error) {
+        console.error("Block user error:", error)
+        
+        // If table doesn't exist, show user-friendly message
         if (error.code === '42P01') {
-          toast.error("Block feature coming soon! Database setup required.")
+          toast.error("Block feature is currently being set up. Please try again later.")
           return
         }
+        
+        // If unique constraint violation, user is already blocked
+        if (error.code === '23505') {
+          toast.success(`${userName} is already blocked`)
+          return
+        }
+        
         throw error
       }
 
@@ -243,11 +259,11 @@ export function MessagesList() {
       toast.success(`You have blocked ${userName}`)
     } catch (error) {
       console.error("Error blocking user:", error)
-      toast.error("Failed to block user")
+      toast.error("Failed to block user. Please try again.")
     }
   }
 
-  // Report conversation - USING YOUR EXISTING REPORTS TABLE
+  // Report conversation - FIXED
   const reportConversation = async (conversationId: string, participantName: string, participantId: string) => {
     const reason = prompt(`Why are you reporting this conversation with ${participantName}?`)
     if (!reason || !user) return
@@ -257,20 +273,31 @@ export function MessagesList() {
       const [productId, _] = conversationId.split('-')
       
       const { error } = await supabase
-        .from("reports") // Your existing reports table
+        .from("reports")
         .insert({
           product_id: productId,
           user_id: participantId,
+          reporter_id: user.id,
           reason: reason,
-          details: `Conversation Report - Conversation ID: ${conversationId}`
+          details: `Conversation Report - Conversation ID: ${conversationId}`,
+          created_at: new Date().toISOString()
         })
 
-      if (error) throw error
+      if (error) {
+        console.error("Report conversation error:", error)
+        
+        if (error.code === '42P01') {
+          toast.error("Report feature is currently being set up. Please try again later.")
+          return
+        }
+        
+        throw error
+      }
 
       toast.success("Thank you for your report. We will review this conversation.")
     } catch (error) {
       console.error("Error reporting conversation:", error)
-      toast.error("Failed to report conversation")
+      toast.error("Failed to report conversation. Please try again.")
     }
   }
 
