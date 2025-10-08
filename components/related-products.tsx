@@ -39,6 +39,9 @@ export function RelatedProducts({ category, currentProductId }: RelatedProductsP
           .neq("id", currentProductId)
           .limit(8) // fetch 8 products to show 2 rows of 4
 
+          .limit(8) // fetch more since we show 4 per row
+
+
         if (error) {
           console.error("Error fetching related products:", error)
         } else {
@@ -76,6 +79,7 @@ export function RelatedProducts({ category, currentProductId }: RelatedProductsP
   }
 
   return (
+
     <div className="mt-12">
       <h2 className="text-2xl font-bold mb-6">Related Products</h2>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
