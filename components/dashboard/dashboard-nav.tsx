@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { LayoutDashboard, Package, Heart, User, Settings, MessageSquare, TrendingUp } from "lucide-react"
+import { LayoutDashboard, Package, Heart, User, Settings, MessageSquare } from "lucide-react"
 import { usePathname } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 import { useState, useEffect } from "react"
@@ -43,7 +43,7 @@ export function DashboardNav() {
       setUserProfile(profile)
 
       const [adsResult, favoritesResult, messagesResult] = await Promise.all([
-        supabase.from("products").select("*", { count: "exact", head: true }).eq("user_id", user.id).eq("status", "active"),
+        supabase.from("products").select("*", { count: "exact", head: true }).eq("user_id", user.id),
         supabase.from("favorites").select("*", { count: "exact", head: true }).eq("user_id", user.id),
         supabase.from("messages").select("*", { count: "exact", head: true }).eq("receiver_id", user.id).eq("is_read", false),
       ])
@@ -124,33 +124,32 @@ export function DashboardNav() {
       const joinDate = new Date(user.created_at)
       return `Member since ${joinDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`
     }
-    return "" // REMOVED "New Member" text
+    return ""
   }
 
   const navItems = [
     { title: "Overview", href: "/dashboard", icon: LayoutDashboard },
-    { title: "My Ads", href: "/dashboard/listings", icon: Package, badge: dashboardCounts.myAds > 0 ? dashboardCounts.myAds.toString() : undefined },
+    { title: "My Ads", href: "/dashboard/listings", icon: Package },
     { title: "Favorites", href: "/dashboard/favorites", icon: Heart, badge: dashboardCounts.favorites > 0 ? dashboardCounts.favorites.toString() : undefined },
     { title: "Messages", href: "/dashboard/messages", icon: MessageSquare, badge: dashboardCounts.messages > 0 ? dashboardCounts.messages.toString() : undefined },
-    { title: "Analytics", href: "/dashboard/analytics", icon: TrendingUp },
     { title: "Profile", href: "/dashboard/profile", icon: User },
     { title: "Settings", href: "/dashboard/settings", icon: Settings },
   ]
 
   if (isLoading) {
     return (
-      <Card>
+      <Card className="bg-gray-800 border-gray-700">
         <CardContent className="p-6">
           <div className="flex items-center space-x-3 mb-6">
-            <div className="h-12 w-12 bg-gray-200 rounded-full animate-pulse"></div>
+            <div className="h-12 w-12 bg-gray-700 rounded-full animate-pulse"></div>
             <div className="space-y-2">
-              <div className="h-4 bg-gray-200 rounded w-24 animate-pulse"></div>
-              <div className="h-3 bg-gray-200 rounded w-32 animate-pulse"></div>
+              <div className="h-4 bg-gray-700 rounded w-24 animate-pulse"></div>
+              <div className="h-3 bg-gray-700 rounded w-32 animate-pulse"></div>
             </div>
           </div>
           <div className="space-y-2">
-            {[...Array(7)].map((_, i) => (
-              <div key={i} className="h-10 bg-gray-200 rounded animate-pulse"></div>
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="h-10 bg-gray-700 rounded animate-pulse"></div>
             ))}
           </div>
         </CardContent>
@@ -159,10 +158,10 @@ export function DashboardNav() {
   }
 
   return (
-    <Card>
+    <Card className="bg-gray-800 border-gray-700">
       <CardContent className="p-6">
         <div className="flex items-center space-x-3 mb-6">
-          <Avatar key={imageKey} className="h-12 w-12 border-2 border-green-700">
+          <Avatar key={imageKey} className="h-12 w-12 border-2 border-green-600">
             <AvatarImage 
               src={getAvatarUrl()} 
               alt={getDisplayName()}
@@ -172,15 +171,14 @@ export function DashboardNav() {
                 target.style.display = 'none'
               }}
             />
-            <AvatarFallback className="bg-green-100 text-green-800 font-semibold">
+            <AvatarFallback className="bg-green-900 text-green-300 font-semibold">
               {getAvatarInitials()}
             </AvatarFallback>
           </Avatar>
           <div>
-            <h3 className="font-semibold text-foreground">{getDisplayName()}</h3>
-            {/* This will now show either "Member since..." or nothing */}
+            <h3 className="font-semibold text-white">{getDisplayName()}</h3>
             {getMemberSinceText() && (
-              <p className="text-sm text-muted-foreground mt-1">{getMemberSinceText()}</p>
+              <p className="text-sm text-gray-400 mt-1">{getMemberSinceText()}</p>
             )}
           </div>
         </div>
@@ -194,7 +192,11 @@ export function DashboardNav() {
               <Button
                 key={item.href}
                 variant={isActive ? "secondary" : "ghost"}
-                className={`w-full justify-start ${isActive ? 'bg-green-700 text-white hover:bg-green-800' : 'hover:bg-green-50'}`}
+                className={`w-full justify-start ${
+                  isActive 
+                    ? 'bg-green-700 text-white hover:bg-green-600' 
+                    : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                }`}
                 onClick={() => router.push(item.href)}
               >
                 <Icon className="mr-2 h-4 w-4" />
