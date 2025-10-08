@@ -33,6 +33,25 @@ export default function SearchPage() {
     sortBy: urlSortBy,
   })
 
+  // 🔥 DYNAMIC TITLE UPDATE FOR SEO
+  useEffect(() => {
+    let title = "Search Products | Your Marketplace"
+    
+    if (searchQuery && filters.category) {
+      title = `${searchQuery} in ${filters.category} - Search Results | Your Marketplace`
+    } else if (searchQuery) {
+      title = `${searchQuery} - Search Results | Your Marketplace`
+    } else if (filters.category) {
+      title = `Browse ${filters.category} | Your Marketplace`
+    }
+
+    if (filters.location) {
+      title += ` in ${filters.location}`
+    }
+
+    document.title = title
+  }, [searchQuery, filters.category, filters.location])
+
   // Update state when URL parameters change
   useEffect(() => {
     setSearchQuery(urlQuery)
