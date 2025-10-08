@@ -2,136 +2,201 @@
 import { useState, useRef, useEffect } from "react"
 import Link from "next/link"
 import { 
-  Car, Home, Smartphone, Shirt, Sofa, Briefcase, Wrench, Heart, Book, 
-  Search, TrendingUp, Clock, Star, ChevronRight, X, Gamepad2, 
-  PawPrint, Building, Utensils
+  Car, Home, Smartphone, Shirt, Sofa, Briefcase, Wrench, Book, 
+  Search, TrendingUp, ChevronRight, X, Gamepad2, PawPrint 
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 
-// Enhanced category structure with Real Estate improvements
+// Complete updated categories structure EXACTLY matching your database
 const CATEGORIES = [
   {
     name: "Vehicles",
+    slug: "vehicles",
     icon: Car,
     color: "text-blue-400",
     bgColor: "bg-blue-900",
     subcategories: [
-      "Cars", "Motorcycles", "Bikes", "Auto Parts", 
-      "Trucks", "Boats", "Heavy Vehicles", "Car Services"
+      { name: "Cars", slug: "cars" },
+      { name: "Motorcycles", slug: "motorcycles" },
+      { name: "Bicycles", slug: "bicycles" },
+      { name: "Scooters", slug: "scooters" },
+      { name: "Auto Parts", slug: "auto-parts" }
     ]
   },
   {
     name: "Real Estate",
+    slug: "real-estate", 
     icon: Home,
     color: "text-purple-400",
     bgColor: "bg-purple-900",
     subcategories: [
-      { name: "For Rent", type: "rent", filters: ["apartment", "house", "condo", "townhouse"] },
-      { name: "For Sale", type: "sale", filters: ["apartment", "house", "condo", "townhouse"] },
-      "Commercial Properties",
-      "Land & Plots",
-      "Roommates",
-      ]
+      { name: "For Rent", slug: "for-rent" },
+      { name: "For Sale", slug: "for-sale" },
+      { name: "Land", slug: "land" },
+      { name: "Roommates", slug: "roommates" }
+    ]
   },
   {
     name: "Electronics",
+    slug: "electronics",
     icon: Smartphone,
     color: "text-green-400",
     bgColor: "bg-green-900",
     subcategories: [
-      "Mobile Phones", "Laptops & Computers", "TV & Audio", 
-      "Gaming", "Cameras", "Home Appliances"
+      { name: "Mobile Phones", slug: "mobile-phones" },
+      { name: "Laptops", slug: "laptops" },
+      { name: "Computers", slug: "computers" },
+      { name: "TV & Audio", slug: "tv-audio" },
+      { name: "Cameras", slug: "cameras" },
+      { name: "Headphones", slug: "headphones" },
+      { name: "Smartphones", slug: "smartphones" },
+      { name: "Tablets", slug: "tablets" }
     ]
   },
   {
     name: "Fashion & Beauty",
+    slug: "fashion-beauty",
     icon: Shirt,
     color: "text-pink-400",
     bgColor: "bg-pink-900",
     subcategories: [
-      "Men", "Women", "Kids & Baby", 
-      "Shoes", "Accessories", "Watches"
+      { name: "Men Clothing", slug: "men-clothing" },
+      { name: "Women Clothing", slug: "women-clothing" },
+      { name: "Shoes", slug: "shoes" },
+      { name: "Accessories", slug: "accessories" }
     ]
   },
   {
     name: "Home & Garden",
+    slug: "home-garden",
     icon: Sofa,
     color: "text-orange-400",
     bgColor: "bg-orange-900",
     subcategories: [
-      "Furniture", "Home Decor", "Garden & Patio", 
-      "Kitchenware", "Tools & DIY", "Lighting"
+      { name: "Furniture", slug: "furniture" },
+      { name: "Home Decor", slug: "home-decor" },
+      { name: "Garden & Patio", slug: "garden-patio" },
+      { name: "Bedroom", slug: "bedroom" },
+      { name: "Living Room", slug: "living-room" },
+      { name: "Office Furniture", slug: "office-furniture" },
+      { name: "Outdoor Furniture", slug: "outdoor-furniture" }
     ]
   },
   {
     name: "Jobs & Services",
+    slug: "jobs-services",
     icon: Briefcase,
     color: "text-yellow-400",
     bgColor: "bg-yellow-900",
     subcategories: [
-      "Full Time Jobs", "Part Time Jobs", "Freelance", 
-      "Home Services", "Professional Services", "Tutoring"
+      { name: "Full Time Jobs", slug: "full-time-jobs" },
+      { name: "Part Time Jobs", slug: "part-time-jobs" },
+      { name: "Freelance", slug: "freelance" },
+      { name: "Contract", slug: "contract-jobs" },
+      { name: "Remote", slug: "remote-jobs" }
     ]
   },
   {
     name: "Pets & Animals",
+    slug: "pets-animals",
     icon: PawPrint,
     color: "text-red-400",
     bgColor: "bg-red-900",
     subcategories: [
-      "Dogs", "Cats", "Birds", "Fish & Aquarium", 
-      "Pet Supplies", "Pet Services"
+      { name: "Dogs", slug: "dogs" },
+      { name: "Cats", slug: "cats" },
+      { name: "Birds", slug: "birds" },
+      { name: "Other Pets", slug: "other-pets" },
+      { name: "Pet Supplies", slug: "pet-supplies" }
     ]
   },
   {
     name: "Gaming",
+    slug: "gaming",
     icon: Gamepad2,
     color: "text-indigo-400",
     bgColor: "bg-indigo-900",
     subcategories: [
-      "Video Games", "Gaming Consoles", "PC Gaming", 
-      "Board Games", "VR Equipment", "Gaming Accessories"
+      { name: "Video Games", slug: "video-games" },
+      { name: "Gaming Consoles", slug: "gaming-consoles" },
+      { name: "PC Gaming", slug: "pc-gaming" },
+      { name: "Board Games", slug: "board-games" },
+      { name: "VR Equipment", slug: "vr-equipment" },
+      { name: "Gaming Accessories", slug: "gaming-accessories" }
     ]
   },
   {
     name: "Books & Education",
+    slug: "books-education",
     icon: Book,
     color: "text-emerald-400",
     bgColor: "bg-emerald-900",
     subcategories: [
-      "Books & Magazines", "Textbooks", "E-books",
-      "Educational Materials", "Language Courses", "Musical Instruments"
+      { name: "Children Books", slug: "children-books" },
+      { name: "Fiction", slug: "fiction-books" },
+      { name: "Non-Fiction", slug: "non-fiction-books" },
+      { name: "Textbooks", slug: "textbooks" }
     ]
   },
   {
     name: "Services",
+    slug: "services",
     icon: Wrench,
     color: "text-gray-400",
     bgColor: "bg-gray-900",
     subcategories: [
-      "Home Services", "Professional Services", "Personal Care",
-      "Business Services", "Event Services", "Transport Services"
+      { name: "Home Services", slug: "home-services" },
+      { name: "Professional Services", slug: "professional-services" },
+      { name: "Beauty Services", slug: "beauty-services" },
+      { name: "Repair Services", slug: "repair-services" }
+    ]
+  },
+  {
+    name: "Sports",
+    slug: "sports",
+    icon: TrendingUp, // You might want to use a sports icon
+    color: "text-teal-400",
+    bgColor: "bg-teal-900",
+    subcategories: [
+      { name: "Exercise Equipment", slug: "exercise-equipment" },
+      { name: "Outdoor Gear", slug: "outdoor-gear" },
+      { name: "Sports Bikes", slug: "sports-bikes" },
+      { name: "Sportswear", slug: "sportswear" }
+    ]
+  },
+  {
+    name: "Mobile",
+    slug: "mobile",
+    icon: Smartphone,
+    color: "text-cyan-400",
+    bgColor: "bg-cyan-900",
+    subcategories: [
+      { name: "Android Phones", slug: "android-phones" },
+      { name: "iPhones", slug: "iphones" },
+      { name: "Mobile Accessories", slug: "mobile-accessories" }
+    ]
+  },
+  {
+    name: "Other",
+    slug: "other",
+    icon: Wrench,
+    color: "text-gray-400",
+    bgColor: "bg-gray-900",
+    subcategories: [
+      { name: "Free Stuff", slug: "free-stuff" },
+      { name: "Lost & Found", slug: "lost-found" },
+      { name: "Miscellaneous", slug: "miscellaneous" }
     ]
   }
 ]
 
-// Quick access items
-const QUICK_ACCESS = [
-  { name: "Free Items", icon: "🎁", count: "1.2k" },
-  { name: "Today's Deals", icon: "🔥", count: "456" },
-  { name: "Near You", icon: "📍", count: "3.4k" },
-  { name: "Just Added", icon: "🆕", count: "789" }
-]
-
 interface MegaMenuProps {
-  onCategorySelect?: (category: string, subcategory?: string, filters?: any) => void
   onClose?: () => void
   isOpen?: boolean
 }
 
-export default function MegaMenu({ onCategorySelect, onClose, isOpen }: MegaMenuProps) {
+export default function MegaMenu({ onClose, isOpen }: MegaMenuProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -140,19 +205,9 @@ export default function MegaMenu({ onCategorySelect, onClose, isOpen }: MegaMenu
   const filteredCategories = CATEGORIES.filter(category => 
     category.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     category.subcategories.some(sub => 
-      typeof sub === 'string' ? sub.toLowerCase().includes(searchQuery.toLowerCase()) : sub.name.toLowerCase().includes(searchQuery.toLowerCase())
+      sub.name.toLowerCase().includes(searchQuery.toLowerCase())
     )
   )
-
-  const handleCategoryClick = (category: string, subcategory?: string, filters?: any) => {
-    if (onCategorySelect) {
-      onCategorySelect(category, subcategory, filters)
-    }
-  }
-
-  const handleQuickAccessClick = (item: string) => {
-    setSearchQuery(item)
-  }
 
   // Close when clicking outside
   useEffect(() => {
@@ -167,10 +222,7 @@ export default function MegaMenu({ onCategorySelect, onClose, isOpen }: MegaMenu
   }, [onClose])
 
   return (
-    <div 
-      ref={menuRef}
-      className="fixed inset-x-4 top-20 z-50 w-auto max-w-6xl mx-auto bg-gray-900 shadow-2xl rounded-xl border border-gray-700"
-    >
+    <div ref={menuRef} className="fixed inset-x-4 top-20 z-50 w-auto max-w-6xl mx-auto bg-gray-900 shadow-2xl rounded-xl border border-gray-700">
       {/* Header */}
       <div className="border-b border-gray-700 bg-gray-800 px-6 py-4 flex items-center justify-between">
         <div className="flex-1 max-w-md">
@@ -185,12 +237,7 @@ export default function MegaMenu({ onCategorySelect, onClose, isOpen }: MegaMenu
             />
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onClose}
-          className="text-gray-400 hover:text-white ml-4"
-        >
+        <Button variant="ghost" size="sm" onClick={onClose} className="text-gray-400 hover:text-white ml-4">
           <X className="h-4 w-4" />
         </Button>
       </div>
@@ -208,12 +255,12 @@ export default function MegaMenu({ onCategorySelect, onClose, isOpen }: MegaMenu
             const IconComponent = category.icon
             
             return (
-              <div key={category.name} className="space-y-3">
+              <div key={category.slug} className="space-y-3">
                 {/* Category Header */}
                 <Link
-                  href={`/search?category=${encodeURIComponent(category.name)}`}
+                  href={`/search?category=${category.slug}`}
                   className="flex items-center gap-3 font-semibold text-white hover:text-green-400 text-base group"
-                  onClick={() => handleCategoryClick(category.name)}
+                  onClick={onClose}
                 >
                   <div className={`w-10 h-10 ${category.bgColor} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
                     <IconComponent className={`w-5 h-5 ${category.color}`} />
@@ -226,32 +273,25 @@ export default function MegaMenu({ onCategorySelect, onClose, isOpen }: MegaMenu
 
                 {/* Subcategories */}
                 <div className="space-y-1.5 ml-13">
-                  {category.subcategories.slice(0, 6).map((sub) => {
-                    const subName = typeof sub === 'string' ? sub : sub.name
-                    const subType = typeof sub === 'object' ? sub.type : undefined
-                    const subFilters = typeof sub === 'object' ? sub.filters : undefined
-
-                    return (
-                      <Link
-                        key={subName}
-                        href={`/search?category=${encodeURIComponent(category.name)}&subcategory=${encodeURIComponent(subName)}${subType ? `&type=${subType}` : ''}`}
-                        className="flex items-center gap-2 text-gray-300 hover:text-green-400 text-sm hover:bg-gray-800 px-3 py-2 rounded-md transition-colors group"
-                        onClick={() => handleCategoryClick(category.name, subName, { type: subType, filters: subFilters })}
-                      >
-                        <span className="truncate">{subName}</span>
-                        {subType && (
-                          <Badge variant="secondary" className={`text-xs px-1.5 py-0 ${subType === 'rent' ? 'bg-green-500' : 'bg-blue-500'} text-white`}>
-                            {subType}
-                          </Badge>
-                        )}
-                      </Link>
-                    )
-                  })}
+                  {category.subcategories.slice(0, 6).map((subcategory) => (
+                    <Link
+                      key={subcategory.slug}
+                      href={`/search?category=${category.slug}&subcategory=${subcategory.slug}`}
+                      className="flex items-center gap-2 text-gray-300 hover:text-green-400 text-sm hover:bg-gray-800 px-3 py-2 rounded-md transition-colors group"
+                      onClick={onClose}
+                    >
+                      <span className="truncate">{subcategory.name}</span>
+                    </Link>
+                  ))}
                   
                   {category.subcategories.length > 6 && (
-                    <button className="text-xs text-gray-400 hover:text-green-400 px-3 py-1 transition-colors">
+                    <Link
+                      href={`/search?category=${category.slug}`}
+                      className="text-xs text-gray-400 hover:text-green-400 px-3 py-1 transition-colors block"
+                      onClick={onClose}
+                    >
                       +{category.subcategories.length - 6} more
-                    </button>
+                    </Link>
                   )}
                 </div>
               </div>
@@ -280,6 +320,7 @@ export default function MegaMenu({ onCategorySelect, onClose, isOpen }: MegaMenu
                 key={item}
                 href={`/search?q=${encodeURIComponent(item)}`}
                 className="text-sm text-gray-400 hover:text-green-400 hover:underline"
+                onClick={onClose}
               >
                 {item}
               </Link>
