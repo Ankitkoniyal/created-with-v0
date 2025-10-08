@@ -32,138 +32,103 @@ export function RelatedProducts({ category, currentProductId }: RelatedProductsP
           return
         }
 
-        // Get current product with subcategory info
+        console.log("Fetching current product:", currentProductId)
+
+        // Get current product with better error handling
         const { data: currentProduct, error: currentError } = await supabase
           .from("products")
           .select(`
             id,
             category,
             subcategory_id,
+            subcategory,
             title,
-            brand,
-            tags,
-            condition
+            brand
           `)
           .eq("id", currentProductId)
           .single()
 
-        if (currentError || !currentProduct) {
-          console.error("Error fetching current product:", currentError)
-          // Fallback to simple category matching
-          const { data: fallbackData } = await supabase
-            .from("products")
-            .select("id, title, price, images")
-            .eq("category", category)
-            .neq("id", currentProductId)
-            .limit(8)
-          
-          setProducts(fallbackData || [])
+        // Better error handling
+        if (currentError) {
+          console.error("Error fetching current product:", {
+            message: currentError.message,
+            details: currentError.details,
+            code: currentError.code
+          })
+          setProducts([])
           setLoading(false)
           return
         }
 
-        console.log("Current product:", {
+        if (!currentProduct) {
+          console.error("Current product not found with ID:", currentProductId)
+          setProducts([])
+          setLoading(false)
+          return
+        }
+
+        console.log("Current product found:", {
+          id: currentProduct.id,
           title: currentProduct.title,
           category: currentProduct.category,
+          subcategory: currentProduct.subcategory,
           subcategory_id: currentProduct.subcategory_id
         })
 
-        // Extract keywords from title
-        const titleKeywords = currentProduct.title
-          .toLowerCase()
-          .split(/\s+/)
-          .filter(word => word.length > 2)
-          .filter(word => !['for', 'and', 'the', 'with', 'new', 'used', 'sale'].includes(word))
-          .slice(0, 5)
+        // If no subcategory info, don't show related products
+        if (!currentProduct.subcategory && !currentProduct.subcategory_id) {
+          console.log("No subcategory information available, skipping related products")
+          setProducts([])
+          setLoading(false)
+          return
+        }
 
-        console.log("Extracted keywords:", titleKeywords)
-
-        // Build query with priority-based matching
+        // Build query for same subcategory products
         let query = supabase
           .from("products")
-          .select("id, title, price, images, subcategory_id")
+          .select("id, title, price, images, subcategory_id, subcategory")
+          .eq("category", currentProduct.category)
           .neq("id", currentProductId)
+          .eq("status", "active") // Only show active products
 
-        // PRIORITY 1: Same subcategory (most important!)
-        if (currentProduct.subcategory_id) {
-          console.log("Filtering by same subcategory_id:", currentProduct.subcategory_id)
+        // Filter by subcategory (priority to slug, then ID)
+        if (currentProduct.subcategory) {
+          console.log("Filtering by subcategory slug:", currentProduct.subcategory)
+          query = query.eq("subcategory", currentProduct.subcategory)
+        } else if (currentProduct.subcategory_id) {
+          console.log("Filtering by subcategory ID:", currentProduct.subcategory_id)
           query = query.eq("subcategory_id", currentProduct.subcategory_id)
-        }
-        
-        // Always filter by same category
-        query = query.eq("category", currentProduct.category)
-
-        // PRIORITY 2: Keyword matching in title
-        if (titleKeywords.length > 0) {
-          const keywordConditions = titleKeywords.map(keyword => 
-            `title.ilike.%${keyword}%`
-          ).join(',')
-          console.log("Adding keyword matching:", keywordConditions)
-          query = query.or(keywordConditions)
-        }
-
-        // PRIORITY 3: Brand matching
-        if (currentProduct.brand) {
-          query = query.ilike("brand", `%${currentProduct.brand}%`)
         }
 
         const { data, error } = await query.limit(8)
 
         if (error) {
-          console.error("Error with intelligent query:", error)
+          console.error("Error fetching related products:", error)
+          setProducts([])
+          return
         }
 
-        // If we have enough results with subcategory matching, use them
-        if (data && data.length >= 4) {
-          console.log("Found sufficient related products with subcategory matching:", data.length)
-          setProducts(data)
-        } else {
-          // Fallback: Expand search to same category but different subcategories
-          console.log("Need more products, expanding search...")
-          
-          let fallbackQuery = supabase
-            .from("products")
-            .select("id, title, price, images")
-            .eq("category", currentProduct.category)
-            .neq("id", currentProductId)
-
-          // If we have some data but not enough, combine results
-          if (data && data.length > 0) {
-            const existingIds = data.map(p => p.id)
-            fallbackQuery = fallbackQuery.not('id', 'in', `(${existingIds.join(',')})`)
-            
-            const { data: fallbackData } = await fallbackQuery.limit(8 - data.length)
-            const combinedProducts = [...data, ...(fallbackData || [])]
-            setProducts(combinedProducts.slice(0, 8))
-          } else {
-            // No results from intelligent query, use simple category matching
-            const { data: fallbackData } = await fallbackQuery.limit(8)
-            setProducts(fallbackData || [])
-          }
-        }
+        console.log(`Found ${data?.length || 0} related products`)
+        setProducts(data || [])
 
       } catch (error) {
-        console.error("Error in fetchRelatedProducts:", error)
-        // Final fallback
-        const supabase = await getSupabaseClient()
-        if (supabase) {
-          const { data: fallbackData } = await supabase
-            .from("products")
-            .select("id, title, price, images")
-            .eq("category", category)
-            .neq("id", currentProductId)
-            .limit(8)
-          
-          setProducts(fallbackData || [])
-        }
+        console.error("Unexpected error in fetchRelatedProducts:", error)
+        setProducts([])
       } finally {
         setLoading(false)
       }
     }
 
-    fetchRelatedProducts()
+    // Only fetch if we have a valid product ID
+    if (currentProductId && currentProductId !== "undefined") {
+      fetchRelatedProducts()
+    } else {
+      setLoading(false)
+      setProducts([])
+    }
   }, [category, currentProductId])
 
+  // Loading state
   if (loading) {
     return (
       <div className="mt-12">
@@ -181,10 +146,12 @@ export function RelatedProducts({ category, currentProductId }: RelatedProductsP
     )
   }
 
+  // Don't show anything if no related products found
   if (products.length === 0) {
     return null
   }
 
+  // Render related products
   return (
     <div className="mt-12">
       <h2 className="text-2xl font-bold mb-6">Related Products</h2>
@@ -197,15 +164,16 @@ export function RelatedProducts({ category, currentProductId }: RelatedProductsP
           >
             <div className="relative aspect-square overflow-hidden">
               <Image
-                src={product.images[0] || "/placeholder-product.jpg"}
+                src={product.images?.[0] || "/placeholder-product.jpg"}
                 alt={product.title}
                 fill
                 className="object-cover group-hover:scale-105 transition-transform"
+                sizes="(max-width: 768px) 50vw, 25vw"
               />
             </div>
             <div className="p-3">
-              <h3 className="font-medium text-sm line-clamp-2">{product.title}</h3>
-              <p className="text-lg font-bold mt-1">${product.price}</p>
+              <h3 className="font-medium text-sm line-clamp-2 mb-1">{product.title}</h3>
+              <p className="text-lg font-bold text-green-700">${product.price}</p>
             </div>
           </Link>
         ))}
