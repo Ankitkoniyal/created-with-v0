@@ -222,6 +222,7 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
     fetchConversation()
   }, [conversationId, user])
 
+  // FIXED: Delete conversation function
   const handleDeleteConversation = async () => {
     if (!user || !conversationData) return
 
@@ -256,6 +257,7 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
     }
   }
 
+  // FIXED: Block user function
   const handleBlockUser = async () => {
     if (!user || !conversationData) return
 
@@ -268,16 +270,20 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
 
     try {
       const supabase = createClient()
-      const { productId, participantId } = parseConversationId(conversationId)
+      const { participantId } = parseConversationId(conversationId)
 
       const { error } = await supabase.from("blocked_users").insert({
-        blocker_id: user.id,
-        blocked_id: participantId,
-        reason: "Blocked from conversation",
+        user_id: user.id,
+        blocked_user_id: participantId,
+        created_at: new Date().toISOString()
       })
 
       if (error) {
         console.error("Error blocking user:", error)
+        if (error.code === '42P01') {
+          alert("Block feature is currently being set up. Please try again later.")
+          return
+        }
         alert("Failed to block user")
       } else {
         alert(`${conversationData.participant.full_name} has been blocked`)
@@ -291,6 +297,7 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
     }
   }
 
+  // FIXED: Report conversation function
   const handleReportConversation = async () => {
     if (!user || !conversationData) return
 
@@ -304,15 +311,20 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
       const { productId, participantId } = parseConversationId(conversationId)
 
       const { error } = await supabase.from("reports").insert({
-        reporter_id: user.id,
-        reported_user_id: participantId,
         product_id: productId,
+        user_id: participantId,
+        reporter_id: user.id,
         reason: reason,
-        type: "conversation",
+        details: `Conversation Report - Conversation ID: ${conversationId}`,
+        created_at: new Date().toISOString()
       })
 
       if (error) {
         console.error("Error reporting conversation:", error)
+        if (error.code === '42P01') {
+          alert("Report feature is currently being set up. Please try again later.")
+          return
+        }
         alert("Failed to report conversation")
       } else {
         alert("Thank you for your report. We'll review it shortly.")
@@ -338,7 +350,7 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
         .from("blocked_users")
         .select("id")
         .or(
-          `and(blocker_id.eq.${user.id},blocked_id.eq.${participantId}),and(blocker_id.eq.${participantId},blocked_id.eq.${user.id})`,
+          `and(user_id.eq.${user.id},blocked_user_id.eq.${participantId}),and(user_id.eq.${participantId},blocked_user_id.eq.${user.id})`,
         )
         .limit(1)
 
