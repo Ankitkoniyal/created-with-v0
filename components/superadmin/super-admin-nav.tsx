@@ -20,13 +20,18 @@ import {
   Flag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getSupabaseClient } from "@/lib/supabase/client"; // ADD THIS IMPORT
+import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 interface NavStats {
   totalAds: number;
   activeAds: number;
   pendingReview: number;
   reportedAds: number;
+  totalUsers: number;
+  newUsersToday: number;
 }
 
 interface SuperAdminNavProps {
@@ -35,12 +40,13 @@ interface SuperAdminNavProps {
   activeView: string;
 }
 
-// Default stats to prevent undefined errors
 const defaultStats: NavStats = {
   totalAds: 0,
   activeAds: 0,
   pendingReview: 0,
   reportedAds: 0,
+  totalUsers: 0,
+  newUsersToday: 0,
 };
 
 const superAdminNavItems = [
@@ -62,14 +68,14 @@ const superAdminNavItems = [
     title: "Pending Review",
     href: "/superadmin/pending",
     icon: Clock,
-    badgeKey: null,
+    badgeKey: "pendingReview" as const,
     view: "pending" as const,
   },
   {
     title: "Reported Ads",
     href: "/superadmin/reported",
     icon: Flag,
-    badgeKey: null,
+    badgeKey: "reportedAds" as const,
     view: "reported" as const,
   },
   {
@@ -110,14 +116,25 @@ const superAdminNavItems = [
 ];
 
 export function SuperAdminNav({ stats = defaultStats, onNavigate, activeView }: SuperAdminNavProps) {
-  // Merge provided stats with defaults to ensure all properties exist
   const safeStats = { ...defaultStats, ...stats };
+  const { isAdmin, user } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (user && !isAdmin) {
+      router.push("/");
+    }
+  }, [user, isAdmin, router]);
 
   const handleSignOut = async () => {
-    const supabase = await getSupabaseClient();
+    const supabase = createClient();
     await supabase.auth.signOut();
     window.location.href = "/";
   };
+
+  if (user && !isAdmin) {
+    return null;
+  }
 
   return (
     <div className="w-72 bg-gray-950 text-white p-6 flex flex-col h-full">
@@ -162,10 +179,10 @@ export function SuperAdminNav({ stats = defaultStats, onNavigate, activeView }: 
                 <span>{item.title}</span>
               </div>
               {badgeValue !== null && badgeValue > 0 && (
-                <span className={cn("px-2 py-1 text-xs font-semibold rounded-full",
+                <span className={cn("px-2 py-1 text-xs font-semibold rounded-full min-w-6 text-center",
                   isActive ? "bg-white text-green-700" : "bg-green-700 text-white"
                 )}>
-                  {badgeValue}
+                  {badgeValue > 99 ? '99+' : badgeValue}
                 </span>
               )}
             </button>
