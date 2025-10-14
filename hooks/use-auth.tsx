@@ -33,7 +33,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const mountedRef = useRef(true)
 
-  // ✅ FIX: Use ref for mount status to prevent memory leaks
   useEffect(() => {
     mountedRef.current = true
     return () => {
@@ -68,7 +67,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // ✅ FIX: Extract session sync to separate function
   const syncServerSession = async (event: string, session: any | null) => {
     try {
       await fetch("/api/auth/set", {
@@ -85,7 +83,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // ✅ FIX: Extract profile fetching logic
   const fetchUserProfile = async (userId: string, userData: User, supabase: any): Promise<Profile | null> => {
     try {
       if (!supabase) return null
@@ -115,7 +112,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // ✅ FIX: Extract session clearing logic
   const clearAllSessionData = async (supabase: any) => {
     try {
       await Promise.allSettled([
@@ -127,7 +123,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         supabase.auth.signOut(),
       ])
 
-      // Clear localStorage safely
       if (typeof window !== "undefined") {
         try {
           const keys = Object.keys(localStorage)
@@ -161,7 +156,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return
         }
 
-        // Get current session
         const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
 
         if (sessionError) {
@@ -182,7 +176,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (!mountedRef.current) return
 
-        // Validate session
         if (session?.user && (!session?.access_token || !session?.refresh_token)) {
           await clearAllSessionData(supabase)
           if (mountedRef.current) {
@@ -196,7 +189,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (session?.user) {
           console.log("[v0] Found existing session for user:", session.user.email)
           
-          // Sync session with server
           if (session.access_token && session.refresh_token) {
             await syncServerSession("SIGNED_IN", session)
           }
@@ -205,7 +197,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           if (mountedRef.current) setIsLoading(false)
 
-          // ✅ FIX: Sequential profile handling to avoid race conditions
           const profileData = await fetchUserProfile(session.user.id, session.user, supabase)
           if (!profileData) {
             await ensureProfile()
@@ -229,7 +220,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Set up auth state listener
     const setupAuthListener = async () => {
       try {
         supabase = await getSupabaseClient()
@@ -239,7 +229,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (!mountedRef.current) return
 
           try {
-            // Handle token refresh issues
             if (event === "TOKEN_REFRESHED" && (!session?.access_token || !session?.refresh_token)) {
               await clearAllSessionData(supabase)
               if (mountedRef.current) {
@@ -250,7 +239,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               return
             }
 
-            // Sync with server
             if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") &&
                 session?.access_token && session?.refresh_token) {
               await syncServerSession(event, session)
@@ -258,14 +246,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               await syncServerSession(event, null)
             }
 
-            // Update state based on event
             switch (event) {
               case "SIGNED_IN":
                 if (session?.user) {
                   setUser(session.user)
                   if (mountedRef.current) setIsLoading(false)
                   
-                  // ✅ FIX: Sequential profile handling
                   await ensureProfile()
                   const profileData = await fetchUserProfile(session.user.id, session.user, supabase)
                   if (mountedRef.current) setProfile(profileData)
@@ -299,9 +285,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Initialize auth
     initializeAuth().then(() => {
-      // Set up listener after initialization
       setupAuthListener()
     })
 
@@ -311,10 +295,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         unsubscribe()
       }
     }
-  }, []) // ✅ Empty deps array is correct for mount-only
-
-  // ... rest of your functions (login, signup, logout) remain mostly the same
-  // but can be optimized with the extracted helper functions
+  }, [])
 
   const login = async (email: string, password: string) => {
     try {
@@ -341,9 +322,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(data.session.user)
 
         if (data.session.access_token && data.session.refresh_token) {
-          // ✅ FIX: Use extracted functions
           await syncServerSession("SIGNED_IN", data.session)
-          await ensureProfile() // Wait for profile creation
+          await ensureProfile()
           
           const profileData = await fetchUserProfile(data.session.user.id, data.session.user, s)
           if (mountedRef.current) setProfile(profileData)
@@ -419,6 +399,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext)
+  
+  // ADDED: Simple admin check based on email
+  const isAdmin = context?.user?.email?.includes('admin') || 
+                  context?.user?.email === 'admin@example.com' || // Change this to your admin email
+                  context?.user?.email?.endsWith('@youradmindomain.com') // Change this to your admin domain
+
   if (context === undefined) {
     return {
       user: null,
@@ -427,7 +413,12 @@ export function useAuth() {
       signup: async () => ({ error: "Authentication is not available right now. Please try again later." }),
       logout: async () => {},
       isLoading: false,
+      isAdmin: false // ADDED
     }
   }
-  return context
+
+  return {
+    ...context,
+    isAdmin // ADDED
+  }
 }
