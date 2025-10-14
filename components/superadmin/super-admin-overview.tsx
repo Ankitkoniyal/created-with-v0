@@ -17,7 +17,8 @@ import {
   ChevronDown,
   MoreHorizontal,
   UserPlus,
-  TrendingUp
+  TrendingUp,
+  AlertTriangle
 } from "lucide-react"
 import { getSupabaseClient } from "@/lib/supabase/client"
 import {
@@ -40,7 +41,7 @@ interface RecentUser {
   id: string;
   email: string;
   created_at: string;
-  name?: string;
+  full_name?: string | null;
 }
 
 interface RecentAd {
@@ -71,6 +72,14 @@ const defaultStats: DashboardStats = {
   reportedAds: 0,
 };
 
+// Helper function to calculate date for filtering
+const getDateRange = (range: "7d" | "30d" | "90d") => {
+  const days = range === '7d' ? 7 : range === '30d' ? 30 : 90;
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return date.toISOString();
+}
+
 export function SuperAdminOverview({ 
   stats = defaultStats, 
   onNavigate
@@ -82,40 +91,82 @@ export function SuperAdminOverview({
   const [signupData, setSignupData] = useState<SignupData[]>([]);
   const [timeRange, setTimeRange] = useState<"7d" | "30d" | "90d">("7d");
 
+  // This useEffect handles initial load and range change for data fetching
   useEffect(() => {
-    // Merge provided stats with defaults
     setSafeStats({ ...defaultStats, ...stats });
     fetchRecentData();
     fetchSignupData(timeRange);
   }, [stats, timeRange]);
 
+  // This useEffect sets up the REALTIME listener for new signups
+  useEffect(() => {
+    let userChannel: any;
+
+    const setupRealtime = async () => {
+      const supabase = await getSupabaseClient();
+      
+      // Realtime Subscription for New User Signups
+      userChannel = supabase
+        .channel('new-user-signups')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'profiles' }, // Listen for new rows in profiles
+          (payload) => {
+            const newProfile = payload.new as RecentUser;
+            
+            // 1. Update Recent Users List
+            setRecentUsers(prevUsers => [
+              {
+                id: newProfile.id,
+                email: newProfile.email,
+                created_at: newProfile.created_at,
+                full_name: newProfile.full_name,
+              },
+              ...prevUsers.slice(0, 4) // Keep the list max 5
+            ]);
+            
+            // 2. Update Total Users Count
+            setSafeStats(prev => ({ ...prev, totalUsers: prev.totalUsers + 1 }));
+            
+            console.log('Realtime: New user signed up:', newProfile.email);
+          }
+        )
+        .subscribe();
+    };
+
+    setupRealtime();
+    
+    // Cleanup function
+    return () => {
+      if (userChannel) {
+        getSupabaseClient().then(supabase => supabase.removeChannel(userChannel));
+      }
+    };
+  }, []); // Empty dependency array means this runs only once on mount
+
+
   const fetchRecentData = async () => {
     try {
       const supabase = await getSupabaseClient();
 
+      // Fetch Recent Users & Ads
       const [recentUsersRes, recentAdsRes] = await Promise.all([
         supabase.from('profiles').select('id, email, created_at, full_name').order('created_at', { ascending: false }).limit(5),
         supabase.from('products').select('id, title, price, category, created_at, status, user_id').order('created_at', { ascending: false }).limit(5),
       ]);
 
-      // Get user emails for ads
-      const adsWithEmails = await Promise.all(
-        (recentAdsRes.data || []).map(async (ad) => {
-          const { data: userData } = await supabase
-            .from('profiles')
-            .select('email')
-            .eq('id', ad.user_id)
-            .single();
+      // Fetch user emails for recent ads (optimized to fetch user emails in a batch, though not fully shown here, this structure assumes a profiles table)
+      const userIds = [...new Set((recentAdsRes.data || []).map(ad => ad.user_id))]
+      const { data: profilesMapData } = await supabase.from('profiles').select('id, email').in('id', userIds)
+      const userEmailMap: Record<string, string> = (profilesMapData || []).reduce((acc, p) => ({...acc, [p.id]: p.email}), {})
+      
+      const adsWithEmails = (recentAdsRes.data || []).map(ad => ({
+        ...ad,
+        user_email: userEmailMap[ad.user_id] || 'Unknown User',
+      }));
 
-          return {
-            ...ad,
-            user_email: userData?.email || 'Unknown'
-          };
-        })
-      );
-
-      setRecentUsers(recentUsersRes.data || []);
-      setRecentAds(adsWithEmails);
+      setRecentUsers(recentUsersRes.data as RecentUser[] || []);
+      setRecentAds(adsWithEmails as RecentAd[]);
     } catch (error) {
       console.error("Error fetching recent data:", error);
     } finally {
@@ -123,372 +174,275 @@ export function SuperAdminOverview({
     }
   };
 
+  // Simplified fetchSignupData for demonstration
   const fetchSignupData = async (range: "7d" | "30d" | "90d") => {
+    const startDate = getDateRange(range);
     try {
       const supabase = await getSupabaseClient();
-      const { data, error } = await supabase
+      
+      // NOTE: This requires a custom function or view in Supabase for aggregation by date.
+      // For a client-side approximation:
+      const { data } = await supabase
         .from('profiles')
         .select('created_at')
-        .gte('created_at', getStartDate(range))
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        console.error("Supabase error:", error);
-        throw error;
-      }
-
-      // Process data to count signups by day
-      const signupsByDay: Record<string, number> = {};
+        .gt('created_at', startDate)
       
-      data?.forEach(user => {
-        const date = new Date(user.created_at).toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric'
-        });
-        
-        signupsByDay[date] = (signupsByDay[date] || 0) + 1;
-      });
-
-      // Convert to array format
-      const signupArray = Object.entries(signupsByDay).map(([date, count]) => ({
+      const aggregation = (data || []).reduce((acc, user) => {
+        const dateKey = user.created_at.substring(0, 10); // YYYY-MM-DD
+        acc[dateKey] = (acc[dateKey] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      // Transform to chart data format
+      const chartData: SignupData[] = Object.keys(aggregation).map(date => ({
         date,
-        count
-      }));
+        count: aggregation[date],
+      })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      
+      setSignupData(chartData);
 
-      setSignupData(signupArray);
     } catch (error) {
       console.error("Error fetching signup data:", error);
-      setSignupData([]);
     }
-  };
-
-  const getStartDate = (range: "7d" | "30d" | "90d") => {
-    const now = new Date();
-    const startDate = new Date();
-    
-    switch (range) {
-      case "7d":
-        startDate.setDate(now.getDate() - 7);
-        break;
-      case "30d":
-        startDate.setDate(now.getDate() - 30);
-        break;
-      case "90d":
-        startDate.setDate(now.getDate() - 90);
-        break;
-    }
-    
-    return startDate.toISOString();
-  };
-
-  const approveAd = async (adId: string) => {
-    try {
-      const supabase = await getSupabaseClient();
-      const { error } = await supabase
-        .from('products')
-        .update({ status: 'active' })
-        .eq('id', adId);
-
-      if (error) throw error;
-
-      // Update local state
-      setRecentAds(prev => prev.map(ad => 
-        ad.id === adId ? { ...ad, status: 'active' } : ad
-      ));
-    } catch (error) {
-      console.error("Error approving ad:", error);
-    }
-  };
+  }
 
   const approveAllAds = async () => {
     try {
-      const supabase = await getSupabaseClient();
+      const supabase = await getSupabaseClient()
       const { error } = await supabase
         .from('products')
         .update({ status: 'active' })
-        .eq('status', 'pending');
-
-      if (error) throw error;
-
-      // Update local state
-      setRecentAds(prev => prev.map(ad => 
-        ad.status === 'pending' ? { ...ad, status: 'active' } : ad
-      ));
+        .eq('status', 'pending')
+        
+      if (error) throw error
+      
+      // Update local state to reflect change
+      setSafeStats(prev => ({ ...prev, pendingReview: 0 }));
+      alert("All pending ads approved successfully.")
     } catch (error) {
-      console.error("Error approving all ads:", error);
+      console.error('Error approving all ads:', error)
+      alert("Failed to approve all pending ads.")
     }
-  };
+  }
 
-  const handleUserClick = (userId: string) => {
-    onNavigate('users', userId);
-  };
+  // Helper to format date
+  const formatTime = (timestamp: string) => new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  const handleAdClick = (adId: string) => {
-    onNavigate('ads', adId);
-  };
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="h-8 w-64 bg-gray-700 rounded animate-pulse"></div>
-            <div className="h-4 w-80 bg-gray-700 rounded mt-2 animate-pulse"></div>
-          </div>
-          <div className="h-10 w-64 bg-gray-700 rounded-lg animate-pulse"></div>
-        </div>
-        
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-          {[1, 2, 3, 4, 5].map(i => (
-            <Card key={i} className="p-4 bg-gray-800 border-gray-700 animate-pulse">
-              <div className="h-6 bg-gray-700 rounded w-3/4 mb-4"></div>
-              <div className="h-8 bg-gray-700 rounded w-1/2"></div>
-            </Card>
-          ))}
-        </div>
+      <div className="text-center py-10">
+        <span className="text-white">Loading Dashboard...</span>
       </div>
     );
   }
 
-  const systemStats = [
-    { 
-      title: "Total Users", 
-      value: safeStats.totalUsers.toLocaleString(), 
-      icon: Users, 
-      color: "text-blue-400", 
-      bgColor: "bg-blue-900/30",
-      onClick: () => onNavigate('users')
-    },
-    { 
-      title: "Total Ads", 
-      value: safeStats.totalAds.toLocaleString(), 
-      icon: FileText, 
-      color: "text-purple-400", 
-      bgColor: "bg-purple-900/30",
-      onClick: () => onNavigate('ads')
-    },
-    { 
-      title: "Active Ads", 
-      value: safeStats.activeAds.toLocaleString(), 
-      icon: Eye, 
-      color: "text-green-400", 
-      bgColor: "bg-green-900/30",
-      onClick: () => onNavigate('ads')
-    },
-    { 
-      title: "Pending Review", 
-      value: safeStats.pendingReview.toLocaleString(), 
-      icon: Clock, 
-      color: "text-yellow-400", 
-      bgColor: "bg-yellow-900/30",
-      onClick: () => onNavigate('pending')
-    },
-    { 
-      title: "Reported Ads", 
-      value: safeStats.reportedAds.toLocaleString(), 
-      icon: Flag, 
-      color: "text-red-400", 
-      bgColor: "bg-red-900/30",
-      onClick: () => onNavigate('reported')
-    },
-  ];
-
-  const maxSignupCount = signupData.length > 0 ? Math.max(...signupData.map(d => d.count)) : 0;
-
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Dashboard Overview</h1>
-          <p className="text-gray-400">Welcome back, here's what's happening today</p>
-        </div>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search ads, users, reports..."
-            className="w-full sm:w-64 pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
-      </div>
+      <h1 className="text-3xl font-bold text-white">Dashboard Overview</h1>
 
-      {/* Stats Overview */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-        {systemStats.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <Card 
-              key={stat.title} 
-              className="p-4 bg-gray-800 border-gray-700 rounded-lg shadow-md hover:border-gray-600 transition-colors cursor-pointer"
-              onClick={stat.onClick}
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-400 mb-1">{stat.title}</p>
-                  <p className="text-2xl font-bold text-white">{stat.value}</p>
-                </div>
-                <div className={`p-2 rounded-lg ${stat.bgColor}`}>
-                  <Icon className={`w-5 h-5 ${stat.color}`} />
-                </div>
-              </div>
-            </Card>
-          );
-        })}
-      </div>
-
-      {/* User Signups Graph */}
-      <Card className="p-6 bg-gray-800 border-gray-700 rounded-lg shadow-md">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold text-white">User Signups Over Time</h2>
-          <Select value={timeRange} onValueChange={(value: "7d" | "30d" | "90d") => setTimeRange(value)}>
-            <SelectTrigger className="w-[120px] bg-gray-700 border-gray-600 text-white rounded-lg">
-              <SelectValue placeholder="Time Range" />
-            </SelectTrigger>
-            <SelectContent className="bg-gray-800 border-gray-700 text-white rounded-lg">
-              <SelectItem value="7d">Last 7 Days</SelectItem>
-              <SelectItem value="30d">Last 30 Days</SelectItem>
-              <SelectItem value="90d">Last 90 Days</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        {signupData.length === 0 ? (
-          <div className="text-center py-12 text-gray-400">
-            <UserPlus className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            No signup data available for this period.
+      {/* Main Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* Card for Total Users */}
+        <Card className="p-5 bg-gray-800 border-gray-700">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-400">Total Users</span>
+            <Users className="w-5 h-5 text-blue-500" />
           </div>
-        ) : (
-          <div className="h-64 flex items-end space-x-1 sm:space-x-2 p-2">
-            {signupData.map((data, index) => (
-              <div
-                key={index}
-                className="flex-1 flex flex-col items-center justify-end group relative"
-              >
-                <div className="absolute -top-8 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gray-800 text-white text-xs rounded-md py-1 px-2">
-                  {data.count} signups on {data.date}
-                </div>
-                <div
-                  className="w-full bg-blue-500 rounded-t-lg transition-all duration-300 ease-in-out hover:bg-blue-400"
-                  style={{ height: `${maxSignupCount > 0 ? (data.count / maxSignupCount) * 100 : 0}%` }}
-                ></div>
-                <span className="text-xs text-gray-400 mt-1">
-                  {data.date.split('/')[1]}/{data.date.split('/')[0]}
-                </span>
-              </div>
-            ))}
+          <div className="mt-1">
+            <p className="text-3xl font-bold text-white">{safeStats.totalUsers}</p>
+            {/* <p className="text-xs text-green-400 flex items-center mt-1">
+              <TrendingUp className="w-3 h-3 mr-1" /> 
+              {stats.userGrowth}% last 30 days
+            </p> */}
           </div>
-        )}
-      </Card>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recently Signed Up Users */}
-        <Card className="p-0 bg-gray-800 border-gray-700 rounded-lg shadow-md overflow-hidden">
-          <div className="flex items-center justify-between p-5 border-b border-gray-700">
-            <h2 className="text-lg font-semibold text-white">Recently Signed Up Users</h2>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="text-gray-400 hover:text-white"
-              onClick={() => onNavigate('users')}
-            >
-              View all
-            </Button>
-          </div>
-          {recentUsers.length === 0 ? (
-            <div className="text-center py-12 px-4 text-gray-400">
-              <UserPlus className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              No new users recently.
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-700">
-              {recentUsers.map((user) => (
-                <div 
-                  key={user.id} 
-                  className="p-4 hover:bg-gray-750/50 transition-colors cursor-pointer group"
-                  onClick={() => handleUserClick(user.id)}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-3 flex-1 min-w-0">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-white truncate group-hover:text-blue-400 transition-colors">
-                          {user.email}
-                        </h3>
-                        <p className="text-sm text-gray-500 mt-1">
-                          Joined: {new Date(user.created_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                    <ChevronDown className="w-4 h-4 text-gray-500 transform rotate-270 group-hover:text-white transition-colors" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </Card>
 
-        {/* Recently Posted Ads */}
-        <Card className="p-0 bg-gray-800 border-gray-700 rounded-lg shadow-md overflow-hidden">
-          <div className="flex items-center justify-between p-5 border-b border-gray-700">
-            <h2 className="text-lg font-semibold text-white">Recently Posted Ads</h2>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="text-gray-400 hover:text-white"
-              onClick={() => onNavigate('ads')}
-            >
-              View all
+        {/* Card for Total Ads */}
+        <Card className="p-5 bg-gray-800 border-gray-700">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-400">Total Ads</span>
+            <FileText className="w-5 h-5 text-yellow-500" />
+          </div>
+          <div className="mt-1">
+            <p className="text-3xl font-bold text-white">{safeStats.totalAds}</p>
+            {/* <p className="text-xs text-green-400 flex items-center mt-1">
+              <TrendingUp className="w-3 h-3 mr-1" /> 
+              {stats.adGrowth}% last 30 days
+            </p> */}
+          </div>
+        </Card>
+
+        {/* Card for Active Ads */}
+        <Card className="p-5 bg-gray-800 border-gray-700">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-400">Active Ads</span>
+            <CheckCircle className="w-5 h-5 text-green-500" />
+          </div>
+          <div className="mt-1">
+            <p className="text-3xl font-bold text-white">{safeStats.activeAds}</p>
+            <p className="text-xs text-gray-400 mt-1">
+              {Math.round((safeStats.activeAds / (safeStats.totalAds || 1)) * 100)}% of total
+            </p>
+          </div>
+        </Card>
+
+        {/* Card for Pending Review */}
+        <Card 
+          className="p-5 bg-gray-800 border-gray-700 cursor-pointer hover:border-yellow-500 transition-colors"
+          onClick={() => onNavigate('pending')}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-400">Pending Review</span>
+            <Clock className="w-5 h-5 text-yellow-500" />
+          </div>
+          <div className="mt-1">
+            <p className="text-3xl font-bold text-white">{safeStats.pendingReview}</p>
+            <p className="text-xs text-yellow-400 mt-1">
+              {safeStats.pendingReview > 0 ? 'Action Required' : 'All Clear'}
+            </p>
+          </div>
+        </Card>
+        
+        {/* Card for Reported Ads */}
+        <Card 
+          className="p-5 bg-gray-800 border-gray-700 cursor-pointer hover:border-red-500 transition-colors"
+          onClick={() => onNavigate('reports')}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-400">Reported Ads</span>
+            <Flag className="w-5 h-5 text-red-500" />
+          </div>
+          <div className="mt-1">
+            <p className="text-3xl font-bold text-white">{safeStats.reportedAds}</p>
+            <p className="text-xs text-red-400 mt-1">
+              {safeStats.reportedAds > 0 ? 'Critical Review' : 'No Active Reports'}
+            </p>
+          </div>
+        </Card>
+      </div>
+
+      {/* Charts and Lists Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Signups Chart (Simulated) */}
+        <Card className="lg:col-span-2 p-6 bg-gray-800 border-gray-700">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-white">Signups Over Time</h3>
+            <Select value={timeRange} onValueChange={setTimeRange as (value: string) => void}>
+              <SelectTrigger className="w-[120px] bg-gray-700 border-gray-600 text-white">
+                <SelectValue placeholder="Time Range" />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-800 border-gray-600 text-white">
+                <SelectItem value="7d">Last 7 Days</SelectItem>
+                <SelectItem value="30d">Last 30 Days</SelectItem>
+                <SelectItem value="90d">Last 90 Days</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="h-60 flex items-end gap-2 border-l border-b border-gray-700 pt-4">
+            {signupData.length > 0 ? (
+              signupData.map((dataPoint) => (
+                <div 
+                  key={dataPoint.date} 
+                  className="flex flex-col items-center justify-end group h-full"
+                  style={{ width: `${100 / signupData.length}%` }}
+                >
+                  <div 
+                    className="bg-green-600 w-3 rounded-t-sm transition-all duration-300 relative"
+                    style={{ height: `${(dataPoint.count / Math.max(...signupData.map(d => d.count))) * 90 + 10}%` }}
+                  >
+                     <span className="absolute -top-6 text-xs text-green-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {dataPoint.count}
+                    </span>
+                  </div>
+                  <span className="text-xs text-gray-400 mt-1">{new Date(dataPoint.date).getDate()}</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-gray-400 w-full text-center">No signup data for this period.</p>
+            )}
+          </div>
+          <div className="flex justify-between text-xs text-gray-400 pt-1">
+             <span>{signupData.length > 0 ? new Date(signupData[0].date).toLocaleDateString() : ''}</span>
+             <span>{signupData.length > 0 ? new Date(signupData[signupData.length - 1].date).toLocaleDateString() : ''}</span>
+          </div>
+        </Card>
+
+        {/* Recent Users List */}
+        <Card className="p-6 bg-gray-800 border-gray-700">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+              <UserPlus className="w-5 h-5 text-green-500" /> Recent Signups
+            </h3>
+            <Button variant="ghost" size="sm" onClick={() => onNavigate('users')} className="text-gray-400 hover:text-white">
+              View All
             </Button>
           </div>
-          {recentAds.length === 0 ? (
-            <div className="text-center py-12 px-4 text-gray-400">
-              <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              No recent ads.
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-700">
-              {recentAds.map((ad) => (
-                <div 
-                  key={ad.id} 
-                  className="p-4 hover:bg-gray-750/50 transition-colors cursor-pointer group"
-                  onClick={() => handleAdClick(ad.id)}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-3 flex-1 min-w-0">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-white truncate group-hover:text-purple-400 transition-colors">
-                          {ad.title}
-                        </h3>
-                        <p className="text-sm text-gray-300 mt-1">${ad.price.toLocaleString()} • {ad.category}</p>
-                        <p className="text-xs text-gray-500 mt-2">
-                          By: {ad.user_email} • {new Date(ad.created_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2 ml-4">
-                      {ad.status === 'pending' && (
-                        <Button
-                          size="sm"
-                          className="bg-green-600 hover:bg-green-700 h-8 px-3"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            approveAd(ad.id);
-                          }}
-                        >
-                          <CheckCircle className="w-4 h-4 mr-1" />
-                          Approve
-                        </Button>
-                      )}
-                      <ChevronDown className="w-4 h-4 text-gray-500 transform rotate-270 group-hover:text-white transition-colors mt-2" />
-                    </div>
-                  </div>
+          <div className="space-y-3">
+            {recentUsers.map((user) => (
+              <div key={user.id} className="flex items-center justify-between border-b border-gray-700 pb-2 last:border-b-0">
+                <div>
+                  <p className="text-sm font-medium text-white">{user.full_name || 'New User'}</p>
+                  <p className="text-xs text-gray-400">{user.email}</p>
                 </div>
-              ))}
-            </div>
-          )}
+                <div className="text-right">
+                  <Badge variant="outline" className="text-green-400 border-green-700 text-xs">New</Badge>
+                  <p className="text-xs text-gray-500 mt-1">{formatTime(user.created_at)}</p>
+                </div>
+              </div>
+            ))}
+            {recentUsers.length === 0 && <p className="text-gray-500 text-sm text-center">No recent signups.</p>}
+          </div>
+        </Card>
+      </div>
+      
+      {/* Recent Ads and Quick Actions */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Recent Ads List */}
+        <Card className="lg:col-span-2 p-6 bg-gray-800 border-gray-700">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+              <FileText className="w-5 h-5 text-yellow-500" /> Recent Ads Posted
+            </h3>
+            <Button variant="ghost" size="sm" onClick={() => onNavigate('ads')} className="text-gray-400 hover:text-white">
+              View All
+            </Button>
+          </div>
+          <div className="space-y-3">
+            {recentAds.map((ad) => (
+              <div key={ad.id} className="flex items-center justify-between border-b border-gray-700 pb-2 last:border-b-0">
+                <div className="flex-1 min-w-0 pr-4">
+                  <p className="text-sm font-medium text-white truncate">{ad.title}</p>
+                  <p className="text-xs text-gray-400 truncate">{ad.user_email} in {ad.category}</p>
+                </div>
+                <div className="text-right flex items-center gap-3">
+                  <Badge 
+                    className={`text-xs ${ad.status === 'active' ? 'bg-green-600' : ad.status === 'pending' ? 'bg-yellow-600' : 'bg-red-600'}`}
+                  >
+                    {ad.status}
+                  </Badge>
+                  <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+                    <Eye className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+            {recentAds.length === 0 && <p className="text-gray-500 text-sm text-center">No recent ads found.</p>}
+          </div>
+        </Card>
+        
+        {/* Quick Actions */}
+        <Card className="p-6 bg-gray-800 border-gray-700 flex flex-col justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
+          </div>
+          
           {safeStats.pendingReview > 0 && (
-            <div className="p-4 border-t border-gray-700 bg-gray-850">
-              <Button
-                className="w-full bg-green-600 hover:bg-green-700 justify-center"
+            <div className="mt-4">
+              <Button 
+                className="w-full bg-yellow-600 hover:bg-yellow-700 text-white"
                 onClick={approveAllAds}
               >
                 <CheckCircle className="w-4 h-4 mr-2" />
@@ -496,10 +450,21 @@ export function SuperAdminOverview({
               </Button>
             </div>
           )}
+          
+          <div className="mt-2">
+            <Button 
+              className="w-full bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => onNavigate('reports')}
+              disabled={safeStats.reportedAds === 0}
+            >
+              <AlertTriangle className="w-4 h-4 mr-2" />
+              Review Reported Ads ({safeStats.reportedAds})
+            </Button>
+          </div>
         </Card>
       </div>
 
-      {/* System Status */}
+      {/* System Status - Placeholder */}
       <Card className="p-0 bg-gray-800 border-gray-700 rounded-lg shadow-md overflow-hidden">
         <div className="p-5 border-b border-gray-700">
           <h3 className="text-lg font-semibold text-white">System Status</h3>
@@ -515,7 +480,7 @@ export function SuperAdminOverview({
               <div className="flex items-center justify-between">
                 <span className="text-gray-300">{service.name}</span>
                 <span className={`text-xs font-medium ${service.color}`}>
-                  <span className="inline-block w-2 h-2 rounded-full bg-current mr-1"></span>
+                  <span className="inline-block w-2 h-2 mr-1 rounded-full bg-current"></span>
                   {service.status}
                 </span>
               </div>
