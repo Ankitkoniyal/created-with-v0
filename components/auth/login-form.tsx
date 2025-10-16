@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect, Suspense } from "react"
-import type React from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -13,10 +12,86 @@ import { Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react"
 import { SuccessOverlay } from "@/components/ui/success-overlay"
 import { getSupabaseClient } from "@/lib/supabase/client"
 
-// Wrap the main component with Suspense to handle useSearchParams
+// Client-side storage utility
+const useClientStorage = () => {
+  const getItem = (key: string): string | null => {
+    if (typeof window === "undefined") return null
+    try {
+      return localStorage.getItem(key)
+    } catch {
+      return null
+    }
+  }
+
+  const setItem = (key: string, value: string): void => {
+    if (typeof window === "undefined") return
+    try {
+      localStorage.setItem(key, value)
+    } catch {
+      // Silent fail in production
+    }
+  }
+
+  const removeItem = (key: string): void => {
+    if (typeof window === "undefined") return
+    try {
+      localStorage.removeItem(key)
+    } catch {
+      // Silent fail in production
+    }
+  }
+
+  return { getItem, setItem, removeItem }
+}
+
+// Validation utilities
+const isValidEmail = (email: string): boolean => {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+const sanitizeInput = (input: string): string => {
+  return input.trim().replace(/[<>]/g, "")
+}
+
+const getSafeRedirect = (redirectUrl: string | null): string => {
+  if (!redirectUrl) return "/"
+  try {
+    const url = redirectUrl.trim()
+    if (!url.startsWith("/")) return "/"
+    if (url.includes("//") || url.includes(":")) return "/"
+    const blockedPaths = ["/auth", "/login", "/signup", "/sign-in", "/sign-up", "/forgot-password"]
+    if (blockedPaths.some(path => url.startsWith(path))) return "/"
+    if (url.includes("<") || url.includes(">") || url.includes("javascript:")) return "/"
+    return url
+  } catch {
+    return "/"
+  }
+}
+
+const getAuthErrorMessage = (errorMessage: string): string => {
+  const message = errorMessage.toLowerCase()
+  
+  if (message.includes("invalid login credentials") || message.includes("invalid email or password")) {
+    return "Invalid email or password. Please check your credentials and try again."
+  } else if (message.includes("email not confirmed") || message.includes("confirmation")) {
+    return "Please confirm your email before signing in. Check your inbox for a confirmation link."
+  } else if (message.includes("too many") || message.includes("rate")) {
+    return "Too many login attempts. Please wait a few minutes and try again."
+  } else if (message.includes("network") || message.includes("fetch")) {
+    return "Network error. Please check your connection and try again."
+  } else if (message.includes("signup") || message.includes("sign up")) {
+    return "Account not found. Please sign up first or check your email address."
+  } else {
+    return "An error occurred during login. Please try again."
+  }
+}
+
+// Main form component
 function LoginFormContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { getItem, setItem, removeItem } = useClientStorage()
+  
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -26,94 +101,31 @@ function LoginFormContent() {
   const [successOpen, setSuccessOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
 
-  // Safe localStorage utility
-  const getSafeLocalStorage = (key: string): string | null => {
-    if (typeof window === "undefined") return null
-    try {
-      return localStorage.getItem(key)
-    } catch {
-      return null
-    }
-  }
-
-  const setSafeLocalStorage = (key: string, value: string): void => {
-    if (typeof window === "undefined") return
-    try {
-      localStorage.setItem(key, value)
-    } catch (error) {
-      console.error("LocalStorage set error:", error)
-    }
-  }
-
-  const removeSafeLocalStorage = (key: string): void => {
-    if (typeof window === "undefined") return
-    try {
-      localStorage.removeItem(key)
-    } catch (error) {
-      console.error("LocalStorage remove error:", error)
-    }
-  }
-
-  const getSafeRedirect = (v: string): string => {
-    try {
-      const val = (v || "/").trim()
-      if (!val.startsWith("/")) return "/"
-      if (val.startsWith("/auth")) return "/"
-      if (/\/(login|signup|sign-up|sign-in)/i.test(val)) return "/"
-      return val
-    } catch {
-      return "/"
-    }
-  }
-
   const rawRedirect = searchParams.get("redirectedFrom") || "/"
   const redirectedFrom = getSafeRedirect(rawRedirect)
 
-  // Initialize component after mount
+  // Initialize after mount
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  // Load saved credentials only after component mounts
+  // Load saved credentials
   useEffect(() => {
     if (!mounted) return
 
-    const savedCredentials = getSafeLocalStorage("rememberedCredentials")
+    const savedCredentials = getItem("rememberedCredentials")
     if (savedCredentials) {
       try {
         const { email: savedEmail, rememberMe: savedRememberMe } = JSON.parse(savedCredentials)
-        if (savedRememberMe && savedEmail) {
+        if (savedRememberMe && savedEmail && isValidEmail(savedEmail)) {
           setEmail(savedEmail)
           setRememberMe(true)
         }
-      } catch (error) {
-        console.error("Error loading saved credentials:", error)
-        removeSafeLocalStorage("rememberedCredentials")
+      } catch {
+        removeItem("rememberedCredentials")
       }
     }
-  }, [mounted])
-
-  const isValidEmail = (email: string): boolean => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-  }
-
-  const getAuthErrorMessage = (errorMessage: string): string => {
-    const message = errorMessage.toLowerCase()
-    
-    if (message.includes("invalid login credentials") || message.includes("invalid email or password")) {
-      return "Invalid email or password. Please check your credentials and try again."
-    } else if (message.includes("email not confirmed") || message.includes("confirmation")) {
-      return "Please confirm your email before signing in. Check your inbox for a confirmation link."
-    } else if (message.includes("too many") || message.includes("rate")) {
-      return "Too many login attempts. Please wait a few minutes and try again."
-    } else if (message.includes("network") || message.includes("fetch")) {
-      return "Network error. Please check your connection and try again."
-    } else if (message.includes("signup") || message.includes("sign up")) {
-      return "Account not found. Please sign up first or check your email address."
-    } else {
-      return "An error occurred during login. Please try again."
-    }
-  }
+  }, [mounted, getItem, removeItem])
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -123,22 +135,22 @@ function LoginFormContent() {
     setIsSubmitting(true)
 
     try {
-      if (!email.trim() || !password) {
+      // Sanitize and validate inputs
+      const trimmedEmail = sanitizeInput(email)
+      
+      if (!trimmedEmail || !password) {
         setError("Please fill in all required fields")
         setIsSubmitting(false)
         return
       }
 
-      if (!isValidEmail(email.trim())) {
+      if (!isValidEmail(trimmedEmail)) {
         setError("Please enter a valid email address")
         setIsSubmitting(false)
         return
       }
 
-      console.log("[Login] Attempt for email:", email.trim())
-
-      await new Promise((resolve) => setTimeout(resolve, 200))
-
+      // Get Supabase client
       const supabase = await getSupabaseClient()
       if (!supabase) {
         setError("Authentication service is not available. Please refresh the page and try again.")
@@ -146,94 +158,84 @@ function LoginFormContent() {
         return
       }
 
+      // Attempt login
       const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+        email: trimmedEmail,
         password: password,
       })
 
       if (authError) {
-        console.error("[Login] Auth error:", authError?.message)
         setError(getAuthErrorMessage(authError.message))
         setIsSubmitting(false)
         return
       }
 
-      if (data.session && data.user) {
-        console.log("[Login] Successful for:", data.user.email)
-
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', data.user.id)
-          .single()
-
-        if (profileError) {
-          console.error("[Login] Profile fetch error:", profileError.message)
-          setError("Failed to retrieve user profile. Please contact support.")
-          setIsSubmitting(false)
-          return
-        }
-
-        const userRole = String(profileData.role || 'user')
-        const isSuperAdmin = userRole === 'super_admin'
-        const redirectPath = isSuperAdmin ? '/superadmin' : '/dashboard'
-
-        console.log("[Login] User role:", userRole, "Redirecting to:", redirectPath)
-        
-        if (rememberMe) {
-          setSafeLocalStorage("rememberedCredentials", JSON.stringify({ 
-            email: email.trim(), 
-            rememberMe: true 
-          }))
-        } else {
-          removeSafeLocalStorage("rememberedCredentials")
-        }
-
-        setSuccessOpen(true)
-        setIsSubmitting(false)
-
-        setTimeout(() => {
-          setSuccessOpen(false)
-          try {
-            router.replace(redirectPath)
-          } catch (routerError) {
-            console.log("[Login] Router failed, using window.location:", routerError)
-            if (typeof window !== "undefined") {
-              window.location.href = redirectPath
-            }
-          }
-        }, 1200)
-
-      } else {
+      if (!data.session || !data.user) {
         setError("Sign in failed. Please try again.")
         setIsSubmitting(false)
+        return
       }
+
+      // Fetch user profile for role-based routing
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', data.user.id)
+        .single()
+
+      if (profileError) {
+        setError("Failed to retrieve user profile. Please contact support.")
+        setIsSubmitting(false)
+        return
+      }
+
+      // Determine redirect path based on role
+      const userRole = String(profileData.role || 'user')
+      const isSuperAdmin = userRole === 'super_admin'
+      const redirectPath = isSuperAdmin ? '/superadmin' : '/dashboard'
+
+      // Handle remember me
+      if (rememberMe) {
+        setItem("rememberedCredentials", JSON.stringify({ 
+          email: trimmedEmail, 
+          rememberMe: true 
+        }))
+      } else {
+        removeItem("rememberedCredentials")
+      }
+
+      // Show success and redirect
+      setSuccessOpen(true)
+      setIsSubmitting(false)
+
+      setTimeout(() => {
+        setSuccessOpen(false)
+        router.replace(redirectPath)
+      }, 1200)
+
     } catch (err) {
-      console.error("[Login] Unexpected error:", err)
       setError("An unexpected error occurred. Please try again.")
       setIsSubmitting(false)
     }
   }
 
-  // Show loading state until mounted
+  // Loading state until mounted
   if (!mounted) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-        <Card className="w-full max-w-md mx-auto">
-          <CardContent className="flex items-center justify-center py-12">
-            <div className="flex items-center space-x-2">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-900"></div>
-              <span className="text-sm text-muted-foreground">Loading...</span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardContent className="flex items-center justify-center py-12">
+          <div className="flex items-center space-x-2">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-900"></div>
+            <span className="text-sm text-muted-foreground">Loading...</span>
+          </div>
+        </CardContent>
+      </Card>
     )
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-md mx-auto">
+    <>
+      <Card>
         <CardHeader>
           <CardTitle className="text-2xl font-bold text-center">Sign In</CardTitle>
           {redirectedFrom !== "/" && (
@@ -303,7 +305,6 @@ function LoginFormContent() {
                   id="remember"
                   checked={rememberMe}
                   onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-                  className="border-2 border-gray-300 data-[state=checked]:bg-green-900 data-[state=checked]:border-green-900"
                   disabled={isSubmitting}
                 />
                 <Label htmlFor="remember" className="text-sm cursor-pointer font-medium">
@@ -323,11 +324,11 @@ function LoginFormContent() {
 
             <Button
               type="submit"
-              className="w-full bg-green-900 hover:bg-green-950"
-              disabled={isSubmitting || !email || !password}
+              className="w-full bg-green-900 hover:bg-green-800"
+              disabled={isSubmitting || !email.trim() || !password}
             >
               {isSubmitting ? (
-                <div className="flex items-center">
+                <div className="flex items-center justify-center">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                   Signing In...
                 </div>
@@ -353,39 +354,35 @@ function LoginFormContent() {
           </div>
         </CardContent>
       </Card>
+      
       <SuccessOverlay
         open={successOpen}
-        title="Signed in"
-        message="You have been successfully logged in."
+        title="Signed in successfully"
+        message="You have been successfully logged in. Redirecting..."
         onClose={() => {
           setSuccessOpen(false)
           setIsSubmitting(false)
         }}
         actionLabel="Continue"
       />
-    </div>
+    </>
   )
 }
 
-// Main export with Suspense boundary
+// Export with Suspense boundary
 export default function LoginForm() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-        <Card className="w-full max-w-md mx-auto">
-          <CardContent className="flex items-center justify-center py-12">
-            <div className="flex items-center space-x-2">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-900"></div>
-              <span className="text-sm text-muted-foreground">Loading...</span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardContent className="flex items-center justify-center py-12">
+          <div className="flex items-center space-x-2">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-900"></div>
+            <span className="text-sm text-muted-foreground">Loading...</span>
+          </div>
+        </CardContent>
+      </Card>
     }>
       <LoginFormContent />
     </Suspense>
   )
 }
-
-// Force dynamic rendering to prevent prerendering issues
-export const dynamic = 'force-dynamic'
