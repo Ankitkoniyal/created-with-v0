@@ -4,6 +4,9 @@ import { createContext, useContext, useState, useEffect, type ReactNode, useRef 
 import { getSupabaseClient } from "@/lib/supabase/client"
 import type { User } from "@supabase/supabase-js"
 
+// ✅ UPDATED: Role types match your enum
+type UserRole = 'user' | 'admin' | 'super_admin' | 'owner'
+
 interface Profile {
   id: string
   name: string
@@ -14,6 +17,7 @@ interface Profile {
   location?: string
   verified: boolean
   created_at: string
+  role: UserRole // ✅ UPDATED: Matches your enum
 }
 
 interface AuthContextType {
@@ -23,6 +27,8 @@ interface AuthContextType {
   signup: (email: string, password: string, name: string, phone: string) => Promise<{ error?: string }>
   logout: () => Promise<void>
   isLoading: boolean
+  isAdmin: boolean // ✅ ADDED
+  isSuperAdmin: boolean // ✅ ADDED
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -32,6 +38,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const mountedRef = useRef(true)
+
+  // ✅ UPDATED: Role-based properties with correct enum values
+  const isAdmin = !!(profile && (profile.role === 'admin' || profile.role === 'super_admin' || profile.role === 'owner'))
+  const isSuperAdmin = !!(profile && profile.role === 'super_admin')
 
   useEffect(() => {
     mountedRef.current = true
@@ -83,6 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // ✅ UPDATED: Include role in profile fetching
   const fetchUserProfile = async (userId: string, userData: User, supabase: any): Promise<Profile | null> => {
     try {
       if (!supabase) return null
@@ -105,6 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         location: data.location || "",
         verified: data.verified || false,
         created_at: data.created_at,
+        role: data.role || 'user' // ✅ UPDATED: Default to 'user'
       }
     } catch (error) {
       console.log("[v0] Profile fetch error:", error)
@@ -188,6 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (session?.user) {
           console.log("[v0] Found existing session for user:", session.user.email)
+          console.log("[v0] User role from profile:", session.user.role)
           
           if (session.access_token && session.refresh_token) {
             await syncServerSession("SIGNED_IN", session)
@@ -390,21 +403,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // ✅ UPDATED: Include role-based properties
   return (
-    <AuthContext.Provider value={{ user, profile, login, signup, logout, isLoading }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      profile, 
+      login, 
+      signup, 
+      logout, 
+      isLoading,
+      isAdmin,
+      isSuperAdmin
+    }}>
       {children}
     </AuthContext.Provider>
   )
 }
 
+// ✅ UPDATED: useAuth hook with role checking
 export function useAuth() {
   const context = useContext(AuthContext)
   
-  // ADDED: Simple admin check based on email
-  const isAdmin = context?.user?.email?.includes('admin') || 
-                  context?.user?.email === 'admin@example.com' || // Change this to your admin email
-                  context?.user?.email?.endsWith('@youradmindomain.com') // Change this to your admin domain
-
   if (context === undefined) {
     return {
       user: null,
@@ -413,12 +432,10 @@ export function useAuth() {
       signup: async () => ({ error: "Authentication is not available right now. Please try again later." }),
       logout: async () => {},
       isLoading: false,
-      isAdmin: false // ADDED
+      isAdmin: false,
+      isSuperAdmin: false
     }
   }
-
-  return {
-    ...context,
-    isAdmin // ADDED
-  }
+  
+  return context
 }
