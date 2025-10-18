@@ -4,12 +4,13 @@
 import { useState, useEffect } from "react"
 import { SuperAdminNav } from "@/components/superadmin/super-admin-nav"
 import { SuperAdminOverview } from "@/components/superadmin/super-admin-overview"
-import { AdsManagement } from "@/components/superadmin/ads-management"
+import AdsManagement from "@/components/superadmin/ads-management"
 import UserManagement from "@/components/superadmin/user-management"
 import { LocalitiesManagement } from "@/components/superadmin/localities-management"
 import { ReportedAds } from "@/components/superadmin/reported-ads"
 import { useAuth } from "@/hooks/use-auth"
 import { useRouter } from "next/navigation"
+import { getSupabaseClient } from "@/lib/supabase/client"
 
 interface DashboardStats {
   totalUsers: number
@@ -19,6 +20,18 @@ interface DashboardStats {
   reportedAds: number
   newUsersToday: number
   newAdsToday: number
+}
+
+// Move PendingReview component to the top so it's defined before use
+function PendingReview() {
+  return (
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold text-white">Pending Review</h1>
+      <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+        <p className="text-gray-400">Pending ads waiting for approval will appear here.</p>
+      </div>
+    </div>
+  )
 }
 
 export default function SuperAdminPage() {
@@ -33,20 +46,86 @@ export default function SuperAdminPage() {
     newAdsToday: 0
   })
   
-  const { isAdmin, user } = useAuth()
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null)
+  const { user, profile } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
-    if (user && !isAdmin) {
-      router.push("/")
+    checkSuperAdminAccess()
+  }, [user, profile])
+
+  const checkSuperAdminAccess = async () => {
+    // If no user, redirect to login
+    if (!user) {
+      router.replace("/auth/login")
+      return
     }
-  }, [user, isAdmin, router])
+
+    try {
+      const supabase = await getSupabaseClient()
+      if (!supabase) {
+        router.replace("/auth/login")
+        return
+      }
+
+      // Get fresh profile data to ensure we have the latest role
+      const { data: freshProfile, error } = await supabase
+        .from('profiles')
+        .select('role, email')
+        .eq('id', user.id)
+        .single()
+
+      if (error || !freshProfile) {
+        console.error("❌ Profile fetch error:", error)
+        router.replace("/dashboard")
+        return
+      }
+
+      console.log("🛡️ Super Admin Access Check:", {
+        email: freshProfile.email,
+        role: freshProfile.role,
+        expectedEmail: "ankit.koniyal000@gmail.com"
+      })
+
+      // ✅ FIXED: Check BOTH role AND specific email
+      const isAuthorizedSuperAdmin = 
+        freshProfile.role === 'super_admin' && 
+        freshProfile.email === "ankit.koniyal000@gmail.com"
+
+      if (!isAuthorizedSuperAdmin) {
+        console.log("❌ Access denied - Not authorized super admin")
+        router.replace("/dashboard")
+        return
+      }
+
+      console.log("✅ Access granted - Authorized super admin")
+      setIsAuthorized(true)
+
+    } catch (error) {
+      console.error("Super admin access check failed:", error)
+      router.replace("/auth/login")
+    }
+  }
 
   const renderActiveView = () => {
-    if (user && !isAdmin) {
+    if (isAuthorized === null) {
       return (
         <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-white">Loading...</div>
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500 mx-auto"></div>
+            <p className="text-white mt-2">Verifying super admin access...</p>
+          </div>
+        </div>
+      )
+    }
+
+    if (!isAuthorized) {
+      return (
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <p className="text-red-400 text-lg">Access Denied</p>
+            <p className="text-gray-400 mt-2">You don't have permission to access this page.</p>
+          </div>
         </div>
       )
     }
@@ -69,10 +148,32 @@ export default function SuperAdminPage() {
     }
   }
 
-  if (user && !isAdmin) {
+  // Show loading while checking authorization
+  if (isAuthorized === null) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-900">
-        <div className="text-white">Loading admin panel...</div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500 mx-auto"></div>
+          <p className="text-white mt-2">Loading super admin panel...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show access denied if not authorized
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+        <div className="text-center">
+          <p className="text-red-400 text-xl mb-2">Access Denied</p>
+          <p className="text-gray-400">You don't have permission to access the super admin dashboard.</p>
+          <button 
+            onClick={() => router.push("/dashboard")}
+            className="mt-4 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+          >
+            Go to User Dashboard
+          </button>
+        </div>
       </div>
     )
   }
@@ -89,17 +190,6 @@ export default function SuperAdminPage() {
         <div className="p-6">
           {renderActiveView()}
         </div>
-      </div>
-    </div>
-  )
-}
-
-function PendingReview() {
-  return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-white">Pending Review</h1>
-      <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-        <p className="text-gray-400">Pending ads waiting for approval will appear here.</p>
       </div>
     </div>
   )
