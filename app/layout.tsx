@@ -1,11 +1,10 @@
 import type React from "react"
 import type { Metadata } from "next"
 import { DM_Sans } from "next/font/google"
-import { Suspense } from "react" // ← ADD THIS IMPORT
 import "./globals.css"
 import { AuthProvider } from "@/hooks/use-auth"
 import { Header } from "@/components/header"
-import { Toaster } from "@/components/ui/toaster"
+import { Toaster } from "@/components/ui/sonner" // Now using shadcn Sonner
 import { ErrorBoundary } from "@/components/error-boundary"
 import { WebVitalsClient } from "@/components/metrics/web-vitals-client"
 
@@ -54,25 +53,19 @@ export default function RootLayout({
       <body className={`${dmSans.className} antialiased`}>
         <ErrorBoundary>
           <AuthProvider>
-            {/* WRAP HEADER IN SUSPENSE - THIS IS THE CRITICAL FIX */}
-            <Suspense fallback={
-              <header className="sticky top-0 z-50 bg-background border-b border-border h-16 animate-pulse">
-                <div className="max-w-7xl mx-auto px-4 h-full flex items-center justify-between">
-                  <div className="h-8 w-8 bg-gray-300 rounded-full"></div>
-                  <div className="flex-1 max-w-2xl mx-8">
-                    <div className="h-10 bg-gray-200 rounded-full"></div>
-                  </div>
-                  <div className="h-8 w-24 bg-gray-300 rounded-full"></div>
-                </div>
-              </header>
-            }>
-              <Header />
-            </Suspense>
-            
+            <Header />
             <main className="min-h-screen">
               {children}
             </main>
-            <Toaster />
+            {/* Shadcn Sonner Toaster */}
+            <Toaster 
+              position="top-right"
+              theme="dark"
+              richColors
+              closeButton
+              duration={4000}
+              expand={false}
+            />
             <WebVitalsClient />
           </AuthProvider>
         </ErrorBoundary>
