@@ -104,7 +104,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
   ]
 
   useEffect(() => {
-    // Fetch the real ad ID from Supabase
     const fetchAdId = async () => {
       try {
         const supabase = createClient()
@@ -121,7 +120,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
           setRealAdId(product.id.slice(-6))
         }
       } catch (error) {
-        console.error("Error fetching ad ID:", error)
         setRealAdId(product.id.slice(-6))
       }
     }
@@ -129,7 +127,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
     fetchAdId()
   }, [product.id])
 
-  // Increment view count when component mounts
   useEffect(() => {
     const incrementViewCount = async () => {
       try {
@@ -143,7 +140,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
           setViewsCount(prev => prev + 1)
         }
       } catch (error) {
-        console.error("Error updating view count:", error)
+        // Silently fail for view count updates
       }
     }
 
@@ -170,12 +167,12 @@ export function ProductDetail({ product }: ProductDetailProps) {
           .single()
 
         if (error && error.code !== "PGRST116") {
-          console.error("Error checking favorite status:", error)
+          // Silently handle favorite status errors
         } else {
           setIsFavorited(!!data)
         }
       } catch (error) {
-        console.error("Error checking favorite status:", error)
+        // Silently handle favorite status errors
       }
     }
     checkFavoriteStatus()
@@ -212,7 +209,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
         toast({ title: "Added to wishlist" })
       }
     } catch (error) {
-      console.error("Error toggling favorite:", error)
       toast({ title: "Failed to update wishlist", variant: "destructive" })
     }
   }
@@ -239,17 +235,15 @@ export function ProductDetail({ product }: ProductDetailProps) {
         details: customReportReason
       })
       
-      // Successfully inserted, show toast and then close dialog with a small delay
       toast({ title: "Report submitted", description: "Thanks for keeping the marketplace safe." })
       
       setTimeout(() => {
         setShowReportDialog(false)
         setReportReason("")
         setCustomReportReason("")
-      }, 500) // 500ms delay to allow toast to render
+      }, 500)
 
     } catch (error) {
-      console.error("Error submitting report:", error)
       toast({ title: "Failed to submit report", variant: "destructive" })
     }
   }
@@ -293,7 +287,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
       }, 2000)
       toast({ title: "Link copied to clipboard!" })
     } catch (error) {
-      console.error("Failed to copy link:", error)
       const url = window.location.href
       prompt("Copy this link:", url)
       setShowShareMenu(false)
@@ -352,16 +345,12 @@ export function ProductDetail({ product }: ProductDetailProps) {
     }
   }
 
-  // Check if YouTube URL exists and is valid
   const hasYouTubeUrl = product.youtube_url && product.youtube_url.trim() !== ""
-  
-  // Check if Website URL exists and is valid
   const hasWebsiteUrl = product.website_url && product.website_url.trim() !== ""
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-4 md:p-6">
       <div className="lg:col-span-2 space-y-6">
-        {/* Image Gallery */}
         <Card className="overflow-hidden">
           <CardContent className="p-0">
             <div className="relative h-80 md:h-96 bg-gray-50 rounded-t-lg">
@@ -425,7 +414,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
           </CardContent>
         </Card>
 
-        {/* Product Info Card - Mobile Layout */}
         <Card className="lg:hidden">
           <CardContent className="p-6">
             <h1 className="text-2xl font-bold text-foreground mb-3">{formatTitle(product.title)}</h1>
@@ -503,7 +491,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
                 <Heart className={`h-4 w-4 ${isFavorited ? "fill-red-500 text-red-500" : ""}`} />
               </Button>
               
-              {/* YouTube and Website Icons - Mobile */}
               {hasYouTubeUrl && (
                 <Button
                   size="icon"
@@ -618,7 +605,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
           </CardContent>
         </Card>
 
-        {/* Description Section */}
         <Card>
           <CardContent className="p-6">
             <h2 className="text-xl font-bold mb-4 text-foreground">Description</h2>
@@ -626,7 +612,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
           </CardContent>
         </Card>
 
-        {/* Product Details */}
         <Card>
           <CardContent className="p-6">
             <h2 className="text-xl font-bold text-foreground mb-4">Product Details</h2>
@@ -711,7 +696,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
       </div>
 
       <div className="space-y-6">
-        {/* Product Info Card - Desktop Layout */}
         <Card className="hidden lg:block">
           <CardContent className="p-6">
             <h1 className="text-2xl font-bold text-foreground mb-3">{formatTitle(product.title)}</h1>
@@ -746,8 +730,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
                 </div>
               </div>
             </div>
-
-          
 
             <div className="flex flex-col space-y-3 mb-4">
               <ContactSellerModal
@@ -790,7 +772,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
                 <Heart className={`h-4 w-4 ${isFavorited ? "fill-red-500 text-red-500" : ""}`} />
               </Button>
               
-              {/* YouTube and Website Icons - Desktop */}
               {hasYouTubeUrl && (
                 <Button
                   size="icon"
@@ -905,14 +886,13 @@ export function ProductDetail({ product }: ProductDetailProps) {
           </CardContent>
         </Card>
 
-        {/* Seller Information */}
         <Card>
           <CardContent className="p-6">
             <h3 className="font-semibold text-foreground mb-4 text-lg">Seller Information</h3>
             <Link
               href={`/seller/${product.seller.id}`}
               className="flex items-center space-x-4 mb-4"
-            >
+              >
               {product.seller.avatar ? (
                 <Image 
                   src={product.seller.avatar} 
@@ -959,7 +939,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
           </CardContent>
         </Card>
 
-        {/* Safety Section */}
         <Card>
           <CardContent className="p-6">
             <SafetyBanner />
@@ -977,7 +956,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
         </Card>
       </div>
     
-      {/* Report Dialog */}
       {showReportDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
