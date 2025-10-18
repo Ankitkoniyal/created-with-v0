@@ -1,7 +1,7 @@
 // components/superadmin/user-management.tsx
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,19 +11,29 @@ import {
   Users, 
   Mail, 
   Calendar, 
+  Shield, 
   MoreVertical, 
   Ban, 
   CheckCircle, 
-  Eye,
+  Eye, 
+  Filter,
   Download,
   RefreshCw,
   Trash2,
-  AlertTriangle,
   User,
   Phone,
-  FileText
+  MapPin,
+  FileText,
+  BarChart3,
+  X,
+  Loader2,
+  AlertTriangle,
+  UserCheck,
+  UserX
 } from "lucide-react"
-import { getSupabaseClient } from "@/lib/supabase/client"
+import { createClient } from "@/lib/supabase/client"
+import { useAuth } from "@/hooks/use-auth"
+import { useRouter } from "next/navigation"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,9 +57,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { toast } from "sonner"
 
-// Types
-interface User {
+interface UserProfile {
   id: string
   email: string
   full_name: string | null
@@ -57,10 +67,13 @@ interface User {
   phone: string | null
   location: string | null
   bio: string | null
-  status: 'active' | 'suspended' | 'banned'
+  status: 'active' | 'suspended' | 'banned' | 'deleted'
+  role: 'user' | 'admin' | 'super_admin'
   created_at: string
   last_sign_in_at: string | null
   email_confirmed_at: string | null
+  deleted_at: string | null
+  deletion_reason: string | null
 }
 
 interface UserStats {
@@ -68,186 +81,291 @@ interface UserStats {
   activeAds: number
   soldAds: number
   totalViews: number
+  reportedAds: number
 }
 
-// Main Component
 export default function UserManagement() {
-  const [users, setUsers] = useState<User[]>([])
+  const [users, setUsers] = useState<UserProfile[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null)
   const [userStats, setUserStats] = useState<Record<string, UserStats>>({})
   const [userDetailsOpen, setUserDetailsOpen] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [deleteDialog, setDeleteDialog] = useState<{user: UserProfile, type: 'soft' | 'hard'} | null>(null)
+  const [deleteReason, setDeleteReason] = useState("")
+  const [exportLoading, setExportLoading] = useState(false)
 
+  const { isAdmin, user: currentUser } = useAuth()
+  const router = useRouter()
+  const supabase = createClient()
+
+  // Redirect non-admins
   useEffect(() => {
-    fetchUsers()
-  }, [])
+    if (currentUser && !isAdmin) {
+      router.push("/")
+    }
+  }, [currentUser, isAdmin, router])
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       setLoading(true)
-      const supabase = await getSupabaseClient()
       
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false })
 
-      if (error) {
-        console.error('Error fetching users:', error)
-        return
-      }
+      if (error) throw error
 
-      setUsers(data || [])
+      setUsers(data as UserProfile[] || [])
       
       if (data && data.length > 0) {
         await fetchUsersStats(data.map(user => user.id))
       }
     } catch (error) {
       console.error('Error fetching users:', error)
+      toast.error('Failed to load users')
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
   const fetchUsersStats = async (userIds: string[]) => {
     try {
-      const supabase = await getSupabaseClient()
       const stats: Record<string, UserStats> = {}
 
-      for (const userId of userIds) {
-        const [adsResult, activeAdsResult, soldAdsResult] = await Promise.all([
-          supabase.from('products').select('*', { count: 'exact' }).eq('user_id', userId),
-          supabase.from('products').select('*', { count: 'exact' }).eq('user_id', userId).eq('status', 'active'),
-          supabase.from('products').select('*', { count: 'exact' }).eq('user_id', userId).eq('status', 'sold'),
-        ])
+      // Fetch ads data
+      const { data: adsData } = await supabase
+        .from('products')
+        .select('user_id, status, views')
+        .in('user_id', userIds)
+        
+      if (!adsData) return
 
-        const totalViews = adsResult.data?.reduce((sum, ad) => sum + (ad.views || 0), 0) || 0
+      // Fetch reported ads count
+      const { data: reportsData } = await supabase
+        .from('reports')
+        .select('product_id, products(user_id)')
+        .in('products.user_id', userIds)
 
-        stats[userId] = {
-          totalAds: adsResult.count || 0,
-          activeAds: activeAdsResult.count || 0,
-          soldAds: soldAdsResult.count || 0,
-          totalViews: totalViews
+      const userAdAggregations: Record<string, UserStats> = {}
+
+      // Initialize all users
+      userIds.forEach(userId => {
+        userAdAggregations[userId] = { 
+          totalAds: 0, 
+          activeAds: 0, 
+          soldAds: 0, 
+          totalViews: 0,
+          reportedAds: 0
+        }
+      })
+
+      // Process ads
+      for (const ad of adsData) {
+        const userStats = userAdAggregations[ad.user_id]
+        userStats.totalAds += 1
+        userStats.totalViews += (ad.views || 0)
+        if (ad.status === 'active') userStats.activeAds += 1
+        if (ad.status === 'sold') userStats.soldAds += 1
+      }
+
+      // Process reports
+      if (reportsData) {
+        for (const report of reportsData) {
+          const userId = (report.products as any)?.user_id
+          if (userId && userAdAggregations[userId]) {
+            userAdAggregations[userId].reportedAds += 1
+          }
         }
       }
 
-      setUserStats(stats)
+      setUserStats(userAdAggregations)
     } catch (error) {
       console.error('Error fetching user stats:', error)
     }
   }
 
-  const handleUserAction = async (userId: string, action: 'suspend' | 'activate' | 'ban' | 'delete') => {
+  // Enhanced user actions with proper error handling and soft delete
+  const handleUserAction = async (userId: string, action: 'suspend' | 'activate' | 'ban' | 'soft_delete', reason?: string) => {
+    setActionLoading(userId)
+    
     try {
-      setActionLoading(userId)
-      const supabase = await getSupabaseClient()
-
-      let newStatus: User['status'] = 'active'
+      let updateData: Partial<UserProfile> = {}
       
       switch (action) {
+        case 'activate':
+          updateData = { status: 'active' }
+          break
         case 'suspend':
-          newStatus = 'suspended'
+          updateData = { status: 'suspended' }
           break
         case 'ban':
-          newStatus = 'banned'
+          updateData = { status: 'banned' }
           break
-        case 'activate':
-          newStatus = 'active'
+        case 'soft_delete':
+          updateData = { 
+            status: 'deleted',
+            deleted_at: new Date().toISOString(),
+            deletion_reason: reason
+          }
           break
-        case 'delete':
-          await supabase.from('profiles').delete().eq('id', userId)
-          setUsers(prev => prev.filter(user => user.id !== userId))
-          return
       }
 
       const { error } = await supabase
         .from('profiles')
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .update(updateData)
         .eq('id', userId)
 
-      if (error) {
-        console.error(`Error ${action} user:`, error)
-        return
-      }
+      if (error) throw error
 
+      // Update local state
       setUsers(prev => prev.map(user => 
-        user.id === userId ? { ...user, status: newStatus } : user
+        user.id === userId ? { ...user, ...updateData } : user
       ))
+
+      toast.success(`User ${action.replace('_', ' ')} successfully`)
+      
+      // Close dialogs
+      setDeleteDialog(null)
+      setDeleteReason("")
 
     } catch (error) {
       console.error(`Error ${action} user:`, error)
+      toast.error(`Failed to ${action} user`)
     } finally {
       setActionLoading(null)
     }
   }
 
-  const handleViewUserDetails = (user: User) => {
+  // Hard delete user (use with caution)
+  const handleHardDelete = async (userId: string) => {
+    setActionLoading(userId)
+    
+    try {
+      // First, soft delete all user's ads
+      const { error: adsError } = await supabase
+        .from('products')
+        .update({ status: 'deleted' })
+        .eq('user_id', userId)
+
+      if (adsError) throw adsError
+
+      // Then delete the user profile
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', userId)
+
+      if (profileError) throw profileError
+
+      // Remove from local state
+      setUsers(prev => prev.filter(user => user.id !== userId))
+      toast.success('User permanently deleted')
+
+      setDeleteDialog(null)
+    } catch (error) {
+      console.error('Error hard deleting user:', error)
+      toast.error('Failed to delete user')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleViewUserDetails = (user: UserProfile) => {
     setSelectedUser(user)
     setUserDetailsOpen(true)
   }
 
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = 
-      user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.phone?.includes(searchQuery) ||
-      user.location?.toLowerCase().includes(searchQuery.toLowerCase())
+  const exportUsers = async () => {
+    setExportLoading(true)
+    try {
+      const csvContent = [
+        ['ID', 'Name', 'Email', 'Phone', 'Status', 'Role', 'Total Ads', 'Active Ads', 'Joined Date', 'Last Login'],
+        ...filteredUsers.map((user, index) => [
+          user.id,
+          `"${user.full_name || 'N/A'}"`,
+          user.email,
+          user.phone || 'N/A',
+          user.status,
+          user.role,
+          userStats[user.id]?.totalAds || 0,
+          userStats[user.id]?.activeAds || 0,
+          new Date(user.created_at).toLocaleDateString(),
+          user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleDateString() : 'Never'
+        ])
+      ].map(row => row.join(',')).join('\n')
 
-    const matchesStatus = statusFilter === "all" || user.status === statusFilter
+      const blob = new Blob([csvContent], { type: 'text/csv' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `users-export-${new Date().toISOString().split('T')[0]}.csv`
+      a.click()
+      window.URL.revokeObjectURL(url)
+      
+      toast.success('Users exported successfully')
+    } catch (error) {
+      console.error('Error exporting users:', error)
+      toast.error('Failed to export users')
+    } finally {
+      setExportLoading(false)
+    }
+  }
 
-    return matchesSearch && matchesStatus
-  })
+  const filteredUsers = useMemo(() => {
+    return users.filter(user => {
+      const matchesSearch = 
+        user.email.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        user.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.phone?.includes(searchQuery)
+      const matchesStatus = statusFilter === 'all' || user.status === statusFilter
+      return matchesSearch && matchesStatus
+    })
+  }, [users, searchQuery, statusFilter])
 
-  const getStatusBadge = (status: User['status']) => {
+  const getStatusBadge = (status: UserProfile['status']) => {
     const variants = {
-      active: "bg-green-600",
-      suspended: "bg-yellow-600", 
-      banned: "bg-red-600"
+      active: { class: "bg-green-600", icon: UserCheck, label: "Active" },
+      suspended: { class: "bg-yellow-600", icon: UserX, label: "Suspended" },
+      banned: { class: "bg-red-600", icon: Ban, label: "Banned" },
+      deleted: { class: "bg-gray-600", icon: Trash2, label: "Deleted" }
     }
     
-    return variants[status]
+    const variant = variants[status]
+    const Icon = variant.icon
+    
+    return (
+      <Badge className={`${variant.class} hover:${variant.class} flex items-center gap-1`}>
+        <Icon className="w-3 h-3" />
+        {variant.label}
+      </Badge>
+    )
   }
 
-  const exportUsers = () => {
-    const csvContent = [
-      ['Serial No', 'Name', 'Email', 'Phone', 'Location', 'Status', 'Member Since', 'Last Login', 'Total Ads', 'Active Ads'],
-      ...filteredUsers.map((user, index) => [
-        index + 1,
-        user.full_name || 'N/A',
-        user.email,
-        user.phone || 'N/A',
-        user.location || 'N/A',
-        user.status,
-        new Date(user.created_at).toLocaleDateString(),
-        user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleDateString() : 'Never',
-        userStats[user.id]?.totalAds || 0,
-        userStats[user.id]?.activeAds || 0
-      ])
-    ].map(row => row.join(',')).join('\n')
-
-    const blob = new Blob([csvContent], { type: 'text/csv' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `users-export-${new Date().toISOString().split('T')[0]}.csv`
-    a.click()
-    window.URL.revokeObjectURL(url)
+  const getRoleBadge = (role: UserProfile['role']) => {
+    const variants = {
+      user: { class: "bg-blue-600", label: "User" },
+      admin: { class: "bg-purple-600", label: "Admin" },
+      super_admin: { class: "bg-orange-600", label: "Super Admin" }
+    }
+    
+    return (
+      <Badge className={variants[role].class}>
+        {variants[role].label}
+      </Badge>
+    )
   }
 
-  if (loading) {
+  // Don't render if not admin
+  if (currentUser && !isAdmin) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="h-8 w-64 bg-gray-700 rounded animate-pulse" />
-          <div className="h-10 w-48 bg-gray-700 rounded animate-pulse" />
-        </div>
-        <div className="grid gap-4">
-          {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
-            <div key={i} className="h-20 bg-gray-700 rounded animate-pulse" />
-          ))}
+        <h1 className="text-3xl font-bold text-white">User Management</h1>
+        <div className="bg-gray-800 rounded-lg p-6">
+          <p className="text-gray-400">Loading...</p>
         </div>
       </div>
     )
@@ -258,7 +376,7 @@ export default function UserManagement() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-white">User Management</h2>
+          <h1 className="text-3xl font-bold text-white">User Management</h1>
           <p className="text-gray-400">
             {filteredUsers.length} user{filteredUsers.length !== 1 ? 's' : ''} found
           </p>
@@ -268,17 +386,19 @@ export default function UserManagement() {
           <Button 
             variant="outline" 
             onClick={exportUsers}
+            disabled={exportLoading}
             className="bg-transparent border-gray-600 text-gray-300 hover:bg-gray-700"
           >
             <Download className="w-4 h-4 mr-2" />
-            Export CSV
+            {exportLoading ? 'Exporting...' : 'Export CSV'}
           </Button>
           
           <Button 
             onClick={fetchUsers}
+            disabled={loading}
             className="bg-green-600 hover:bg-green-700"
           >
-            <RefreshCw className="w-4 h-4 mr-2" />
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
         </div>
@@ -292,7 +412,7 @@ export default function UserManagement() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
                 type="text"
-                placeholder="Search by name, email, phone, location..."
+                placeholder="Search by name, email, phone..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 bg-gray-700 border-gray-600 text-white"
@@ -308,6 +428,7 @@ export default function UserManagement() {
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="suspended">Suspended</SelectItem>
                 <SelectItem value="banned">Banned</SelectItem>
+                <SelectItem value="deleted">Deleted</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -325,8 +446,7 @@ export default function UserManagement() {
         <CardContent>
           <div className="space-y-4">
             {filteredUsers.map((user, index) => {
-              const stats = userStats[user.id] || { totalAds: 0, activeAds: 0, soldAds: 0, totalViews: 0 }
-              const statusClass = getStatusBadge(user.status)
+              const stats = userStats[user.id] || { totalAds: 0, activeAds: 0, soldAds: 0, totalViews: 0, reportedAds: 0 }
               
               return (
                 <div
@@ -343,9 +463,8 @@ export default function UserManagement() {
                         <h3 className="font-semibold text-white text-lg">
                           {user.full_name || 'Unknown User'}
                         </h3>
-                        <Badge className={statusClass}>
-                          {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
-                        </Badge>
+                        {getStatusBadge(user.status)}
+                        {getRoleBadge(user.role)}
                         <span className="text-sm text-gray-400">#{index + 1}</span>
                       </div>
                       
@@ -395,7 +514,7 @@ export default function UserManagement() {
                           disabled={actionLoading === user.id}
                         >
                           {actionLoading === user.id ? (
-                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            <Loader2 className="w-4 h-4 animate-spin" />
                           ) : (
                             <MoreVertical className="w-4 h-4" />
                           )}
@@ -405,17 +524,7 @@ export default function UserManagement() {
                         <DropdownMenuLabel>User Actions</DropdownMenuLabel>
                         <DropdownMenuSeparator className="bg-gray-600" />
                         
-                        {user.status === 'active' && (
-                          <DropdownMenuItem 
-                            onClick={() => handleUserAction(user.id, 'suspend')}
-                            className="text-yellow-400 hover:bg-yellow-900 hover:text-yellow-300"
-                          >
-                            <Ban className="w-4 h-4 mr-2" />
-                            Suspend User
-                          </DropdownMenuItem>
-                        )}
-                        
-                        {(user.status === 'suspended' || user.status === 'banned') && (
+                        {user.status !== 'active' && (
                           <DropdownMenuItem 
                             onClick={() => handleUserAction(user.id, 'activate')}
                             className="text-green-400 hover:bg-green-900 hover:text-green-300"
@@ -425,24 +534,44 @@ export default function UserManagement() {
                           </DropdownMenuItem>
                         )}
                         
-                        {user.status !== 'banned' && (
+                        {user.status !== 'suspended' && user.status !== 'deleted' && (
+                          <DropdownMenuItem 
+                            onClick={() => handleUserAction(user.id, 'suspend')}
+                            className="text-yellow-400 hover:bg-yellow-900 hover:text-yellow-300"
+                          >
+                            <Ban className="w-4 h-4 mr-2" />
+                            Suspend User
+                          </DropdownMenuItem>
+                        )}
+                        
+                        {user.status !== 'banned' && user.status !== 'deleted' && (
                           <DropdownMenuItem 
                             onClick={() => handleUserAction(user.id, 'ban')}
                             className="text-red-400 hover:bg-red-900 hover:text-red-300"
                           >
-                            <AlertTriangle className="w-4 h-4 mr-2" />
+                            <Shield className="w-4 h-4 mr-2" />
                             Ban User
+                          </DropdownMenuItem>
+                        )}
+                        
+                        {user.status !== 'deleted' && (
+                          <DropdownMenuItem 
+                            onClick={() => setDeleteDialog({user, type: 'soft'})}
+                            className="text-orange-400 hover:bg-orange-900 hover:text-orange-300"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Soft Delete
                           </DropdownMenuItem>
                         )}
                         
                         <DropdownMenuSeparator className="bg-gray-600" />
                         
                         <DropdownMenuItem 
-                          onClick={() => handleUserAction(user.id, 'delete')}
+                          onClick={() => setDeleteDialog({user, type: 'hard'})}
                           className="text-red-400 hover:bg-red-900 hover:text-red-300"
                         >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Delete User
+                          <AlertTriangle className="w-4 h-4 mr-2" />
+                          Permanent Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -514,12 +643,32 @@ export default function UserManagement() {
                           }
                         </p>
                       </div>
+                      <div>
+                        <label className="text-sm text-gray-400">Status</label>
+                        <div className="mt-1">{getStatusBadge(selectedUser.status)}</div>
+                      </div>
+                      <div>
+                        <label className="text-sm text-gray-400">Role</label>
+                        <div className="mt-1">{getRoleBadge(selectedUser.role)}</div>
+                      </div>
                     </div>
                     
                     {selectedUser.bio && (
                       <div>
                         <label className="text-sm text-gray-400">Bio</label>
                         <p className="text-white mt-1">{selectedUser.bio}</p>
+                      </div>
+                    )}
+
+                    {selectedUser.status === 'deleted' && (
+                      <div className="p-3 bg-red-900/20 border border-red-700 rounded-lg">
+                        <label className="text-sm text-red-400">Deletion Information</label>
+                        <p className="text-white text-sm mt-1">
+                          <strong>Reason:</strong> {selectedUser.deletion_reason || 'Not specified'}
+                        </p>
+                        <p className="text-white text-sm">
+                          <strong>Deleted on:</strong> {selectedUser.deleted_at ? new Date(selectedUser.deleted_at).toLocaleDateString() : 'Unknown'}
+                        </p>
                       </div>
                     )}
                   </CardContent>
@@ -557,6 +706,12 @@ export default function UserManagement() {
                             {userStats[selectedUser.id].totalViews}
                           </Badge>
                         </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400">Reported Ads</span>
+                          <Badge variant="secondary" className="bg-red-600">
+                            {userStats[selectedUser.id].reportedAds}
+                          </Badge>
+                        </div>
                       </>
                     ) : (
                       <div className="text-center text-gray-400 py-4">
@@ -577,7 +732,10 @@ export default function UserManagement() {
                   Close
                 </Button>
                 <Button 
-                  onClick={() => handleViewUserDetails(selectedUser)}
+                  onClick={() => {
+                    setUserDetailsOpen(false)
+                    fetchUsers()
+                  }}
                   className="bg-green-600 hover:bg-green-700"
                 >
                   <RefreshCw className="w-4 h-4 mr-2" />
@@ -586,6 +744,86 @@ export default function UserManagement() {
               </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteDialog} onOpenChange={() => setDeleteDialog(null)}>
+        <DialogContent className="bg-gray-800 border-gray-700 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-red-500">
+              {deleteDialog?.type === 'soft' ? 'Confirm Soft Delete' : 'Permanent Deletion Warning'}
+            </DialogTitle>
+            <DialogDescription className="text-gray-400">
+              {deleteDialog?.type === 'soft' ? (
+                <>
+                  You are about to soft delete <strong className="text-white">{deleteDialog.user.email}</strong>.
+                  This will hide the user from the system but keep their data in the database for auditing purposes.
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="w-6 h-6 text-red-500 inline mr-2" />
+                  <strong className="text-red-400">DANGEROUS ACTION:</strong> You are about to permanently delete 
+                  <strong className="text-white"> {deleteDialog?.user.email}</strong>. This will remove all their data 
+                  and cannot be undone!
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {deleteDialog?.type === 'soft' && (
+            <div className="space-y-4">
+              <label htmlFor="delete-reason" className="block text-sm font-medium text-gray-300">
+                Reason for Deletion <span className="text-red-500">*</span>
+              </label>
+              <Input
+                id="delete-reason"
+                value={deleteReason}
+                onChange={(e) => setDeleteReason(e.target.value)}
+                placeholder="Enter reason for deletion..."
+                className="bg-gray-700 border-gray-600 text-white"
+              />
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteDialog(null)
+                setDeleteReason("")
+              }}
+              className="border-gray-600 text-gray-300 hover:bg-gray-700"
+              disabled={actionLoading === deleteDialog?.user.id}
+            >
+              Cancel
+            </Button>
+            <Button
+              className={deleteDialog?.type === 'soft' ? "bg-orange-600 hover:bg-orange-700" : "bg-red-600 hover:bg-red-700"}
+              onClick={() => {
+                if (deleteDialog?.type === 'soft') {
+                  if (!deleteReason.trim()) {
+                    toast.error('Please provide a deletion reason')
+                    return
+                  }
+                  handleUserAction(deleteDialog.user.id, 'soft_delete', deleteReason)
+                } else {
+                  handleHardDelete(deleteDialog!.user.id)
+                }
+              }}
+              disabled={actionLoading === deleteDialog?.user.id || (deleteDialog?.type === 'soft' && !deleteReason.trim())}
+            >
+              {actionLoading === deleteDialog?.user.id ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : deleteDialog?.type === 'soft' ? (
+                <Trash2 className="w-4 h-4 mr-2" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 mr-2" />
+              )}
+              {actionLoading === deleteDialog?.user.id ? 'Processing...' : 
+               deleteDialog?.type === 'soft' ? 'Soft Delete' : 'Permanently Delete'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
