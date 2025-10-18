@@ -14,7 +14,8 @@ interface ProductPageProps {
 
 // Generate metadata for SEO
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
-  const product = await getProduct(params.id)
+  const { id } = await params // ← ADDED AWAIT HERE
+  const product = await getProduct(id)
   
   if (!product) {
     return {
@@ -40,7 +41,7 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
         height: 630,
         alt: product.title,
       })),
-      type: 'website', // ✅ FIXED: Changed from 'product' to 'website'
+      type: 'website',
       url: `/product/${product.id}`,
       siteName: 'Your Marketplace',
     },
@@ -173,7 +174,7 @@ async function getProduct(id: string) {
       adId: generateAdId(product.id, product.created_at),
       seller: {
         id: product.user_id,
-        name: profileData?.full_name || "User", // Show real name or simple fallback
+        name: profileData?.full_name || "User",
         rating: 4.5,
         totalReviews: 0,
         memberSince: profileData?.created_at ? new Date(profileData.created_at).getFullYear().toString() : "2024",
@@ -220,7 +221,7 @@ function generateProductStructuredData(product: any) {
       "url": `${baseUrl}/product/${product.id}`,
       "priceCurrency": "CAD",
       "price": product.price_number,
-      "priceValidUntil": new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days
+      "priceValidUntil": new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       "availability": product.status === 'active' ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
       "itemCondition": `https://schema.org/${mapConditionToSchemaOrg(product.condition)}`,
       "seller": {
@@ -250,82 +251,82 @@ function mapConditionToSchemaOrg(condition: string): string {
   return conditionMap[condition.toLowerCase()] || "UsedCondition"
 }
 
-   export default async function ProductPage({ params }: ProductPageProps) {
-   const { id } = params
-   console.log('🛠️ Product page loading for ID:', id)
-  
-   const product = await getProduct(id)
-   console.log('🛠️ Product data received:', product ? 'YES' : 'NO')
-  
-   if (!product) {
-    console.log('🛠️ Product not found, showing 404')
-    notFound()
-   }
-
-   console.log('🛠️ Product title:', product.title)
-   console.log('🛠️ Product seller name:', product.seller.name)
-   console.log('🛠️ Product category:', product.category)
-
-   // Generate structured data
-   const structuredData = generateProductStructuredData(product)
-   const breadcrumbStructuredData = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    "itemListElement": [
-      {
-        "@type": "ListItem",
-        "position": 1,
-        "name": "Home",
-        "item": process.env.NEXT_PUBLIC_SITE_URL || 'https://yourdomain.com'
-      },
-      {
-        "@type": "ListItem",
-        "position": 2,
-        "name": product.category,
-        "item": `${process.env.NEXT_PUBLIC_SITE_URL || 'https://yourdomain.com'}/search?category=${encodeURIComponent(product.category)}`
-      },
-      {
-        "@type": "ListItem", 
-        "position": 3,
-        "name": product.title,
-        "item": `${process.env.NEXT_PUBLIC_SITE_URL || 'https://yourdomain.com'}/product/${product.id}`
-      }
-    ]
+export default async function ProductPage({ params }: ProductPageProps) {
+  const { id } = await params // ← ADDED AWAIT HERE
+  console.log('🛠️ Product page loading for ID:', id)
+ 
+  const product = await getProduct(id)
+  console.log('🛠️ Product data received:', product ? 'YES' : 'NO')
+ 
+  if (!product) {
+   console.log('🛠️ Product not found, showing 404')
+   notFound()
   }
 
-  // SAFE BREADCRUMB ITEMS WITH DEFAULTS
-  const breadcrumbItems = [
-    { label: "Home", href: "/" },
-    { 
-      label: product.category || "Other", 
-      href: `/search?category=${encodeURIComponent(product.category || "Other")}` 
-    },
-    { 
-      label: product.title || "Product", 
-      href: `/product/${product.id}` 
-    },
-  ]
+  console.log('🛠️ Product title:', product.title)
+  console.log('🛠️ Product seller name:', product.seller.name)
+  console.log('🛠️ Product category:', product.category)
 
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Structured Data for SEO */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
-      />
-      <script
-        type="application/ld+json" 
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbStructuredData) }}
-      />
-      
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <Breadcrumb items={breadcrumbItems} />
-        <SafeProductDetail product={product} />
-        <RelatedProducts 
-          currentProductId={product.id} 
-          category={product.category || "Other"} 
-        />
-      </div>
-    </div>
-  )
+  // Generate structured data
+  const structuredData = generateProductStructuredData(product)
+  const breadcrumbStructuredData = {
+   "@context": "https://schema.org",
+   "@type": "BreadcrumbList",
+   "itemListElement": [
+     {
+       "@type": "ListItem",
+       "position": 1,
+       "name": "Home",
+       "item": process.env.NEXT_PUBLIC_SITE_URL || 'https://yourdomain.com'
+     },
+     {
+       "@type": "ListItem",
+       "position": 2,
+       "name": product.category,
+       "item": `${process.env.NEXT_PUBLIC_SITE_URL || 'https://yourdomain.com'}/search?category=${encodeURIComponent(product.category)}`
+     },
+     {
+       "@type": "ListItem", 
+       "position": 3,
+       "name": product.title,
+       "item": `${process.env.NEXT_PUBLIC_SITE_URL || 'https://yourdomain.com'}/product/${product.id}`
+     }
+   ]
+ }
+
+ // SAFE BREADCRUMB ITEMS WITH DEFAULTS
+ const breadcrumbItems = [
+   { label: "Home", href: "/" },
+   { 
+     label: product.category || "Other", 
+     href: `/search?category=${encodeURIComponent(product.category || "Other")}` 
+   },
+   { 
+     label: product.title || "Product", 
+     href: `/product/${product.id}` 
+   },
+ ]
+
+ return (
+   <div className="min-h-screen bg-background">
+     {/* Structured Data for SEO */}
+     <script
+       type="application/ld+json"
+       dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+     />
+     <script
+       type="application/ld+json" 
+       dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbStructuredData) }}
+     />
+     
+     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+       <Breadcrumb items={breadcrumbItems} />
+       <SafeProductDetail product={product} />
+       <RelatedProducts 
+         currentProductId={product.id} 
+         category={product.category || "Other"} 
+       />
+     </div>
+   </div>
+ )
 }
