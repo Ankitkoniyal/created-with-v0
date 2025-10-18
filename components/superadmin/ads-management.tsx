@@ -1,647 +1,1148 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Card } from "@/components/ui/card"
+import { useState, useEffect, useMemo, useCallback } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { 
   Search, 
-  Filter, 
-  Eye, 
-  Edit, 
-  Trash2, 
-  XCircle,
-  CheckCircle,
-  DollarSign,
+  FileText, 
+  Calendar, 
+  MapPin, 
+  Tag,
+  Eye,
   Download,
   RefreshCw,
-  Ban,
+  Trash2,
+  Loader2,
   User,
-  AlertTriangle,
-  FileText // Added for no-results icon
+  Send,
+  MoreVertical,
+  ExternalLink,
+  CheckCircle,
+  Clock,
+  Ban,
+  XCircle,
+  Package
 } from "lucide-react"
-import { 
-    Dialog, 
-    DialogContent, 
-    DialogDescription, 
-    DialogFooter, 
-    DialogHeader, 
-    DialogTitle 
-} from "@/components/ui/dialog" // Added Dialog components
 import { createClient } from "@/lib/supabase/client"
+import { useAuth } from "@/hooks/use-auth"
+import { useRouter } from "next/navigation"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { toast } from "sonner"
 
-// Updated Ad Interface: Added 'deleted' status
-interface Ad {
+interface Product {
   id: string
   title: string
   description: string
   price: number
   category: string
   location: string
-  status: 'active' | 'inactive' | 'sold' | 'rejected' | 'pending' | 'deleted' // ADDED 'deleted'
+  status: 'active' | 'sold' | 'expired' | 'pending' | 'rejected' | 'deleted' | 'inactive'
+  views: number
   created_at: string
-  user_email: string
+  updated_at: string
   user_id: string
   images: string[]
-  views: number
+  user?: {
+    email: string
+    full_name: string | null
+    phone: string | null
+  }
 }
 
-export function AdsManagement() {
-  const [ads, setAds] = useState<Ad[]>([])
+interface StatusChangeDialog {
+  ad: Product
+  newStatus: Product['status']
+}
+
+interface BulkAction {
+  type: 'delete' | 'status'
+  status?: Product['status']
+}
+
+export default function AdsManagement() {
+  const [ads, setAds] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState("")
+  const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [categoryFilter, setCategoryFilter] = useState<string>("all")
-  const [selectedAds, setSelectedAds] = useState<string[]>([])
-  const [categories, setCategories] = useState<string[]>([])
-  // --- SOFT DELETE STATES ---
-  const [deleteConfirm, setDeleteConfirm] = useState<{ adId: string, adTitle: string } | null>(null)
-  const [deleteReason, setDeleteReason] = useState("")
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [selectedAd, setSelectedAd] = useState<Product | null>(null)
+  const [adDetailsOpen, setAdDetailsOpen] = useState(false)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [deleteDialog, setDeleteDialog] = useState<Product | null>(null)
+  const [statusChangeDialog, setStatusChangeDialog] = useState<StatusChangeDialog | null>(null)
+  const [selectedAds, setSelectedAds] = useState<Set<string>>(new Set())
+  const [bulkActionDialog, setBulkActionDialog] = useState<BulkAction | null>(null)
+  const [debugInfo, setDebugInfo] = useState("")
 
+  const { isAdmin, user: currentUser } = useAuth()
+  const router = useRouter()
+  const supabase = createClient()
+
+  // Redirect non-admins
   useEffect(() => {
-    fetchAds()
-    fetchCategories()
-  }, [])
+    if (currentUser && !isAdmin) {
+      router.push("/")
+    }
+  }, [currentUser, isAdmin, router])
 
-  const fetchAds = async () => {
-    setError(null);
+  // Fetch ads on component mount
+  useEffect(() => {
+    if (isAdmin) {
+      fetchAds()
+    }
+  }, [isAdmin])
+
+  const fetchAds = useCallback(async () => {
     try {
       setLoading(true)
-      const supabase = createClient()
+      setDebugInfo("Starting to fetch ads...")
       
-      // Fetch all products
-      const { data: products, error } = await supabase
+      console.log("🔄 Fetching ads from Supabase...")
+      
+      // First, let's test if we can connect to the products table
+      const { data: testData, error: testError } = await supabase
         .from('products')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(200)
+        .select('id')
+        .limit(1)
 
-      if (error) throw error
-
-      if (!products || products.length === 0) {
+      if (testError) {
+        console.error("❌ Database connection failed:", testError)
+        setDebugInfo(`Database error: ${testError.message}`)
+        toast.error(`Database connection failed: ${testError.message}`)
         setAds([])
         return
       }
 
-      // Filter out soft-deleted ads for the main management view
-      const activeProducts = products.filter(ad => ad.status !== 'deleted'); 
+      console.log("✅ Database connection successful")
 
-      // Get unique user IDs
-      const userIds = [...new Set(activeProducts.map(ad => ad.user_id))]
+      // Fetch all ads with proper error handling
+      const { data: adsData, error: adsError } = await supabase
+        .from('products')
+        .select('*')
+        .order('created_at', { ascending: false })
 
-      // Fetch user emails
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, email')
-        .in('id', userIds)
+      if (adsError) {
+        console.error("❌ Error fetching ads:", adsError)
+        setDebugInfo(`Fetch error: ${adsError.message}`)
+        toast.error(`Failed to load ads: ${adsError.message}`)
+        setAds([])
+        return
+      }
 
-      if (profilesError) throw profilesError
+      console.log("📊 Raw ads data from Supabase:", adsData)
+      console.log(`✅ Found ${adsData?.length || 0} ads in database`)
+      setDebugInfo(`Found ${adsData?.length || 0} ads in database`)
 
-      // Create email map
-      const emailMap = new Map()
-      profiles?.forEach(profile => {
-        emailMap.set(profile.id, profile.email)
-      })
+      if (adsData && adsData.length > 0) {
+        console.log("🎯 First ad sample:", adsData[0])
+        
+        // Get user data for all ads
+        const userIds = [...new Set(adsData.map(ad => ad.user_id).filter(Boolean))]
+        console.log(`👤 User IDs found:`, userIds)
+        
+        let userMap = {}
+        if (userIds.length > 0) {
+          try {
+            const { data: usersData, error: usersError } = await supabase
+              .from('profiles')
+              .select('id, email, full_name, phone')
+              .in('id', userIds)
 
-      // Combine data
-      const adsWithEmails: Ad[] = activeProducts.map(ad => ({
-        ...ad,
-        user_email: emailMap.get(ad.user_id) || 'Unknown',
-        images: ad.images || [],
-        views: ad.views || 0,
-        status: ad.status as Ad['status'] // Type assertion for safety
-      }))
+            if (usersError) {
+              console.warn("⚠️ User data fetch failed:", usersError)
+            } else {
+              console.log("✅ User data fetched:", usersData)
+              userMap = usersData?.reduce((acc, user) => {
+                acc[user.id] = user
+                return acc
+              }, {} as Record<string, any>) || {}
+            }
+          } catch (userError) {
+            console.warn("⚠️ User fetch error:", userError)
+          }
+        }
 
-      setAds(adsWithEmails)
-    } catch (error) {
-      console.error("Error fetching ads:", error)
-      setError("Failed to load ads. Please check your Supabase connection.")
-    } finally {
-      setLoading(false)
-    }
-  }
+        // Combine data
+        const adsWithUsers = adsData.map(ad => ({
+          ...ad,
+          user: userMap[ad.user_id] || { email: 'Unknown User' }
+        }))
 
-  const fetchCategories = async () => {
-    try {
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from('categories')
-        .select('name')
-        .order('name')
-
-      if (!error && data) {
-        setCategories(data.map(cat => cat.name))
+        console.log("🎉 Final ads data:", adsWithUsers)
+        setAds(adsWithUsers as Product[])
+        setDebugInfo(`Successfully loaded ${adsWithUsers.length} ads`)
+        toast.success(`Loaded ${adsWithUsers.length} ads successfully`)
+      } else {
+        console.log("ℹ️ No ads found in database")
+        setAds([])
+        setDebugInfo("No ads found in database")
+        toast.info("No ads found in the database")
       }
     } catch (error) {
-      console.error("Error fetching categories:", error)
+      console.error('❌ Unexpected error:', error)
+      setDebugInfo(`Unexpected error: ${error}`)
+      toast.error('Unexpected error loading ads')
+      setAds([])
+    } finally {
+      setLoading(false)
+      console.log("🏁 Fetch completed, loading set to false")
     }
+  }, [supabase])
+
+  // Debug function to test connection
+  const debugConnection = async () => {
+    console.log("🔍 DEBUG: Testing Supabase connection...")
+    
+    // Test products table
+    const { data: products, error: productsError, count: productsCount } = await supabase
+      .from('products')
+      .select('*', { count: 'exact' })
+    
+    console.log("📊 Products count:", productsCount)
+    console.log("📊 Products data:", products)
+    console.log("❌ Products error:", productsError)
+    
+    toast.info(`Found ${productsCount || 0} products in database. Check console for details.`)
   }
 
-  // Auto-save Status Update
-  const updateAdStatus = async (adId: string, status: string) => {
+  const sendNotification = async (userId: string, title: string, message: string, type: string) => {
     try {
-      const supabase = createClient()
+      console.log("📨 Sending notification to user:", userId)
+      
       const { error } = await supabase
-        .from('products')
-        .update({ status })
-        .eq('id', adId)
+        .from('notifications')
+        .insert({
+          user_id: userId,
+          title,
+          message,
+          type,
+          is_read: false,
+          created_at: new Date().toISOString()
+        })
 
-      if (error) throw error
-
-      // Update local state immediately
-      setAds(ads.map(ad => 
-        ad.id === adId ? { ...ad, status: status as Ad['status'] } : ad
-      ))
+      if (error) {
+        console.error("❌ Notification error:", error)
+        throw error
+      }
+      
+      console.log("✅ Notification sent successfully")
     } catch (error) {
-      console.error("Error updating ad status:", error)
-      setError(`Failed to update status for ad ${adId}.`)
+      console.error('❌ Error sending notification:', error)
     }
   }
 
-  // --- SOFT DELETE IMPLEMENTATION (Replaces hard deleteAd) ---
-  const softDeleteAd = async () => {
-    if (!deleteConfirm || !deleteReason.trim()) {
-        setError("Deletion reason is mandatory for soft delete logging.");
-        return;
-    }
-
-    const { adId } = deleteConfirm
-    setIsDeleting(true);
-    setError(null);
-
+  const handleStatusChange = async (adId: string, newStatus: Product['status'], adTitle: string, userId: string) => {
+    setActionLoading(adId)
+    
     try {
-      const supabase = createClient()
+      console.log(`🔄 Changing ad ${adId} status to:`, newStatus)
       
-      // 1. ARCHIVE: Log the ad to the separate monitoring table
-      // IMPORTANT: You MUST create a 'deleted_ads_log' table in Supabase 
-      // before uncommenting this block to enable full monitoring.
-      /*
-      const { error: logError } = await supabase
-         .from('deleted_ads_log')
-         .insert({ 
-           product_id: adId, 
-           deletion_reason: deleteReason, 
-           deleted_by_admin_id: 'CURRENT_ADMIN_ID_HERE', // <-- Replace with actual admin's ID
-           deleted_at: new Date().toISOString()
-         });
-      
-      if (logError) throw logError;
-      */
-      
-      // 2. SOFT DELETE: Update status in the main 'products' table to 'deleted'
-      const { error: updateError } = await supabase
+      const { data, error } = await supabase
         .from('products')
         .update({ 
-            status: 'deleted' as Ad['status'] 
+          status: newStatus,
+          updated_at: new Date().toISOString()
         })
         .eq('id', adId)
-        .limit(1)
 
-      if (updateError) throw updateError
+      if (error) {
+        console.error("❌ Status update error:", error)
+        toast.error(`Database error: ${error.message}`)
+        return
+      }
 
-      // Remove from local state and close the dialog
-      setAds(ads.filter(ad => ad.id !== adId))
-      setDeleteConfirm(null)
-      setDeleteReason("")
-      setSelectedAds(selectedAds.filter(id => id !== adId)) // Also deselect if it was selected
+      console.log("✅ Status updated successfully")
+
+      // Send notification to ad owner
+      const statusMessages = {
+        active: "has been approved and is now live on CoinMint",
+        pending: "is pending review by our team", 
+        inactive: "has been paused and is not visible to users",
+        rejected: "has been rejected. Please check our guidelines",
+        expired: "has expired and is no longer visible",
+        sold: "has been marked as sold",
+        deleted: "has been deleted by admin"
+      }
+
+      await sendNotification(
+        userId,
+        `Ad Status Updated: ${adTitle}`,
+        `Your ad "${adTitle}" ${statusMessages[newStatus]}`,
+        'ad_status'
+      )
+
+      // Update local state
+      setAds(prev => prev.map(ad => 
+        ad.id === adId ? { ...ad, status: newStatus } : ad
+      ))
+
+      toast.success(`✅ Ad status updated to ${newStatus}`)
+      setStatusChangeDialog(null)
 
     } catch (error) {
-      console.error("Error soft-deleting ad:", error)
-      setError("Soft delete failed. Check logs and ensure 'deleted_ads_log' table is structured correctly.")
+      console.error('❌ Error updating ad status:', error)
+      toast.error('❌ Failed to update ad status')
     } finally {
-      setIsDeleting(false);
+      setActionLoading(null)
     }
+  }
+
+  const handleDeleteAd = async (adId: string, adTitle: string, userId: string) => {
+    setActionLoading(adId)
+    
+    try {
+      console.log(`🗑️ Deleting ad:`, adId)
+      
+      const adToDelete = ads.find(ad => ad.id === adId)
+      
+      if (adToDelete) {
+        // Try to archive to deleted_ads if table exists
+        try {
+          const { error: archiveError } = await supabase
+            .from('deleted_ads')
+            .insert({
+              original_id: adToDelete.id,
+              title: adToDelete.title,
+              description: adToDelete.description,
+              price: adToDelete.price,
+              category: adToDelete.category,
+              location: adToDelete.location,
+              status: 'deleted',
+              views: adToDelete.views,
+              user_id: adToDelete.user_id,
+              images: adToDelete.images,
+              original_created_at: adToDelete.created_at,
+              deleted_at: new Date().toISOString(),
+              deleted_by: currentUser?.id,
+              reason: 'Admin deletion'
+            })
+
+          if (archiveError) {
+            console.warn("⚠️ Archive failed, continuing with delete:", archiveError)
+          } else {
+            console.log("✅ Ad archived successfully")
+          }
+        } catch (archiveError) {
+          console.warn("⚠️ Archive table might not exist, continuing with delete")
+        }
+
+        // Delete from main products table
+        const { error: deleteError } = await supabase
+          .from('products')
+          .delete()
+          .eq('id', adId)
+
+        if (deleteError) {
+          console.error("❌ Delete error:", deleteError)
+          throw deleteError
+        }
+
+        console.log("✅ Ad deleted from products")
+
+        // Send notification
+        await sendNotification(
+          userId,
+          'Ad Deleted',
+          `Your ad "${adTitle}" has been deleted by admin. Contact support for more information.`,
+          'ad_deleted'
+        )
+
+        // Update local state and selected ads
+        setAds(prev => prev.filter(ad => ad.id !== adId))
+        setSelectedAds(prev => {
+          const newSelected = new Set(prev)
+          newSelected.delete(adId)
+          return newSelected
+        })
+        
+        toast.success('✅ Ad deleted successfully')
+      }
+
+      setDeleteDialog(null)
+
+    } catch (error) {
+      console.error('❌ Error deleting ad:', error)
+      toast.error('❌ Failed to delete ad')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleViewAdDetails = (ad: Product) => {
+    setSelectedAd(ad)
+    setAdDetailsOpen(true)
+  }
+
+  const handleViewAdOnSite = (adId: string) => {
+    window.open(`/ads/${adId}`, '_blank')
+  }
+
+  // Bulk actions
+  const handleSelectAd = (adId: string, checked: boolean) => {
+    setSelectedAds(prev => {
+      const newSelected = new Set(prev)
+      if (checked) {
+        newSelected.add(adId)
+      } else {
+        newSelected.delete(adId)
+      }
+      return newSelected
+    })
   }
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedAds(filteredAds.map(ad => ad.id))
+      setSelectedAds(new Set(filteredAds.map(ad => ad.id)))
     } else {
-      setSelectedAds([])
+      setSelectedAds(new Set())
     }
   }
 
-  const handleSelectAd = (adId: string, checked: boolean) => {
-    if (checked) {
-      setSelectedAds([...selectedAds, adId])
-    } else {
-      setSelectedAds(selectedAds.filter(id => id !== adId))
-    }
-  }
-  
-  // Placeholder for Eye Icon functionality
-  const handleViewAd = (adId: string) => {
-      // Implement your navigation logic here (e.g., using Next.js router)
-      // router.push(`/superadmin/ad-details/${adId}`);
-      console.log(`Viewing details for ad: ${adId}`);
-      alert(`Viewing Ad Details for ID: ${adId}. Integrate router navigation here.`);
-  }
+  const handleBulkStatusChange = async (newStatus: Product['status']) => {
+    if (selectedAds.size === 0) return
 
-  const bulkUpdateStatus = async (status: string) => {
-     // ... (Bulk update logic remains the same)
-    if (selectedAds.length === 0) return
-
+    setActionLoading('bulk')
+    
     try {
-      const supabase = createClient()
       const { error } = await supabase
         .from('products')
-        .update({ status })
-        .in('id', selectedAds)
+        .update({ 
+          status: newStatus,
+          updated_at: new Date().toISOString()
+        })
+        .in('id', Array.from(selectedAds))
 
       if (error) throw error
+
+      // Send notifications and update local state
+      const adsToUpdate = ads.filter(ad => selectedAds.has(ad.id))
+      
+      for (const ad of adsToUpdate) {
+        await sendNotification(
+          ad.user_id,
+          `Ad Status Updated: ${ad.title}`,
+          `Your ad "${ad.title}" status has been updated to ${newStatus}`,
+          'ad_status'
+        )
+      }
 
       // Update local state
-      setAds(ads.map(ad => 
-        selectedAds.includes(ad.id) ? { ...ad, status: status as Ad['status'] } : ad
+      setAds(prev => prev.map(ad => 
+        selectedAds.has(ad.id) ? { ...ad, status: newStatus } : ad
       ))
-      
-      setSelectedAds([])
+
+      toast.success(`✅ ${selectedAds.size} ads updated to ${newStatus}`)
+      setSelectedAds(new Set())
+      setBulkActionDialog(null)
+
     } catch (error) {
-      console.error("Error bulk updating ads:", error)
-      setError("Bulk update failed.")
+      console.error('❌ Bulk status update error:', error)
+      toast.error('❌ Failed to update ads')
+    } finally {
+      setActionLoading(null)
     }
   }
 
-  const bulkDeleteAds = async () => {
-    if (selectedAds.length === 0) return
-    
-    // For simplicity in a bulk action, we can use the soft delete status update.
-    if (!confirm(`Are you sure you want to SOFT DELETE ${selectedAds.length} ads? They will be marked as 'deleted' and removed from the site.`)) {
-      return
-    }
+  const handleBulkDelete = async () => {
+    if (selectedAds.size === 0) return
 
+    setActionLoading('bulk-delete')
+    
     try {
-      const supabase = createClient()
+      const adsToDelete = ads.filter(ad => selectedAds.has(ad.id))
       
-      // Bulk Soft Delete: Update status to 'deleted'
+      // Delete from database
       const { error } = await supabase
         .from('products')
-        .update({ status: 'deleted' as Ad['status'] })
-        .in('id', selectedAds)
+        .delete()
+        .in('id', Array.from(selectedAds))
 
       if (error) throw error
 
-      // Remove from local state
-      setAds(ads.filter(ad => !selectedAds.includes(ad.id)))
-      setSelectedAds([])
+      // Send notifications
+      for (const ad of adsToDelete) {
+        await sendNotification(
+          ad.user_id,
+          'Ad Deleted',
+          `Your ad "${ad.title}" has been deleted by admin.`,
+          'ad_deleted'
+        )
+      }
+
+      // Update local state
+      setAds(prev => prev.filter(ad => !selectedAds.has(ad.id)))
+      setSelectedAds(new Set())
+      
+      toast.success(`✅ ${selectedAds.size} ads deleted successfully`)
+      setBulkActionDialog(null)
+
     } catch (error) {
-      console.error("Error bulk deleting ads:", error)
-      setError("Bulk soft delete failed.")
-    }
-  }
-  
-  const exportAds = () => {
-    const csvContent = [
-      ['ID', 'Title', 'Price', 'Category', 'Status', 'User Email', 'Created Date'], // Removed Location and Views
-      ...filteredAds.map(ad => [
-        ad.id,
-        `"${ad.title.replace(/"/g, '""')}"`,
-        ad.price,
-        ad.category,
-        ad.status,
-        ad.user_email,
-        new Date(ad.created_at).toLocaleDateString()
-      ])
-    ].map(row => row.join(',')).join('\n')
-
-    const blob = new Blob([csvContent], { type: 'text/csv' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `ads-export-${new Date().toISOString().split('T')[0]}.csv`
-    a.click()
-    window.URL.revokeObjectURL(url)
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'bg-green-900 text-green-400 border-green-700'
-      case 'pending': return 'bg-yellow-900 text-yellow-400 border-yellow-700'
-      case 'rejected': return 'bg-red-900 text-red-400 border-red-700'
-      case 'sold': return 'bg-blue-900 text-blue-400 border-blue-700'
-      case 'inactive': return 'bg-gray-700 text-gray-400 border-gray-600'
-      case 'deleted': return 'bg-red-950 text-red-700 border-red-900' // Should not be seen in this view
-      default: return 'bg-gray-700 text-gray-400 border-gray-600'
+      console.error('❌ Bulk delete error:', error)
+      toast.error('❌ Failed to delete ads')
+    } finally {
+      setActionLoading(null)
     }
   }
 
-  const filteredAds = ads.filter(ad =>
-    (ad.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-     ad.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-     ad.user_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-     ad.id.toLowerCase().includes(searchTerm.toLowerCase())) && // Added ID search
-    (statusFilter === "all" || ad.status === statusFilter) &&
-    (categoryFilter === "all" || ad.category === categoryFilter)
-  )
+  const exportAds = async () => {
+    try {
+      const csvContent = [
+        ['ID', 'Title', 'Price', 'Category', 'Location', 'Status', 'Views', 'User Email', 'Created Date'],
+        ...filteredAds.map((ad) => [
+          ad.id.slice(-6),
+          `"${ad.title}"`,
+          ad.price,
+          ad.category,
+          ad.location,
+          ad.status,
+          ad.views,
+          ad.user?.email || 'Unknown',
+          new Date(ad.created_at).toLocaleDateString()
+        ])
+      ].map(row => row.join(',')).join('\n')
 
-  if (loading) {
-     // ... (loading component remains the same)
+      const blob = new Blob([csvContent], { type: 'text/csv' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `coinmint-ads-${new Date().toISOString().split('T')[0]}.csv`
+      a.click()
+      window.URL.revokeObjectURL(url)
+      
+      toast.success('✅ Ads exported successfully')
+    } catch (error) {
+      console.error('❌ Error exporting ads:', error)
+      toast.error('❌ Failed to export ads')
+    }
+  }
+
+  const filteredAds = useMemo(() => {
+    console.log("🔍 Filtering ads...", { 
+      totalAds: ads.length, 
+      searchQuery, 
+      statusFilter 
+    })
+    
+    const filtered = ads.filter(ad => {
+      const matchesSearch = 
+        ad.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        ad.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ad.category?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ad.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ad.user?.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ad.id.toLowerCase().includes(searchQuery.toLowerCase())
+      const matchesStatus = statusFilter === 'all' || ad.status === statusFilter
+      return matchesSearch && matchesStatus
+    })
+    
+    console.log("✅ Filtered ads count:", filtered.length)
+    return filtered
+  }, [ads, searchQuery, statusFilter])
+
+  const getStatusBadge = (status: Product['status']) => {
+    const variants = {
+      active: { class: "bg-green-600", label: "Active" },
+      pending: { class: "bg-yellow-600", label: "Pending" },
+      rejected: { class: "bg-red-600", label: "Rejected" },
+      sold: { class: "bg-blue-600", label: "Sold" },
+      expired: { class: "bg-gray-600", label: "Expired" },
+      inactive: { class: "bg-orange-600", label: "Inactive" },
+      deleted: { class: "bg-red-800", label: "Deleted" }
+    }
+    
     return (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="h-8 w-64 bg-gray-700 rounded animate-pulse" />
-            <div className="h-10 w-48 bg-gray-700 rounded animate-pulse" />
-          </div>
-          <Card className="p-6 bg-gray-800 border-gray-700">
-            <div className="grid gap-4">
-              {[1, 2, 3, 4, 5].map(i => (
-                <div key={i} className="h-16 bg-gray-700 rounded animate-pulse" />
-              ))}
-            </div>
-          </Card>
+      <Badge className={variants[status].class}>
+        {variants[status].label}
+      </Badge>
+    )
+  }
+
+  const getStatusOptions = (currentStatus: Product['status']) => {
+    const allStatuses: Product['status'][] = ['active', 'pending', 'inactive', 'rejected', 'sold', 'expired']
+    return allStatuses.filter(status => status !== currentStatus)
+  }
+
+  const getStatusIcon = (status: Product['status']) => {
+    const icons = {
+      active: CheckCircle,
+      pending: Clock,
+      inactive: Ban,
+      rejected: XCircle,
+      sold: Package,
+      expired: Ban
+    }
+    const IconComponent = icons[status]
+    return <IconComponent className="w-4 h-4 mr-2" />
+  }
+
+  // Don't render if not admin
+  if (currentUser && !isAdmin) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold text-white">Ads Management</h1>
+        <div className="bg-gray-800 rounded-lg p-6">
+          <p className="text-gray-400">Loading...</p>
         </div>
-      )
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white">Ads Management</h1>
           <p className="text-gray-400">
-            {filteredAds.length} of {ads.length} active ads shown
+            Total: {ads.length} | Showing: {filteredAds.length} | Selected: {selectedAds.size}
+            {debugInfo && <span className="ml-2 text-yellow-400 text-sm">| {debugInfo}</span>}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Button
+        
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Button 
+            variant="outline" 
+            onClick={debugConnection}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            Debug Connection
+          </Button>
+          
+          <Button 
+            variant="outline" 
             onClick={exportAds}
-            variant="outline"
             className="bg-transparent border-gray-600 text-gray-300 hover:bg-gray-700"
           >
             <Download className="w-4 h-4 mr-2" />
-            Export
+            Export CSV
           </Button>
-          <Button
+          
+          <Button 
             onClick={fetchAds}
+            disabled={loading}
             className="bg-green-600 hover:bg-green-700"
           >
-            <RefreshCw className="w-4 h-4 mr-2" />
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
         </div>
       </div>
 
-      {error && (
-            <div className="p-3 text-sm text-red-500 bg-red-900/20 border border-red-900 rounded-lg">
-                <AlertTriangle className="w-4 h-4 mr-2 inline" /> {error}
-            </div>
-        )}
-
       {/* Bulk Actions */}
-      {selectedAds.length > 0 && (
-        <Card className="p-4 bg-blue-900 border-blue-700">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-white font-medium">
-                {selectedAds.length} ads selected
-              </span>
-              <Button
-                size="sm"
-                className="bg-green-600 hover:bg-green-700 text-white"
-                onClick={() => bulkUpdateStatus('active')}
-              >
-                <CheckCircle className="w-4 h-4 mr-1" />
-                Approve
-              </Button>
-              <Button
-                size="sm"
-                className="bg-red-600 hover:bg-red-700 text-white"
-                onClick={() => bulkUpdateStatus('rejected')}
-              >
-                <XCircle className="w-4 h-4 mr-1" />
-                Reject
-              </Button>
-              <Button
-                size="sm"
-                className="bg-gray-600 hover:bg-gray-700 text-white"
-                onClick={() => bulkUpdateStatus('inactive')}
-              >
-                <Ban className="w-4 h-4 mr-1" />
-                Deactivate
-              </Button>
-              <Button
-                size="sm"
-                className="bg-red-800 hover:bg-red-900 text-white"
-                onClick={bulkDeleteAds} // Bulk soft delete implemented
-              >
-                <Trash2 className="w-4 h-4 mr-1" />
-                Soft Delete
-              </Button>
+      {selectedAds.size > 0 && (
+        <Card className="bg-blue-900 border-blue-700">
+          <CardContent className="p-4">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <Badge className="bg-blue-600">{selectedAds.size} selected</Badge>
+                <span className="text-white">Bulk actions:</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" className="bg-green-600 hover:bg-green-700">
+                      <Send className="w-4 h-4 mr-2" />
+                      Change Status
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="bg-gray-800 border-gray-700">
+                    <DropdownMenuItem onClick={() => setBulkActionDialog({ type: 'status', status: 'active' })}>
+                      {getStatusIcon('active')}
+                      Mark as Active
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setBulkActionDialog({ type: 'status', status: 'pending' })}>
+                      {getStatusIcon('pending')}
+                      Mark as Pending
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setBulkActionDialog({ type: 'status', status: 'inactive' })}>
+                      {getStatusIcon('inactive')}
+                      Mark as Inactive
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setBulkActionDialog({ type: 'status', status: 'rejected' })}>
+                      {getStatusIcon('rejected')}
+                      Mark as Rejected
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setBulkActionDialog({ type: 'status', status: 'sold' })}>
+                      {getStatusIcon('sold')}
+                      Mark as Sold
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                
+                <Button 
+                  size="sm" 
+                  variant="destructive"
+                  onClick={() => setBulkActionDialog({ type: 'delete' })}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Selected
+                </Button>
+                
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => setSelectedAds(new Set())}
+                >
+                  Clear Selection
+                </Button>
+              </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-gray-600 text-gray-300 hover:bg-gray-700"
-              onClick={() => setSelectedAds([])}
-            >
-              Clear Selection
-            </Button>
-          </div>
+          </CardContent>
         </Card>
       )}
 
-      {/* Filters & Table */}
-      <Card className="p-6 bg-gray-800 border-gray-700">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="relative col-span-1 md:col-span-2">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input
-              placeholder="Search title, description, ID, or user email..."
-              className="pl-10 bg-gray-700 border-gray-600 text-white placeholder-gray-400"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+      {/* Filters */}
+      <Card className="bg-gray-800 border-gray-700">
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Search by ID, title, description, category, location..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 bg-gray-700 border-gray-600 text-white"
+              />
+            </div>
+            
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[180px] bg-gray-700 border-gray-600 text-white">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+                <SelectItem value="sold">Sold</SelectItem>
+                <SelectItem value="expired">Expired</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
-          >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="pending">Pending</option>
-            <option value="inactive">Inactive</option>
-            <option value="sold">Sold</option>
-            <option value="rejected">Rejected</option>
-          </select>
-
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
-          >
-            <option value="all">All Categories</option>
-            {categories.map(category => (
-              <option key={category} value={category}>{category}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-700">
-                <th className="text-left py-3 text-gray-400 w-12">
-                  <Checkbox
-                    checked={selectedAds.length === filteredAds.length && filteredAds.length > 0}
-                    onCheckedChange={handleSelectAll}
-                  />
-                </th>
-                <th className="text-left py-3 text-gray-400">Ad Details</th>
-                <th className="text-left py-3 text-gray-400">Price</th>
-                <th className="text-left py-3 text-gray-400">Category</th>
-                <th className="text-left py-3 text-gray-400">Posted By</th>
-                <th className="text-left py-3 text-gray-400">Status</th>
-                <th className="text-left py-3 text-gray-400 w-20">Date</th>
-                <th className="text-left py-3 text-gray-400 w-24">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredAds.map((ad) => (
-                <tr key={ad.id} className="border-b border-gray-700 hover:bg-gray-750 transition-colors">
-                  <td className="py-4">
-                    <Checkbox
-                      checked={selectedAds.includes(ad.id)}
-                      onCheckedChange={(checked) => handleSelectAd(ad.id, checked as boolean)}
-                    />
-                  </td>
-                  
-                  {/* Smartly Arranged Ad Details (ID + Title/Description) */}
-                  <td className="py-4 max-w-xs">
-                    <div className="flex flex-col">
-                        <span className="font-mono text-xs text-gray-500 mb-1">
-                            ID: **{ad.id.slice(-6).toUpperCase()}**
-                        </span>
-                        <p className="font-medium text-white truncate">{ad.title}</p>
-                        <p className="text-sm text-gray-400 line-clamp-1">{ad.description}</p>
-                    </div>
-                  </td>
-
-                  <td className="py-4">
-                    <div className="flex items-center text-white text-sm">
-                      <DollarSign className="w-4 h-4 mr-1 text-green-400" />
-                      {ad.price.toLocaleString()}
-                    </div>
-                  </td>
-                  <td className="py-4">
-                    <Badge variant="outline" className="bg-gray-700 text-gray-300 border-gray-600">
-                      {ad.category}
-                    </Badge>
-                  </td>
-                  <td className="py-4">
-                    <div className="flex items-center gap-2">
-                      <User className="w-4 h-4 text-gray-400" />
-                      <span className="text-white text-sm max-w-[120px] truncate">{ad.user_email}</span>
-                    </div>
-                  </td>
-                  
-                  {/* Improved Status Dropdown (Auto-Save) */}
-                  <td className="py-4">
-                    <select
-                      value={ad.status}
-                      onChange={(e) => updateAdStatus(ad.id, e.target.value)}
-                      className={`px-2 py-1 text-sm border rounded text-white ${getStatusColor(ad.status)}`}
-                    >
-                      <option value="active">Active</option>
-                      <option value="pending">Pending</option>
-                      <option value="inactive">Inactive</option>
-                      <option value="sold">Sold</option>
-                      <option value="rejected">Rejected</option>
-                    </select>
-                  </td>
-                  
-                  <td className="py-4 text-white text-sm">
-                    {new Date(ad.created_at).toLocaleDateString()}
-                  </td>
-                  
-                  {/* Actions */}
-                  <td className="py-4">
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="bg-blue-900 border-blue-700 text-blue-400 hover:bg-blue-800"
-                        onClick={() => handleViewAd(ad.id)} // Eye Icon Fix
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        className="bg-red-900 border-red-700 text-red-400 hover:bg-red-800"
-                        onClick={() => setDeleteConfirm({ adId: ad.id, adTitle: ad.title })} // Soft Delete Dialog Trigger
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {filteredAds.length === 0 && (
-          <div className="text-center py-12">
-            <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4 opacity-50" />
-            <p className="text-gray-400 text-lg mb-2">No ads found</p>
-            <p className="text-gray-500 text-sm">Try adjusting your search or filters</p>
-          </div>
-        )}
+        </CardContent>
       </Card>
 
-      {/* --- SOFT DELETE CONFIRMATION DIALOG --- */}
-      <Dialog open={!!deleteConfirm} onOpenChange={() => { setDeleteConfirm(null); setDeleteReason(""); }}>
+      {/* Ads Table */}
+      <Card className="bg-gray-800 border-gray-700">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <FileText className="w-5 h-5" />
+            Ads List ({filteredAds.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="text-center py-12">
+              <RefreshCw className="w-8 h-8 animate-spin mx-auto text-green-500" />
+              <p className="text-gray-400 mt-2">Loading ads...</p>
+            </div>
+          ) : filteredAds.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">
+              <FileText className="w-16 h-16 mx-auto mb-4 opacity-50" />
+              <p className="text-lg mb-2">No ads found</p>
+              <p className="text-sm">Try adjusting your search or filters</p>
+              <Button 
+                onClick={() => {
+                  setSearchQuery("")
+                  setStatusFilter("all")
+                }}
+                className="mt-4 bg-green-600 hover:bg-green-700"
+              >
+                Clear Filters
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Select All */}
+              <div className="flex items-center gap-3 p-2 border-b border-gray-700">
+                <Checkbox
+                  checked={selectedAds.size === filteredAds.length && filteredAds.length > 0}
+                  onCheckedChange={handleSelectAll}
+                />
+                <span className="text-sm text-gray-400">
+                  Select all {filteredAds.length} ads
+                </span>
+              </div>
+
+              {filteredAds.map((ad, index) => (
+                <div
+                  key={ad.id}
+                  className="flex items-start gap-3 p-4 bg-gray-700 rounded-lg hover:bg-gray-650 transition-colors"
+                >
+                  {/* Checkbox */}
+                  <Checkbox
+                    checked={selectedAds.has(ad.id)}
+                    onCheckedChange={(checked) => handleSelectAd(ad.id, checked as boolean)}
+                  />
+                  
+                  {/* Number */}
+                  <div className="flex items-center justify-center w-6 h-6 bg-gray-600 rounded text-xs text-gray-300 font-medium flex-shrink-0">
+                    {index + 1}
+                  </div>
+
+                  <div className="flex flex-1 items-start gap-4">
+                    <div className="w-16 h-16 bg-gray-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                      {ad.images && ad.images.length > 0 ? (
+                        <img 
+                          src={ad.images[0]} 
+                          alt={ad.title}
+                          className="w-16 h-16 rounded-lg object-cover"
+                        />
+                      ) : (
+                        <FileText className="w-8 h-8 text-gray-400" />
+                      )}
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <h3 className="font-semibold text-white text-lg">
+                          {ad.title}
+                        </h3>
+                        {getStatusBadge(ad.status)}
+                        <Badge variant="outline" className="text-green-400 border-green-600">
+                          ${ad.price}
+                        </Badge>
+                        <Badge variant="outline" className="text-gray-400 border-gray-600">
+                          ID: {ad.id.slice(-6)}
+                        </Badge>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-sm">
+                        <div className="flex items-center gap-1 text-gray-300">
+                          <User className="w-3 h-3" />
+                          <span className="truncate">{ad.user?.email || 'Unknown User'}</span>
+                        </div>
+                        
+                        <div className="flex items-center gap-1 text-gray-300">
+                          <Tag className="w-3 h-3" />
+                          <span>{ad.category}</span>
+                        </div>
+                        
+                        <div className="flex items-center gap-1 text-gray-300">
+                          <MapPin className="w-3 h-3" />
+                          <span>{ad.location}</span>
+                        </div>
+                        
+                        <div className="flex items-center gap-1 text-gray-300">
+                          <Calendar className="w-3 h-3" />
+                          <span>{new Date(ad.created_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                      
+                      <p className="text-gray-400 text-sm mt-2 line-clamp-2">
+                        {ad.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons - SEPARATE Eye and Dropdown */}
+                  <div className="flex items-center gap-2">
+                    {/* Eye Icon - Direct Link */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleViewAdOnSite(ad.id)}
+                      className="bg-transparent border-gray-600 text-green-400 hover:bg-green-900 hover:text-green-300"
+                      title="View on CoinMint"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
+
+                    {/* Dropdown Menu - All Other Actions */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="bg-transparent border-gray-600 text-gray-300 hover:bg-gray-600"
+                          disabled={actionLoading === ad.id}
+                        >
+                          {actionLoading === ad.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <MoreVertical className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="bg-gray-800 border-gray-700 w-64">
+                        <DropdownMenuLabel className="text-white">Admin Actions</DropdownMenuLabel>
+                        <DropdownMenuSeparator className="bg-gray-600" />
+                        
+                        {/* View Full Details */}
+                        <DropdownMenuItem 
+                          onClick={() => handleViewAdDetails(ad)}
+                          className="text-blue-400 hover:bg-blue-900 hover:text-blue-300 cursor-pointer"
+                        >
+                          <FileText className="w-4 h-4 mr-2" />
+                          View Full Details
+                        </DropdownMenuItem>
+
+                        <DropdownMenuSeparator className="bg-gray-600" />
+                        
+                        {/* Status Change Options */}
+                        <DropdownMenuLabel className="text-gray-400 text-xs">Change Status</DropdownMenuLabel>
+                        {getStatusOptions(ad.status).map((status) => (
+                          <DropdownMenuItem 
+                            key={status}
+                            onClick={() => setStatusChangeDialog({ ad, newStatus: status })}
+                            className="text-green-400 hover:bg-green-900 hover:text-green-300 cursor-pointer"
+                          >
+                            {getStatusIcon(status)}
+                            Mark as {status.charAt(0).toUpperCase() + status.slice(1)}
+                          </DropdownMenuItem>
+                        ))}
+                        
+                        <DropdownMenuSeparator className="bg-gray-600" />
+                        
+                        {/* Delete Option */}
+                        <DropdownMenuItem 
+                          onClick={() => setDeleteDialog(ad)}
+                          className="text-red-400 hover:bg-red-900 hover:text-red-300 cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Delete Ad
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Status Change Dialog */}
+      <Dialog open={!!statusChangeDialog} onOpenChange={() => setStatusChangeDialog(null)}>
         <DialogContent className="bg-gray-800 border-gray-700 text-white">
           <DialogHeader>
-            <DialogTitle className="text-red-500">Confirm Soft Delete</DialogTitle>
+            <DialogTitle className="text-green-500 flex items-center gap-2">
+              <Send className="w-5 h-5" />
+              Change Ad Status
+            </DialogTitle>
             <DialogDescription className="text-gray-400">
-              You are soft-deleting the ad: <strong className="text-white">{deleteConfirm?.adTitle}</strong>. 
-              This action sets the ad's status to 'deleted', removing it from the public site. 
-              The database record will remain for auditing.
+              Are you sure you want to change the status of 
+              <strong className="text-white"> "{statusChangeDialog?.ad.title}" </strong>
+              to <strong className="text-white">{statusChangeDialog?.newStatus}</strong>?
+              The ad owner will be notified of this change.
             </DialogDescription>
           </DialogHeader>
-          
-          <div className="space-y-4">
-            <label htmlFor="delete-reason" className="block text-sm font-medium text-gray-300">
-              Remark / Reason for Deletion <span className="text-red-500">*</span>
-            </label>
-            <Input
-              id="delete-reason"
-              value={deleteReason}
-              onChange={(e) => setDeleteReason(e.target.value)}
-              placeholder="e.g., Policy Violation: Spam, Prohibited Item"
-              className="bg-gray-700 border-gray-600 text-white"
-            />
-          </div>
-
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => { setDeleteConfirm(null); setDeleteReason("") }}
+              onClick={() => setStatusChangeDialog(null)}
               className="border-gray-600 text-gray-300 hover:bg-gray-700"
-              disabled={isDeleting}
+              disabled={actionLoading === statusChangeDialog?.ad.id}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="bg-green-600 hover:bg-green-700"
+              onClick={() => {
+                if (statusChangeDialog) {
+                  handleStatusChange(
+                    statusChangeDialog.ad.id,
+                    statusChangeDialog.newStatus,
+                    statusChangeDialog.ad.title,
+                    statusChangeDialog.ad.user_id
+                  )
+                }
+              }}
+              disabled={actionLoading === statusChangeDialog?.ad.id}
+            >
+              {actionLoading === statusChangeDialog?.ad.id ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4 mr-2" />
+              )}
+              {actionLoading === statusChangeDialog?.ad.id ? 'Updating...' : 'Change Status'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Dialog */}
+      <Dialog open={!!deleteDialog} onOpenChange={() => setDeleteDialog(null)}>
+        <DialogContent className="bg-gray-800 border-gray-700 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-red-500">Confirm Delete</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Are you sure you want to delete <strong className="text-white">{deleteDialog?.title}</strong>?
+              This will:
+              <ul className="list-disc list-inside mt-2 text-sm">
+                <li>Remove the ad from CoinMint</li>
+                <li>Notify the ad owner</li>
+                <li>This action cannot be undone</li>
+              </ul>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDialog(null)}
+              className="border-gray-600 text-gray-300 hover:bg-gray-700"
+              disabled={actionLoading === deleteDialog?.id}
             >
               Cancel
             </Button>
             <Button
               className="bg-red-600 hover:bg-red-700"
-              onClick={softDeleteAd}
-              disabled={!deleteReason.trim() || isDeleting}
+              onClick={() => {
+                if (deleteDialog) {
+                  handleDeleteAd(deleteDialog.id, deleteDialog.title, deleteDialog.user_id)
+                }
+              }}
+              disabled={actionLoading === deleteDialog?.id}
             >
-              {isDeleting ? (
-                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+              {actionLoading === deleteDialog?.id ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : (
                 <Trash2 className="w-4 h-4 mr-2" />
               )}
-              {isDeleting ? 'Processing...' : 'Confirm Soft Delete'}
+              {actionLoading === deleteDialog?.id ? 'Deleting...' : 'Delete Ad'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Action Dialogs */}
+      <Dialog open={!!bulkActionDialog} onOpenChange={() => setBulkActionDialog(null)}>
+        <DialogContent className="bg-gray-800 border-gray-700 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-yellow-500">
+              {bulkActionDialog?.type === 'delete' ? 'Confirm Bulk Delete' : 'Confirm Bulk Status Change'}
+            </DialogTitle>
+            <DialogDescription className="text-gray-400">
+              {bulkActionDialog?.type === 'delete' ? (
+                <>
+                  Are you sure you want to delete <strong>{selectedAds.size}</strong> ads?
+                  This will remove all selected ads and notify their owners.
+                </>
+              ) : (
+                <>
+                  Are you sure you want to change the status of <strong>{selectedAds.size}</strong> ads to{' '}
+                  <strong>{bulkActionDialog?.status}</strong>?
+                  All ad owners will be notified of this change.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setBulkActionDialog(null)}
+              className="border-gray-600 text-gray-300 hover:bg-gray-700"
+              disabled={actionLoading === 'bulk' || actionLoading === 'bulk-delete'}
+            >
+              Cancel
+            </Button>
+            <Button
+              className={bulkActionDialog?.type === 'delete' ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"}
+              onClick={() => {
+                if (bulkActionDialog?.type === 'delete') {
+                  handleBulkDelete()
+                } else if (bulkActionDialog?.type === 'status' && bulkActionDialog.status) {
+                  handleBulkStatusChange(bulkActionDialog.status)
+                }
+              }}
+              disabled={actionLoading === 'bulk' || actionLoading === 'bulk-delete'}
+            >
+              {actionLoading ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : bulkActionDialog?.type === 'delete' ? (
+                <Trash2 className="w-4 h-4 mr-2" />
+              ) : (
+                <Send className="w-4 h-4 mr-2" />
+              )}
+              {actionLoading ? 'Processing...' : 'Confirm'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Ad Details Dialog */}
+      <Dialog open={adDetailsOpen} onOpenChange={setAdDetailsOpen}>
+        <DialogContent className="bg-gray-800 border-gray-700 text-white max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-white">Ad Details</DialogTitle>
+          </DialogHeader>
+          {selectedAd && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm text-gray-400">Title</label>
+                  <p className="text-white">{selectedAd.title}</p>
+                </div>
+                <div>
+                  <label className="text-sm text-gray-400">Price</label>
+                  <p className="text-white">${selectedAd.price}</p>
+                </div>
+                <div>
+                  <label className="text-sm text-gray-400">Category</label>
+                  <p className="text-white">{selectedAd.category}</p>
+                </div>
+                <div>
+                  <label className="text-sm text-gray-400">Location</label>
+                  <p className="text-white">{selectedAd.location}</p>
+                </div>
+                <div>
+                  <label className="text-sm text-gray-400">Status</label>
+                  <div className="mt-1">{getStatusBadge(selectedAd.status)}</div>
+                </div>
+                <div>
+                  <label className="text-sm text-gray-400">Views</label>
+                  <p className="text-white">{selectedAd.views}</p>
+                </div>
+                <div className="col-span-2">
+                  <label className="text-sm text-gray-400">Description</label>
+                  <p className="text-white mt-1">{selectedAd.description}</p>
+                </div>
+                <div className="col-span-2">
+                  <label className="text-sm text-gray-400">User</label>
+                  <p className="text-white">{selectedAd.user?.email || 'Unknown'}</p>
+                </div>
+                <div className="col-span-2">
+                  <label className="text-sm text-gray-400">Ad ID</label>
+                  <p className="text-white font-mono text-sm">{selectedAd.id}</p>
+                </div>
+                <div className="col-span-2">
+                  <label className="text-sm text-gray-400">Created</label>
+                  <p className="text-white">{new Date(selectedAd.created_at).toLocaleString()}</p>
+                </div>
+                <div className="col-span-2">
+                  <label className="text-sm text-gray-400">Last Updated</label>
+                  <p className="text-white">{new Date(selectedAd.updated_at).toLocaleString()}</p>
+                </div>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
