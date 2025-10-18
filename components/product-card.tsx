@@ -1,6 +1,6 @@
 import type React from "react"
 import Image from "next/image"
-import type { Product } from "@/types" // Assuming Product type is declared somewhere
+import type { Product } from "@/types"
 import { getOptimizedImageUrl } from "@/lib/images"
 
 interface ProductCardProps {
