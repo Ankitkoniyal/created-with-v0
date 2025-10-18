@@ -58,13 +58,17 @@ export function Header() {
   
   // Get current location from URL if available
   const currentLocation = searchParams.get("location") || ""
+  const currentQuery = searchParams.get("q") || ""
   
-  const [searchQuery, setSearchQuery] = useState("")
+  const [searchQuery, setSearchQuery] = useState(currentQuery)
   const [selectedLocation, setSelectedLocation] = useState(currentLocation)
   const [locationInput, setLocationInput] = useState(currentLocation)
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false)
   const [filteredLocations, setFilteredLocations] = useState<string[]>([])
+  const [isSearchFocused, setIsSearchFocused] = useState(false)
+  const [isLocationFocused, setIsLocationFocused] = useState(false)
   const locationInputRef = useRef<HTMLInputElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const [showMegaMenu, setShowMegaMenu] = useState(false)
   const [notificationCounts, setNotificationCounts] = useState({
     favorites: 0,
@@ -77,15 +81,18 @@ export function Header() {
     ...location.cities.map(city => `${city}, ${location.province}`)
   ])
 
-  // Update location when URL changes
+  // Update search and location when URL changes
   useEffect(() => {
     setSelectedLocation(currentLocation)
     setLocationInput(currentLocation)
-  }, [currentLocation])
+    setSearchQuery(currentQuery)
+  }, [currentLocation, currentQuery])
 
+  // Debounced location search
   const handleLocationInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
     setLocationInput(value)
+    
     if (value.trim() === "") {
       setFilteredLocations([])
       setShowLocationSuggestions(false)
@@ -93,12 +100,17 @@ export function Header() {
       return
     }
 
-    const filtered = allLocations.filter((location) =>
-      location.toLowerCase().includes(value.toLowerCase())
-    ).slice(0, 8)
+    // Debounce the filtering
+    const timeoutId = setTimeout(() => {
+      const filtered = allLocations.filter((location) =>
+        location.toLowerCase().includes(value.toLowerCase())
+      ).slice(0, 8)
 
-    setFilteredLocations(filtered)
-    setShowLocationSuggestions(filtered.length > 0)
+      setFilteredLocations(filtered)
+      setShowLocationSuggestions(filtered.length > 0)
+    }, 200)
+
+    return () => clearTimeout(timeoutId)
   }
 
   const handleLocationSelect = (location: string) => {
@@ -107,7 +119,7 @@ export function Header() {
     setShowLocationSuggestions(false)
     locationInputRef.current?.blur()
     
-    // Stay on current page, just update URL with location
+    // Create search params
     const params = new URLSearchParams()
     
     // Keep existing search query if present
@@ -118,39 +130,73 @@ export function Header() {
     // Set the location
     params.set("location", location)
     
-    // If we're on homepage, reload homepage with location filter
-    if (pathname === "/") {
-      router.push(`/?${params.toString()}`, { scroll: false })
+    // If we're on homepage or search page, update with location filter
+    if (pathname === "/" || pathname === "/search") {
+      router.push(`${pathname}?${params.toString()}`, { scroll: false })
     } else {
-      // If on other page, go to homepage with location filter
-      router.push(`/?${params.toString()}`)
+      // If on other page, go to search page with location filter
+      router.push(`/search?${params.toString()}`)
     }
   }
 
   const handleLocationFocus = () => {
-    setLocationInput("")
-    setShowLocationSuggestions(false)
+    setIsLocationFocused(true)
+    if (locationInput === currentLocation) {
+      setLocationInput("")
+    }
+    setShowLocationSuggestions(true)
+  }
+
+  const handleSearchFocus = () => {
+    setIsSearchFocused(true)
   }
 
   const handleLocationBlur = () => {
+    setIsLocationFocused(false)
     setTimeout(() => {
       setShowLocationSuggestions(false)
+      // Restore current location if input is empty
+      if (!locationInput.trim() && currentLocation) {
+        setLocationInput(currentLocation)
+        setSelectedLocation(currentLocation)
+      }
     }, 200)
+  }
+
+  const handleSearchBlur = () => {
+    setIsSearchFocused(false)
   }
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
+    performSearch()
+  }
+
+  const performSearch = () => {
     const params = new URLSearchParams()
-    if (searchQuery.trim()) {
-      params.set("q", searchQuery.trim())
-    }
-    const locationValue = selectedLocation || locationInput
-    if (locationValue.trim()) {
-        params.set("location", locationValue)
+    
+    // Add search query if present
+    const trimmedQuery = searchQuery.trim()
+    if (trimmedQuery) {
+      params.set("q", trimmedQuery)
     }
     
-    // Only go to search page when using search button
+    // Add location if present
+    const locationValue = selectedLocation || locationInput
+    if (locationValue.trim()) {
+      params.set("location", locationValue.trim())
+    }
+    
+    // Always go to search page for searches
     router.push(`/search?${params.toString()}`)
+  }
+
+  // Handle Enter key in search input
+  const handleSearchKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      performSearch()
+    }
   }
 
   const handleLogout = async () => {
@@ -181,6 +227,23 @@ export function Header() {
     }
     
     router.push(`/search?${params.toString()}`)
+  }
+
+  // Clear search
+  const clearSearch = () => {
+    setSearchQuery("")
+    if (searchInputRef.current) {
+      searchInputRef.current.focus()
+    }
+  }
+
+  // Clear location
+  const clearLocation = () => {
+    setLocationInput("")
+    setSelectedLocation("")
+    if (locationInputRef.current) {
+      locationInputRef.current.focus()
+    }
   }
 
   useEffect(() => {
@@ -230,19 +293,33 @@ export function Header() {
 
           <div className="flex-1 max-w-4xl mx-2 sm:mx-4 lg:mx-8">
             <form onSubmit={handleSearch} className="relative">
-              <div className="flex items-center bg-white border-2 border-gray-200 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:border-gray-300">
-                <div className="flex items-center border-r border-gray-200 px-3 flex-1 relative">
+              <div className={`flex items-center bg-white border-2 rounded-full ${
+                isSearchFocused || isLocationFocused 
+                  ? "border-green-600 shadow-md" 
+                  : "border-gray-200"
+              } transition-colors duration-200`}>
+                {/* Location Input */}
+                <div className="flex items-center border-r border-gray-200 px-3 flex-1 relative min-w-0">
                   <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-2 text-green-600 flex-shrink-0" />
                   <Input
                     ref={locationInputRef}
                     type="text"
                     placeholder="City or Location"
-                    className="border-0 bg-transparent shadow-none focus:ring-0 focus-visible:ring-0 w-full text-xs sm:text-sm"
+                    className="border-0 bg-transparent shadow-none focus:ring-0 focus-visible:ring-0 w-full text-xs sm:text-sm pr-8"
                     value={locationInput}
                     onChange={handleLocationInputChange}
                     onFocus={handleLocationFocus}
                     onBlur={handleLocationBlur}
                   />
+                  {locationInput && (
+                    <button
+                      type="button"
+                      onClick={clearLocation}
+                      className="absolute right-2 text-gray-400 hover:text-gray-600"
+                    >
+                      ×
+                    </button>
+                  )}
 
                   {showLocationSuggestions && filteredLocations.length > 0 && (
                     <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 z-50 max-h-64 overflow-y-auto">
@@ -261,18 +338,36 @@ export function Header() {
                   )}
                 </div>
 
-                <div className="flex-2 flex items-center px-4">
-                  <Search className="h-4 w-4 text-green-600 mr-3" />
+                {/* Search Input */}
+                <div className="flex-2 flex items-center px-4 min-w-0 relative">
+                  <Search className="h-4 w-4 text-green-600 mr-3 flex-shrink-0" />
                   <Input
+                    ref={searchInputRef}
                     type="search"
                     placeholder="Search products, brands and more..."
-                    className="border-0 bg-transparent shadow-none focus:ring-0 focus-visible:ring-0 text-sm placeholder:text-gray-500"
+                    className="border-0 bg-transparent shadow-none focus:ring-0 focus-visible:ring-0 text-sm placeholder:text-gray-500 pr-8"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyPress={handleSearchKeyPress}
+                    onFocus={handleSearchFocus}
+                    onBlur={handleSearchBlur}
                   />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={clearSearch}
+                      className="absolute right-3 text-gray-400 hover:text-gray-600"
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
 
-                <Button type="submit" size="sm" className="rounded-full px-6 py-2 mr-2 shadow-md hover:shadow-lg">
+                <Button 
+                  type="submit" 
+                  size="sm" 
+                  className="rounded-full px-6 py-2 mr-2 bg-green-900 hover:bg-green-950 text-white font-medium"
+                >
                   Search
                 </Button>
               </div>
@@ -362,15 +457,12 @@ export function Header() {
                 </DropdownMenu>
                 <Button
                   size="sm"
-                  className="bg-green-900 hover:bg-green-950 text-white font-medium px-4 py-2 rounded-full shadow-lg hover:shadow-green-900/30 transition-all duration-300 transform hover:scale-105 border border-white/10 hover:border-white/20 relative overflow-hidden group"
+                  className="bg-green-900 hover:bg-green-950 text-white font-medium px-4 py-2 rounded-full"
                   onClick={() => {
                     router.push("/sell")
                   }}
                 >
-                  <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></span>
-                  <span className="relative z-10 flex items-center gap-2">
-                    <span className="font-semibold">SELL NOW</span>
-                  </span>
+                  SELL NOW
                 </Button>
               </>
             ) : (
@@ -385,15 +477,12 @@ export function Header() {
                 )}
                 <Button
                   size="sm"
-                  className="bg-green-900 hover:bg-green-950 text-white font-medium px-4 py-2 rounded-full shadow-lg hover:shadow-green-900/30 transition-all duration-300 transform hover:scale-105 border border-white/10 hover:border-white/20 relative overflow-hidden group"
+                  className="bg-green-900 hover:bg-green-950 text-white font-medium px-4 py-2 rounded-full"
                   onClick={() => {
                     router.push("/auth/login?redirectedFrom=" + encodeURIComponent("/sell"))
                   }}
                 >
-                  <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></span>
-                  <span className="relative z-10 flex items-center gap-2">
-                    <span className="font-semibold">SELL NOW</span>
-                  </span>
+                  SELL NOW
                 </Button>
               </>
             )}
@@ -410,7 +499,7 @@ export function Header() {
             <div className="relative">
               <Button
                 variant="ghost"
-                className="flex items-center gap-2 text-black hover:text-gray-800 hover:bg-gray-100 font-semibold px-6 py-2 rounded-lg transition-all duration-200"
+                className="flex items-center gap-2 text-black hover:text-gray-800 hover:bg-gray-100 font-semibold px-6 py-2 rounded-lg"
                 onClick={() => setShowMegaMenu(!showMegaMenu)}
               >
                 <span>All Categories</span>
