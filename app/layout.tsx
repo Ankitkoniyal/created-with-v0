@@ -1,4 +1,6 @@
 // app/layout.tsx
+"use client" // ADD THIS LINE
+
 import type React from "react"
 import type { Metadata } from "next"
 import { DM_Sans } from "next/font/google"
