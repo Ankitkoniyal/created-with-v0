@@ -6,8 +6,9 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  serverExternalPackages: ['@supabase/supabase-js'],
   images: {
-    unoptimized: true, // Temporary for build stability
+    unoptimized: false,
     domains: ['blob.vercel-storage.com', 'supabase.co'],
     remotePatterns: [
       {
@@ -20,9 +21,8 @@ const nextConfig = {
       },
     ],
   },
-  experimental: {
-    missingSuspenseWithCSRBailout: false,
-  },
+  // REMOVE THIS: experimental: { missingSuspenseWithCSRBailout: false },
+  
   async headers() {
     return [
       {
