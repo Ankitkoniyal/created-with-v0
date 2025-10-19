@@ -50,16 +50,25 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
 
   const locationFilter = searchParams.get("location") || ""
   const hasOverride = Array.isArray(overrideProducts)
-  const shouldFetch = 
+  
+  // FIX 1: Add build-time check to prevent server-side API calls
+  const shouldFetch = typeof window !== 'undefined' && (
     pathname === "/" ||
     pathname?.startsWith("/search") ||
     pathname?.startsWith("/category") ||
     pathname?.startsWith("/seller") ||
     pathname?.startsWith("/product")
+  )
 
   useEffect(() => {
     async function fetchProducts() {
       try {
+        // FIX 2: Skip API call during build
+        if (typeof window === 'undefined') {
+          setLoading(false)
+          return
+        }
+
         const supabase = createClient()
         
         if (!supabase) {
@@ -149,6 +158,19 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     if (diffInHours < 48) return "1d"
     if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}d`
     return posted.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
+
+  // FIX 3: Return loading state during build
+  if (typeof window === 'undefined') {
+    return (
+      <section className="py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
+            <LoadingSkeleton type="card" count={10} />
+          </div>
+        </div>
+      </section>
+    )
   }
 
   if (!hasOverride && !shouldFetch) {
