@@ -1,5 +1,6 @@
 "use client"
 
+import { Suspense } from "react"
 import { AuthProvider } from "@/hooks/use-auth"
 import { Header } from "@/components/header"
 import { Toaster } from "@/components/ui/sonner"
@@ -10,7 +11,9 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <Header />
+        <Suspense fallback={<div className="h-16 bg-white border-b"></div>}>
+          <Header />
+        </Suspense>
         <main className="min-h-screen">
           {children}
         </main>
