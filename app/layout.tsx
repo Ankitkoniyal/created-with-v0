@@ -2,7 +2,6 @@
 import type React from "react"
 import type { Metadata } from "next"
 import { DM_Sans } from "next/font/google"
-import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import { AuthProvider } from "@/hooks/use-auth"
 import { Header } from "@/components/header"
@@ -55,7 +54,7 @@ export default function RootLayout({
               expand={false}
             />
             <WebVitalsClient />
-            <Analytics />
+            {/* REMOVED: <Analytics /> */}
           </AuthProvider>
         </ErrorBoundary>
       </body>
