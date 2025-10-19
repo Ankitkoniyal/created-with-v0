@@ -33,7 +33,7 @@ export default function RootLayout({
       </head>
       <body className={`${dmSans.className} antialiased`}>
         <ClientLayout>{children}</ClientLayout>
-        <Analytics />
+      
       </body>
     </html>
   )
