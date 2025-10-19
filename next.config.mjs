@@ -6,7 +6,7 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  serverExternalPackages: ['@supabase/supabase-js'], // ✅ updated
+  serverExternalPackages: ['@supabase/supabase-js'],
   images: {
     unoptimized: false,
     domains: ['blob.vercel-storage.com', 'supabase.co'],
@@ -21,6 +21,17 @@ const nextConfig = {
       },
     ],
   },
+  // ✅ ADD THESE NEW CONFIGURATIONS TO FIX NOT-FOUND ISSUE
+  experimental: {
+    missingSuspenseWithCSRBailout: false,
+  },
+  // ✅ Ensure proper static generation
+  output: 'standalone',
+  // ✅ Better handling for dynamic routes
+  skipTrailingSlashRedirect: true,
+  // ✅ Optimize bundle splitting
+  bundlePagesRouterDependencies: true,
+  
   async headers() {
     return [
       {
