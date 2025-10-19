@@ -21,8 +21,6 @@ const nextConfig = {
       },
     ],
   },
-  // REMOVE THIS: experimental: { missingSuspenseWithCSRBailout: false },
-  
   async headers() {
     return [
       {
