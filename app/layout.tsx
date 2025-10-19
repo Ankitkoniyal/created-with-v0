@@ -1,15 +1,8 @@
-// app/layout.tsx
-"use client" // ADD THIS LINE
-
-import type React from "react"
 import type { Metadata } from "next"
 import { DM_Sans } from "next/font/google"
+import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
-import { AuthProvider } from "@/hooks/use-auth"
-import { Header } from "@/components/header"
-import { Toaster } from "@/components/ui/sonner"
-import { ErrorBoundary } from "@/components/error-boundary"
-import { WebVitalsClient } from "@/components/metrics/web-vitals-client"
+import { ClientLayout } from "./client-layout"
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -35,30 +28,12 @@ export default function RootLayout({
   return (
     <html lang="en" className={dmSans.variable}>
       <head>
-        {/* Use consistent meta tag names that match the simplified client */}
         {publicUrl && <meta name="supabase-url" content={publicUrl} />}
         {publicAnon && <meta name="supabase-anon-key" content={publicAnon} />}
       </head>
       <body className={`${dmSans.className} antialiased`}>
-        <ErrorBoundary>
-          <AuthProvider>
-            <Header />
-            <main className="min-h-screen">
-              {children}
-            </main>
-            {/* Shadcn Sonner Toaster */}
-            <Toaster 
-              position="top-right"
-              theme="dark"
-              richColors
-              closeButton
-              duration={4000}
-              expand={false}
-            />
-            <WebVitalsClient />
-            {/* REMOVED: <Analytics /> */}
-          </AuthProvider>
-        </ErrorBoundary>
+        <ClientLayout>{children}</ClientLayout>
+        <Analytics />
       </body>
     </html>
   )
