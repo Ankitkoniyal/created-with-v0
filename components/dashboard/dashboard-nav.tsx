@@ -138,7 +138,7 @@ export function DashboardNav() {
 
   if (isLoading) {
     return (
-      <Card className="bg-gray-800 border-gray-700">
+      <Card className="bg-gray-800 border-gray-700 rounded-none">
         <CardContent className="p-6">
           <div className="flex items-center space-x-3 mb-6">
             <div className="h-12 w-12 bg-gray-700 rounded-full animate-pulse"></div>
@@ -158,7 +158,7 @@ export function DashboardNav() {
   }
 
   return (
-    <Card className="bg-gray-800 border-gray-700">
+    <Card className="bg-gray-800 border-gray-700 rounded-none">
       <CardContent className="p-6">
         <div className="flex items-center space-x-3 mb-6">
           <Avatar key={imageKey} className="h-12 w-12 border-2 border-green-600">
