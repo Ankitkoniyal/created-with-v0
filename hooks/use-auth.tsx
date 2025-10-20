@@ -79,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const syncServerSession = async (event: string, session: any | null) => {
     try {
-      await fetch("/api/auth/set", {
+      const response = await fetch("/api/auth/set", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -88,6 +88,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           refresh_token: session?.refresh_token || null,
         }),
       })
+
+      if (!response.ok) {
+        console.warn(`Auth sync failed with status: ${response.status}`)
+        return
+      }
+
+      const data = await response.json()
+      if (!data.ok) {
+        console.warn("Auth sync responded with error:", data.reason)
+      }
     } catch (error) {
       console.log("[v0] Server session sync failed (non-blocking):", error)
     }
@@ -154,11 +164,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined
-    let supabase: any = null
 
     const initializeAuth = async () => {
       try {
-        supabase = await getSupabaseClient()
+        const supabase = getSupabaseClient()
         if (!supabase) {
           if (mountedRef.current) {
             setUser(null)
@@ -200,7 +209,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (session?.user) {
           console.log("[v0] Found existing session for user:", session.user.email)
-          console.log("[v0] User role from profile:", session.user.role)
           
           if (session.access_token && session.refresh_token) {
             await syncServerSession("SIGNED_IN", session)
@@ -233,9 +241,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    const setupAuthListener = async () => {
+    const setupAuthListener = () => {
       try {
-        supabase = await getSupabaseClient()
+        const supabase = getSupabaseClient()
         if (!supabase) return
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -312,12 +320,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      const s = await getSupabaseClient()
-      if (!s) return { error: "Authentication is not configured. Please try again later." }
+      const supabase = getSupabaseClient()
+      if (!supabase) return { error: "Authentication is not configured. Please try again later." }
 
       console.log("[v0] Login attempt for email:", email)
 
-      const { data, error } = await s.auth.signInWithPassword({ email, password })
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
       if (error) {
         const msg = String(error.message || "")
@@ -338,7 +346,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await syncServerSession("SIGNED_IN", data.session)
           await ensureProfile()
           
-          const profileData = await fetchUserProfile(data.session.user.id, data.session.user, s)
+          const profileData = await fetchUserProfile(data.session.user.id, data.session.user, supabase)
           if (mountedRef.current) setProfile(profileData)
         }
 
@@ -354,8 +362,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signup = async (email: string, password: string, name: string, phone: string) => {
     try {
-      const s = await getSupabaseClient()
-      if (!s) return { error: "Authentication is not configured. Please try again later." }
+      const supabase = getSupabaseClient()
+      if (!supabase) return { error: "Authentication is not configured. Please try again later." }
 
       setIsLoading(true)
       const redirectUrl =
@@ -364,7 +372,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           ? `${window.location.origin}/auth/callback`
           : "http://localhost:3000/auth/callback")
 
-      const { error } = await s.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -389,11 +397,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      const s = await getSupabaseClient()
-      if (!s) return
+      const supabase = getSupabaseClient()
+      if (!supabase) return
       
       setIsLoading(true)
-      await clearAllSessionData(s)
+      await clearAllSessionData(supabase)
     } catch (logoutError) {
       console.log("[v0] Logout error:", logoutError)
     } finally {
