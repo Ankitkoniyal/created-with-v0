@@ -1,16 +1,18 @@
-// app/superadmin/page.tsx
 "use client"
 
 import { useState, useEffect } from "react"
 import { SuperAdminNav } from "@/components/superadmin/super-admin-nav"
 import { SuperAdminOverview } from "@/components/superadmin/super-admin-overview"
 import AdsManagement from "@/components/superadmin/ads-management"
-import UserManagement from "@/components/superadmin/user-management"
-import { LocalitiesManagement } from "@/components/superadmin/localities-management"
+import { PendingReview } from "@/components/superadmin/pending-review"
 import { ReportedAds } from "@/components/superadmin/reported-ads"
+import { CategoriesManagement } from "@/components/superadmin/categories-management"
+import { LocalitiesManagement } from "@/components/superadmin/localities-management"
+import { Analytics } from "@/components/superadmin/analytics"
+import { Settings } from "@/components/superadmin/settings"
 import { useAuth } from "@/hooks/use-auth"
 import { useRouter } from "next/navigation"
-import { getSupabaseClient } from "@/lib/supabase/client"
+import { createClient } from "@/lib/supabase/client"
 
 interface DashboardStats {
   totalUsers: number
@@ -20,18 +22,6 @@ interface DashboardStats {
   reportedAds: number
   newUsersToday: number
   newAdsToday: number
-}
-
-// Move PendingReview component to the top so it's defined before use
-function PendingReview() {
-  return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-white">Pending Review</h1>
-      <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-        <p className="text-gray-400">Pending ads waiting for approval will appear here.</p>
-      </div>
-    </div>
-  )
 }
 
 export default function SuperAdminPage() {
@@ -47,28 +37,23 @@ export default function SuperAdminPage() {
   })
   
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null)
-  const { user, profile } = useAuth()
+  const [loading, setLoading] = useState(true)
+  const { user } = useAuth()
   const router = useRouter()
+  const supabase = createClient()
 
   useEffect(() => {
     checkSuperAdminAccess()
-  }, [user, profile])
+  }, [user])
 
   const checkSuperAdminAccess = async () => {
-    // If no user, redirect to login
     if (!user) {
       router.replace("/auth/login")
       return
     }
 
     try {
-      const supabase = await getSupabaseClient()
-      if (!supabase) {
-        router.replace("/auth/login")
-        return
-      }
-
-      // Get fresh profile data to ensure we have the latest role
+      // Get fresh profile data
       const { data: freshProfile, error } = await supabase
         .from('profiles')
         .select('role, email')
@@ -83,11 +68,10 @@ export default function SuperAdminPage() {
 
       console.log("🛡️ Super Admin Access Check:", {
         email: freshProfile.email,
-        role: freshProfile.role,
-        expectedEmail: "ankit.koniyal000@gmail.com"
+        role: freshProfile.role
       })
 
-      // ✅ FIXED: Check BOTH role AND specific email
+      // Check both role AND specific email for security
       const isAuthorizedSuperAdmin = 
         freshProfile.role === 'super_admin' && 
         freshProfile.email === "ankit.koniyal000@gmail.com"
@@ -104,11 +88,13 @@ export default function SuperAdminPage() {
     } catch (error) {
       console.error("Super admin access check failed:", error)
       router.replace("/auth/login")
+    } finally {
+      setLoading(false)
     }
   }
 
   const renderActiveView = () => {
-    if (isAuthorized === null) {
+    if (loading) {
       return (
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
@@ -136,9 +122,15 @@ export default function SuperAdminPage() {
       case "ads":
         return <AdsManagement />
       case "users":
-        return <UserManagement />
+        return <div className="text-white p-6">User Management - Coming Soon</div>
+      case "categories":
+        return <CategoriesManagement />
       case "localities":
         return <LocalitiesManagement />
+      case "analytics":
+        return <Analytics />
+      case "settings":
+        return <Settings />
       case "reported":
         return <ReportedAds />
       case "pending":
@@ -148,8 +140,7 @@ export default function SuperAdminPage() {
     }
   }
 
-  // Show loading while checking authorization
-  if (isAuthorized === null) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-900">
         <div className="text-center">
@@ -160,7 +151,6 @@ export default function SuperAdminPage() {
     )
   }
 
-  // Show access denied if not authorized
   if (!isAuthorized) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-900">
