@@ -1,5 +1,4 @@
 "use client"
-
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,9 +9,9 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react"
 import { SuccessOverlay } from "@/components/ui/success-overlay"
-import { getSupabaseClient } from "@/lib/supabase/client"
+import { createClient } from "@/lib/supabase/client"
 
-// Client-side storage utility
+// Client storage utilities
 const useClientStorage = () => {
   const getItem = (key: string): string | null => {
     if (typeof window === "undefined") return null
@@ -28,7 +27,7 @@ const useClientStorage = () => {
     try {
       localStorage.setItem(key, value)
     } catch {
-      // Silent fail in production
+      // Ignore storage errors
     }
   }
 
@@ -37,7 +36,7 @@ const useClientStorage = () => {
     try {
       localStorage.removeItem(key)
     } catch {
-      // Silent fail in production
+      // Ignore storage errors
     }
   }
 
@@ -50,19 +49,20 @@ const isValidEmail = (email: string): boolean => {
 }
 
 const sanitizeInput = (input: string): string => {
-  return input.trim().replace(/[<>]/g, "")
+  return input.trim()
 }
 
 const getSafeRedirect = (redirectUrl: string | null): string => {
   if (!redirectUrl) return "/"
   try {
-    const url = redirectUrl.trim()
-    if (!url.startsWith("/")) return "/"
-    if (url.includes("//") || url.includes(":")) return "/"
-    const blockedPaths = ["/auth", "/login", "/signup", "/sign-in", "/sign-up", "/forgot-password"]
-    if (blockedPaths.some(path => url.startsWith(path))) return "/"
-    if (url.includes("<") || url.includes(">") || url.includes("javascript:")) return "/"
-    return url
+    const url = new URL(redirectUrl, window.location.origin)
+    // Only allow same-origin redirects
+    if (url.origin !== window.location.origin) return "/"
+    
+    const blockedPaths = ["/auth", "/login", "/signup"]
+    if (blockedPaths.some(path => url.pathname.startsWith(path))) return "/"
+    
+    return url.pathname + url.search
   } catch {
     return "/"
   }
@@ -72,15 +72,13 @@ const getAuthErrorMessage = (errorMessage: string): string => {
   const message = errorMessage.toLowerCase()
   
   if (message.includes("invalid login credentials") || message.includes("invalid email or password")) {
-    return "Invalid email or password. Please check your credentials and try again."
-  } else if (message.includes("email not confirmed") || message.includes("confirmation")) {
-    return "Please confirm your email before signing in. Check your inbox for a confirmation link."
+    return "Invalid email or password. Please check your credentials."
+  } else if (message.includes("email not confirmed")) {
+    return "Please confirm your email before signing in."
   } else if (message.includes("too many") || message.includes("rate")) {
-    return "Too many login attempts. Please wait a few minutes and try again."
+    return "Too many login attempts. Please wait a few minutes."
   } else if (message.includes("network") || message.includes("fetch")) {
-    return "Network error. Please check your connection and try again."
-  } else if (message.includes("signup") || message.includes("sign up")) {
-    return "Account not found. Please sign up first or check your email address."
+    return "Network error. Please check your connection."
   } else {
     return "An error occurred during login. Please try again."
   }
@@ -91,6 +89,7 @@ function LoginFormContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { getItem, setItem, removeItem } = useClientStorage()
+  const supabase = createClient()
   
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
@@ -104,16 +103,15 @@ function LoginFormContent() {
   const rawRedirect = searchParams.get("redirectedFrom") || "/"
   const redirectedFrom = getSafeRedirect(rawRedirect)
 
-  // Initialize after mount
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  // Load saved credentials
+  // Load saved credentials after mount
   useEffect(() => {
     if (!mounted) return
 
-    const savedCredentials = getItem("rememberedCredentials")
+    const savedCredentials = getItem("coinmint_rememberedCredentials")
     if (savedCredentials) {
       try {
         const { email: savedEmail, rememberMe: savedRememberMe } = JSON.parse(savedCredentials)
@@ -122,7 +120,7 @@ function LoginFormContent() {
           setRememberMe(true)
         }
       } catch {
-        removeItem("rememberedCredentials")
+        removeItem("coinmint_rememberedCredentials")
       }
     }
   }, [mounted, getItem, removeItem])
@@ -135,7 +133,7 @@ function LoginFormContent() {
     setIsSubmitting(true)
 
     try {
-      // Sanitize and validate inputs
+      // Validate inputs
       const trimmedEmail = sanitizeInput(email)
       
       if (!trimmedEmail || !password) {
@@ -146,14 +144,6 @@ function LoginFormContent() {
 
       if (!isValidEmail(trimmedEmail)) {
         setError("Please enter a valid email address")
-        setIsSubmitting(false)
-        return
-      }
-
-      // Get Supabase client
-      const supabase = await getSupabaseClient()
-      if (!supabase) {
-        setError("Authentication service is not available. Please refresh the page and try again.")
         setIsSubmitting(false)
         return
       }
@@ -184,49 +174,56 @@ function LoginFormContent() {
         .single()
 
       if (profileError) {
-        setError("Failed to retrieve user profile. Please contact support.")
-        setIsSubmitting(false)
-        return
+        console.error("Profile fetch error:", profileError)
+        // Continue with default routing if profile fetch fails
       }
 
-      // Determine redirect path based on role
-      const userRole = String(profileData.role || 'user')
-      const isSuperAdmin = userRole === 'super_admin'
+      // Determine redirect path
+      const userRole = profileData?.role || 'user'
+      const userEmail = data.user.email
+      
+      // Super admin must have BOTH the role AND the specific email
+      const isSuperAdmin = userRole === 'super_admin' && userEmail === "ankit.koniyal000@gmail.com"
       const redirectPath = isSuperAdmin ? '/superadmin' : '/dashboard'
+
+      console.log("🔐 Login Redirect:", {
+        userEmail,
+        userRole,
+        isSuperAdmin,
+        redirectPath
+      })
 
       // Handle remember me
       if (rememberMe) {
-        setItem("rememberedCredentials", JSON.stringify({ 
+        setItem("coinmint_rememberedCredentials", JSON.stringify({ 
           email: trimmedEmail, 
           rememberMe: true 
         }))
       } else {
-        removeItem("rememberedCredentials")
+        removeItem("coinmint_rememberedCredentials")
       }
 
       // Show success and redirect
       setSuccessOpen(true)
-      setIsSubmitting(false)
-
       setTimeout(() => {
         setSuccessOpen(false)
         router.replace(redirectPath)
-      }, 1200)
+      }, 1500)
 
     } catch (err) {
+      console.error("Login error:", err)
       setError("An unexpected error occurred. Please try again.")
       setIsSubmitting(false)
     }
   }
 
-  // Loading state until mounted
   if (!mounted) {
     return (
-      <Card>
+      <Card className="w-full max-w-md mx-auto">
         <CardContent className="flex items-center justify-center py-12">
           <div className="flex items-center space-x-2">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-900"></div>
-            <span className="text-sm text-muted-foreground">Loading...</span>
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600"></div>
+            <span className="text-sm text-gray-600">Loading...</span>
           </div>
         </CardContent>
       </Card>
@@ -235,32 +232,37 @@ function LoginFormContent() {
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl font-bold text-center">Sign In</CardTitle>
-          {redirectedFrom !== "/" && (
-            <p className="text-sm text-muted-foreground text-center">Please sign in to continue</p>
-          )}
+      <Card className="w-full max-w-md mx-auto shadow-lg">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl font-bold text-center text-gray-900">
+            Welcome Back
+          </CardTitle>
+          <p className="text-sm text-center text-gray-600">
+            Sign in to your Coinmint account
+          </p>
         </CardHeader>
+        
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <Alert variant="destructive" role="alert" aria-live="assertive">
+              <Alert variant="destructive" className="mb-4">
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription className="ml-2">{error}</AlertDescription>
               </Alert>
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email *</Label>
+              <Label htmlFor="email" className="text-sm font-medium text-gray-700">
+                Email *
+              </Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
                   id="email"
                   name="email"
                   type="email"
                   placeholder="Enter your email"
-                  className="pl-10"
+                  className="pl-10 border-gray-300 focus:border-green-500"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -271,15 +273,17 @@ function LoginFormContent() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password *</Label>
+              <Label htmlFor="password" className="text-sm font-medium text-gray-700">
+                Password *
+              </Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
                   id="password"
                   name="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="Enter your password"
-                  className="pl-10 pr-10"
+                  className="pl-10 pr-10 border-gray-300 focus:border-green-500"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -289,10 +293,9 @@ function LoginFormContent() {
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                   onClick={() => setShowPassword(!showPassword)}
                   disabled={isSubmitting}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -304,17 +307,18 @@ function LoginFormContent() {
                 <Checkbox
                   id="remember"
                   checked={rememberMe}
-                  onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                  onCheckedChange={(checked) => setRememberMe(!!checked)}
                   disabled={isSubmitting}
+                  className="data-[state=checked]:bg-green-600"
                 />
-                <Label htmlFor="remember" className="text-sm cursor-pointer font-medium">
+                <Label htmlFor="remember" className="text-sm text-gray-700 cursor-pointer">
                   Remember me
                 </Label>
               </div>
               <Button
                 type="button"
                 variant="link"
-                className="p-0 h-auto text-sm"
+                className="p-0 h-auto text-sm text-green-600 hover:text-green-700"
                 disabled={isSubmitting}
                 onClick={() => router.push("/auth/forgot-password")}
               >
@@ -324,7 +328,7 @@ function LoginFormContent() {
 
             <Button
               type="submit"
-              className="w-full bg-green-900 hover:bg-green-800"
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 transition-colors"
               disabled={isSubmitting || !email.trim() || !password}
             >
               {isSubmitting ? (
@@ -339,12 +343,12 @@ function LoginFormContent() {
           </form>
           
           <div className="mt-6 text-center">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-gray-600">
               Don't have an account?{" "}
               <Button
                 type="button"
                 variant="link"
-                className="p-0 h-auto text-sm"
+                className="p-0 h-auto text-green-600 hover:text-green-700 font-medium"
                 disabled={isSubmitting}
                 onClick={() => router.push("/auth/signup")}
               >
@@ -358,11 +362,8 @@ function LoginFormContent() {
       <SuccessOverlay
         open={successOpen}
         title="Signed in successfully"
-        message="You have been successfully logged in. Redirecting..."
-        onClose={() => {
-          setSuccessOpen(false)
-          setIsSubmitting(false)
-        }}
+        message="Welcome back to Coinmint! Redirecting..."
+        onClose={() => setSuccessOpen(false)}
         actionLabel="Continue"
       />
     </>
@@ -373,11 +374,11 @@ function LoginFormContent() {
 export default function LoginForm() {
   return (
     <Suspense fallback={
-      <Card>
+      <Card className="w-full max-w-md mx-auto">
         <CardContent className="flex items-center justify-center py-12">
           <div className="flex items-center space-x-2">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-900"></div>
-            <span className="text-sm text-muted-foreground">Loading...</span>
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600"></div>
+            <span className="text-sm text-gray-600">Loading...</span>
           </div>
         </CardContent>
       </Card>
