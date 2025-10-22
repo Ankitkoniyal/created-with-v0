@@ -1,4 +1,4 @@
-// components/search/search-filters.tsx
+// components/search/search-filters.tsx - COMPLETE UPDATED VERSION
 "use client"
 
 import { Button } from "@/components/ui/button"
@@ -8,10 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator"
 import { Slider } from "@/components/ui/slider"
 import { 
-  X, Filter, DollarSign, ArrowUpDown
+  X, Filter, DollarSign, ArrowUpDown, Tag
 } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useCallback, useState, useMemo, useEffect } from "react"
+import { CATEGORY_OPTIONS, getSubcategoriesByCategory } from "@/lib/categories"
 
 interface SearchFiltersProps {
   searchQuery: string
@@ -34,6 +35,8 @@ const SearchFilters = ({ searchQuery, onFiltersChange }: SearchFiltersProps) => 
   // Get current filter values from URL
   const sortBy = searchParams.get("sortBy") || "newest"
   const condition = searchParams.get("condition") || "all"
+  const category = searchParams.get("category") || "all"
+  const subcategory = searchParams.get("subcategory") || "all"
   const minPrice = searchParams.get("minPrice") || ""
   const maxPrice = searchParams.get("maxPrice") || ""
 
@@ -41,6 +44,14 @@ const SearchFilters = ({ searchQuery, onFiltersChange }: SearchFiltersProps) => 
     Number.parseInt(minPrice) || 0,
     Number.parseInt(maxPrice) || 10000,
   ])
+
+  // Get subcategories based on selected category
+  const availableSubcategories = useMemo(() => {
+    if (category && category !== "all") {
+      return getSubcategoriesByCategory(category)
+    }
+    return []
+  }, [category])
 
   // Update filters function
   const updateFilters = useCallback((updates: { [key: string]: string | null }) => {
@@ -64,6 +75,8 @@ const SearchFilters = ({ searchQuery, onFiltersChange }: SearchFiltersProps) => 
         maxPrice: params.get("maxPrice") || "",
         condition: params.get("condition") || "all",
         sortBy: params.get("sortBy") || "newest",
+        category: params.get("category") || "all",
+        subcategory: params.get("subcategory") || "all",
       })
     }
   }, [router, searchParams, onFiltersChange])
@@ -80,6 +93,8 @@ const SearchFilters = ({ searchQuery, onFiltersChange }: SearchFiltersProps) => 
         maxPrice: "",
         condition: "all",
         sortBy: "newest",
+        category: "all",
+        subcategory: "all",
       })
     }
     
@@ -90,8 +105,10 @@ const SearchFilters = ({ searchQuery, onFiltersChange }: SearchFiltersProps) => 
     priceRange[0] > 0 ||
     priceRange[1] < 10000 ||
     sortBy !== "newest" ||
-    (condition && condition !== "all")
-  , [priceRange, sortBy, condition])
+    (condition && condition !== "all") ||
+    (category && category !== "all") ||
+    (subcategory && subcategory !== "all")
+  , [priceRange, sortBy, condition, category, subcategory])
 
   // Sync price range with URL parameters
   useEffect(() => {
@@ -123,7 +140,76 @@ const SearchFilters = ({ searchQuery, onFiltersChange }: SearchFiltersProps) => 
       </div>
 
       <div className="p-6 space-y-6">
-        {/* Price Range - Simplified like screenshot */}
+        {/* Category Filter */}
+        <div className="space-y-3">
+          <Label className="text-base font-semibold text-gray-800 flex items-center">
+            <Tag className="h-5 w-5 mr-2 text-green-600" />
+            Category
+          </Label>
+          <Select 
+            value={category} 
+            onValueChange={(value) => {
+              // When category changes, clear subcategory
+              updateFilters({ 
+                category: value,
+                subcategory: null 
+              })
+            }}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="All categories" />
+            </SelectTrigger>
+            <SelectContent>
+              {CATEGORY_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Subcategory Filter - Only show if category is selected */}
+        {availableSubcategories.length > 0 && (
+          <>
+            <Separator />
+            <div className="space-y-3">
+              <Label className="text-base font-semibold text-gray-800">
+                Subcategory
+              </Label>
+              <div className="space-y-2">
+                <label className="flex items-center space-x-3">
+                  <input
+                    type="radio"
+                    name="subcategory"
+                    value="all"
+                    checked={subcategory === "all" || !subcategory}
+                    onChange={(e) => updateFilters({ subcategory: e.target.value })}
+                    className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300"
+                  />
+                  <span className="text-sm text-gray-700">All {category}</span>
+                </label>
+                {availableSubcategories.map((subcat) => (
+                  <label key={subcat} className="flex items-center space-x-3">
+                    <input
+                      type="radio"
+                      name="subcategory"
+                      value={subcat}
+                      checked={subcategory === subcat}
+                      onChange={(e) => updateFilters({ subcategory: e.target.value })}
+                      className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300"
+                    />
+                    <span className="text-sm text-gray-700">{subcat}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        <Separator />
+
+        {/* Price Range */}
         <div className="space-y-4">
           <Label className="text-base font-semibold text-gray-800 flex items-center">
             <DollarSign className="h-5 w-5 mr-2 text-green-600" />
@@ -159,7 +245,7 @@ const SearchFilters = ({ searchQuery, onFiltersChange }: SearchFiltersProps) => 
 
         <Separator />
 
-        {/* Condition - Only available options */}
+        {/* Condition */}
         <div className="space-y-3">
           <Label className="text-base font-semibold text-gray-800">Condition</Label>
           <div className="space-y-2">
