@@ -1,13 +1,83 @@
+// components/subcategory-nav.tsx - UPDATED
 "use client"
 
 import { Button } from "@/components/ui/button"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useCallback } from "react"
-import { getSubcategoriesByCategory } from "@/lib/categories"
+import { SUBCATEGORY_MAPPINGS } from "@/lib/categories" // We'll create this
 
 interface SubcategoryNavProps {
   category: string
   selectedSubcategory?: string
+}
+
+// Updated subcategory mappings based on your new structure
+const SUBCATEGORY_MAPPINGS: { [key: string]: string[] } = {
+  // Home Appliances
+  "Home Appliances": [
+    "Coffee Makers", "Cookers", "Dishwashers", "Heaters", "Irons", 
+    "Microwaves", "Juicers & Blenders", "Refrigerators & Freezers", 
+    "Gas Stoves", "Ovens", "Toasters", "Vacuums"
+  ],
+  
+  // Electronics
+  "Electronics": [
+    "Tablets", "Laptops", "Headphones", "Computers", "Cameras", "TV & Audio"
+  ],
+  
+  // Services
+  "Services": [
+    "Nanny & Childcare", "Cleaners", "Financial & Legal", "Personal Trainer",
+    "Food & Catering", "Health & Beauty", "Moving & Storage", "Music Lessons",
+    "Photography & Video", "Skilled Trades", "Tutors & Languages", "Wedding"
+  ],
+  
+  // Vehicles
+  "Vehicles": [
+    "Cars", "Trucks", "Classic Cars", "Auto Parts", "Trailers", 
+    "Scooters", "Bicycles", "Motorcycles"
+  ],
+  
+  // Furniture
+  "Furniture": [
+    "Beds & Mattresses", "Book Shelves", "Chairs & Recliners", "Coffee Tables",
+    "Sofa & Couches", "Dining Tables", "Wardrobes", "TV Tables"
+  ],
+  
+  // Mobile
+  "Mobile": [
+    "Mobile Accessories", "Android Phones", "iPhones"
+  ],
+  
+  // Real Estate
+  "Real Estate": [
+    "Roommates", "For Rent", "For Sale", "Land"
+  ],
+  
+  // Fashion & Beauty
+  "Fashion & Beauty": [
+    "Shoes", "Accessories", "Women Clothing", "Men Clothing"
+  ],
+  
+  // Pets & Animals
+  "Pets & Animals": [
+    "Cats", "Birds", "Other Pets", "Dogs", "Pet Supplies"
+  ],
+  
+  // Sports
+  "Sports": [
+    "Exercise Equipment", "Sportswear", "Outdoor Gear"
+  ],
+  
+  // Books & Education
+  "Books & Education": [
+    "Fiction", "Textbooks", "Children Books", "Non-Fiction"
+  ],
+  
+  // Free Stuff
+  "Free Stuff": [
+    "Lost & Found", "Miscellaneous"
+  ]
 }
 
 export function SubcategoryNav({ category, selectedSubcategory }: SubcategoryNavProps) {
@@ -29,7 +99,8 @@ export function SubcategoryNav({ category, selectedSubcategory }: SubcategoryNav
     [router, searchParams],
   )
 
-  const availableSubcategories = getSubcategoriesByCategory(category)
+  // Get available subcategories for the current category
+  const availableSubcategories = SUBCATEGORY_MAPPINGS[category] || []
 
   if (!category || availableSubcategories.length === 0) {
     return null
