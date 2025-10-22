@@ -1,4 +1,3 @@
-// components/search/search-results.tsx
 "use client"
 
 import { useState, useEffect } from "react"
@@ -32,10 +31,91 @@ export function SearchResults({ searchQuery, filters, viewMode }: SearchResultsP
           .select('*')
           .eq('status', 'active')
 
-        // Apply search query - FIXED: Use ilike instead of textSearch
-        if (searchQuery) {
+        // Apply search query
+        if (searchQuery && searchQuery.trim() !== '') {
           const cleanQuery = searchQuery.trim().toLowerCase()
-          query = query.ilike('title', `%${cleanQuery}%`)
+          query = query.or(`title.ilike.%${cleanQuery}%,description.ilike.%${cleanQuery}%`)
+        }
+
+        // Apply category filter - UPDATED for new categories
+        if (filters.category) {
+          let categoryFilter = filters.category.toLowerCase()
+          // Convert display names to slugs for new categories
+          const categoryMap: {[key: string]: string} = {
+            'home appliances': 'home-appliances',
+            'real estate': 'real-estate',
+            'fashion & beauty': 'fashion-beauty',
+            'pets & animals': 'pets-animals',
+            'books & education': 'books-education',
+            'free stuff': 'free-stuff'
+          }
+          categoryFilter = categoryMap[categoryFilter] || categoryFilter
+          query = query.eq('category', categoryFilter)
+        }
+
+        // Apply subcategory filter - UPDATED for new subcategories
+        if (filters.subcategory && filters.subcategory !== 'all') {
+          let subcategoryFilter = filters.subcategory.toLowerCase()
+          // Convert display names to slugs for new subcategories
+          const subcategoryMap: {[key: string]: string} = {
+            // Home Appliances
+            'coffee makers': 'coffee-makers',
+            'juicers & blenders': 'juicers-blenders',
+            'refrigerators & freezers': 'refrigerators-freezers',
+            'gas stoves': 'gas-stoves',
+            
+            // Services
+            'nanny & childcare': 'nanny-childcare',
+            'financial & legal': 'financial-legal',
+            'personal trainer': 'personal-trainer',
+            'food & catering': 'food-catering',
+            'health & beauty': 'health-beauty',
+            'moving & storage': 'moving-storage',
+            'music lessons': 'music-lessons',
+            'photography & video': 'photography-video',
+            'skilled trades': 'skilled-trades',
+            'tutors & languages': 'tutors-languages',
+            
+            // Vehicles
+            'classic cars': 'classic-cars',
+            
+            // Furniture
+            'beds & mattresses': 'beds-mattresses',
+            'book shelves': 'book-shelves',
+            'chairs & recliners': 'chairs-recliners',
+            'coffee tables': 'coffee-tables',
+            'sofa & couches': 'sofa-couches',
+            'dining tables': 'dining-tables',
+            'tv tables': 'tv-tables',
+            
+            // Other mappings from old structure
+            'full time jobs': 'full-time-jobs',
+            'part time jobs': 'part-time-jobs',
+            'mobile phones': 'mobile-phones',
+            'android phones': 'android-phones',
+            'mobile accessories': 'mobile-accessories',
+            'tv & audio': 'tv-audio',
+            'men clothing': 'men-clothing',
+            'women clothing': 'women-clothing',
+            'home decor': 'home-decor',
+            'garden & patio': 'garden-patio',
+            'exercise equipment': 'exercise-equipment',
+            'outdoor gear': 'outdoor-gear',
+            'auto parts': 'auto-parts',
+            'pet supplies': 'pet-supplies',
+            'other pets': 'other-pets',
+            'children books': 'children-books',
+            'fiction books': 'fiction-books',
+            'non-fiction books': 'non-fiction-books'
+          }
+          subcategoryFilter = subcategoryMap[subcategoryFilter] || subcategoryFilter
+          query = query.eq('subcategory', subcategoryFilter)
+        }
+
+        // Apply location filter
+        if (filters.location && filters.location.trim() !== '') {
+          const locationFilter = filters.location.trim().toLowerCase()
+          query = query.or(`location.ilike.%${locationFilter}%,city.ilike.%${locationFilter}%,province.ilike.%${locationFilter}%`)
         }
 
         // Apply price filters
@@ -49,16 +129,6 @@ export function SearchResults({ searchQuery, filters, viewMode }: SearchResultsP
         // Apply condition filter
         if (filters.condition && filters.condition !== 'all') {
           query = query.eq('condition', filters.condition)
-        }
-
-        // Apply category filter
-        if (filters.category) {
-          query = query.eq('category', filters.category)
-        }
-
-        // Apply subcategory filter
-        if (filters.subcategory && filters.subcategory !== 'all') {
-          query = query.eq('subcategory', filters.subcategory)
         }
 
         // Apply sorting
@@ -81,24 +151,7 @@ export function SearchResults({ searchQuery, filters, viewMode }: SearchResultsP
           console.error('Error fetching products:', error)
           setProducts([])
         } else {
-          // Apply client-side filtering for search relevance
-          let filteredProducts = data || []
-          
-          if (searchQuery) {
-            const cleanQuery = searchQuery.trim().toLowerCase()
-            
-            // For "bike" search, exclude motorcycles
-            if (cleanQuery === 'bike') {
-              filteredProducts = filteredProducts.filter(product => {
-                const title = product.title?.toLowerCase() || ''
-                const excludedTerms = ['motorcycle', 'motor bike', 'scooter', 'motorbike']
-                const hasExcludedTerm = excludedTerms.some(term => title.includes(term))
-                return !hasExcludedTerm
-              })
-            }
-          }
-          
-          setProducts(filteredProducts)
+          setProducts(data || [])
         }
       } catch (error) {
         console.error('Error in fetchProducts:', error)
@@ -111,15 +164,13 @@ export function SearchResults({ searchQuery, filters, viewMode }: SearchResultsP
     fetchProducts()
   }, [searchQuery, filters, supabase])
 
-  // Format price display like homepage
   const formatPrice = (price: number) => {
     if (price === 0 || price === null) return 'Free'
     if (price === -1) return 'Contact'
     if (price === -2) return 'Negotiable'
-    return `$${price}`
+    return `$${price.toLocaleString()}`
   }
 
-  // Format date like homepage (e.g., "Sep 23")
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString('en-US', { 
@@ -128,7 +179,6 @@ export function SearchResults({ searchQuery, filters, viewMode }: SearchResultsP
     })
   }
 
-  // Format location like homepage (e.g., "Richmond, Br...")
   const formatLocation = (location: string) => {
     if (!location) return ''
     if (location.length > 15) {
@@ -150,12 +200,13 @@ export function SearchResults({ searchQuery, filters, viewMode }: SearchResultsP
 
   return (
     <div>
-      {/* Results Count */}
       <div className="mb-4 text-sm text-muted-foreground">
-        <span className="font-medium">{products.length}</span> product{products.length !== 1 ? 's' : ''} found{searchQuery ? ` for "${searchQuery}"` : ''}
+        <span className="font-medium">{products.length}</span> product{products.length !== 1 ? 's' : ''} found
+        {searchQuery && ` for "${searchQuery}"`}
+        {filters.location && ` in ${filters.location}`}
+        {filters.category && ` in ${filters.category}`}
       </div>
 
-      {/* Grid View - COMPACT like homepage */}
       {viewMode === "grid" && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
           {products.map((product) => (
@@ -165,22 +216,19 @@ export function SearchResults({ searchQuery, filters, viewMode }: SearchResultsP
               className="block group"
             >
               <Card className="overflow-hidden hover:shadow-md transition-all duration-200 group-hover:border-green-600 border border-gray-200 rounded-lg bg-white">
-                {/* Product Image - Compact like homepage */}
                 <div className="aspect-square bg-gray-100 relative overflow-hidden">
-                  {product.image_url ? (
+                  {product.primary_image || (product.images && product.images[0]) ? (
                     <img 
-                      src={product.image_url} 
+                      src={product.primary_image || product.images[0]} 
                       alt={product.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                       onError={(e) => {
-                        // Hide broken image and show fallback
                         e.currentTarget.style.display = 'none'
                       }}
                     />
                   ) : null}
                   
-                  {/* Fallback Image - Show if no image or image fails */}
-                  {!product.image_url && (
+                  {(!product.primary_image && (!product.images || product.images.length === 0)) && (
                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
                       <div className="text-center text-gray-400">
                         <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center mx-auto mb-1">
@@ -191,7 +239,6 @@ export function SearchResults({ searchQuery, filters, viewMode }: SearchResultsP
                     </div>
                   )}
                   
-                  {/* Date Badge - Top right like homepage */}
                   <div className="absolute top-1 right-1">
                     <Badge className="bg-black/80 text-white text-xs font-normal px-1.5 py-0.5">
                       {formatDate(product.created_at)}
@@ -199,21 +246,17 @@ export function SearchResults({ searchQuery, filters, viewMode }: SearchResultsP
                   </div>
                 </div>
                 
-                {/* Product Details - Compact like homepage */}
                 <CardContent className="p-2">
-                  {/* Price - Prominent at top */}
                   <div className="mb-1">
                     <p className="text-sm font-bold text-gray-900 leading-tight">
                       {formatPrice(product.price)}
                     </p>
                   </div>
                   
-                  {/* Title - Single line truncated */}
                   <h3 className="font-medium text-gray-900 line-clamp-1 leading-tight text-xs mb-1 group-hover:text-green-700 transition-colors">
                     {product.title}
                   </h3>
                   
-                  {/* Location - Compact */}
                   {product.location && (
                     <div className="flex items-center text-xs text-gray-600">
                       <MapPin className="h-3 w-3 mr-1 flex-shrink-0" />
@@ -229,7 +272,6 @@ export function SearchResults({ searchQuery, filters, viewMode }: SearchResultsP
         </div>
       )}
 
-      {/* List View - IMPROVED UI */}
       {viewMode === "list" && (
         <div className="space-y-3">
           {products.map((product) => (
@@ -241,11 +283,10 @@ export function SearchResults({ searchQuery, filters, viewMode }: SearchResultsP
               <Card className="hover:shadow-sm transition-all duration-200 group-hover:border-green-600 border border-gray-200 rounded-lg bg-white">
                 <CardContent className="p-3">
                   <div className="flex gap-3">
-                    {/* Product Image - Smaller */}
                     <div className="flex-shrink-0 w-16 h-16 bg-gray-100 rounded-md overflow-hidden border">
-                      {product.image_url ? (
+                      {product.primary_image || (product.images && product.images[0]) ? (
                         <img 
-                          src={product.image_url} 
+                          src={product.primary_image || product.images[0]} 
                           alt={product.title}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                           onError={(e) => {
@@ -254,7 +295,7 @@ export function SearchResults({ searchQuery, filters, viewMode }: SearchResultsP
                         />
                       ) : null}
                       
-                      {!product.image_url && (
+                      {(!product.primary_image && (!product.images || product.images.length === 0)) && (
                         <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
                           <div className="text-center text-gray-400 text-xs">
                             <span className="text-sm block">📷</span>
@@ -263,25 +304,21 @@ export function SearchResults({ searchQuery, filters, viewMode }: SearchResultsP
                       )}
                     </div>
                     
-                    {/* Product Details - Better layout */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2 mb-1">
-                        {/* Title - Left side */}
                         <h3 className="font-semibold text-gray-900 leading-tight line-clamp-2 group-hover:text-green-700 transition-colors text-sm flex-1">
                           {product.title}
                         </h3>
                         
-                        {/* Price - Right side */}
                         <div className="text-base font-bold text-gray-900 whitespace-nowrap ml-2">
                           {formatPrice(product.price)}
                         </div>
                       </div>
                       
-                      {/* Location and Date - Single row */}
                       <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
                         <div className="flex items-center space-x-1">
                           <MapPin className="h-3 w-3 flex-shrink-0" />
-                          <span className="truncate">{product.location}</span>
+                          <span className="truncate">{product.location || `${product.city || ''}, ${product.province || ''}`.replace(/^,\s*|,\s*$/g, '')}</span>
                         </div>
                         
                         <div className="flex items-center space-x-1">
@@ -290,7 +327,6 @@ export function SearchResults({ searchQuery, filters, viewMode }: SearchResultsP
                         </div>
                       </div>
                       
-                      {/* Description - Only if available */}
                       {product.description && (
                         <p className="text-xs text-gray-600 line-clamp-1 leading-relaxed">
                           {product.description}
