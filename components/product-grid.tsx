@@ -1,3 +1,4 @@
+// components/product-grid.tsx - UPDATED VERSION WITH FILTERS
 "use client"
 
 import type React from "react"
@@ -38,9 +39,22 @@ interface Product {
   }
 }
 
+interface ProductGridProps {
+  products?: Product[]
+  searchQuery?: string
+  filters?: {
+    category?: string
+    subcategory?: string
+    condition?: string
+    minPrice?: string
+    maxPrice?: string
+    sortBy?: string
+  }
+}
+
 const PRODUCTS_PER_PAGE = 20
 
-export function ProductGrid({ products: overrideProducts }: { products?: Product[] }) {
+export function ProductGrid({ products: overrideProducts, searchQuery, filters }: ProductGridProps) {
   const searchParams = useSearchParams()
   const pathname = usePathname()
   const [products, setProducts] = useState<Product[]>([])
@@ -79,9 +93,36 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
           .from('products')
           .select('*')
           .eq('status', 'active')
-          .order('created_at', { ascending: false })
-          .limit(PRODUCTS_PER_PAGE)
 
+        // Apply search query filter
+        if (searchQuery) {
+          query = query.ilike('title', `%${searchQuery}%`)
+        }
+
+        // Apply category filter
+        if (filters?.category && filters.category !== 'all') {
+          query = query.eq('category', filters.category)
+        }
+
+        // Apply subcategory filter
+        if (filters?.subcategory && filters.subcategory !== 'all') {
+          query = query.eq('subcategory', filters.subcategory)
+        }
+
+        // Apply condition filter
+        if (filters?.condition && filters.condition !== 'all') {
+          query = query.eq('condition', filters.condition)
+        }
+
+        // Apply price filters
+        if (filters?.minPrice) {
+          query = query.gte('price', parseInt(filters.minPrice))
+        }
+        if (filters?.maxPrice) {
+          query = query.lte('price', parseInt(filters.maxPrice))
+        }
+
+        // Apply location filter
         if (locationFilter) {
           const locationQuery = locationFilter.toLowerCase()
           
@@ -97,6 +138,26 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
             query = query.or(`city.ilike.%${locationQuery}%,province.ilike.%${locationQuery}%`)
           }
         }
+
+        // Apply sorting
+        if (filters?.sortBy) {
+          switch (filters.sortBy) {
+            case 'price-low':
+              query = query.order('price', { ascending: true })
+              break
+            case 'price-high':
+              query = query.order('price', { ascending: false })
+              break
+            case 'newest':
+            default:
+              query = query.order('created_at', { ascending: false })
+              break
+          }
+        } else {
+          query = query.order('created_at', { ascending: false })
+        }
+
+        query = query.limit(PRODUCTS_PER_PAGE)
 
         const { data, error } = await query
 
@@ -120,7 +181,7 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     } else {
       setLoading(false)
     }
-  }, [hasOverride, overrideProducts, shouldFetch, locationFilter])
+  }, [hasOverride, overrideProducts, shouldFetch, locationFilter, searchQuery, filters])
 
   const toggleFavorite = (productId: string, e?: React.MouseEvent) => {
     if (e) {
@@ -211,24 +272,24 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center py-8">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              {locationFilter ? `No Ads Found in ${locationFilter}` : "No Ads Found"}
+              {searchQuery ? `No results for "${searchQuery}"` : "No Ads Found"}
             </h3>
             <p className="text-gray-600 mb-4 text-sm">
-              {locationFilter 
-                ? "Try searching in a nearby area or broaden your location search."
+              {searchQuery 
+                ? "Try different keywords or remove some filters."
                 : "Be the first to post an ad in your area!"
               }
             </p>
             <Button asChild className="bg-green-900 hover:bg-green-950 text-xs h-8">
               <Link href="/post">Post Your First Ad</Link>
             </Button>
-            {locationFilter && (
+            {searchQuery && (
               <Button 
                 variant="outline" 
                 className="ml-2 text-xs h-8"
-                onClick={() => window.location.href = '/'}
+                onClick={() => window.location.href = '/search'}
               >
-                Clear Location
+                Clear Search
               </Button>
             )}
           </div>
@@ -242,6 +303,11 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col lg:flex-row gap-4">
           <div className="flex-1">
+            <div className="mb-4 text-sm text-gray-600">
+              Found {products.length} {products.length === 1 ? 'result' : 'results'}
+              {searchQuery && ` for "${searchQuery}"`}
+            </div>
+            
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-x-4 gap-y-6">
               {products.map((product) => {
                 const primaryImage = product.images?.[0] || "/diverse-products-still-life.png"
@@ -277,7 +343,7 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
                             }`}
                           >
                             <Heart 
-                              className={`h-3.5 w-3.5 ${favorites.has(product.id) ? "fill-current" : ""}`} 
+                              className={`h-3.5 w-3.5 ${favorites.has(productId) ? "fill-current" : ""}`} 
                             />
                           </button>
                         </div>
