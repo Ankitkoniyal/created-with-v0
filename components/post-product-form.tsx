@@ -35,6 +35,7 @@ interface ProductFormData {
 }
 
 interface DatabaseCategory {
+  id: number
   slug: string
   name: string
 }
@@ -92,6 +93,7 @@ export function PostProductForm() {
   const [subcategories, setSubcategories] = useState<DatabaseSubcategory[]>([])
   const [filteredSubcategories, setFilteredSubcategories] = useState<DatabaseSubcategory[]>([])
   const [isLoadingCategories, setIsLoadingCategories] = useState(true)
+  const [categoriesError, setCategoriesError] = useState<string | null>(null)
 
   const [formData, setFormData] = useState<ProductFormData>({
     title: "",
@@ -120,82 +122,99 @@ export function PostProductForm() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isLoadingEditData, setIsLoadingEditData] = useState(false)
 
-  // Fetch categories and subcategories from Supabase
+  // Fetch categories and subcategories from Supabase - FIXED VERSION
   useEffect(() => {
-    // In the fetchCategories function, add logs:
+       // In the useEffect that fetches categories - ensure it works with your database structure
 const fetchCategories = async () => {
   try {
+    setIsLoadingCategories(true)
+    setCategoriesError(null)
+    
     const supabase = createClient()
     
-    console.log("🔄 Fetching categories and subcategories...")
+    console.log("🔄 Fetching categories and subcategories from YOUR database...")
     
-    // Fetch categories
+    // Fetch categories - this should match your database table structure
     const { data: categoriesData, error: categoriesError } = await supabase
-      .from("categories")
-      .select("slug, name")
+      .from("categories") // Make sure this table exists in your Supabase
+      .select("id, slug, name")
       .order("name")
 
-    console.log("📋 Categories fetched:", categoriesData)
-    if (categoriesError) console.error("❌ Categories error:", categoriesError)
+    if (categoriesError) {
+      console.error("❌ Categories error:", categoriesError)
+      // Fallback to your lib/categories if database fails
+      console.log("🔄 Using fallback categories from lib/categories")
+      const fallbackCategories = CATEGORIES.map((cat, index) => ({
+        id: index + 1,
+        slug: cat.toLowerCase().replace(/\s+/g, '-'),
+        name: cat
+      }))
+      setCategories(fallbackCategories)
+    } else {
+      console.log("✅ Categories fetched from database:", categoriesData?.length)
+      setCategories(categoriesData || [])
+    }
 
-    setCategories(categoriesData || [])
-
-    // Fetch all subcategories
+    // Fetch all subcategories - this should match your database table structure  
     const { data: subcategoriesData, error: subcategoriesError } = await supabase
-      .from("subcategories")
+      .from("subcategories") // Make sure this table exists in your Supabase
       .select("id, name, slug, category_slug")
       .order("name")
-      .limit(1000) // ⬅️ ADD THIS LINE to fetch more records
 
-
-       console.log("📋 Subcategories fetched:", subcategoriesData)
-       if (subcategoriesError) console.error("❌ Subcategories error:", subcategoriesError)
-
-       setSubcategories(subcategoriesData || [])
-      
-       }    catch (error) {
-           console.error("❌ Error fetching categories:", error)
-        } finally {
-        setIsLoadingCategories(false)
-        }
-       }
-
-        fetchCategories()
-       },   [])
-
-  // Filter subcategories when category changes
- // Filter subcategories when category changes
-     useEffect(() => {
-  // ✅ ADD THESE DEBUG LOGS:
-
-  console.log("🔑 Environment check:", {
-  hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-  hasKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  url: process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(0, 20) + '...',
-  key: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.substring(0, 10) + '...'
-}) 
-  console.log("🔄 Filtering subcategories for category:", formData.category)
-  console.log("📋 All subcategories available:", subcategories)
-  
-  if (formData.category && subcategories.length > 0) {
-    const filtered = subcategories.filter(
-      (subcat) => subcat.category_slug === formData.category
-    )
-    // ✅ ADD THIS LOG:
-    console.log("✅ Filtered subcategories:", filtered)
-    setFilteredSubcategories(filtered)
-  } else {
-    // ✅ ADD THIS LOG:
-    console.log("❌ No category selected or no subcategories available")
-    setFilteredSubcategories([])
+    if (subcategoriesError) {
+      console.error("❌ Subcategories error:", subcategoriesError)
+      // Fallback to your SUBCATEGORY_MAPPINGS if database fails
+      console.log("🔄 Using fallback subcategories from lib/categories")
+      const fallbackSubcategories: DatabaseSubcategory[] = []
+      Object.entries(SUBCATEGORY_MAPPINGS).forEach(([category, subs]) => {
+        subs.forEach((sub, index) => {
+          fallbackSubcategories.push({
+            id: `${category}-${index}`,
+            name: sub,
+            slug: sub.toLowerCase().replace(/\s+/g, '-'),
+            category_slug: category.toLowerCase().replace(/\s+/g, '-')
+          })
+        })
+      })
+      setSubcategories(fallbackSubcategories)
+    } else {
+      console.log("✅ Subcategories fetched from database:", subcategoriesData?.length)
+      setSubcategories(subcategoriesData || [])
+    }
+    
+  } catch (error) {
+    console.error("❌ Error fetching categories:", error)
+    setCategoriesError("Failed to load categories. Please try again.")
+    setCategories([])
+    setSubcategories([])
+  } finally {
+    setIsLoadingCategories(false)
   }
-  
-  
-  // Reset subcategory when category changes
-  if (formData.category) {
-    setFormData(prev => ({ ...prev, subcategory: "" }))
-  }
-}, [formData.category, subcategories])
+}
+
+    fetchCategories()
+  }, [])
+
+  // Filter subcategories when category changes - FIXED VERSION
+  useEffect(() => {
+    console.log("🔄 Filtering subcategories for category:", formData.category)
+    
+    if (formData.category && subcategories.length > 0) {
+      const filtered = subcategories.filter(
+        (subcat) => subcat.category_slug === formData.category
+      )
+      console.log("✅ Filtered subcategories found:", filtered.length, filtered)
+      setFilteredSubcategories(filtered)
+    } else {
+      console.log("❌ No category selected or no subcategories available")
+      setFilteredSubcategories([])
+    }
+    
+    // Reset subcategory when category changes
+    if (formData.category) {
+      setFormData(prev => ({ ...prev, subcategory: "" }))
+    }
+  }, [formData.category, subcategories])
 
   useEffect(() => {
     const fetchExistingProduct = async () => {
@@ -258,7 +277,6 @@ const fetchCategories = async () => {
 
     fetchExistingProduct()
   }, [isEditMode, editId, user, router])
-  
   
   const handleInputChange = (field: keyof ProductFormData, value: string | boolean) => {
     setFormData((prev) => ({
@@ -350,6 +368,21 @@ const fetchCategories = async () => {
 
       console.log("Supabase client created successfully")
 
+      // Fetch the actual category ID from database
+      console.log("🔍 Fetching category ID for:", formData.category)
+      const { data: categoryData, error: categoryError } = await supabase
+        .from("categories")
+        .select("id")
+        .eq("slug", formData.category)
+        .single()
+
+      if (categoryError) {
+        console.error("❌ Error fetching category ID:", categoryError)
+      }
+
+      const categoryId = categoryData?.id || 1
+      console.log("✅ Category ID resolved:", categoryId)
+
       const imageUrls: string[] = []
       if (formData.images.length > 0) {
         console.log("Uploading images:", formData.images.length)
@@ -379,65 +412,45 @@ const fetchCategories = async () => {
 
       console.log("Preparing product data...")
 
-        // Find the subcategory ID based on the selected subcategory name
-        let subcategoryId = null
-        if (formData.subcategory) {
+      // Find the subcategory ID based on the selected subcategory name
+      let subcategoryId = null
+      if (formData.subcategory) {
         const selectedSubcategory = filteredSubcategories.find(
           sub => sub.slug === formData.subcategory
         )
         subcategoryId = selectedSubcategory?.id || null
       }
-    // Simple category ID mapping - ADD THIS
-const categoryIdMap: { [key: string]: number } = {
-  'vehicles': 1,
-  'electronics': 2,
-  'mobile': 3,
-  'real-estate': 4,
-  'fashion-beauty': 5,
-  'home-garden': 6,
-  'jobs-services': 7,
-  'pets-animals': 8,
-  'gaming': 9,
-  'books-education': 10,
-  'services': 11,
-  'sports': 12,
-  'other': 13
-}
 
- const categoryId = categoryIdMap[formData.category] || 1
-
-  const productData = {
-  user_id: user.id,
-  title: formData.title.trim(),
-  description: formData.description.trim(),
-  price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
-  price_type: formData.priceType,
-  condition: mapConditionToDatabase(formData.condition),
-  location: formData.address,
-  province: province,
-  city: city,
-  postal_code: formData.postalCode.trim(),
-  images: imageUrls,
-  // ✅ USE ACTUAL CATEGORY ID BASED ON SELECTED CATEGORY
-  category_id: categoryId, // This uses REAL data from your categories
-  // ⬇️⬇️⬇️ ADD THESE 2 LINES RIGHT HERE ⬇️⬇️⬇️
-  category_slug: formData.category, // Add this line
-  subcategory_slug: formData.subcategory || null,   // Use category as fallback if subcategory empty // Add this line
-  // ⬆️⬆️⬆️ ADD THESE 2 LINES RIGHT HERE ⬆️⬆️⬆️
-  category: formData.category,
-  subcategory: formData.subcategory || null,
-  subcategory_id: subcategoryId,
-  brand: formData.brand.trim() || null,
-  model: formData.model.trim() || null,
-  tags: formData.tags.length > 0 ? formData.tags : null,
-  youtube_url: formData.youtubeUrl.trim() || null,
-  website_url: formData.websiteUrl.trim() || null,
-  show_mobile_number: formData.showMobileNumber,
-  features: formData.features.length > 0 ? formData.features : null,
-  status: "active",
-  updated_at: new Date().toISOString(),
-  ...(!isEditMode && { created_at: new Date().toISOString() }),
-}
+      const productData = {
+        user_id: user.id,
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
+        price_type: formData.priceType,
+        condition: mapConditionToDatabase(formData.condition),
+        location: formData.address,
+        province: province,
+        city: city,
+        postal_code: formData.postalCode.trim(),
+        images: imageUrls,
+        // Using actual category ID from database
+        category_id: categoryId,
+        category_slug: formData.category,
+        subcategory_slug: formData.subcategory || null,
+        category: formData.category,
+        subcategory: formData.subcategory || null,
+        subcategory_id: subcategoryId,
+        brand: formData.brand.trim() || null,
+        model: formData.model.trim() || null,
+        tags: formData.tags.length > 0 ? formData.tags : null,
+        youtube_url: formData.youtubeUrl.trim() || null,
+        website_url: formData.websiteUrl.trim() || null,
+        show_mobile_number: formData.showMobileNumber,
+        features: formData.features.length > 0 ? formData.features : null,
+        status: "active",
+        updated_at: new Date().toISOString(),
+        ...(!isEditMode && { created_at: new Date().toISOString() }),
+      }
 
       console.log("Product data prepared:", JSON.stringify(productData, null, 2))
 
@@ -541,6 +554,13 @@ const categoryIdMap: { [key: string]: number } = {
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{submitError}</AlertDescription>
+          </Alert>
+        )}
+
+        {categoriesError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{categoriesError}</AlertDescription>
           </Alert>
         )}
 
@@ -662,6 +682,7 @@ const categoryIdMap: { [key: string]: number } = {
                   {isLoadingCategories ? (
                     <div className="w-full px-3 py-2 border-2 border-border rounded-md bg-background">
                       <div className="animate-pulse h-4 bg-gray-200 rounded"></div>
+                      <p className="text-xs text-muted-foreground mt-1">Loading categories...</p>
                     </div>
                   ) : (
                     <select
@@ -679,27 +700,34 @@ const categoryIdMap: { [key: string]: number } = {
                       ))}
                     </select>
                   )}
+                  {categories.length === 0 && !isLoadingCategories && (
+                    <p className="text-xs text-red-500">No categories available. Please contact support.</p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
                   <label htmlFor="subcategory" className="block text-sm font-medium text-foreground">
                     Subcategory
                   </label>
-                      <select
-                         id="subcategory"
-                      value={formData.subcategory}
-                      onChange={(e) => handleInputChange("subcategory", e.target.value)}
-                      className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground" // ← ADD THIS LINE
-                    >
-                      <option value="">Select subcategory</option>
-                      {filteredSubcategories.map((subcategory) => (
-                        <option key={subcategory.id} value={subcategory.slug}>
-                          {subcategory.name}
-                        </option>
-                      ))}
-                    </select>
+                  <select
+                    id="subcategory"
+                    value={formData.subcategory}
+                    onChange={(e) => handleInputChange("subcategory", e.target.value)}
+                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                    disabled={!formData.category || filteredSubcategories.length === 0}
+                  >
+                    <option value="">Select subcategory</option>
+                    {filteredSubcategories.map((subcategory) => (
+                      <option key={subcategory.id} value={subcategory.slug}>
+                        {subcategory.name}
+                      </option>
+                    ))}
+                  </select>
                   {formData.category && filteredSubcategories.length === 0 && (
                     <p className="text-xs text-muted-foreground">No subcategories available for this category</p>
+                  )}
+                  {!formData.category && (
+                    <p className="text-xs text-muted-foreground">Select a category first</p>
                   )}
                 </div>
               </div>
