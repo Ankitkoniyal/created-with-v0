@@ -3,6 +3,7 @@ import type React from "react"
 import { useAuth } from "@/hooks/use-auth"
 import { useRouter, usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
+import { Button } from "@/components/ui/button" // Add this import
 
 interface AuthGuardProps {
   children: React.ReactNode
@@ -34,7 +35,8 @@ export function AuthGuard({ children, requireAuth = true }: AuthGuardProps) {
       '/categories',
       '/search',
       '/about',
-      '/contact'
+      '/contact',
+      '/product' // Add product pages as public
     ]
 
     const isPublicPage = publicPages.some(publicPath => 
@@ -59,7 +61,7 @@ export function AuthGuard({ children, requireAuth = true }: AuthGuardProps) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-800 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading...</p>
         </div>
       </div>
@@ -82,7 +84,7 @@ export function AuthGuard({ children, requireAuth = true }: AuthGuardProps) {
             <p className="text-gray-600 mb-6">Please sign in to access this page</p>
             <Button
               onClick={() => router.push(`/auth/login?redirectedFrom=${encodeURIComponent(pathname)}`)}
-              className="bg-green-600 hover:bg-green-700 text-white"
+              className="bg-green-800 hover:bg-green-900 text-white"
             >
               Sign In
             </Button>
