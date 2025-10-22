@@ -102,10 +102,19 @@ function LoginFormContent() {
 
   const rawRedirect = searchParams.get("redirectedFrom") || "/"
   const redirectedFrom = getSafeRedirect(rawRedirect)
+  const message = searchParams.get("message")
 
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  // Show success message if redirected from signup
+  useEffect(() => {
+    if (message === "check_email") {
+      setSuccessOpen(true)
+      setTimeout(() => setSuccessOpen(false), 3000)
+    }
+  }, [message])
 
   // Load saved credentials after mount
   useEffect(() => {
@@ -222,7 +231,7 @@ function LoginFormContent() {
       <Card className="w-full max-w-md mx-auto">
         <CardContent className="flex items-center justify-center py-12">
           <div className="flex items-center space-x-2">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600"></div>
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-800"></div>
             <span className="text-sm text-gray-600">Loading...</span>
           </div>
         </CardContent>
@@ -235,10 +244,10 @@ function LoginFormContent() {
       <Card className="w-full max-w-md mx-auto shadow-lg">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center text-gray-900">
-            Welcome Back
+            Sign In
           </CardTitle>
           <p className="text-sm text-center text-gray-600">
-            Sign in to your Coinmint account
+            Access your account
           </p>
         </CardHeader>
         
@@ -262,7 +271,7 @@ function LoginFormContent() {
                   name="email"
                   type="email"
                   placeholder="Enter your email"
-                  className="pl-10 border-gray-300 focus:border-green-500"
+                  className="pl-10 border-gray-300 focus:border-green-800"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -283,7 +292,7 @@ function LoginFormContent() {
                   name="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="Enter your password"
-                  className="pl-10 pr-10 border-gray-300 focus:border-green-500"
+                  className="pl-10 pr-10 border-gray-300 focus:border-green-800"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -309,7 +318,7 @@ function LoginFormContent() {
                   checked={rememberMe}
                   onCheckedChange={(checked) => setRememberMe(!!checked)}
                   disabled={isSubmitting}
-                  className="data-[state=checked]:bg-green-600"
+                  className="data-[state=checked]:bg-green-800"
                 />
                 <Label htmlFor="remember" className="text-sm text-gray-700 cursor-pointer">
                   Remember me
@@ -318,7 +327,7 @@ function LoginFormContent() {
               <Button
                 type="button"
                 variant="link"
-                className="p-0 h-auto text-sm text-green-600 hover:text-green-700"
+                className="p-0 h-auto text-sm text-green-800 hover:text-green-900"
                 disabled={isSubmitting}
                 onClick={() => router.push("/auth/forgot-password")}
               >
@@ -328,7 +337,7 @@ function LoginFormContent() {
 
             <Button
               type="submit"
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 transition-colors"
+              className="w-full bg-green-800 hover:bg-green-900 text-white font-semibold py-2.5 transition-colors"
               disabled={isSubmitting || !email.trim() || !password}
             >
               {isSubmitting ? (
@@ -348,7 +357,7 @@ function LoginFormContent() {
               <Button
                 type="button"
                 variant="link"
-                className="p-0 h-auto text-green-600 hover:text-green-700 font-medium"
+                className="p-0 h-auto text-green-800 hover:text-green-900 font-medium"
                 disabled={isSubmitting}
                 onClick={() => router.push("/auth/signup")}
               >
@@ -361,8 +370,10 @@ function LoginFormContent() {
       
       <SuccessOverlay
         open={successOpen}
-        title="Signed in successfully"
-        message="Welcome back to Coinmint! Redirecting..."
+        title={message === "check_email" ? "Check Your Email" : "Signed In Successfully"}
+        message={message === "check_email" 
+          ? "Please check your email to verify your account before signing in." 
+          : "Welcome back! Redirecting..."}
         onClose={() => setSuccessOpen(false)}
         actionLabel="Continue"
       />
@@ -377,7 +388,7 @@ export default function LoginForm() {
       <Card className="w-full max-w-md mx-auto">
         <CardContent className="flex items-center justify-center py-12">
           <div className="flex items-center space-x-2">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600"></div>
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-800"></div>
             <span className="text-sm text-gray-600">Loading...</span>
           </div>
         </CardContent>
