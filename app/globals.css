@@ -124,3 +124,44 @@
     @apply bg-background text-foreground;
   }
 }
+html {
+  font-family: 'DM Sans', 'DM Sans Fallback', sans-serif;
+}
+
+:root {
+  --font-sans: 'DM Sans', sans-serif;
+  --toastify-color-light: #fff;
+  --toastify-color-dark: #121212;
+  /* ... other toastify variables */
+}
+/* styles/globals.css */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* For dark background */
+.bg-gray-800 .custom-scrollbar::-webkit-scrollbar-track {
+  background: #4b5563;
+}
+
+.bg-gray-800 .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #6b7280;
+}
+
+.bg-gray-800 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
