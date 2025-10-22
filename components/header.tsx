@@ -30,7 +30,7 @@ import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
-import MegaMenu from "@/components/mega-menu"
+import { CategoryNavigation } from "@/components/category-navigation"
 import { getSupabaseClient } from "@/lib/supabase/client"
 
 const CANADIAN_LOCATIONS = [
@@ -69,7 +69,6 @@ export function Header() {
   const [isLocationFocused, setIsLocationFocused] = useState(false)
   const locationInputRef = useRef<HTMLInputElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const [showMegaMenu, setShowMegaMenu] = useState(false)
   const [notificationCounts, setNotificationCounts] = useState({
     favorites: 0,
     messages: 0,
@@ -207,26 +206,6 @@ export function Header() {
       console.error("Logout error:", error)
       router.push("/")
     }
-  }
-
-  const handleCategorySelect = (category: string, subcategory?: string, filters?: any) => {
-    console.log(`Selected: ${category} - ${subcategory}`, filters)
-    setShowMegaMenu(false)
-    
-    // Navigate to search page with the selected category and filters
-    const params = new URLSearchParams()
-    params.set("category", category)
-    
-    if (subcategory) {
-      params.set("subcategory", subcategory)
-    }
-    
-    // Add type filter for Real Estate (rent/sale)
-    if (filters?.type) {
-      params.set("type", filters.type)
-    }
-    
-    router.push(`/search?${params.toString()}`)
   }
 
   // Clear search
@@ -493,32 +472,10 @@ export function Header() {
           </Button>
         </div>
 
-        {/* Categories Section - Fixed */}
-        <div className="border-t border-gray-100 bg-gray-50">
-          <div className="flex items-center justify-between py-2 px-4">
-            <div className="relative">
-              <Button
-                variant="ghost"
-                className="flex items-center gap-2 text-black hover:text-gray-800 hover:bg-gray-100 font-semibold px-6 py-2 rounded-lg"
-                onClick={() => setShowMegaMenu(!showMegaMenu)}
-              >
-                <span>All Categories</span>
-                <ChevronDown
-                  className={`h-4 w-4 transition-transform duration-200 ${showMegaMenu ? "rotate-180" : ""}`}
-                />
-              </Button>
-
-              {/* MegaMenu positioned correctly */}
-              {showMegaMenu && (
-                <div className="absolute left-0 top-full mt-1 z-50">
-                  <MegaMenu 
-                    isOpen={showMegaMenu}
-                    onClose={() => setShowMegaMenu(false)}
-                    onCategorySelect={handleCategorySelect}
-                  />
-                </div>
-              )}
-            </div>
+        {/* New Category Navigation */}
+        <div className="border-t border-gray-100 bg-white">
+          <div className="flex items-center justify-start py-3 px-4">
+            <CategoryNavigation />
           </div>
         </div>
       </div>
