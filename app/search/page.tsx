@@ -1,124 +1,122 @@
-// app/search/page.tsx
+// app/search/page.tsx - WITH CORRECT IMPORT
 "use client"
 
-import { useState, useEffect } from "react"
-import { useSearchParams, useRouter } from "next/navigation"
-import { SearchResults } from "@/components/search/search-results"
-import SearchFilters from "@/components/search/search-filters"
+import { useState, useEffect, Suspense } from "react"
+import { useSearchParams } from "next/navigation"
+import SearchFilters from "@/components/search/search-filters" // DEFAULT IMPORT
+import { ProductGrid } from "@/components/product-grid"
 import { SubcategoryNav } from "@/components/subcategory-nav"
-import { Breadcrumb } from "@/components/breadcrumb"
+import { Button } from "@/components/ui/button"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { SlidersHorizontal } from "lucide-react"
 
-export default function SearchPage() {
+function SearchPageContent() {
   const searchParams = useSearchParams()
-  const router = useRouter()
+  const searchQuery = searchParams.get("q") || ""
+  const category = searchParams.get("category") || ""
+  const subcategory = searchParams.get("subcategory") || ""
+  
+  const [filters, setFilters] = useState({})
 
-  // Get all parameters from URL
-  const urlQuery = searchParams.get("q") || ""
-  const urlLocation = searchParams.get("location") || ""
-  const urlCategory = searchParams.get("category") || ""
-  const urlSubcategory = searchParams.get("subcategory") || ""
-  const urlMinPrice = searchParams.get("minPrice") || ""
-  const urlMaxPrice = searchParams.get("maxPrice") || ""
-  const urlCondition = searchParams.get("condition") || "all"
-  const urlSortBy = searchParams.get("sortBy") || "newest"
-
-  const [searchQuery, setSearchQuery] = useState(urlQuery)
-  const [filters, setFilters] = useState({
-    category: urlCategory,
-    subcategory: urlSubcategory,
-    minPrice: urlMinPrice,
-    maxPrice: urlMaxPrice,
-    condition: urlCondition,
-    location: urlLocation,
-    sortBy: urlSortBy,
-  })
-
-  // 🔥 DYNAMIC TITLE UPDATE FOR SEO
   useEffect(() => {
-    let title = "Search Products | Your Marketplace"
-    
-    if (searchQuery && filters.category) {
-      title = `${searchQuery} in ${filters.category} - Search Results | Your Marketplace`
-    } else if (searchQuery) {
-      title = `${searchQuery} - Search Results | Your Marketplace`
-    } else if (filters.category) {
-      title = `Browse ${filters.category} | Your Marketplace`
+    const currentFilters = {
+      searchQuery,
+      category,
+      subcategory,
+      condition: searchParams.get("condition") || "all",
+      sortBy: searchParams.get("sortBy") || "newest",
+      minPrice: searchParams.get("minPrice") || "",
+      maxPrice: searchParams.get("maxPrice") || "",
     }
-
-    if (filters.location) {
-      title += ` in ${filters.location}`
-    }
-
-    document.title = title
-  }, [searchQuery, filters.category, filters.location])
-
-  // Update state when URL parameters change
-  useEffect(() => {
-    setSearchQuery(urlQuery)
-    setFilters({
-      category: urlCategory,
-      subcategory: urlSubcategory,
-      minPrice: urlMinPrice,
-      maxPrice: urlMaxPrice,
-      condition: urlCondition,
-      location: urlLocation,
-      sortBy: urlSortBy,
-    })
-  }, [urlQuery, urlLocation, urlCategory, urlSubcategory, urlMinPrice, urlMaxPrice, urlCondition, urlSortBy])
+    setFilters(currentFilters)
+  }, [searchParams, searchQuery, category, subcategory])
 
   const handleFiltersChange = (newFilters: any) => {
-    setFilters(newFilters)
-    
-    // Update URL without page reload
-    const params = new URLSearchParams()
-    
-    if (searchQuery) params.set("q", searchQuery)
-    if (newFilters.category) params.set("category", newFilters.category)
-    if (newFilters.subcategory) params.set("subcategory", newFilters.subcategory)
-    if (newFilters.minPrice) params.set("minPrice", newFilters.minPrice)
-    if (newFilters.maxPrice) params.set("maxPrice", newFilters.maxPrice)
-    if (newFilters.condition && newFilters.condition !== "all") params.set("condition", newFilters.condition)
-    if (newFilters.location) params.set("location", newFilters.location)
-    if (newFilters.sortBy && newFilters.sortBy !== "newest") params.set("sortBy", newFilters.sortBy)
-    
-    router.push(`/search?${params.toString()}`, { scroll: false })
+    setFilters(prev => ({ ...prev, ...newFilters }))
   }
 
-  const breadcrumbItems = [
-    { label: "Home", href: "/" },
-    { label: `Search${searchQuery ? ` for "${searchQuery}"` : ""}`, href: `/search${searchQuery ? `?q=${searchQuery}` : ""}` },
-  ]
-
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <Breadcrumb items={breadcrumbItems} />
-
+        {/* Search Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-foreground mb-2">
-            {searchQuery ? `Search results for "${searchQuery}"` : "Browse Products"}
-            {filters.location && ` in ${filters.location}`}
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            {searchQuery ? `Search results for "${searchQuery}"` : "Browse All Listings"}
           </h1>
+          {(category || searchQuery) && (
+            <p className="text-gray-600">
+              {category && `Category: ${category}`}
+              {subcategory && ` > ${subcategory}`}
+              {searchQuery && category && ` • Searching: "${searchQuery}"`}
+            </p>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          <div className="lg:col-span-1">
+        {/* Mobile Filters Button with Sheet */}
+        <div className="lg:hidden mb-4">
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="outline" className="w-full justify-start">
+                <SlidersHorizontal className="h-4 w-4 mr-2" />
+                Filters
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-80 overflow-y-auto">
+              <SearchFilters 
+                searchQuery={searchQuery}
+                onFiltersChange={handleFiltersChange}
+              />
+            </SheetContent>
+          </Sheet>
+        </div>
+
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Desktop Filters */}
+          <div className="hidden lg:block w-80 flex-shrink-0">
             <SearchFilters 
               searchQuery={searchQuery}
               onFiltersChange={handleFiltersChange}
             />
           </div>
-          <div className="lg:col-span-3">
-            {filters.category && (
-              <SubcategoryNav category={filters.category} selectedSubcategory={filters.subcategory} />
+
+          {/* Main Content */}
+          <div className="flex-1">
+            {/* Subcategory Navigation */}
+            {category && (
+              <SubcategoryNav 
+                category={category} 
+                selectedSubcategory={subcategory} 
+              />
             )}
-            <SearchResults 
-              searchQuery={searchQuery} 
-              filters={filters}
-            />
+
+            {/* Results */}
+            <Suspense fallback={
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[1, 2, 3, 4, 5, 6].map(i => (
+                  <div key={i} className="h-80 bg-gray-200 rounded-lg animate-pulse"></div>
+                ))}
+              </div>
+            }>
+              <ProductGrid 
+                searchQuery={searchQuery}
+                filters={filters}
+              />
+            </Suspense>
           </div>
         </div>
       </div>
     </div>
+  )
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-lg">Loading search results...</div>
+      </div>
+    }>
+      <SearchPageContent />
+    </Suspense>
   )
 }
