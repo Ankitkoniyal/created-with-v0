@@ -25,6 +25,7 @@ export function SignupForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successOpen, setSuccessOpen] = useState(false)
+  const [checkingEmail, setCheckingEmail] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
@@ -50,33 +51,40 @@ export function SignupForm() {
     return null
   }
 
-  const getAuthErrorMessage = (error: any): string => {
-    const message = error.message?.toLowerCase() || ""
-    
-    if (message.includes('already') || message.includes('exists') || 
-        message.includes('duplicate') || message.includes('registered') ||
-        error.status === 400 || error.status === 422) {
-      return "An account with this email already exists. Please sign in instead."
-    } 
-    
-    if (message.includes('password') || message.includes('6 characters')) {
-      return "Password must be at least 6 characters long."
+  // RELIABLE email check using API route
+  const checkEmailExists = async (email: string): Promise<boolean> => {
+    setCheckingEmail(true)
+    try {
+      console.log("🔍 Checking email existence:", email)
+      
+      const response = await fetch('/api/check-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      })
+
+      const data = await response.json()
+      
+      if (!response.ok) {
+        console.error('Email check API error:', data.error)
+        return false // Fallback - let signup proceed and catch error there
+      }
+
+      console.log('✅ Email check result:', data)
+      return data.exists
+    } catch (error) {
+      console.error('❌ Email check failed:', error)
+      return false // Fallback - let signup proceed and catch error there
+    } finally {
+      setCheckingEmail(false)
     }
-    
-    if (message.includes('email') || message.includes('valid')) {
-      return "Please enter a valid email address."
-    }
-    
-    if (message.includes('rate') || message.includes('too many')) {
-      return "Too many attempts. Please try again in a few minutes."
-    }
-    
-    return "Failed to create account. Please try again."
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (isSubmitting) return
+    if (isSubmitting || checkingEmail) return
 
     setError(null)
     setIsSubmitting(true)
@@ -85,7 +93,7 @@ export function SignupForm() {
       const formData = new FormData(e.currentTarget)
       const formValues: FormData = {
         fullName: (formData.get("fullName") as string)?.trim() || "",
-        email: (formData.get("email") as string)?.trim() || "",
+        email: (formData.get("email") as string)?.trim().toLowerCase() || "",
         phone: (formData.get("phone") as string)?.trim() || "",
         password: (formData.get("password") as string) || ""
       }
@@ -100,6 +108,18 @@ export function SignupForm() {
 
       console.log("🚀 Attempting signup for:", formValues.email)
       
+      // RELIABLE email check - this will actually work now
+      console.log("📧 Checking if email exists via API...")
+      const emailExists = await checkEmailExists(formValues.email)
+      
+      if (emailExists) {
+        setError("An account with this email already exists. Please sign in instead.")
+        setIsSubmitting(false)
+        return
+      }
+
+      console.log("✅ Email is available, proceeding with signup...")
+
       const redirectUrl = typeof window !== "undefined"
         ? `${window.location.origin}/auth/callback`
         : "http://localhost:3000/auth/callback"
@@ -118,25 +138,33 @@ export function SignupForm() {
 
       if (signUpError) {
         console.error("❌ Signup error:", signUpError)
-        setError(getAuthErrorMessage(signUpError))
+        
+        // DOUBLE CHECK - if somehow email exists but our API missed it
+        if (signUpError.message?.includes('already exists') || 
+            signUpError.message?.includes('user_already_exists') ||
+            signUpError.status === 400 || 
+            signUpError.message?.includes('already registered')) {
+          setError("An account with this email already exists. Please sign in instead.")
+        } else {
+          setError("Failed to create account. Please try again.")
+        }
+        
         setIsSubmitting(false)
         return
       }
 
-      // Success handling
+      // SUCCESS - user created
       console.log("✅ Signup successful:", data.user?.email)
       
       if (data.user) {
         setSuccessOpen(true)
         setTimeout(() => {
           setSuccessOpen(false)
-          // Redirect based on email confirmation status
-          if (data.session) {
-            router.push("/")
-          } else {
-            router.push("/auth/login?message=check_email")
-          }
+          router.push("/auth/login?message=check_email")
         }, 2000)
+      } else {
+        setError("Failed to create account. Please try again.")
+        setIsSubmitting(false)
       }
 
     } catch (error: any) {
@@ -151,10 +179,10 @@ export function SignupForm() {
       <Card className="w-full max-w-md mx-auto shadow-lg">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center text-gray-900">
-            Join Coinmint
+            Create Account
           </CardTitle>
           <p className="text-sm text-center text-gray-600">
-            Create your account to start trading
+            Sign up to get started
           </p>
         </CardHeader>
         
@@ -167,7 +195,6 @@ export function SignupForm() {
               </Alert>
             )}
 
-            {/* Full Name */}
             <div className="space-y-2">
               <Label htmlFor="fullName" className="text-sm font-medium text-gray-700">
                 Full Name *
@@ -179,14 +206,13 @@ export function SignupForm() {
                   name="fullName"
                   type="text"
                   placeholder="Enter your full name"
-                  className="pl-10 border-gray-300 focus:border-green-500"
+                  className="pl-10 border-gray-300 focus:border-green-800"
                   required
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || checkingEmail}
                 />
               </div>
             </div>
 
-            {/* Email */}
             <div className="space-y-2">
               <Label htmlFor="email" className="text-sm font-medium text-gray-700">
                 Email *
@@ -198,14 +224,13 @@ export function SignupForm() {
                   name="email" 
                   type="email" 
                   placeholder="Enter your email" 
-                  className="pl-10 border-gray-300 focus:border-green-500"
+                  className="pl-10 border-gray-300 focus:border-green-800"
                   required
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || checkingEmail}
                 />
               </div>
             </div>
 
-            {/* Phone */}
             <div className="space-y-2">
               <Label htmlFor="phone" className="text-sm font-medium text-gray-700">
                 Phone Number
@@ -217,13 +242,12 @@ export function SignupForm() {
                   name="phone" 
                   type="tel" 
                   placeholder="Enter your phone number" 
-                  className="pl-10 border-gray-300 focus:border-green-500"
-                  disabled={isSubmitting}
+                  className="pl-10 border-gray-300 focus:border-green-800"
+                  disabled={isSubmitting || checkingEmail}
                 />
               </div>
             </div>
 
-            {/* Password */}
             <div className="space-y-2">
               <Label htmlFor="password" className="text-sm font-medium text-gray-700">
                 Password *
@@ -235,38 +259,37 @@ export function SignupForm() {
                   name="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="Create a password (min. 6 characters)"
-                  className="pl-10 pr-10 border-gray-300 focus:border-green-500"
+                  className="pl-10 pr-10 border-gray-300 focus:border-green-800"
                   minLength={6}
                   required
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || checkingEmail}
                 />
                 <button
                   type="button"
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                   onClick={() => setShowPassword(!showPassword)}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || checkingEmail}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
 
-            {/* Terms Agreement */}
             <div className="flex items-start space-x-3 p-3 border border-gray-200 rounded-lg bg-gray-50">
               <Checkbox
                 id="terms"
                 checked={agreeToTerms}
                 onCheckedChange={(checked) => setAgreeToTerms(!!checked)}
-                className="mt-0.5 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
-                disabled={isSubmitting}
+                className="mt-0.5 data-[state=checked]:bg-green-800 data-[state=checked]:border-green-800"
+                disabled={isSubmitting || checkingEmail}
               />
               <Label htmlFor="terms" className="text-sm text-gray-600 leading-relaxed cursor-pointer flex-1">
-                I agree to Coinmint's{" "}
-                <Button type="button" variant="link" className="p-0 h-auto text-green-600 hover:text-green-700 text-sm">
+                I agree to the{" "}
+                <Button type="button" variant="link" className="p-0 h-auto text-green-800 hover:text-green-900 text-sm">
                   Terms of Service
                 </Button>{" "}
                 and{" "}
-                <Button type="button" variant="link" className="p-0 h-auto text-green-600 hover:text-green-700 text-sm">
+                <Button type="button" variant="link" className="p-0 h-auto text-green-800 hover:text-green-900 text-sm">
                   Privacy Policy
                 </Button>
               </Label>
@@ -274,10 +297,15 @@ export function SignupForm() {
 
             <Button
               type="submit"
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 transition-colors"
-              disabled={!agreeToTerms || isSubmitting}
+              className="w-full bg-green-800 hover:bg-green-900 text-white font-semibold py-2.5 transition-colors"
+              disabled={!agreeToTerms || isSubmitting || checkingEmail}
             >
-              {isSubmitting ? (
+              {checkingEmail ? (
+                <div className="flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Checking Email...
+                </div>
+              ) : isSubmitting ? (
                 <div className="flex items-center justify-center">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                   Creating Account...
@@ -294,8 +322,9 @@ export function SignupForm() {
               <Button
                 type="button"
                 variant="link"
-                className="p-0 h-auto text-green-600 hover:text-green-700 font-medium"
+                className="p-0 h-auto text-green-800 hover:text-green-900 font-medium"
                 onClick={() => router.push("/auth/login")}
+                disabled={isSubmitting || checkingEmail}
               >
                 Sign in
               </Button>
@@ -306,10 +335,10 @@ export function SignupForm() {
 
       <SuccessOverlay
         open={successOpen}
-        title="Welcome to Coinmint!"
-        message="Your account has been created successfully. Check your email to confirm your account."
+        title="Account Created Successfully"
+        message="Please check your email to verify your account before signing in."
         onClose={() => setSuccessOpen(false)}
-        actionLabel="Get Started"
+        actionLabel="Continue to Login"
       />
     </>
   )
