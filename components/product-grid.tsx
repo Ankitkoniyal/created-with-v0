@@ -343,7 +343,8 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters }
                             }`}
                           >
                             <Heart 
-                              className={`h-3.5 w-3.5 ${favorites.has(productId) ? "fill-current" : ""}`} 
+                              className={`h-3.5 w-3.5 ${favorites.has(product.id) ? "fill-current" : ""}`}
+ 
                             />
                           </button>
                         </div>
