@@ -4,20 +4,23 @@ import { createContext, useContext, useState, useEffect, type ReactNode, useRef 
 import { getSupabaseClient } from "@/lib/supabase/client"
 import type { User } from "@supabase/supabase-js"
 
-// ✅ UPDATED: Role types match your enum
 type UserRole = 'user' | 'admin' | 'super_admin' | 'owner'
 
+// ✅ UPDATED: Profile interface matches your actual table structure
 interface Profile {
   id: string
+  email: string // ✅ Your table has email column
   name: string
-  email: string
   phone?: string
   avatar_url?: string
   bio?: string
   location?: string
-  verified: boolean
   created_at: string
-  role: UserRole // ✅ UPDATED: Matches your enum
+  updated_at: string // ✅ Your table has updated_at
+  role: UserRole
+  email_notifications: boolean // ✅ Your table has these notification fields
+  sms_notifications: boolean
+  push_notifications: boolean
 }
 
 interface AuthContextType {
@@ -27,8 +30,8 @@ interface AuthContextType {
   signup: (email: string, password: string, name: string, phone: string) => Promise<{ error?: string }>
   logout: () => Promise<void>
   isLoading: boolean
-  isAdmin: boolean // ✅ ADDED
-  isSuperAdmin: boolean // ✅ ADDED
+  isAdmin: boolean
+  isSuperAdmin: boolean
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -39,7 +42,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const mountedRef = useRef(true)
 
-  // ✅ UPDATED: Role-based properties with correct enum values
   const isAdmin = !!(profile && (profile.role === 'admin' || profile.role === 'super_admin' || profile.role === 'owner'))
   const isSuperAdmin = !!(profile && profile.role === 'super_admin')
 
@@ -103,7 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // ✅ UPDATED: Include role in profile fetching
+  // ✅ UPDATED: Fixed profile fetching to match your actual table structure
   const fetchUserProfile = async (userId: string, userData: User, supabase: any): Promise<Profile | null> => {
     try {
       if (!supabase) return null
@@ -114,19 +116,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq("id", userId)
         .single()
 
-      if (error || !data) return null
+      if (error || !data) {
+        console.log("[v0] Profile fetch error:", error)
+        return null
+      }
 
+      // ✅ UPDATED: Match your actual table columns
       return {
         id: data.id,
+        email: data.email || userData?.email || "", // Your table has email column
         name: data.full_name || userData?.email?.split("@")[0] || "User",
-        email: data.email || userData?.email || "",
         phone: data.phone || "",
         avatar_url: data.avatar_url || "",
         bio: data.bio || "",
         location: data.location || "",
-        verified: data.verified || false,
         created_at: data.created_at,
-        role: data.role || 'user' // ✅ UPDATED: Default to 'user'
+        updated_at: data.updated_at, // Your table has updated_at
+        role: data.role || 'user',
+        email_notifications: data.email_notifications || true,
+        sms_notifications: data.sms_notifications || false,
+        push_notifications: data.push_notifications || true
       }
     } catch (error) {
       console.log("[v0] Profile fetch error:", error)
@@ -411,7 +420,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // ✅ UPDATED: Include role-based properties
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -428,7 +436,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 }
 
-// ✅ UPDATED: useAuth hook with role checking
 export function useAuth() {
   const context = useContext(AuthContext)
   
