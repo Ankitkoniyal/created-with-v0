@@ -11,7 +11,8 @@ import { useAuth } from "@/hooks/use-auth"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useSearchParams } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
-import { X, MapPin, Tag, AlertCircle } from "lucide-react"
+import { X, MapPin, Tag, AlertCircle, Camera } from "lucide-react"
+import { CATEGORIES, SUBCATEGORY_MAPPINGS } from "@/lib/categories"
 
 interface ProductFormData {
   title: string
@@ -32,6 +33,7 @@ interface ProductFormData {
   tags: string[]
   images: File[]
   features: string[]
+  imagePreviews: string[]
 }
 
 interface DatabaseCategory {
@@ -76,14 +78,14 @@ const mapConditionToDatabase = (condition: string): string => {
 
 const parseLocation = (location: string): { city: string; province: string } => {
   const parts = location.split(", ")
-  const city = parts.length >= 2 ? parts[parts.length - 1] : ""
-  const province = parts.length >= 2 ? parts[parts.length - 2] : ""
+  const city = parts.length >= 2 ? parts[parts.length - 2] : location
+  const province = parts.length >= 2 ? parts[parts.length - 1] : ""
   return { city, province }
 }
 
 export function PostProductForm() {
   const router = useRouter()
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const searchParams = useSearchParams()
   const editId = searchParams.get("edit")
   const isEditMode = !!editId
@@ -114,6 +116,7 @@ export function PostProductForm() {
     tags: [],
     images: [],
     features: [],
+    imagePreviews: [],
   })
 
   const [newFeature, setNewFeature] = useState("")
@@ -122,95 +125,116 @@ export function PostProductForm() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isLoadingEditData, setIsLoadingEditData] = useState(false)
 
-  // Fetch categories and subcategories from Supabase - FIXED VERSION
+  // Profile validation effect
   useEffect(() => {
-       // In the useEffect that fetches categories - ensure it works with your database structure
-const fetchCategories = async () => {
-  try {
-    setIsLoadingCategories(true)
-    setCategoriesError(null)
-    
-    const supabase = createClient()
-    
-    console.log("🔄 Fetching categories and subcategories from YOUR database...")
-    
-    // Fetch categories - this should match your database table structure
-    const { data: categoriesData, error: categoriesError } = await supabase
-      .from("categories") // Make sure this table exists in your Supabase
-      .select("id, slug, name")
-      .order("name")
-
-    if (categoriesError) {
-      console.error("❌ Categories error:", categoriesError)
-      // Fallback to your lib/categories if database fails
-      console.log("🔄 Using fallback categories from lib/categories")
-      const fallbackCategories = CATEGORIES.map((cat, index) => ({
-        id: index + 1,
-        slug: cat.toLowerCase().replace(/\s+/g, '-'),
-        name: cat
-      }))
-      setCategories(fallbackCategories)
-    } else {
-      console.log("✅ Categories fetched from database:", categoriesData?.length)
-      setCategories(categoriesData || [])
+    if (user && profile) {
+      console.log("✅ User profile ready:", profile)
+    } else if (user && !profile) {
+      console.warn("⚠️ User is logged in but profile is not loaded")
     }
+  }, [user, profile])
 
-    // Fetch all subcategories - this should match your database table structure  
-    const { data: subcategoriesData, error: subcategoriesError } = await supabase
-      .from("subcategories") // Make sure this table exists in your Supabase
-      .select("id, name, slug, category_slug")
-      .order("name")
+  // Fetch categories and subcategories from Supabase
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        setIsLoadingCategories(true)
+        setCategoriesError(null)
+        
+        const supabase = createClient()
+        
+        console.log("🔄 Fetching categories and subcategories...")
+        
+        let categoriesData: DatabaseCategory[] = []
+        let subcategoriesData: DatabaseSubcategory[] = []
 
-    if (subcategoriesError) {
-      console.error("❌ Subcategories error:", subcategoriesError)
-      // Fallback to your SUBCATEGORY_MAPPINGS if database fails
-      console.log("🔄 Using fallback subcategories from lib/categories")
-      const fallbackSubcategories: DatabaseSubcategory[] = []
-      Object.entries(SUBCATEGORY_MAPPINGS).forEach(([category, subs]) => {
-        subs.forEach((sub, index) => {
-          fallbackSubcategories.push({
-            id: `${category}-${index}`,
-            name: sub,
-            slug: sub.toLowerCase().replace(/\s+/g, '-'),
-            category_slug: category.toLowerCase().replace(/\s+/g, '-')
+        try {
+          // Fetch categories
+          const { data: catData, error: catError } = await supabase
+            .from("categories")
+            .select("id, slug, name")
+            .order("name")
+
+          if (catError) throw catError
+          categoriesData = catData || []
+
+          // Fetch subcategories
+          const { data: subData, error: subError } = await supabase
+            .from("subcategories")
+            .select("id, name, slug, category_slug")
+            .order("name")
+
+          if (subError) throw subError
+          subcategoriesData = subData || []
+
+        } catch (dbError) {
+          console.error("❌ Database fetch failed, using fallback data:", dbError)
+          
+          categoriesData = CATEGORIES.map((cat, index) => ({
+            id: index + 1,
+            slug: cat.toLowerCase().replace(/\s+/g, '-'),
+            name: cat
+          }))
+          
+          subcategoriesData = []
+          Object.entries(SUBCATEGORY_MAPPINGS).forEach(([category, subs]) => {
+            subs.forEach((sub, index) => {
+              subcategoriesData.push({
+                id: `${category}-${index}`,
+                name: sub,
+                slug: sub.toLowerCase().replace(/\s+/g, '-'),
+                category_slug: category.toLowerCase().replace(/\s+/g, '-')
+              })
+            })
+          })
+        }
+
+        setCategories(categoriesData)
+        setSubcategories(subcategoriesData)
+        
+      } catch (error) {
+        console.error("❌ Error in category fetch:", error)
+        setCategoriesError("Failed to load categories. Using default categories.")
+        
+        const fallbackCategories = CATEGORIES.map((cat, index) => ({
+          id: index + 1,
+          slug: cat.toLowerCase().replace(/\s+/g, '-'),
+          name: cat
+        }))
+        
+        const fallbackSubcategories: DatabaseSubcategory[] = []
+        Object.entries(SUBCATEGORY_MAPPINGS).forEach(([category, subs]) => {
+          subs.forEach((sub, index) => {
+            fallbackSubcategories.push({
+              id: `${category}-${index}`,
+              name: sub,
+              slug: sub.toLowerCase().replace(/\s+/g, '-'),
+              category_slug: category.toLowerCase().replace(/\s+/g, '-')
+            })
           })
         })
-      })
-      setSubcategories(fallbackSubcategories)
-    } else {
-      console.log("✅ Subcategories fetched from database:", subcategoriesData?.length)
-      setSubcategories(subcategoriesData || [])
+        
+        setCategories(fallbackCategories)
+        setSubcategories(fallbackSubcategories)
+      } finally {
+        setIsLoadingCategories(false)
+      }
     }
-    
-  } catch (error) {
-    console.error("❌ Error fetching categories:", error)
-    setCategoriesError("Failed to load categories. Please try again.")
-    setCategories([])
-    setSubcategories([])
-  } finally {
-    setIsLoadingCategories(false)
-  }
-}
 
     fetchCategories()
   }, [])
 
-  // Filter subcategories when category changes - FIXED VERSION
+  // Filter subcategories when category changes
   useEffect(() => {
-    console.log("🔄 Filtering subcategories for category:", formData.category)
-    
     if (formData.category && subcategories.length > 0) {
       const filtered = subcategories.filter(
         (subcat) => subcat.category_slug === formData.category
       )
-      console.log("✅ Filtered subcategories found:", filtered.length, filtered)
       setFilteredSubcategories(filtered)
     } else {
-      console.log("❌ No category selected or no subcategories available")
       setFilteredSubcategories([])
     }
     
-    // Reset subcategory when category changes
     if (formData.category) {
       setFormData(prev => ({ ...prev, subcategory: "" }))
     }
@@ -224,7 +248,6 @@ const fetchCategories = async () => {
       try {
         const supabase = createClient()
         if (!supabase) {
-          console.error("Supabase client unavailable. Skipping edit data fetch.")
           toast.error("Service temporarily unavailable. Please try again in a moment.")
           router.push("/dashboard/listings")
           return
@@ -264,6 +287,7 @@ const fetchCategories = async () => {
             tags: data.tags || [],
             images: [],
             features: data.features || [],
+            imagePreviews: data.images || [],
           })
         }
       } catch (error) {
@@ -300,18 +324,40 @@ const fetchCategories = async () => {
     })
 
     if (formData.images.length + validFiles.length <= 5) {
-      setFormData((prev) => ({ ...prev, images: [...prev.images, ...validFiles] }))
+      const newPreviews = validFiles.map(file => URL.createObjectURL(file))
+      
+      setFormData((prev) => ({ 
+        ...prev, 
+        images: [...prev.images, ...validFiles],
+        imagePreviews: [...prev.imagePreviews, ...newPreviews]
+      }))
     } else {
       toast.error("You can upload maximum 5 images.")
     }
   }
 
   const removeImage = (index: number) => {
+    if (formData.imagePreviews[index]) {
+      URL.revokeObjectURL(formData.imagePreviews[index])
+    }
+    
     setFormData((prev) => ({
       ...prev,
       images: prev.images.filter((_, i) => i !== index),
+      imagePreviews: prev.imagePreviews.filter((_, i) => i !== index),
     }))
   }
+
+  // Clean up object URLs when component unmounts
+  useEffect(() => {
+    return () => {
+      formData.imagePreviews.forEach(url => {
+        if (url.startsWith('blob:')) {
+          URL.revokeObjectURL(url)
+        }
+      })
+    }
+  }, [])
 
   const addFeature = () => {
     if (newFeature.trim() && !formData.features.includes(newFeature.trim())) {
@@ -347,189 +393,137 @@ const fetchCategories = async () => {
     }))
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!user) {
-      toast.error("Please log in to post an ad")
-      return
-    }
-
-    setIsSubmitting(true)
-
-    try {
-      console.log(`Starting ${isEditMode ? "ad update" : "ad submission"} process`)
-
-      const supabase = createClient()
-      if (!supabase) {
-        console.error("Supabase client unavailable. Aborting submission.")
-        setSubmitError("Service temporarily unavailable. Please refresh the page or try again shortly.")
-        return
-      }
-
-      console.log("Supabase client created successfully")
-
-      // Fetch the actual category ID from database
-      console.log("🔍 Fetching category ID for:", formData.category)
-      const { data: categoryData, error: categoryError } = await supabase
-        .from("categories")
-        .select("id")
-        .eq("slug", formData.category)
-        .single()
-
-      if (categoryError) {
-        console.error("❌ Error fetching category ID:", categoryError)
-      }
-
-      const categoryId = categoryData?.id || 1
-      console.log("✅ Category ID resolved:", categoryId)
-
-      const imageUrls: string[] = []
-      if (formData.images.length > 0) {
-        console.log("Uploading images:", formData.images.length)
-
-        for (const image of formData.images) {
-          const fileExt = image.name.split(".").pop()
-          const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
-
-          console.log("Uploading image:", fileName)
-
-          const { data, error } = await supabase.storage.from("product-images").upload(fileName, image)
-
-          if (error) {
-            console.error("Image upload error:", error)
-            throw new Error(`Failed to upload image: ${error.message}`)
-          }
-
-          const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(fileName)
-          imageUrls.push(urlData.publicUrl)
-          console.log("Image uploaded successfully:", urlData.publicUrl)
-        }
-      }
-
-      const locationParts = parseLocation(formData.location)
-      const city = locationParts.city || formData.location.split(",")[0]?.trim() || ""
-      const province = locationParts.province || formData.location.split(",")[1]?.trim() || ""
-
-      console.log("Preparing product data...")
-
-      // Find the subcategory ID based on the selected subcategory name
-      let subcategoryId = null
-      if (formData.subcategory) {
-        const selectedSubcategory = filteredSubcategories.find(
-          sub => sub.slug === formData.subcategory
-        )
-        subcategoryId = selectedSubcategory?.id || null
-      }
-
-      const productData = {
-        user_id: user.id,
-        title: formData.title.trim(),
-        description: formData.description.trim(),
-        price: formData.priceType === "amount" ? Number.parseFloat(formData.price) || 0 : 0,
-        price_type: formData.priceType,
-        condition: mapConditionToDatabase(formData.condition),
-        location: formData.address,
-        province: province,
-        city: city,
-        postal_code: formData.postalCode.trim(),
-        images: imageUrls,
-        // Using actual category ID from database
-        category_id: categoryId,
-        category_slug: formData.category,
-        subcategory_slug: formData.subcategory || null,
-        category: formData.category,
-        subcategory: formData.subcategory || null,
-        subcategory_id: subcategoryId,
-        brand: formData.brand.trim() || null,
-        model: formData.model.trim() || null,
-        tags: formData.tags.length > 0 ? formData.tags : null,
-        youtube_url: formData.youtubeUrl.trim() || null,
-        website_url: formData.websiteUrl.trim() || null,
-        show_mobile_number: formData.showMobileNumber,
-        features: formData.features.length > 0 ? formData.features : null,
-        status: "active",
-        updated_at: new Date().toISOString(),
-        ...(!isEditMode && { created_at: new Date().toISOString() }),
-      }
-
-      console.log("Product data prepared:", JSON.stringify(productData, null, 2))
-
-      let data, error
-
-      if (isEditMode) {
-        console.log("Updating existing product...")
-        const result = await supabase
-          .from("products")
-          .update(productData)
-          .eq("id", editId)
-          .eq("user_id", user.id)
-          .select()
-          .single()
-
-        data = result.data
-        error = result.error
-      } else {
-        console.log("Inserting new product...")
-        const result = await supabase.from("products").insert(productData).select().single()
-        data = result.data
-        error = result.error
-      }
-
-      if (error) {
-        console.error("Database error details:", {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code,
-        })
-
-        if (error.message.includes("row-level security") || error.message.includes("policy")) {
-          setSubmitError(
-            "Database security policies need to be configured. Please contact your administrator to enable ad posting.",
-          )
-          return
-        } else if (error.message.includes("column") && error.message.includes("does not exist")) {
-          console.error("Missing database column:", error.message)
-          setSubmitError(`Database schema issue: ${error.message}. Please run the required database migrations.`)
-          return
-        } else if (error.message.includes("duplicate key") || error.message.includes("unique constraint")) {
-          setSubmitError("A similar ad already exists. Please modify your listing and try again.")
-          return
-        } else {
-          setSubmitError(`Failed to ${isEditMode ? "update" : "post"} your ad: ${error.message}. Please try again.`)
-          return
-        }
-      }
-
-      console.log(`Product ${isEditMode ? "updated" : "saved"} successfully:`, data)
-
-      const successMessage = isEditMode
-        ? "Your ad has been updated successfully!"
-        : "Your ad has been posted successfully!"
-
-      console.log("Redirecting to success page with ID:", data.id)
-      sessionStorage.setItem("adPostSuccess", successMessage)
-
-      if (isEditMode) {
-        router.push("/dashboard/listings")
-      } else {
-        router.push(`/sell/success?id=${data.id}`)
-      }
-    } catch (error) {
-      console.error("Submission error details:", {
-        error,
-        message: error instanceof Error ? error.message : "Unknown error",
-        stack: error instanceof Error ? error.stack : undefined,
-      })
-      setSubmitError(
-        `An unexpected error occurred: ${error instanceof Error ? error.message : "Unknown error"}. Please try again.`,
-      )
-    } finally {
-      setIsSubmitting(false)
-      console.log(`${isEditMode ? "Ad update" : "Ad submission"} process completed`)
-    }
+  // FIXED: Simplified and improved handleSubmit function
+       // FIXED: Add category_id to the product data
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault()
+  
+  if (!user) {
+    toast.error("Please log in to post an ad")
+    return
   }
 
+  if (!profile) {
+    toast.error("Please complete your profile setup before posting ads")
+    return
+  }
+
+  setIsSubmitting(true)
+  setSubmitError(null)
+
+  try {
+    const supabase = createClient()
+    if (!supabase) {
+      throw new Error("Supabase client not available")
+    }
+
+    // Upload images
+    const imageUrls: string[] = []
+    
+    if (formData.images.length > 0) {
+      for (const [index, image] of formData.images.entries()) {
+        const fileExt = image.name.split(".").pop() || 'jpg'
+        const fileName = `${user.id}/${Date.now()}-${index}.${fileExt}`
+
+        const { error: uploadError } = await supabase.storage
+          .from("product-images")
+          .upload(fileName, image)
+
+        if (uploadError) {
+          throw new Error(`Failed to upload image: ${uploadError.message}`)
+        }
+
+        const { data: urlData } = supabase.storage
+          .from("product-images")
+          .getPublicUrl(fileName)
+
+        if (urlData?.publicUrl) {
+          imageUrls.push(urlData.publicUrl)
+        }
+      }
+    } else if (!isEditMode) {
+      throw new Error("Please upload at least one image")
+    }
+
+    // Parse location
+    const { city, province } = parseLocation(formData.location)
+
+    // Get category_id from the selected category
+    const foundCategory = categories.find(
+      (cat) => cat.slug === formData.category
+    )
+
+    // FIXED: Include category_id in the product data
+      const productData = {
+  user_id: user.id,
+  title: formData.title.trim(),
+  description: formData.description.trim(),
+  price: formData.priceType === "amount" ? parseFloat(formData.price) || 0 : 0,
+  price_type: formData.priceType,
+  condition: mapConditionToDatabase(formData.condition),
+  location: formData.address,
+  province: province,
+  city: city,
+  postal_code: formData.postalCode.trim(),
+  images: imageUrls,
+  category: formData.category,
+  category_id: foundCategory?.id || 1,
+  category_slug: formData.category, // FIX: Added category_slug
+  subcategory: formData.subcategory || null,
+  brand: formData.brand.trim() || null,
+  model: formData.model.trim() || null,
+  tags: formData.tags.length > 0 ? formData.tags : null,
+  youtube_url: formData.youtubeUrl.trim() || null,
+  website_url: formData.websiteUrl.trim() || null,
+  show_mobile_number: formData.showMobileNumber,
+  features: formData.features.length > 0 ? formData.features : null,
+  status: "active",
+  updated_at: new Date().toISOString(),
+}
+
+    console.log("📦 Product data with category_id:", productData)
+
+    let result
+    if (isEditMode) {
+      result = await supabase
+        .from("products")
+        .update(productData)
+        .eq("id", editId)
+        .eq("user_id", user.id)
+    } else {
+      result = await supabase
+        .from("products")
+        .insert([{
+          ...productData,
+          created_at: new Date().toISOString()
+        }])
+    }
+
+    if (result.error) {
+      throw new Error(`Database error: ${result.error.message}`)
+    }
+
+    toast.success(
+      isEditMode 
+        ? "✅ Your ad has been updated successfully!" 
+        : "🎉 Your ad has been posted successfully!"
+    )
+
+    if (isEditMode) {
+      router.push("/dashboard/listings")
+    } else {
+      router.push("/sell/success")
+    }
+
+  } catch (error) {
+    console.error("💥 Error:", error)
+    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred"
+    setSubmitError(errorMessage)
+    toast.error(`❌ ${errorMessage}`)
+  } finally {
+    setIsSubmitting(false)
+  }
+}
   const isStep1Valid = formData.images.length > 0 && formData.title.trim() && formData.description.trim()
   const isStep2Valid = formData.category && formData.condition && (formData.priceType !== "amount" || formData.price)
   const isStep3Valid = formData.address && formData.location && formData.postalCode
@@ -551,14 +545,14 @@ const fetchCategories = async () => {
     <div className="rounded-xl border bg-card text-card-foreground">
       <div className="p-6">
         {submitError && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="mb-4">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{submitError}</AlertDescription>
           </Alert>
         )}
 
         {categoriesError && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="mb-4">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{categoriesError}</AlertDescription>
           </Alert>
@@ -575,6 +569,7 @@ const fetchCategories = async () => {
           <Stepper current={currentStep} total={4} />
         </div>
 
+        {/* Step 1 - Basic Info & Images */}
         {currentStep === 1 && (
           <div className="space-y-6">
             <div className="space-y-4">
@@ -618,59 +613,65 @@ const fetchCategories = async () => {
 
               <section aria-labelledby="photos" className="mt-6">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {formData.images.map((image, index) => (
+                  {formData.imagePreviews.map((preview, index) => (
                     <div key={index} className="relative overflow-hidden rounded-lg border bg-background aspect-square">
                       <div className="w-full overflow-hidden">
                         <img
-                          src={URL.createObjectURL(image) || "/placeholder.svg"}
+                          src={preview || "/placeholder.svg"}
                           alt={`Product ${index + 1}`}
                           className="h-full w-full object-cover"
                         />
                       </div>
-                      {index === 0 ? (
+                      {index === 0 && (
                         <span className="absolute left-2 top-2 rounded-md bg-black/70 px-2 py-0.5 text-xs font-medium text-white">
                           Main
                         </span>
-                      ) : null}
+                      )}
                       <button
                         type="button"
                         onClick={() => removeImage(index)}
                         className="absolute right-2 top-2 rounded-full bg-red-500 hover:bg-red-600 text-white p-1 transition-colors shadow-lg"
                         aria-label={`Remove image ${index + 1}`}
                       >
-                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+                        <X className="h-3 w-3" />
                       </button>
                     </div>
                   ))}
 
-                  <label
-                    htmlFor="add-photo-input"
-                    className="relative overflow-hidden rounded-lg border-2 border-dashed border-green-600 bg-green-50 hover:bg-green-100 transition-colors cursor-pointer aspect-square flex items-center justify-center dark:bg-green-900/20 dark:border-green-400 dark:hover:bg-green-900/30"
-                  >
-                    <div className="text-center">
-                      <div className="mx-auto mb-2 h-10 w-10 rounded-full border-2 border-green-600 grid place-items-center text-green-600 dark:border-green-400 dark:text-green-400">
-                        <i className="fas fa-camera text-lg"></i>
+                  {formData.images.length < 5 && (
+                    <label
+                      htmlFor="add-photo-input"
+                      className="relative overflow-hidden rounded-lg border-2 border-dashed border-green-600 bg-green-50 hover:bg-green-100 transition-colors cursor-pointer aspect-square flex items-center justify-center dark:bg-green-900/20 dark:border-green-400 dark:hover:bg-green-900/30"
+                    >
+                      <div className="text-center">
+                        <div className="mx-auto mb-2 h-10 w-10 rounded-full border-2 border-green-600 grid place-items-center text-green-600 dark:border-green-400 dark:text-green-400">
+                          <Camera className="h-5 w-5" />
+                        </div>
+                        <p className="text-sm text-green-700 font-medium dark:text-green-300">Add Photos</p>
+                        <p className="text-xs text-green-600 dark:text-green-400">Max 3MB</p>
                       </div>
-                      <p className="text-sm text-green-700 font-medium dark:text-green-300">Add Photos</p>
-                      <p className="text-xs text-green-600 dark:text-green-400">Max 3MB</p>
-                    </div>
-                  </label>
-                  <input
-                    id="add-photo-input"
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="sr-only"
-                    onChange={handleImageUpload}
-                  />
+                      <input
+                        id="add-photo-input"
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="sr-only"
+                        onChange={handleImageUpload}
+                      />
+                    </label>
+                  )}
                 </div>
+                {formData.images.length > 0 && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {formData.images.length}/5 photos added
+                  </p>
+                )}
               </section>
             </div>
           </div>
         )}
 
+        {/* Step 2 - Category & Details */}
         {currentStep === 2 && (
           <div className="space-y-6">
             <div className="space-y-4">
@@ -700,9 +701,6 @@ const fetchCategories = async () => {
                       ))}
                     </select>
                   )}
-                  {categories.length === 0 && !isLoadingCategories && (
-                    <p className="text-xs text-red-500">No categories available. Please contact support.</p>
-                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -723,12 +721,6 @@ const fetchCategories = async () => {
                       </option>
                     ))}
                   </select>
-                  {formData.category && filteredSubcategories.length === 0 && (
-                    <p className="text-xs text-muted-foreground">No subcategories available for this category</p>
-                  )}
-                  {!formData.category && (
-                    <p className="text-xs text-muted-foreground">Select a category first</p>
-                  )}
                 </div>
               </div>
 
@@ -809,6 +801,7 @@ const fetchCategories = async () => {
           </div>
         )}
 
+        {/* Step 3 - Additional Details */}
         {currentStep === 3 && (
           <div className="space-y-6">
             <div className="space-y-4 p-4 border-2 border-border rounded-lg bg-background">
@@ -823,7 +816,6 @@ const fetchCategories = async () => {
                     onChange={(e) => handleInputChange("youtubeUrl", e.target.value)}
                     className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
                   />
-                  <p className="text-xs text-muted-foreground">Add a YouTube video showcasing your product</p>
                 </div>
 
                 <div className="space-y-2">
@@ -835,7 +827,6 @@ const fetchCategories = async () => {
                     onChange={(e) => handleInputChange("websiteUrl", e.target.value)}
                     className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
                   />
-                  <p className="text-xs text-muted-foreground">Link to your website or product page</p>
                 </div>
               </div>
             </div>
@@ -845,9 +836,6 @@ const fetchCategories = async () => {
                 <Tag className="h-5 w-5 mr-2" />
                 Tags (Max 5 words)
               </label>
-              <p className="text-sm text-muted-foreground mt-1">
-                Add relevant keywords to improve your ad's search visibility and help buyers find your item
-              </p>
               <div className="space-y-3">
                 <div className="flex gap-2">
                   <input
@@ -887,8 +875,6 @@ const fetchCategories = async () => {
                     ))}
                   </div>
                 )}
-
-                <p className="text-xs text-muted-foreground">{formData.tags.length}/5 tags used</p>
               </div>
             </div>
 
@@ -947,12 +933,9 @@ const fetchCategories = async () => {
                     <option value="">Select city/province</option>
                     {CANADIAN_LOCATIONS.map((location) => (
                       <optgroup key={location.province} label={location.province}>
-                        <option value={location.province} className="font-semibold">
-                          {location.province}
-                        </option>
                         {location.cities.map((city) => (
-                          <option key={city} value={`${city}, ${location.province}`} className="pl-6">
-                            {city}
+                          <option key={city} value={`${city}, ${location.province}`}>
+                            {city}, {location.province}
                           </option>
                         ))}
                       </optgroup>
@@ -980,26 +963,17 @@ const fetchCategories = async () => {
           </div>
         )}
 
+        {/* Step 4 - Review & Submit */}
         {currentStep === 4 && (
           <div className="space-y-6">
             <div className="space-y-4">
               <div>
                 <h3 className="font-semibold mb-2 text-foreground">Product Details</h3>
                 <div className="space-y-1 text-sm">
-                  <p>
-                    <span className="text-muted-foreground">Title:</span> {formData.title}
-                  </p>
-                  <p>
-                    <span className="text-muted-foreground">Category:</span> {formData.category}
-                  </p>
-                  {formData.subcategory && (
-                    <p>
-                      <span className="text-muted-foreground">Subcategory:</span> {formData.subcategory}
-                    </p>
-                  )}
-                  <p>
-                    <span className="text-muted-foreground">Condition:</span> {formData.condition}
-                  </p>
+                  <p><span className="text-muted-foreground">Title:</span> {formData.title}</p>
+                  <p><span className="text-muted-foreground">Category:</span> {formData.category}</p>
+                  {formData.subcategory && <p><span className="text-muted-foreground">Subcategory:</span> {formData.subcategory}</p>}
+                  <p><span className="text-muted-foreground">Condition:</span> {formData.condition}</p>
                   <p>
                     <span className="text-muted-foreground">Price:</span>{" "}
                     {formData.priceType === "amount" && `$${formData.price}`}
@@ -1007,34 +981,10 @@ const fetchCategories = async () => {
                     {formData.priceType === "contact" && "Contact Us"}
                     {formData.priceType === "swap" && "Swap/Exchange"}
                   </p>
-                  {formData.brand && (
-                    <p>
-                      <span className="text-muted-foreground">Brand:</span> {formData.brand}
-                    </p>
-                  )}
-                  {formData.model && (
-                    <p>
-                      <span className="text-muted-foreground">Model:</span> {formData.model}
-                    </p>
-                  )}
-                  <p>
-                    <span className="text-muted-foreground">Location:</span>{" "}
-                    {formData.address && `${formData.address}, `}
-                    {formData.location}
-                  </p>
-                  <p>
-                    <span className="text-muted-foreground">Postal Code:</span> {formData.postalCode}
-                  </p>
-                  {formData.youtubeUrl && (
-                    <p>
-                      <span className="text-muted-foreground">YouTube:</span> {formData.youtubeUrl}
-                    </p>
-                  )}
-                  {formData.websiteUrl && (
-                    <p>
-                      <span className="text-muted-foreground">Website:</span> {formData.websiteUrl}
-                    </p>
-                  )}
+                  {formData.brand && <p><span className="text-muted-foreground">Brand:</span> {formData.brand}</p>}
+                  {formData.model && <p><span className="text-muted-foreground">Model:</span> {formData.model}</p>}
+                  <p><span className="text-muted-foreground">Location:</span> {formData.address && `${formData.address}, `}{formData.location}</p>
+                  <p><span className="text-muted-foreground">Postal Code:</span> {formData.postalCode}</p>
                 </div>
               </div>
 
@@ -1043,9 +993,7 @@ const fetchCategories = async () => {
                   <h3 className="font-semibold mb-2 text-foreground">Tags</h3>
                   <div className="flex flex-wrap gap-1">
                     {formData.tags.map((tag) => (
-                      <Badge key={tag} variant="outline" className="text-xs">
-                        {tag}
-                      </Badge>
+                      <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
                     ))}
                   </div>
                 </div>
@@ -1056,9 +1004,7 @@ const fetchCategories = async () => {
                   <h3 className="font-semibold mb-2 text-foreground">Features</h3>
                   <div className="flex flex-wrap gap-1">
                     {formData.features.map((feature) => (
-                      <Badge key={feature} variant="outline" className="text-xs">
-                        {feature}
-                      </Badge>
+                      <Badge key={feature} variant="outline" className="text-xs">{feature}</Badge>
                     ))}
                   </div>
                 </div>
@@ -1072,12 +1018,12 @@ const fetchCategories = async () => {
               </div>
 
               <div>
-                <h3 className="font-semibold mb-2 text-foreground">Photos ({formData.images.length})</h3>
+                <h3 className="font-semibold mb-2 text-foreground">Photos ({formData.imagePreviews.length})</h3>
                 <div className="grid grid-cols-4 gap-2">
-                  {formData.images.slice(0, 4).map((image, index) => (
+                  {formData.imagePreviews.map((preview, index) => (
                     <img
                       key={index}
-                      src={URL.createObjectURL(image) || "/placeholder.svg"}
+                      src={preview || "/placeholder.svg"}
                       alt={`Product ${index + 1}`}
                       className="w-full h-16 object-cover rounded border"
                     />
@@ -1089,6 +1035,7 @@ const fetchCategories = async () => {
         )}
       </div>
 
+      {/* Navigation Buttons */}
       <div className="flex items-center justify-between border-t px-6 py-4">
         <button
           type="button"
@@ -1103,10 +1050,17 @@ const fetchCategories = async () => {
           <button
             type="button"
             onClick={handleSubmit}
-            className="rounded-md bg-green-700 hover:bg-green-800 text-white px-6 py-2 disabled:opacity-50"
+            className="rounded-md bg-green-700 hover:bg-green-800 text-white px-6 py-2 disabled:opacity-50 flex items-center gap-2"
             disabled={isSubmitting}
           >
-            {isSubmitting ? "Publishing..." : "Publish Ad"}
+            {isSubmitting ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                Publishing...
+              </>
+            ) : (
+              "Publish Ad"
+            )}
           </button>
         ) : (
           <button
