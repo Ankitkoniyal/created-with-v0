@@ -337,7 +337,7 @@ export function PostProductForm() {
   }
 
   const removeImage = (index: number) => {
-    if (formData.imagePreviews[index]) {
+    if (formData.imagePreviews[index] && formData.imagePreviews[index].startsWith('blob:')) {
       URL.revokeObjectURL(formData.imagePreviews[index])
     }
     
@@ -357,7 +357,7 @@ export function PostProductForm() {
         }
       })
     }
-  }, [])
+  }, [formData.imagePreviews]) // Added formData.imagePreviews dependency for cleanup
 
   const addFeature = () => {
     if (newFeature.trim() && !formData.features.includes(newFeature.trim())) {
@@ -394,136 +394,136 @@ export function PostProductForm() {
   }
 
   // FIXED: Simplified and improved handleSubmit function
-       // FIXED: Add category_id to the product data
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault()
-  
-  if (!user) {
-    toast.error("Please log in to post an ad")
-    return
-  }
-
-  if (!profile) {
-    toast.error("Please complete your profile setup before posting ads")
-    return
-  }
-
-  setIsSubmitting(true)
-  setSubmitError(null)
-
-  try {
-    const supabase = createClient()
-    if (!supabase) {
-      throw new Error("Supabase client not available")
-    }
-
-    // Upload images
-    const imageUrls: string[] = []
+  // FIXED: Add category_id to the product data
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
     
-    if (formData.images.length > 0) {
-      for (const [index, image] of formData.images.entries()) {
-        const fileExt = image.name.split(".").pop() || 'jpg'
-        const fileName = `${user.id}/${Date.now()}-${index}.${fileExt}`
+    if (!user) {
+      toast.error("Please log in to post an ad")
+      return
+    }
 
-        const { error: uploadError } = await supabase.storage
-          .from("product-images")
-          .upload(fileName, image)
+    if (!profile) {
+      toast.error("Please complete your profile setup before posting ads")
+      return
+    }
 
-        if (uploadError) {
-          throw new Error(`Failed to upload image: ${uploadError.message}`)
-        }
+    setIsSubmitting(true)
+    setSubmitError(null)
 
-        const { data: urlData } = supabase.storage
-          .from("product-images")
-          .getPublicUrl(fileName)
-
-        if (urlData?.publicUrl) {
-          imageUrls.push(urlData.publicUrl)
-        }
+    try {
+      const supabase = createClient()
+      if (!supabase) {
+        throw new Error("Supabase client not available")
       }
-    } else if (!isEditMode) {
-      throw new Error("Please upload at least one image")
-    }
 
-    // Parse location
-    const { city, province } = parseLocation(formData.location)
+      // Upload images
+      let imageUrls: string[] = isEditMode ? formData.imagePreviews.filter(url => !url.startsWith('blob:')) : [] // Preserve existing URLs in edit mode
+      
+      if (formData.images.length > 0) {
+        for (const [index, image] of formData.images.entries()) {
+          const fileExt = image.name.split(".").pop() || 'jpg'
+          const fileName = `${user.id}/${Date.now()}-${index}.${fileExt}`
 
-    // Get category_id from the selected category
-    const foundCategory = categories.find(
-      (cat) => cat.slug === formData.category
-    )
+          const { error: uploadError } = await supabase.storage
+            .from("product-images")
+            .upload(fileName, image)
 
-    // FIXED: Include category_id in the product data
+          if (uploadError) {
+            throw new Error(`Failed to upload image: ${uploadError.message}`)
+          }
+
+          const { data: urlData } = supabase.storage
+            .from("product-images")
+            .getPublicUrl(fileName)
+
+          if (urlData?.publicUrl) {
+            imageUrls.push(urlData.publicUrl)
+          }
+        }
+      } else if (!isEditMode) {
+        throw new Error("Please upload at least one image")
+      }
+
+      // Parse location
+      const { city, province } = parseLocation(formData.location)
+
+      // Get category_id from the selected category
+      const foundCategory = categories.find(
+        (cat) => cat.slug === formData.category
+      )
+
+      // FIXED: Include category_id in the product data
       const productData = {
-  user_id: user.id,
-  title: formData.title.trim(),
-  description: formData.description.trim(),
-  price: formData.priceType === "amount" ? parseFloat(formData.price) || 0 : 0,
-  price_type: formData.priceType,
-  condition: mapConditionToDatabase(formData.condition),
-  location: formData.address,
-  province: province,
-  city: city,
-  postal_code: formData.postalCode.trim(),
-  images: imageUrls,
-  category: formData.category,
-  category_id: foundCategory?.id || 1,
-  category_slug: formData.category, // FIX: Added category_slug
-  subcategory: formData.subcategory || null,
-  brand: formData.brand.trim() || null,
-  model: formData.model.trim() || null,
-  tags: formData.tags.length > 0 ? formData.tags : null,
-  youtube_url: formData.youtubeUrl.trim() || null,
-  website_url: formData.websiteUrl.trim() || null,
-  show_mobile_number: formData.showMobileNumber,
-  features: formData.features.length > 0 ? formData.features : null,
-  status: "active",
-  updated_at: new Date().toISOString(),
-}
+        user_id: user.id,
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        price: formData.priceType === "amount" ? parseFloat(formData.price) || 0 : 0,
+        price_type: formData.priceType,
+        condition: mapConditionToDatabase(formData.condition),
+        location: formData.address,
+        province: province,
+        city: city,
+        postal_code: formData.postalCode.trim(),
+        images: imageUrls,
+        category: formData.category,
+        category_id: foundCategory?.id || 1,
+        category_slug: formData.category, // FIX: Added category_slug
+        subcategory: formData.subcategory || null,
+        brand: formData.brand.trim() || null,
+        model: formData.model.trim() || null,
+        tags: formData.tags.length > 0 ? formData.tags : null,
+        youtube_url: formData.youtubeUrl.trim() || null,
+        website_url: formData.websiteUrl.trim() || null,
+        show_mobile_number: formData.showMobileNumber,
+        features: formData.features.length > 0 ? formData.features : null,
+        status: "active",
+        updated_at: new Date().toISOString(),
+      }
 
-    console.log("📦 Product data with category_id:", productData)
+      console.log("📦 Product data with category_id:", productData)
 
-    let result
-    if (isEditMode) {
-      result = await supabase
-        .from("products")
-        .update(productData)
-        .eq("id", editId)
-        .eq("user_id", user.id)
-    } else {
-      result = await supabase
-        .from("products")
-        .insert([{
-          ...productData,
-          created_at: new Date().toISOString()
-        }])
+      let result
+      if (isEditMode) {
+        result = await supabase
+          .from("products")
+          .update(productData)
+          .eq("id", editId)
+          .eq("user_id", user.id)
+      } else {
+        result = await supabase
+          .from("products")
+          .insert([{
+            ...productData,
+            created_at: new Date().toISOString()
+          }])
+      }
+
+      if (result.error) {
+        throw new Error(`Database error: ${result.error.message}`)
+      }
+
+      toast.success(
+        isEditMode 
+          ? "✅ Your ad has been updated successfully!" 
+          : "🎉 Your ad has been posted successfully!"
+      )
+
+      if (isEditMode) {
+        router.push("/dashboard/listings")
+      } else {
+        router.push("/sell/success")
+      }
+
+    } catch (error) {
+      console.error("💥 Error:", error)
+      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred"
+      setSubmitError(errorMessage)
+      toast.error(`❌ ${errorMessage}`)
+    } finally {
+      setIsSubmitting(false)
     }
-
-    if (result.error) {
-      throw new Error(`Database error: ${result.error.message}`)
-    }
-
-    toast.success(
-      isEditMode 
-        ? "✅ Your ad has been updated successfully!" 
-        : "🎉 Your ad has been posted successfully!"
-    )
-
-    if (isEditMode) {
-      router.push("/dashboard/listings")
-    } else {
-      router.push("/sell/success")
-    }
-
-  } catch (error) {
-    console.error("💥 Error:", error)
-    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred"
-    setSubmitError(errorMessage)
-    toast.error(`❌ ${errorMessage}`)
-  } finally {
-    setIsSubmitting(false)
   }
-}
   const isStep1Valid = formData.images.length > 0 && formData.title.trim() && formData.description.trim()
   const isStep2Valid = formData.category && formData.condition && (formData.priceType !== "amount" || formData.price)
   const isStep3Valid = formData.address && formData.location && formData.postalCode
@@ -542,537 +542,506 @@ const handleSubmit = async (e: React.FormEvent) => {
   }
 
   return (
-    <div className="rounded-xl border bg-card text-card-foreground">
-      <div className="p-6">
-        {submitError && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{submitError}</AlertDescription>
-          </Alert>
-        )}
+    <form onSubmit={handleSubmit}>
+      <div className="rounded-xl border bg-card text-card-foreground">
+        <div className="p-6">
+          {submitError && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{submitError}</AlertDescription>
+            </Alert>
+          )}
 
-        {categoriesError && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{categoriesError}</AlertDescription>
-          </Alert>
-        )}
+          {categoriesError && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{categoriesError}</AlertDescription>
+            </Alert>
+          )}
 
-        <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold">{isEditMode ? "Edit Your Listing" : "Create New Listing"}</h2>
-          <p className="text-muted-foreground">
-            {isEditMode ? "Update your product details" : "Fill in the details to post your ad"}
-          </p>
-        </div>
-
-        <div className="mb-6">
-          <Stepper current={currentStep} total={4} />
-        </div>
-
-        {/* Step 1 - Basic Info & Images */}
-        {currentStep === 1 && (
-          <div className="space-y-6">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="title" className="block text-sm font-medium text-foreground">
-                  Title *
-                </label>
-                <input
-                  id="title"
-                  type="text"
-                  placeholder="Enter a clear, descriptive title for your item"
-                  value={formData.title}
-                  onChange={(e) => handleInputChange("title", e.target.value)}
-                  className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
-                  required
-                />
-                <p className="text-xs text-muted-foreground">Be specific about what you're selling</p>
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="description" className="block text-sm font-medium text-foreground">
-                  Description *
-                </label>
-                <textarea
-                  id="description"
-                  placeholder="Describe your item in detail. Include condition, features, and any relevant information for buyers."
-                  value={formData.description}
-                  onChange={(e) => handleInputChange("description", e.target.value)}
-                  rows={4}
-                  className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
-                  required
-                />
-                <p className="text-xs text-muted-foreground">Provide detailed information to attract buyers</p>
-              </div>
-            </div>
-
-            <div className="pt-4">
-              <p className="text-muted-foreground mb-4">
-                Add up to 5 photos (max 3MB each). The first photo will be your main image.
-              </p>
-
-              <section aria-labelledby="photos" className="mt-6">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {formData.imagePreviews.map((preview, index) => (
-                    <div key={index} className="relative overflow-hidden rounded-lg border bg-background aspect-square">
-                      <div className="w-full overflow-hidden">
-                        <img
-                          src={preview || "/placeholder.svg"}
-                          alt={`Product ${index + 1}`}
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-                      {index === 0 && (
-                        <span className="absolute left-2 top-2 rounded-md bg-black/70 px-2 py-0.5 text-xs font-medium text-white">
-                          Main
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => removeImage(index)}
-                        className="absolute right-2 top-2 rounded-full bg-red-500 hover:bg-red-600 text-white p-1 transition-colors shadow-lg"
-                        aria-label={`Remove image ${index + 1}`}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
-
-                  {formData.images.length < 5 && (
-                    <label
-                      htmlFor="add-photo-input"
-                      className="relative overflow-hidden rounded-lg border-2 border-dashed border-green-600 bg-green-50 hover:bg-green-100 transition-colors cursor-pointer aspect-square flex items-center justify-center dark:bg-green-900/20 dark:border-green-400 dark:hover:bg-green-900/30"
-                    >
-                      <div className="text-center">
-                        <div className="mx-auto mb-2 h-10 w-10 rounded-full border-2 border-green-600 grid place-items-center text-green-600 dark:border-green-400 dark:text-green-400">
-                          <Camera className="h-5 w-5" />
-                        </div>
-                        <p className="text-sm text-green-700 font-medium dark:text-green-300">Add Photos</p>
-                        <p className="text-xs text-green-600 dark:text-green-400">Max 3MB</p>
-                      </div>
-                      <input
-                        id="add-photo-input"
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        className="sr-only"
-                        onChange={handleImageUpload}
-                      />
-                    </label>
-                  )}
-                </div>
-                {formData.images.length > 0 && (
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {formData.images.length}/5 photos added
-                  </p>
-                )}
-              </section>
-            </div>
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-bold">{isEditMode ? "Edit Your Listing" : "Create New Listing"}</h2>
+            <p className="text-muted-foreground">
+              {isEditMode ? "Update your product details" : "Fill in the details to post your ad"}
+            </p>
           </div>
-        )}
 
-        {/* Step 2 - Category & Details */}
-        {currentStep === 2 && (
-          <div className="space-y-6">
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="mb-6">
+            <Stepper current={currentStep} total={4} />
+          </div>
+
+          {/* Step 1 - Basic Info & Images */}
+          {currentStep === 1 && (
+            <div className="space-y-6">
+              <div className="space-y-4">
                 <div className="space-y-2">
-                  <label htmlFor="category" className="block text-sm font-medium text-foreground">
-                    Category *
+                  <label htmlFor="title" className="block text-sm font-medium text-foreground">
+                    Title *
                   </label>
-                  {isLoadingCategories ? (
-                    <div className="w-full px-3 py-2 border-2 border-border rounded-md bg-background">
-                      <div className="animate-pulse h-4 bg-gray-200 rounded"></div>
-                      <p className="text-xs text-muted-foreground mt-1">Loading categories...</p>
-                    </div>
-                  ) : (
+                  <input
+                    id="title"
+                    type="text"
+                    placeholder="Enter a clear, descriptive title for your item"
+                    value={formData.title}
+                    onChange={(e) => handleInputChange("title", e.target.value)}
+                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">Be specific about what you're selling</p>
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="description" className="block text-sm font-medium text-foreground">
+                    Description *
+                  </label>
+                  <textarea
+                    id="description"
+                    placeholder="Describe your item in detail. Include condition, features, and any relevant information for buyers."
+                    value={formData.description}
+                    onChange={(e) => handleInputChange("description", e.target.value)}
+                    rows={4}
+                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">Provide detailed information to attract buyers</p>
+                </div>
+              </div>
+
+              <div className="pt-4">
+                <p className="text-muted-foreground mb-4">
+                  Add up to 5 photos (max 3MB each). The first photo will be your main image.
+                </p>
+
+                <section aria-labelledby="photos" className="mt-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {formData.imagePreviews.map((preview, index) => (
+                      <div key={index} className="relative overflow-hidden rounded-lg border bg-background aspect-square">
+                        <div className="w-full overflow-hidden">
+                          <img
+                            src={preview || "/placeholder.svg"}
+                            alt={`Product ${index + 1}`}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                        {index === 0 && (
+                          <span className="absolute left-2 top-2 rounded-md bg-black/70 px-2 py-0.5 text-xs font-medium text-white">
+                            Main
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeImage(index)}
+                          className="absolute right-2 top-2 rounded-full bg-red-500 hover:bg-red-600 text-white p-1 transition-colors shadow-lg"
+                          aria-label={`Remove image ${index + 1}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+
+                    {formData.images.length + (isEditMode ? formData.imagePreviews.filter(url => !url.startsWith('blob:')).length : 0) < 5 && (
+                      <label
+                        htmlFor="add-photo-input"
+                        className="relative overflow-hidden rounded-lg border-2 border-dashed border-green-600 bg-green-50 hover:bg-green-100 transition-colors cursor-pointer aspect-square flex items-center justify-center dark:bg-green-900/20 dark:border-green-400 dark:hover:bg-green-900/30"
+                      >
+                        <div className="text-center">
+                          <div className="mx-auto mb-2 h-10 w-10 rounded-full border-2 border-green-600 grid place-items-center text-green-600 dark:border-green-400 dark:text-green-400">
+                            <Camera className="h-5 w-5" />
+                          </div>
+                          <p className="text-sm text-green-700 font-medium dark:text-green-300">Add Photos</p>
+                          <p className="text-xs text-green-600 dark:text-green-400">Max 3MB</p>
+                        </div>
+                        <input
+                          id="add-photo-input"
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="sr-only"
+                          onChange={handleImageUpload}
+                        />
+                      </label>
+                    )}
+                  </div>
+                  {formData.imagePreviews.length > 0 && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {formData.imagePreviews.length}/5 photos added
+                    </p>
+                  )}
+                </section>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2 - Category & Details */}
+          {currentStep === 2 && (
+            <div className="space-y-6">
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label htmlFor="category" className="block text-sm font-medium text-foreground">
+                      Category *
+                    </label>
+                    {isLoadingCategories ? (
+                      <div className="w-full px-3 py-2 border-2 border-border rounded-md bg-background">
+                        <div className="animate-pulse h-4 bg-gray-200 rounded"></div>
+                        <p className="text-xs text-muted-foreground mt-1">Loading categories...</p>
+                      </div>
+                    ) : (
+                      <select
+                        id="category"
+                        value={formData.category}
+                        onChange={(e) => handleInputChange("category", e.target.value)}
+                        className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                        required
+                      >
+                        <option value="">Select category</option>
+                        {categories.map((category) => (
+                          <option key={category.slug} value={category.slug}>
+                            {category.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label htmlFor="subcategory" className="block text-sm font-medium text-foreground">
+                      Subcategory
+                    </label>
                     <select
-                      id="category"
-                      value={formData.category}
-                      onChange={(e) => handleInputChange("category", e.target.value)}
+                      id="subcategory"
+                      value={formData.subcategory}
+                      onChange={(e) => handleInputChange("subcategory", e.target.value)}
                       className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
-                      required
+                      disabled={!formData.category || filteredSubcategories.length === 0}
                     >
-                      <option value="">Select category</option>
-                      {categories.map((category) => (
-                        <option key={category.slug} value={category.slug}>
-                          {category.name}
+                      <option value="">Select subcategory</option>
+                      {filteredSubcategories.map((subcategory) => (
+                        <option key={subcategory.id} value={subcategory.slug}>
+                          {subcategory.name}
                         </option>
                       ))}
                     </select>
-                  )}
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label htmlFor="subcategory" className="block text-sm font-medium text-foreground">
-                    Subcategory
-                  </label>
-                  <select
-                    id="subcategory"
-                    value={formData.subcategory}
-                    onChange={(e) => handleInputChange("subcategory", e.target.value)}
-                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
-                    disabled={!formData.category || filteredSubcategories.length === 0}
-                  >
-                    <option value="">Select subcategory</option>
-                    {filteredSubcategories.map((subcategory) => (
-                      <option key={subcategory.id} value={subcategory.slug}>
-                        {subcategory.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label htmlFor="condition" className="text-foreground">Condition *</label>
+                    <select
+                      id="condition"
+                      value={formData.condition}
+                      onChange={(e) => handleInputChange("condition", e.target.value)}
+                      className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                    >
+                      <option value="">Select condition</option>
+                      {conditions.map((condition) => (
+                        <option key={condition} value={condition}>
+                          {condition}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label htmlFor="condition" className="text-foreground">Condition *</label>
-                  <select
-                    id="condition"
-                    value={formData.condition}
-                    onChange={(e) => handleInputChange("condition", e.target.value)}
-                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
-                  >
-                    <option value="">Select condition</option>
-                    {conditions.map((condition) => (
-                      <option key={condition} value={condition}>
-                        {condition}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="space-y-2">
+                    <label htmlFor="brand" className="text-foreground">Brand</label>
+                    <input
+                      id="brand"
+                      placeholder="e.g., Apple, Samsung, Honda"
+                      value={formData.brand}
+                      onChange={(e) => handleInputChange("brand", e.target.value)}
+                      className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label htmlFor="brand" className="text-foreground">Brand</label>
-                  <input
-                    id="brand"
-                    placeholder="e.g., Apple, Samsung, Honda"
-                    value={formData.brand}
-                    onChange={(e) => handleInputChange("brand", e.target.value)}
-                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
-                  />
-                </div>
-              </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label htmlFor="priceType" className="text-foreground">Price Type *</label>
+                    <select
+                      id="priceType"
+                      value={formData.priceType}
+                      onChange={(e) => handleInputChange("priceType", e.target.value as ProductFormData["priceType"])}
+                      className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                    >
+                      <option value="amount">Set Price</option>
+                      <option value="free">Free</option>
+                      <option value="contact">Contact for Price</option>
+                      <option value="swap">Swap/Exchange</option>
+                    </select>
+                  </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label htmlFor="priceType" className="text-foreground">Price Type *</label>
-                  <select
-                    id="priceType"
-                    value={formData.priceType}
-                    onChange={(e) => handleInputChange("priceType", e.target.value)}
-                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
-                  >
-                    <option value="amount">Set Price</option>
-                    <option value="free">Free</option>
-                    <option value="contact">Contact for Price</option>
-                    <option value="swap">Swap/Exchange</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label htmlFor="model" className="text-foreground">Model</label>
-                  <input
-                    id="model"
-                    placeholder="e.g., iPhone 14 Pro Max, Galaxy S23"
-                    value={formData.model}
-                    onChange={(e) => handleInputChange("model", e.target.value)}
-                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
-                  />
-                </div>
-              </div>
-
-              {formData.priceType === "amount" && (
-                <div className="space-y-2">
-                  <label htmlFor="price" className="text-foreground">Price *</label>
-                  <input
-                    id="price"
-                    type="number"
-                    placeholder="0.00"
-                    value={formData.price}
-                    onChange={(e) => handleInputChange("price", e.target.value)}
-                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Step 3 - Additional Details */}
-        {currentStep === 3 && (
-          <div className="space-y-6">
-            <div className="space-y-4 p-4 border-2 border-border rounded-lg bg-background">
-              <label className="text-base font-semibold text-foreground">Additional Links (Optional)</label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label htmlFor="youtubeUrl" className="text-foreground">YouTube Video Link</label>
-                  <input
-                    id="youtubeUrl"
-                    placeholder="https://youtube.com/watch?v=..."
-                    value={formData.youtubeUrl}
-                    onChange={(e) => handleInputChange("youtubeUrl", e.target.value)}
-                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
-                  />
+                  <div className="space-y-2">
+                    <label htmlFor="model" className="text-foreground">Model</label>
+                    <input
+                      id="model"
+                      placeholder="e.g., iPhone 14 Pro Max, Galaxy S23"
+                      value={formData.model}
+                      onChange={(e) => handleInputChange("model", e.target.value)}
+                      className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label htmlFor="websiteUrl" className="text-foreground">Website Link</label>
-                  <input
-                    id="websiteUrl"
-                    placeholder="https://example.com"
-                    value={formData.websiteUrl}
-                    onChange={(e) => handleInputChange("websiteUrl", e.target.value)}
-                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
-                  />
-                </div>
+                {formData.priceType === "amount" && (
+                  <div className="space-y-2">
+                    <label htmlFor="price" className="text-foreground">Price *</label>
+                    <input
+                      id="price"
+                      type="number"
+                      placeholder="0.00"
+                      value={formData.price}
+                      onChange={(e) => handleInputChange("price", e.target.value)}
+                      className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                )}
               </div>
             </div>
+          )}
 
-            <div className="space-y-4 p-4 border-2 border-border rounded-lg bg-background">
-              <label className="flex items-center text-base font-semibold text-foreground">
-                <Tag className="h-5 w-5 mr-2" />
-                Tags (Max 5 words)
-              </label>
-              <div className="space-y-3">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Enter a tag..."
-                    value={newTag}
-                    onChange={(e) => setNewTag(e.target.value)}
-                    onKeyPress={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault()
-                        addTag()
-                      }
-                    }}
-                    maxLength={20}
-                    disabled={formData.tags.length >= 5}
-                    className="flex-1 px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
-                  />
-                  <button
-                    type="button"
-                    onClick={addTag}
-                    disabled={!newTag.trim() || formData.tags.length >= 5 || formData.tags.includes(newTag.trim())}
-                    className="bg-green-700 hover:bg-green-800 text-white px-3 py-2 rounded"
-                  >
-                    Add
-                  </button>
+          {/* Step 3 - Additional Details (Completed Section) */}
+          {currentStep === 3 && (
+            <div className="space-y-6">
+              <div className="space-y-4 p-4 border-2 border-border rounded-lg bg-background">
+                <label className="text-base font-semibold text-foreground">Additional Links (Optional)</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label htmlFor="youtubeUrl" className="text-foreground">YouTube Video Link</label>
+                    <input
+                      id="youtubeUrl"
+                      placeholder="https://youtube.com/watch?v=..."
+                      value={formData.youtubeUrl}
+                      onChange={(e) => handleInputChange("youtubeUrl", e.target.value)}
+                      className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label htmlFor="websiteUrl" className="text-foreground">Website Link</label>
+                    <input
+                      id="websiteUrl"
+                      placeholder="https://example.com"
+                      value={formData.websiteUrl}
+                      onChange={(e) => handleInputChange("websiteUrl", e.target.value)}
+                      className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                    />
+                  </div>
                 </div>
+              </div>
 
-                {formData.tags.length > 0 && (
+              <div className="space-y-4 p-4 border-2 border-border rounded-lg bg-background">
+                <label className="flex items-center text-base font-semibold text-foreground">
+                  <Tag className="h-5 w-5 mr-2" />
+                  Tags (Max 5 words)
+                </label>
+                <div className="space-y-3">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Enter a tag..."
+                      value={newTag}
+                      onChange={(e) => setNewTag(e.target.value)}
+                      className="w-full px-3 py-2 border-2 border-border rounded-l-md focus:border-primary focus:outline-none bg-background text-foreground"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          addTag()
+                        }
+                      }}
+                      disabled={formData.tags.length >= 5}
+                    />
+                    <button
+                      type="button"
+                      onClick={addTag}
+                      className="px-4 py-2 border-2 border-primary bg-primary text-primary-foreground rounded-r-md hover:bg-primary/90 transition-colors disabled:opacity-50"
+                      disabled={!newTag.trim() || formData.tags.length >= 5}
+                    >
+                      Add
+                    </button>
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     {formData.tags.map((tag) => (
-                      <Badge key={tag} variant="secondary" className="flex items-center gap-1 px-2 py-1">
+                      <Badge key={tag} variant="secondary" className="pr-1 font-normal text-sm">
                         {tag}
-                        <button type="button" onClick={() => removeTag(tag)} className="ml-1 hover:text-red-500">
-                          ×
+                        <button
+                          type="button"
+                          onClick={() => removeTag(tag)}
+                          className="ml-1 rounded-full p-0.5 hover:bg-background/20 transition-colors"
+                        >
+                          <X className="h-3 w-3" />
                         </button>
                       </Badge>
                     ))}
                   </div>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-4 p-4 border-2 border-border rounded-lg bg-background">
-              <label className="text-base font-semibold text-foreground">Key Features (Optional)</label>
-              <div className="flex space-x-2">
-                <input
-                  placeholder="Add a feature"
-                  value={newFeature}
-                  onChange={(e) => setNewFeature(e.target.value)}
-                  onKeyPress={(e) => e.key === "Enter" && addFeature()}
-                  className="flex-1 px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
-                />
-                <button type="button" onClick={addFeature} className="bg-green-700 hover:bg-green-800 text-white px-3 py-2 rounded">
-                  Add
-                </button>
-              </div>
-              {formData.features.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {formData.features.map((feature) => (
-                    <Badge key={feature} variant="secondary" className="flex items-center gap-1">
-                      {feature}
-                      <X className="h-3 w-3 cursor-pointer" onClick={() => removeFeature(feature)} />
-                    </Badge>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-4 p-4 border-2 border-border rounded-lg bg-background">
-              <label className="flex items-center text-base font-semibold text-foreground">
-                <MapPin className="h-5 w-5 mr-2" />
-                Location Details *
-              </label>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label htmlFor="address" className="text-foreground">Street Address *</label>
-                  <input
-                    id="address"
-                    placeholder="e.g., 123 Main Street"
-                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
-                    value={formData.address}
-                    onChange={(e) => handleInputChange("address", e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label htmlFor="location" className="text-foreground">City/Province *</label>
-                  <select
-                    id="location"
-                    value={formData.location}
-                    onChange={(e) => handleInputChange("location", e.target.value)}
-                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
-                  >
-                    <option value="">Select city/province</option>
-                    {CANADIAN_LOCATIONS.map((location) => (
-                      <optgroup key={location.province} label={location.province}>
-                        {location.cities.map((city) => (
-                          <option key={city} value={`${city}, ${location.province}`}>
-                            {city}, {location.province}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-4">
-                <div className="space-y-2">
-                  <label htmlFor="postalCode" className="block text-sm font-medium text-foreground">
-                    Postal Code *
-                  </label>
-                  <input
-                    id="postalCode"
-                    placeholder="e.g., M5V 2T6"
-                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
-                    value={formData.postalCode}
-                    onChange={(e) => handleInputChange("postalCode", e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Step 4 - Review & Submit */}
-        {currentStep === 4 && (
-          <div className="space-y-6">
-            <div className="space-y-4">
-              <div>
-                <h3 className="font-semibold mb-2 text-foreground">Product Details</h3>
-                <div className="space-y-1 text-sm">
-                  <p><span className="text-muted-foreground">Title:</span> {formData.title}</p>
-                  <p><span className="text-muted-foreground">Category:</span> {formData.category}</p>
-                  {formData.subcategory && <p><span className="text-muted-foreground">Subcategory:</span> {formData.subcategory}</p>}
-                  <p><span className="text-muted-foreground">Condition:</span> {formData.condition}</p>
-                  <p>
-                    <span className="text-muted-foreground">Price:</span>{" "}
-                    {formData.priceType === "amount" && `$${formData.price}`}
-                    {formData.priceType === "free" && "Free"}
-                    {formData.priceType === "contact" && "Contact Us"}
-                    {formData.priceType === "swap" && "Swap/Exchange"}
+                  <p className="text-xs text-muted-foreground">
+                    Add up to 5 keywords (tags) to help buyers find your ad.
                   </p>
-                  {formData.brand && <p><span className="text-muted-foreground">Brand:</span> {formData.brand}</p>}
-                  {formData.model && <p><span className="text-muted-foreground">Model:</span> {formData.model}</p>}
-                  <p><span className="text-muted-foreground">Location:</span> {formData.address && `${formData.address}, `}{formData.location}</p>
-                  <p><span className="text-muted-foreground">Postal Code:</span> {formData.postalCode}</p>
                 </div>
               </div>
 
-              {formData.tags.length > 0 && (
-                <div>
-                  <h3 className="font-semibold mb-2 text-foreground">Tags</h3>
-                  <div className="flex flex-wrap gap-1">
-                    {formData.tags.map((tag) => (
-                      <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {formData.features.length > 0 && (
-                <div>
-                  <h3 className="font-semibold mb-2 text-foreground">Features</h3>
-                  <div className="flex flex-wrap gap-1">
-                    {formData.features.map((feature) => (
-                      <Badge key={feature} variant="outline" className="text-xs">{feature}</Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <h3 className="font-semibold mb-2 text-foreground">Description</h3>
-                <p className="text-sm text-muted-foreground">{formData.description}</p>
-              </div>
-
-              <div>
-                <h3 className="font-semibold mb-2 text-foreground">Photos ({formData.imagePreviews.length})</h3>
-                <div className="grid grid-cols-4 gap-2">
-                  {formData.imagePreviews.map((preview, index) => (
-                    <img
-                      key={index}
-                      src={preview || "/placeholder.svg"}
-                      alt={`Product ${index + 1}`}
-                      className="w-full h-16 object-cover rounded border"
+              {/* Features Section (Added logic) */}
+              <div className="space-y-4 p-4 border-2 border-border rounded-lg bg-background">
+                <label className="flex items-center text-base font-semibold text-foreground">
+                  Features (Optional)
+                </label>
+                <div className="space-y-3">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Enter a feature (e.g., 256GB SSD)"
+                      value={newFeature}
+                      onChange={(e) => setNewFeature(e.target.value)}
+                      className="w-full px-3 py-2 border-2 border-border rounded-l-md focus:border-primary focus:outline-none bg-background text-foreground"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          addFeature()
+                        }
+                      }}
                     />
-                  ))}
+                    <button
+                      type="button"
+                      onClick={addFeature}
+                      className="px-4 py-2 border-2 border-primary bg-primary text-primary-foreground rounded-r-md hover:bg-primary/90 transition-colors disabled:opacity-50"
+                      disabled={!newFeature.trim()}
+                    >
+                      Add
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {formData.features.map((feature) => (
+                      <Badge key={feature} variant="outline" className="pr-1 font-normal text-sm bg-gray-100 dark:bg-gray-800">
+                        {feature}
+                        <button
+                          type="button"
+                          onClick={() => removeFeature(feature)}
+                          className="ml-1 rounded-full p-0.5 hover:bg-background/20 transition-colors"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    List key features or specifications of the item.
+                  </p>
                 </div>
               </div>
-            </div>
-          </div>
-        )}
-      </div>
+              {/* End of Features Section */}
 
-      {/* Navigation Buttons */}
-      <div className="flex items-center justify-between border-t px-6 py-4">
-        <button
-          type="button"
-          onClick={() => setCurrentStep((prev) => Math.max(1, prev - 1))}
-          className="rounded-md bg-gray-500 text-white px-4 py-2 disabled:opacity-50 hover:bg-gray-600"
-          disabled={currentStep <= 1}
-        >
-          Previous
-        </button>
-        
-        {currentStep === 4 ? (
-          <button
-            type="button"
-            onClick={handleSubmit}
-            className="rounded-md bg-green-700 hover:bg-green-800 text-white px-6 py-2 disabled:opacity-50 flex items-center gap-2"
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                Publishing...
-              </>
+
+              {/* Location Details */}
+              <div className="space-y-4 p-4 border-2 border-border rounded-lg bg-background">
+                <label className="flex items-center text-base font-semibold text-foreground">
+                  <MapPin className="h-5 w-5 mr-2" />
+                  Location Details *
+                </label>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label htmlFor="address" className="block text-sm font-medium text-foreground">
+                      Street Address / Nearest Intersection
+                    </label>
+                    <input
+                      id="address"
+                      type="text"
+                      placeholder="e.g., 123 Main St or Intersection of A & B"
+                      value={formData.address}
+                      onChange={(e) => handleInputChange("address", e.target.value)}
+                      className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label htmlFor="location" className="block text-sm font-medium text-foreground">
+                        City, Province *
+                      </label>
+                      <select
+                        id="location"
+                        value={formData.location}
+                        onChange={(e) => handleInputChange("location", e.target.value)}
+                        className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                        required
+                      >
+                        <option value="">Select location</option>
+                        {CANADIAN_LOCATIONS.flatMap(provinceData =>
+                          provinceData.cities.map(city =>
+                            <option key={`${city}, ${provinceData.province}`} value={`${city}, ${provinceData.province}`}>
+                              {`${city}, ${provinceData.province}`}
+                            </option>
+                          )
+                        )}
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label htmlFor="postalCode" className="block text-sm font-medium text-foreground">
+                        Postal Code *
+                      </label>
+                      <input
+                        id="postalCode"
+                        type="text"
+                        placeholder="A1A 1A1"
+                        value={formData.postalCode}
+                        onChange={(e) => handleInputChange("postalCode", e.target.value)}
+                        className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              </div>
+          )}
+
+          {/* Step 4 - Review & Submit (Placeholder for future step or combined with others) */}
+          {currentStep === 4 && (
+            <div className="space-y-6">
+              <h3 className="text-xl font-semibold">Ad Publishing Pls Wait</h3>
+              
+              {/* This step typically shows a summary of formData */}
+              {/* For now, it will just be a final step before submission */}
+            </div>
+          )}
+
+
+          {/* Navigation Buttons */}
+          <div className="mt-8 flex justify-between">
+            <button
+              type="button"
+              onClick={() => setCurrentStep((prev) => Math.max(1, prev - 1))}
+              disabled={currentStep === 1 || isSubmitting}
+              className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
+            >
+              Previous
+            </button>
+
+            {currentStep < 4 ? (
+              <button
+                type="button"
+                onClick={() => setCurrentStep((prev) => prev + 1)}
+                disabled={!canProceed || isSubmitting}
+                className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+              >
+                Next Step
+              </button>
             ) : (
-              "Publish Ad"
+              <button
+                type="submit"
+                disabled={!canProceed || isSubmitting}
+                className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-green-600 text-white hover:bg-green-700 h-10 px-4 py-2"
+              >
+                {isSubmitting ? (isEditMode ? "Updating..." : "Posting...") : isEditMode ? "Update Ad" : "Post Ad"}
+              </button>
             )}
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setCurrentStep((prev) => Math.min(4, prev + 1))}
-            className="rounded-md bg-green-700 hover:bg-green-800 text-white px-4 py-2 disabled:opacity-50"
-            disabled={!canProceed}
-          >
-            Next
-          </button>
-        )}
+          </div>
+        </div>
       </div>
-    </div>
+    </form>
   )
 }
