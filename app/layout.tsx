@@ -1,8 +1,8 @@
 import type { Metadata } from "next"
 import { DM_Sans } from "next/font/google"
-
 import "./globals.css"
 import { ClientLayout } from "./client-layout"
+import { Toaster } from "@/components/ui/toaster" // Import the Toaster
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -33,7 +33,7 @@ export default function RootLayout({
       </head>
       <body className={`${dmSans.className} antialiased`}>
         <ClientLayout>{children}</ClientLayout>
-      
+        <Toaster /> {/* Add this line - it's essential for toasts to work */}
       </body>
     </html>
   )
