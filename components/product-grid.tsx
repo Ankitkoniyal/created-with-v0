@@ -1,403 +1,453 @@
-// components/product-grid.tsx - UPDATED VERSION WITH FILTERS
+// components/search/search-filters.tsx - FIXED SIDEBAR VERSION
 "use client"
 
-import type React from "react"
-import { Card, CardContent } from "@/components/ui/card"
-import { Heart, MapPin, Clock } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import Link from "next/link"
 import { useState, useEffect } from "react"
-import Image from "next/image"
-import { LoadingSkeleton } from "@/components/loading-skeleton"
-import { getOptimizedImageUrl } from "@/lib/images"
-import { createClient } from "@/lib/supabase/client"
-import { useSearchParams, usePathname } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
+import { Search, Filter, X } from "lucide-react"
+import { CATEGORIES, SUBCATEGORY_MAPPINGS, getSubcategorySlug } from "@/lib/categories"
 
-interface Product {
-  id: string
-  title: string
-  price: number
-  price_type: string
-  location: string
-  city: string
-  province: string
-  condition: string
-  category: string
-  subcategory?: string
-  brand?: string
-  model?: string
-  description: string
-  images: string[]
-  created_at: string
-  user_id: string
-  featured?: boolean
-  seller?: {
-    id: string
-    full_name: string
-    avatar_url?: string
-    rating?: number
-  }
+// Generate category options from your categories file
+const CATEGORY_OPTIONS = [
+  { value: "all", label: "All Categories" },
+  ...CATEGORIES.map(category => ({
+    value: category,
+    label: category
+  }))
+]
+
+// Condition options
+const CONDITION_OPTIONS = [
+  { value: "all", label: "Any Condition" },
+  { value: "new", label: "New" },
+  { value: "like-new", label: "Like New" },
+  { value: "good", label: "Good" },
+  { value: "fair", label: "Fair" },
+]
+
+// Sort options
+const SORT_OPTIONS = [
+  { value: "newest", label: "Newest First" },
+  { value: "price-low", label: "Price: Low to High" },
+  { value: "price-high", label: "Price: High to Low" },
+]
+
+interface SearchFiltersProps {
+  onFiltersChange?: (filters: any) => void
 }
 
-interface ProductGridProps {
-  products?: Product[]
-  searchQuery?: string
-  filters?: {
-    category?: string
-    subcategory?: string
-    condition?: string
-    minPrice?: string
-    maxPrice?: string
-    sortBy?: string
-  }
-}
-
-const PRODUCTS_PER_PAGE = 20
-
-export function ProductGrid({ products: overrideProducts, searchQuery, filters }: ProductGridProps) {
+export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
+  const router = useRouter()
   const searchParams = useSearchParams()
-  const pathname = usePathname()
-  const [products, setProducts] = useState<Product[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [favorites, setFavorites] = useState<Set<string>>(new Set())
-
-  const locationFilter = searchParams.get("location") || ""
-  const hasOverride = Array.isArray(overrideProducts)
   
-  // FIX 1: Add build-time check to prevent server-side API calls
-  const shouldFetch = typeof window !== 'undefined' && (
-    pathname === "/" ||
-    pathname?.startsWith("/search") ||
-    pathname?.startsWith("/category") ||
-    pathname?.startsWith("/seller") ||
-    pathname?.startsWith("/product")
-  )
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "")
+  const [category, setCategory] = useState(searchParams.get("category") || "all")
+  const [subcategory, setSubcategory] = useState(searchParams.get("subcategory") || "all")
+  const [condition, setCondition] = useState(searchParams.get("condition") || "all")
+  const [minPrice, setMinPrice] = useState(searchParams.get("minPrice") || "")
+  const [maxPrice, setMaxPrice] = useState(searchParams.get("maxPrice") || "")
+  const [sortBy, setSortBy] = useState(searchParams.get("sortBy") || "newest")
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
 
+  // Get available subcategories based on selected category
+  const availableSubcategories = category && category !== "all" 
+    ? SUBCATEGORY_MAPPINGS[category] || []
+    : []
+
+  // Generate subcategory options
+  const SUBCATEGORY_OPTIONS = [
+    { value: "all", label: `All ${category}` },
+    ...availableSubcategories.map(sub => ({
+      value: getSubcategorySlug(sub),
+      label: sub
+    }))
+  ]
+
+  const applyFilters = () => {
+    const params = new URLSearchParams()
+
+    if (searchQuery) params.set("q", searchQuery)
+    if (category && category !== "all") params.set("category", category)
+    if (subcategory && subcategory !== "all") params.set("subcategory", subcategory)
+    if (condition && condition !== "all") params.set("condition", condition)
+    if (minPrice) params.set("minPrice", minPrice)
+    if (maxPrice) params.set("maxPrice", maxPrice)
+    if (sortBy && sortBy !== "newest") params.set("sortBy", sortBy)
+
+    router.push(`/search?${params.toString()}`)
+    
+    // Notify parent component about filter changes
+    if (onFiltersChange) {
+      onFiltersChange({
+        searchQuery,
+        category: category !== "all" ? category : undefined,
+        subcategory: subcategory !== "all" ? subcategory : undefined,
+        condition: condition !== "all" ? condition : undefined,
+        minPrice: minPrice || undefined,
+        maxPrice: maxPrice || undefined,
+        sortBy: sortBy !== "newest" ? sortBy : undefined,
+      })
+    }
+
+    setShowMobileFilters(false)
+  }
+
+  const clearFilters = () => {
+    setSearchQuery("")
+    setCategory("all")
+    setSubcategory("all")
+    setCondition("all")
+    setMinPrice("")
+    setMaxPrice("")
+    setSortBy("newest")
+    
+    router.push("/search")
+    
+    if (onFiltersChange) {
+      onFiltersChange({})
+    }
+
+    setShowMobileFilters(false)
+  }
+
+  const hasActiveFilters = 
+    searchQuery ||
+    (category && category !== "all") ||
+    (subcategory && subcategory !== "all") ||
+    (condition && condition !== "all") ||
+    minPrice ||
+    maxPrice ||
+    (sortBy && sortBy !== "newest")
+
+  // Reset subcategory when category changes
   useEffect(() => {
-    async function fetchProducts() {
-      try {
-        // FIX 2: Skip API call during build
-        if (typeof window === 'undefined') {
-          setLoading(false)
-          return
-        }
+    setSubcategory("all")
+  }, [category])
 
-        const supabase = createClient()
-        
-        if (!supabase) {
-          throw new Error('Supabase client not available. Check your environment variables.')
-        }
-
-        let query = supabase
-          .from('products')
-          .select('*')
-          .eq('status', 'active')
-
-        // Apply search query filter
-        if (searchQuery) {
-          query = query.ilike('title', `%${searchQuery}%`)
-        }
-
-        // Apply category filter
-        if (filters?.category && filters.category !== 'all') {
-          query = query.eq('category', filters.category)
-        }
-
-        // Apply subcategory filter
-        if (filters?.subcategory && filters.subcategory !== 'all') {
-          query = query.eq('subcategory', filters.subcategory)
-        }
-
-        // Apply condition filter
-        if (filters?.condition && filters.condition !== 'all') {
-          query = query.eq('condition', filters.condition)
-        }
-
-        // Apply price filters
-        if (filters?.minPrice) {
-          query = query.gte('price', parseInt(filters.minPrice))
-        }
-        if (filters?.maxPrice) {
-          query = query.lte('price', parseInt(filters.maxPrice))
-        }
-
-        // Apply location filter
-        if (locationFilter) {
-          const locationQuery = locationFilter.toLowerCase()
-          
-          if (locationQuery.includes(",")) {
-            const [cityPart, provincePart] = locationQuery.split(",").map(s => s.trim())
-            
-            if (cityPart && provincePart) {
-              query = query.ilike("city", `%${cityPart}%`).ilike("province", `%${provincePart}%`)
-            } else if (cityPart) {
-              query = query.ilike("city", `%${cityPart}%`)
-            }
-          } else {
-            query = query.or(`city.ilike.%${locationQuery}%,province.ilike.%${locationQuery}%`)
-          }
-        }
-
-        // Apply sorting
-        if (filters?.sortBy) {
-          switch (filters.sortBy) {
-            case 'price-low':
-              query = query.order('price', { ascending: true })
-              break
-            case 'price-high':
-              query = query.order('price', { ascending: false })
-              break
-            case 'newest':
-            default:
-              query = query.order('created_at', { ascending: false })
-              break
-          }
-        } else {
-          query = query.order('created_at', { ascending: false })
-        }
-
-        query = query.limit(PRODUCTS_PER_PAGE)
-
-        const { data, error } = await query
-
-        if (error) {
-          throw error
-        }
-
-        setProducts(data || [])
-      } catch (err: any) {
-        setError(err.message || 'An unknown error occurred')
-      } finally {
-        setLoading(false)
-      }
+  // Apply filters when any filter changes (for sidebar auto-apply)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+      // Auto-apply filters on desktop (sidebar mode)
+      applyFilters()
     }
-
-    if (!hasOverride && shouldFetch) {
-      fetchProducts()
-    } else if (hasOverride) {
-      setProducts(overrideProducts as Product[])
-      setLoading(false)
-    } else {
-      setLoading(false)
-    }
-  }, [hasOverride, overrideProducts, shouldFetch, locationFilter, searchQuery, filters])
-
-  const toggleFavorite = (productId: string, e?: React.MouseEvent) => {
-    if (e) {
-      e.preventDefault()
-      e.stopPropagation()
-    }
-    setFavorites((prev) => {
-      const next = new Set(prev)
-      next.has(productId) ? next.delete(productId) : next.add(productId)
-      return next
-    })
-  }
-
-  const formatPrice = (price?: number, priceType?: string) => {
-    if (priceType === "free") return "Free"
-    if (priceType === "contact") return "Contact"
-    if (typeof price === "number") {
-      return `$${price.toLocaleString()}`
-    }
-    return "Contact"
-  }
-
-  const isNegotiable = (priceType?: string) => {
-    return priceType === "negotiable" || priceType === "contact"
-  }
-
-  const formatTimePosted = (createdAt?: string) => {
-    if (!createdAt) return ""
-    const now = new Date()
-    const posted = new Date(createdAt)
-    const diffInHours = Math.floor((now.getTime() - posted.getTime()) / (1000 * 60 * 60))
-
-    if (diffInHours < 1) return "Now"
-    if (diffInHours < 24) return `${diffInHours}h`
-    if (diffInHours < 48) return "1d"
-    if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}d`
-    return posted.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  }
-
-  // FIX 3: Return loading state during build
-  if (typeof window === 'undefined') {
-    return (
-      <section className="py-4">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
-            <LoadingSkeleton type="card" count={10} />
-          </div>
-        </div>
-      </section>
-    )
-  }
-
-  if (!hasOverride && !shouldFetch) {
-    return null
-  }
-
-  if (loading) {
-    return (
-      <section className="py-4">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
-            <LoadingSkeleton type="card" count={10} />
-          </div>
-        </div>
-      </section>
-    )
-  }
-
-  if (error) {
-    return (
-      <section className="py-4">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center py-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Unable to Load Ads</h3>
-            <p className="text-gray-600 mb-4 text-sm">{error}</p>
-            <Button onClick={() => window.location.reload()} className="bg-green-900 hover:bg-green-950 text-xs h-8">
-              Try Again
-            </Button>
-          </div>
-        </div>
-      </section>
-    )
-  }
-
-  if (products.length === 0) {
-    return (
-      <section className="py-4">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center py-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              {searchQuery ? `No results for "${searchQuery}"` : "No Ads Found"}
-            </h3>
-            <p className="text-gray-600 mb-4 text-sm">
-              {searchQuery 
-                ? "Try different keywords or remove some filters."
-                : "Be the first to post an ad in your area!"
-              }
-            </p>
-            <Button asChild className="bg-green-900 hover:bg-green-950 text-xs h-8">
-              <Link href="/post">Post Your First Ad</Link>
-            </Button>
-            {searchQuery && (
-              <Button 
-                variant="outline" 
-                className="ml-2 text-xs h-8"
-                onClick={() => window.location.href = '/search'}
-              >
-                Clear Search
-              </Button>
-            )}
-          </div>
-        </div>
-      </section>
-    )
-  }
+  }, [category, subcategory, condition, minPrice, maxPrice, sortBy])
 
   return (
-    <section className="py-4 bg-white relative z-10">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col lg:flex-row gap-4">
-          <div className="flex-1">
-            <div className="mb-4 text-sm text-gray-600">
-              Found {products.length} {products.length === 1 ? 'result' : 'results'}
-              {searchQuery && ` for "${searchQuery}"`}
+    <>
+      {/* Mobile Filter Trigger */}
+      <div className="lg:hidden bg-white border-b border-gray-200 p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2 flex-1">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Search ads..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyPress={(e) => e.key === "Enter" && applyFilters()}
+                className="pl-10 pr-4 bg-gray-50 border-gray-200"
+              />
             </div>
-            
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-x-4 gap-y-6">
-              {products.map((product) => {
-                const primaryImage = product.images?.[0] || "/diverse-products-still-life.png"
-                const optimizedPrimary = getOptimizedImageUrl(primaryImage, "thumb") || primaryImage
-
-                return (
-                  <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
-                    <Card className="h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-sm hover:shadow-md transition-shadow">
-                      <CardContent className="p-0 flex flex-col h-full">
-                        <div className="relative w-full aspect-square overflow-hidden bg-gray-100">
-                          <Image
-                            src={optimizedPrimary || "/placeholder.svg"}
-                            alt={product.title}
-                            fill
-                            sizes="(max-width: 768px) 50vw, (max-width: 1200px) 20vw"
-                            className="object-cover"
-                            loading="lazy"
-                            onError={(e) => {
-                              e.currentTarget.src = "/placeholder.svg"
-                            }}
-                          />
-                          
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              toggleFavorite(product.id, e)
-                            }}
-                            className={`absolute top-1 right-1 p-1 rounded ${
-                              favorites.has(product.id) 
-                                ? "text-red-500 bg-white/90" 
-                                : "text-gray-400 bg-white/80"
-                            }`}
-                          >
-                            <Heart 
-                              className={`h-3.5 w-3.5 ${favorites.has(product.id) ? "fill-current" : ""}`}
- 
-                            />
-                          </button>
-                        </div>
-
-                        <div className="px-2 py-0 flex flex-col flex-1">
-                          <div className="mb-1">
-                            <span className="text-base font-bold text-green-700">
-                              {formatPrice(product.price as any, (product as any).price_type)}
-                              {isNegotiable((product as any).price_type) && (
-                                <span className="text-xs font-normal text-gray-600 ml-1">Negotiable</span>
-                              )}
-                            </span>
-                          </div>
-                            
-                          <h4 className="text-sm font-medium text-gray-900 line-clamp-2 mb-1 leading-tight">
-                            {product.title}
-                          </h4>
-
-                          <div className="mt-auto flex items-end justify-between text-xs text-gray-500">
-                            <div className="flex items-center gap-1 min-w-0 pr-1">
-                              <span className="truncate"> 
-                                {product.city}, {product.province}
-                              </span>
-                            </div>
-                            
-                            <div className="flex items-center gap-1 flex-shrink-0"> 
-                              <span>{formatTimePosted(product.created_at as any)}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                )
-              })}
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowMobileFilters(true)}
+              className="border-gray-200"
+            >
+              <Filter className="h-4 w-4 mr-2" />
+              Filters
+            </Button>
           </div>
+        </div>
+      </div>
 
-          <div className="hidden lg:block w-64 flex-shrink-0">
-            <div className="sticky top-4">
-              <div className="border border-gray-200 rounded-md overflow-hidden bg-white">
-                <Image 
-                  src="https://gkaeeayfwrgekssmtuzn.supabase.co/storage/v1/object/public/product-images/fe09ea77-0be8-426e-9a88-9b4127f04a3c/side%20image.webp" 
-                  alt="Canada's #1 Growing Marketplace" 
-                  width={256} 
-                  height={600} 
-                  className="w-full h-auto object-cover"
-                />
+      {/* Mobile Filters Overlay */}
+      {showMobileFilters && (
+        <div className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-50">
+          <div className="absolute right-0 top-0 h-full w-4/5 max-w-sm bg-white shadow-xl overflow-y-auto">
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold">Filters</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowMobileFilters(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="space-y-6">
+                {/* Category Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Category
+                  </label>
+                  <Select value={category} onValueChange={setCategory}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CATEGORY_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Subcategory Filter */}
+                {availableSubcategories.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Subcategory
+                    </label>
+                    <Select value={subcategory} onValueChange={setSubcategory}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select subcategory" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SUBCATEGORY_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Condition Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Condition
+                  </label>
+                  <Select value={condition} onValueChange={setCondition}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select condition" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CONDITION_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Price Range */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Price Range
+                  </label>
+                  <div className="flex space-x-2">
+                    <Input
+                      type="number"
+                      placeholder="Min"
+                      value={minPrice}
+                      onChange={(e) => setMinPrice(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Max"
+                      value={maxPrice}
+                      onChange={(e) => setMaxPrice(e.target.value)}
+                      className="flex-1"
+                    />
+                  </div>
+                </div>
+
+                {/* Sort By */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Sort By
+                  </label>
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SORT_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex space-x-3 mt-8">
+                <Button
+                  variant="outline"
+                  onClick={clearFilters}
+                  className="flex-1"
+                  disabled={!hasActiveFilters}
+                >
+                  Clear
+                </Button>
+                <Button
+                  onClick={applyFilters}
+                  className="flex-1 bg-green-900 hover:bg-green-950"
+                >
+                  Apply
+                </Button>
               </div>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Desktop Sidebar Filters */}
+      <div className="hidden lg:block bg-white border border-gray-200 rounded-lg p-6 sticky top-4">
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900">Filters</h3>
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearFilters}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                Clear All
+              </Button>
+            )}
+          </div>
+
+          {/* Search Input */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Search
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Search ads..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyPress={(e) => e.key === "Enter" && applyFilters()}
+                className="pl-10 bg-gray-50"
+              />
+            </div>
+          </div>
+
+          {/* Category Filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Category
+            </label>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select category" />
+              </SelectTrigger>
+              <SelectContent>
+                {CATEGORY_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Subcategory Filter */}
+          {availableSubcategories.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Subcategory
+              </label>
+              <Select value={subcategory} onValueChange={setSubcategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select subcategory" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SUBCATEGORY_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Condition Filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Condition
+            </label>
+            <Select value={condition} onValueChange={setCondition}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select condition" />
+              </SelectTrigger>
+              <SelectContent>
+                {CONDITION_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Price Range */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Price Range
+            </label>
+            <div className="space-y-2">
+              <Input
+                type="number"
+                placeholder="Min Price"
+                value={minPrice}
+                onChange={(e) => setMinPrice(e.target.value)}
+              />
+              <Input
+                type="number"
+                placeholder="Max Price"
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Sort By */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Sort By
+            </label>
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger>
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                {SORT_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Apply Button for Search */}
+          <Button
+            onClick={applyFilters}
+            className="w-full bg-green-900 hover:bg-green-950"
+          >
+            Apply Search
+          </Button>
+        </div>
       </div>
-    </section>
+    </>
   )
 }
