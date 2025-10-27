@@ -1,27 +1,26 @@
-// components/category-navigation.tsx - WITH SCROLL FUNCTIONALITY
+// components/category-navigation.tsx - COMPLETE FIXED VERSION
 "use client"
 
 import { useState, useRef, useEffect } from "react"
 import { ChevronDown, Grid, ChevronUp, ChevronRight } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { CATEGORIES, SUBCATEGORY_MAPPINGS } from "@/lib/categories"
+import { CATEGORIES, SUBCATEGORY_MAPPINGS, getSubcategorySlug } from "@/lib/categories"
 
-// UPDATED: Use centralized categories from lib/categories.ts
+// FIXED: Use proper slug mapping
 const ALL_CATEGORIES = CATEGORIES.map(category => ({
   name: category,
   slug: category.toLowerCase().replace(/\s+/g, '-'),
   subcategories: (SUBCATEGORY_MAPPINGS[category] || []).map(subcat => ({
     name: subcat,
-    slug: subcat.toLowerCase().replace(/\s+/g, '-')
+    slug: getSubcategorySlug(subcat) // USE THE PROPER MAPPING
   }))
 })).sort((a, b) => a.name.localeCompare(b.name))
 
-// UPDATED: Quick menu items - Replaced Electronics with Real Estate
+// Quick menu items
 const QUICK_MENU_ITEMS = [
   { name: "Real Estate", slug: "real-estate" },
   { name: "Vehicles", slug: "vehicles" },
   { name: "Mobile", slug: "mobile" },
-
 ]
 
 export function CategoryNavigation() {
@@ -85,8 +84,10 @@ export function CategoryNavigation() {
     setShowAllCategories(false)
   }
 
+  // FIXED: Use proper slug mapping for subcategories
   const handleSubcategoryClick = (categoryName: string, subcategoryName: string) => {
-    router.push(`/search?category=${encodeURIComponent(categoryName)}&subcategory=${encodeURIComponent(subcategoryName)}`)
+    const subcategorySlug = getSubcategorySlug(subcategoryName)
+    router.push(`/search?category=${encodeURIComponent(categoryName)}&subcategory=${encodeURIComponent(subcategorySlug)}`)
     setShowAllCategories(false)
     setActiveCategory(null)
   }
