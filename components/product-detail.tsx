@@ -26,6 +26,8 @@ import {
   List,
   Youtube,
   Globe,
+  Mail,
+  User,
 } from "lucide-react"
 import { ContactSellerModal } from "@/components/messaging/contact-seller-modal"
 import { SafetyBanner } from "@/components/ui/safety-banner"
@@ -416,40 +418,35 @@ export function ProductDetail({ product }: ProductDetailProps) {
 
         <Card className="lg:hidden">
           <CardContent className="p-6">
-            <h1 className="text-2xl font-bold text-foreground mb-3">{formatTitle(product.title)}</h1>
+            <h1 className="text-2xl font-bold text-foreground mb-4">{formatTitle(product.title)}</h1>
             
-            <div className="flex items-center space-x-2 mb-4">
+            <div className="flex items-center space-x-2 mb-5">
               <span className="text-3xl font-bold text-green-900">{product.price}</span>
               {product.originalPrice && (
                 <span className="text-lg text-muted-foreground line-through">{product.originalPrice}</span>
               )}
             </div>
 
-            <div className="flex items-center justify-between text-sm text-muted-foreground mb-5">
-              <div className="flex items-center">
-                <MapPin className="h-4 w-4 mr-1" />
-                {product.location}
+            {/* Updated Location and Views Section */}
+            <div className="space-y-3 mb-5">
+              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                <MapPin className="h-4 w-4" />
+                <span>{product.location}</span>
               </div>
-              <div className="flex items-center">
-                <Eye className="h-4 w-4 mr-1" />
-                {viewsCount} views
+              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                <Eye className="h-4 w-4" />
+                <span>{viewsCount} views</span>
               </div>
-            </div>
-
-            <div className="text-sm text-muted-foreground mb-5">
-              <div className="flex flex-col space-y-1">
-                <div className="flex items-center space-x-1">
-                  <Calendar className="h-4 w-4" />
-                  <span>Posted on {formatDate(product.postedDate)}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Ad ID: </span>
-                  <span className="font-medium text-foreground">{realAdId}</span>
-                </div>
+              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                <Calendar className="h-4 w-4" />
+                <span>Posted on {formatDate(product.postedDate)}</span>
+              </div>
+              <div className="text-sm text-muted-foreground">
+                <span>Ad ID: </span>
+                <span className="font-medium text-foreground">{realAdId}</span>
               </div>
             </div>
 
-            
             <div className="flex flex-col space-y-3 mb-4">
               <ContactSellerModal
                 product={{
@@ -698,36 +695,32 @@ export function ProductDetail({ product }: ProductDetailProps) {
       <div className="space-y-6">
         <Card className="hidden lg:block">
           <CardContent className="p-6">
-            <h1 className="text-2xl font-bold text-foreground mb-3">{formatTitle(product.title)}</h1>
+            <h1 className="text-2xl font-bold text-foreground mb-4">{formatTitle(product.title)}</h1>
             
-            <div className="flex items-center space-x-2 mb-4">
+            <div className="flex items-center space-x-2 mb-5">
               <span className="text-3xl font-bold text-green-900">{product.price}</span>
               {product.originalPrice && (
                 <span className="text-lg text-muted-foreground line-through">{product.originalPrice}</span>
               )}
             </div>
 
-            <div className="flex items-center justify-between text-sm text-muted-foreground mb-5">
-              <div className="flex items-center">
-                <MapPin className="h-4 w-4 mr-1" />
-                {product.location}
+            {/* Updated Location and Views Section */}
+            <div className="space-y-3 mb-5">
+              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                <MapPin className="h-4 w-4" />
+                <span>{product.location}</span>
               </div>
-              <div className="flex items-center">
-                <Eye className="h-4 w-4 mr-1" />
-                {viewsCount} views
+              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                <Eye className="h-4 w-4" />
+                <span>{viewsCount} views</span>
               </div>
-            </div>
-
-            <div className="text-sm text-muted-foreground mb-5">
-              <div className="flex flex-col space-y-1">
-                <div className="flex items-center space-x-1">
-                  <Calendar className="h-4 w-4" />
-                  <span>Posted on {formatDate(product.postedDate)}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Ad ID: </span>
-                  <span className="font-medium text-foreground">{realAdId}</span>
-                </div>
+              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                <Calendar className="h-4 w-4" />
+                <span>Posted on {formatDate(product.postedDate)}</span>
+              </div>
+              <div className="text-sm text-muted-foreground">
+                <span>Ad ID: </span>
+                <span className="font-medium text-foreground">{realAdId}</span>
               </div>
             </div>
 
@@ -886,13 +879,14 @@ export function ProductDetail({ product }: ProductDetailProps) {
           </CardContent>
         </Card>
 
+        {/* Updated Seller Information Section */}
         <Card>
           <CardContent className="p-6">
             <h3 className="font-semibold text-foreground mb-4 text-lg">Seller Information</h3>
             <Link
               href={`/seller/${product.seller.id}`}
               className="flex items-center space-x-4 mb-4"
-              >
+            >
               {product.seller.avatar ? (
                 <Image 
                   src={product.seller.avatar} 
@@ -903,12 +897,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                 />
               ) : (
                 <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center">
-                  <span className="text-green-800 font-semibold text-lg">
-                    {product.seller.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")}
-                  </span>
+                  <User className="h-6 w-6 text-green-800" />
                 </div>
               )}
               <div>
@@ -916,24 +905,44 @@ export function ProductDetail({ product }: ProductDetailProps) {
                   <span className="font-medium text-foreground text-base hover:text-green-900 hover:underline">
                     {product.seller.name}
                   </span>
-                  {product.seller.verified && (
-                    <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300 text-xs">
-                      <Shield className="h-3 w-3 mr-1" />
-                      Verified
-                    </Badge>
-                  )}
                 </div>
-              
               </div>
             </Link>
-            <div className="space-y-2 text-sm mb-5">
-              <div className="flex items-center p-2 bg-muted/30 rounded-md">
-                <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-                <span>Member since {product.seller.memberSince}</span>
+            
+            <div className="space-y-3 text-sm mb-5">
+              {product.seller.verified && (
+                <div className="flex items-center p-3 bg-green-50 rounded-md border border-green-200">
+                  <Mail className="h-4 w-4 mr-3 text-green-600" />
+                  <div>
+                    <div className="font-medium text-green-800">Email Verified</div>
+                  </div>
+                </div>
+              )}
+              
+              <div className="flex items-center p-3 bg-muted/30 rounded-md">
+                <Calendar className="h-4 w-4 mr-3 text-muted-foreground" />
+                <div>
+                  <div className="font-medium text-foreground">Member since</div>
+                  <div className="text-muted-foreground">{product.seller.memberSince}</div>
+                </div>
               </div>
-              <Link href={`/seller/${product.seller.id}`} className="flex items-center p-2 bg-muted/30 rounded-md text-green-900 hover:bg-green-100">
-                <List className="h-4 w-4 mr-2" />
-                <span>See all ads</span>
+              
+              <div className="flex items-center p-3 bg-muted/30 rounded-md">
+                <Clock className="h-4 w-4 mr-3 text-muted-foreground" />
+                <div>
+                  <div className="font-medium text-foreground">Response time</div>
+                  <div className="text-muted-foreground">{product.seller.responseTime}</div>
+                </div>
+              </div>
+              
+              <Link 
+                href={`/seller/${product.seller.id}`} 
+                className="flex items-center p-3 bg-green-50 hover:bg-green-100 rounded-md border border-green-200 transition-colors"
+              >
+                <List className="h-4 w-4 mr-3 text-green-700" />
+                <div>
+                  <div className="font-medium text-green-900">See all ads from this Seller</div>
+                </div>
               </Link>
             </div>
           </CardContent>
