@@ -133,9 +133,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         created_at: data.created_at,
         updated_at: data.updated_at, // Your table has updated_at
         role: data.role || 'user',
-        email_notifications: data.email_notifications || true,
-        sms_notifications: data.sms_notifications || false,
-        push_notifications: data.push_notifications || true
+        email_notifications: data.email_notifications ?? true,
+        sms_notifications: data.sms_notifications ?? false,
+        push_notifications: data.push_notifications ?? true
       }
     } catch (error) {
       console.log("[v0] Profile fetch error:", error)
