@@ -65,22 +65,112 @@ export const SUBCATEGORY_MAPPINGS: { [key: string]: string[] } = {
   ]
 }
 
-// For dropdowns and selects
-export const CATEGORY_OPTIONS = [
-  { value: "all", label: "All Categories" },
-  ...CATEGORIES.map(category => ({
-    value: category,
-    label: category
-  }))
-]
+// COMPLETE MAPPING: Human-readable names to database slugs
+export const SUBCATEGORY_TO_SLUG: { [key: string]: string } = {
+  // Real Estate
+  "Roommates": "roommates",
+  "For Rent": "for-rent", 
+  "For Sale": "for-sale",
+  "Land": "land",
+  
+  // Electronics
+  "Cameras": "cameras",
+  "Tablets": "tablets", 
+  "Laptops": "laptops",
+  "Headphones": "headphones",
+  "Computers": "computers",
+  "TV & Audio": "tv-audio",
+  "Other Electronics": "other-electronics",
+  
+  // Vehicles
+  "Cars": "cars",
+  "Trucks": "trucks",
+  "Classic Cars": "classic-cars",
+  "Auto Parts": "auto-parts",
+  "Trailers": "trailers",
+  "Scooters": "scooters",
+  "Bicycles": "bicycles",
+  "Motorcycles": "motorcycles",
+  
+  // Mobile
+  "Mobile Accessories": "mobile-accessories",
+  "Android Phones": "android-phones",
+  "iPhones": "iphones",
+  
+  // Fashion & Beauty
+  "Shoes": "shoes",
+  "Accessories": "accessories",
+  "Women Clothing": "women-clothing",
+  "Men Clothing": "men-clothing",
+  
+  // Pets & Animals
+  "Cats": "cats",
+  "Birds": "birds",
+  "Other Pets": "other-pets",
+  "Dogs": "dogs",
+  "Pet Supplies": "pet-supplies",
+  
+  // Furniture
+  "Beds & Mattresses": "beds-mattresses",
+  "Book Shelves": "book-shelves",
+  "Chairs & Recliners": "chairs-recliners",
+  "Coffee Tables": "coffee-tables",
+  "Sofa & Couches": "sofa-couches",
+  "Dining Tables": "dining-tables",
+  "Wardrobes": "wardrobes",
+  "TV Tables": "tv-tables",
+  
+  // Services
+  "Nanny & Childcare": "nanny-childcare",
+  "Cleaners": "cleaners",
+  "Financial & Legal": "financial-legal",
+  "Personal Trainer": "personal-trainer",
+  "Food & Catering": "food-catering",
+  "Health & Beauty": "health-beauty",
+  "Moving & Storage": "moving-storage",
+  "Music Lessons": "music-lessons",
+  "Photography & Video": "photography-video",
+  "Skilled Trades": "skilled-trades",
+  "Tutors & Languages": "tutors-languages",
+  "Wedding": "wedding",
+  
+  // Sports
+  "Exercise Equipment": "exercise-equipment",
+  "Sportswear": "sportswear",
+  "Outdoor Gear": "outdoor-gear",
+  
+  // Books & Education
+  "Fiction": "fiction",
+  "Textbooks": "textbooks",
+  "Children Books": "children-books",
+  "Non-Fiction": "non-fiction",
+  
+  // Home Appliances
+  "Coffee Makers": "coffee-makers",
+  "Cookers": "cookers",
+  "Dishwashers": "dishwashers",
+  "Heaters": "heaters",
+  "Irons": "irons",
+  "Microwaves": "microwaves",
+  "Juicers & Blenders": "juicers-blenders",
+  "Refrigerators & Freezers": "refrigerators-freezers",
+  "Gas Stoves": "gas-stoves",
+  "Ovens": "ovens",
+  "Toasters": "toasters",
+  "Vacuums": "vacuums",
+  
+  // Free Stuff
+  "Lost & Found": "lost-found",
+  "Miscellaneous": "miscellaneous"
+}
 
-// Helper functions for easy access
+// Helper functions
 export const getCategoryByName = (name: string): CategoryData | undefined => {
   const subcategories = SUBCATEGORY_MAPPINGS[name] || []
   return {
     name,
     subcategories,
-    filters: {} // You can add specific filters later if needed
+    filters: {}
   }
 }
 
@@ -88,20 +178,31 @@ export const getSubcategoriesByCategory = (categoryName: string): string[] => {
   return SUBCATEGORY_MAPPINGS[categoryName] || []
 }
 
-export const getFiltersByCategory = (categoryName: string): Record<string, string[]> => {
-  const category = getCategoryByName(categoryName)
-  return category?.filters || {}
+export const getSubcategorySlug = (subcategory: string): string => {
+  return SUBCATEGORY_TO_SLUG[subcategory] || 
+    subcategory.toLowerCase().replace(/\s+/g, '-').replace(/&/g, 'and')
 }
 
-export const getAllCategoryNames = (): string[] => {
-  return CATEGORIES
+export const getSubcategoryDisplayName = (slug: string): string => {
+  const entry = Object.entries(SUBCATEGORY_TO_SLUG).find(
+    ([displayName, dbSlug]) => dbSlug === slug
+  )
+  return entry ? entry[0] : formatDisplayName(slug)
 }
 
-// Create mapping for database queries
-export const getCategoryMapping = (): Record<string, string[]> => {
-  return SUBCATEGORY_MAPPINGS
+const formatDisplayName = (slug: string): string => {
+  return slug
+    .split('-')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
 }
 
-export function isValidCategory(category: string): boolean {
+export const isValidCategory = (category: string): boolean => {
   return CATEGORIES.includes(category as any)
+}
+
+export const isValidSubcategory = (category: string, subcategory: string): boolean => {
+  const subcategories = SUBCATEGORY_MAPPINGS[category] || []
+  const subcategorySlugs = subcategories.map(getSubcategorySlug)
+  return subcategorySlugs.includes(subcategory)
 }
