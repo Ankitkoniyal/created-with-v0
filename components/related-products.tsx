@@ -23,12 +23,16 @@ export function RelatedProducts({ category, currentProductId }: RelatedProductsP
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let isMounted = true
+
     async function fetchRelatedProducts() {
+      if (!isMounted) return
+      
       try {
         const supabase = await getSupabaseClient()
         if (!supabase) {
           console.error("Supabase client not available")
-          setLoading(false)
+          if (isMounted) setLoading(false)
           return
         }
 
@@ -55,15 +59,19 @@ export function RelatedProducts({ category, currentProductId }: RelatedProductsP
             details: currentError.details,
             code: currentError.code
           })
-          setProducts([])
-          setLoading(false)
+          if (isMounted) {
+            setProducts([])
+            setLoading(false)
+          }
           return
         }
 
         if (!currentProduct) {
           console.error("Current product not found with ID:", currentProductId)
-          setProducts([])
-          setLoading(false)
+          if (isMounted) {
+            setProducts([])
+            setLoading(false)
+          }
           return
         }
 
@@ -78,8 +86,10 @@ export function RelatedProducts({ category, currentProductId }: RelatedProductsP
         // If no subcategory info, don't show related products
         if (!currentProduct.subcategory && !currentProduct.subcategory_id) {
           console.log("No subcategory information available, skipping related products")
-          setProducts([])
-          setLoading(false)
+          if (isMounted) {
+            setProducts([])
+            setLoading(false)
+          }
           return
         }
 
@@ -104,18 +114,18 @@ export function RelatedProducts({ category, currentProductId }: RelatedProductsP
 
         if (error) {
           console.error("Error fetching related products:", error)
-          setProducts([])
+          if (isMounted) setProducts([])
           return
         }
 
         console.log(`Found ${data?.length || 0} related products`)
-        setProducts(data || [])
+        if (isMounted) setProducts(data || [])
 
       } catch (error) {
         console.error("Unexpected error in fetchRelatedProducts:", error)
-        setProducts([])
+        if (isMounted) setProducts([])
       } finally {
-        setLoading(false)
+        if (isMounted) setLoading(false)
       }
     }
 
@@ -123,8 +133,14 @@ export function RelatedProducts({ category, currentProductId }: RelatedProductsP
     if (currentProductId && currentProductId !== "undefined") {
       fetchRelatedProducts()
     } else {
-      setLoading(false)
-      setProducts([])
+      if (isMounted) {
+        setLoading(false)
+        setProducts([])
+      }
+    }
+
+    return () => {
+      isMounted = false
     }
   }, [category, currentProductId])
 
