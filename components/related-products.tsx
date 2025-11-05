@@ -1,160 +1,105 @@
+// components/related-products.tsx
 "use client"
 
-import { useEffect, useState } from "react"
-import Link from "next/link"
-import Image from "next/image"
-import { getSupabaseClient } from "@/lib/supabase/client"
-
-interface RelatedProduct {
-  id: string
-  title: string
-  price: number
-  images: string[]
-  subcategory_id?: string
-}
+import { useState, useEffect } from 'react'
+import { ProductGrid } from './product-grid'
+import { createClient } from '@/lib/supabase/client'
 
 interface RelatedProductsProps {
-  category: string
   currentProductId: string
+  category: string
+  subcategory?: string | null
 }
 
-export function RelatedProducts({ category, currentProductId }: RelatedProductsProps) {
-  const [products, setProducts] = useState<RelatedProduct[]>([])
+export function RelatedProducts({ currentProductId, category, subcategory }: RelatedProductsProps) {
+  const [relatedProducts, setRelatedProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    let isMounted = true
-
     async function fetchRelatedProducts() {
-      if (!isMounted) return
+      console.log('Fetching current product:', currentProductId)
+      
+      const supabase = createClient()
       
       try {
-        const supabase = await getSupabaseClient()
-        if (!supabase) {
-          console.error("Supabase client not available")
-          if (isMounted) setLoading(false)
-          return
-        }
-
-        console.log("Fetching current product:", currentProductId)
-
-        // Get current product with better error handling
+        // First get the current product to ensure we have correct data
         const { data: currentProduct, error: currentError } = await supabase
-          .from("products")
-          .select(`
-            id,
-            category,
-            subcategory_id,
-            subcategory,
-            title,
-            brand
-          `)
-          .eq("id", currentProductId)
+          .from('products')
+          .select('id, category, subcategory, title')
+          .eq('id', currentProductId)
           .single()
 
-        // Better error handling
         if (currentError) {
-          console.error("Error fetching current product:", {
-            message: currentError.message,
-            details: currentError.details,
-            code: currentError.code
-          })
-          if (isMounted) {
-            setProducts([])
-            setLoading(false)
-          }
+          console.error('Error fetching current product:', currentError)
           return
         }
 
-        if (!currentProduct) {
-          console.error("Current product not found with ID:", currentProductId)
-          if (isMounted) {
-            setProducts([])
-            setLoading(false)
-          }
-          return
-        }
+        console.log('Current product found:', currentProduct)
 
-        console.log("Current product found:", {
-          id: currentProduct.id,
-          title: currentProduct.title,
-          category: currentProduct.category,
-          subcategory: currentProduct.subcategory,
-          subcategory_id: currentProduct.subcategory_id
-        })
-
-        // If no subcategory info, don't show related products
-        if (!currentProduct.subcategory && !currentProduct.subcategory_id) {
-          console.log("No subcategory information available, skipping related products")
-          if (isMounted) {
-            setProducts([])
-            setLoading(false)
-          }
-          return
-        }
-
-        // Build query for same subcategory products
+        // Build query for related products
         let query = supabase
-          .from("products")
-          .select("id, title, price, images, subcategory_id, subcategory")
-          .eq("category", currentProduct.category)
-          .neq("id", currentProductId)
-          .eq("status", "active") // Only show active products
+          .from('products')
+          .select('*')
+          .neq('id', currentProductId)
+          .eq('status', 'active')
+          .limit(8)
 
-        // Filter by subcategory (priority to slug, then ID)
+        // Prioritize same subcategory, then same category
         if (currentProduct.subcategory) {
-          console.log("Filtering by subcategory slug:", currentProduct.subcategory)
-          query = query.eq("subcategory", currentProduct.subcategory)
-        } else if (currentProduct.subcategory_id) {
-          console.log("Filtering by subcategory ID:", currentProduct.subcategory_id)
-          query = query.eq("subcategory_id", currentProduct.subcategory_id)
+          console.log('Filtering by subcategory slug:', currentProduct.subcategory)
+          query = query.eq('subcategory', currentProduct.subcategory)
+        } else {
+          console.log('Filtering by category:', currentProduct.category)
+          query = query.eq('category', currentProduct.category)
         }
 
-        const { data, error } = await query.limit(8)
+        const { data: products, error } = await query
 
         if (error) {
-          console.error("Error fetching related products:", error)
-          if (isMounted) setProducts([])
+          console.error('Error fetching related products:', error)
           return
         }
 
-        console.log(`Found ${data?.length || 0} related products`)
-        if (isMounted) setProducts(data || [])
+        console.log('Found', products?.length || 0, 'related products')
+
+        // If no products found in same subcategory/category, get any products from same category
+        if (!products || products.length === 0) {
+          console.log('No related products found, fetching from same category')
+          const { data: fallbackProducts, error: fallbackError } = await supabase
+            .from('products')
+            .select('*')
+            .neq('id', currentProductId)
+            .eq('category', currentProduct.category)
+            .eq('status', 'active')
+            .limit(8)
+
+          if (!fallbackError) {
+            setRelatedProducts(fallbackProducts || [])
+          }
+        } else {
+          setRelatedProducts(products)
+        }
 
       } catch (error) {
-        console.error("Unexpected error in fetchRelatedProducts:", error)
-        if (isMounted) setProducts([])
+        console.error('Unexpected error:', error)
       } finally {
-        if (isMounted) setLoading(false)
-      }
-    }
-
-    // Only fetch if we have a valid product ID
-    if (currentProductId && currentProductId !== "undefined") {
-      fetchRelatedProducts()
-    } else {
-      if (isMounted) {
         setLoading(false)
-        setProducts([])
       }
     }
 
-    return () => {
-      isMounted = false
-    }
-  }, [category, currentProductId])
+    fetchRelatedProducts()
+  }, [currentProductId, category, subcategory])
 
-  // Loading state
   if (loading) {
     return (
       <div className="mt-12">
         <h2 className="text-2xl font-bold mb-6">Related Products</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="animate-pulse">
-              <div className="bg-gray-200 h-48 rounded-lg"></div>
-              <div className="h-4 bg-gray-200 rounded mt-2"></div>
-              <div className="h-4 bg-gray-200 rounded mt-1 w-3/4"></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="animate-pulse">
+              <div className="bg-gray-200 h-48 rounded-lg mb-4"></div>
+              <div className="bg-gray-200 h-4 rounded mb-2"></div>
+              <div className="bg-gray-200 h-4 rounded w-3/4"></div>
             </div>
           ))}
         </div>
@@ -162,38 +107,14 @@ export function RelatedProducts({ category, currentProductId }: RelatedProductsP
     )
   }
 
-  // Don't show anything if no related products found
-  if (products.length === 0) {
+  if (relatedProducts.length === 0) {
     return null
   }
 
-  // Render related products
   return (
     <div className="mt-12">
       <h2 className="text-2xl font-bold mb-6">Related Products</h2>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {products.map((product) => (
-          <Link
-            key={product.id}
-            href={`/product/${product.id}`}
-            className="group block overflow-hidden rounded-lg border border-gray-200 hover:shadow-md transition-shadow"
-          >
-            <div className="relative aspect-square overflow-hidden">
-              <Image
-                src={product.images?.[0] || "/placeholder-product.jpg"}
-                alt={product.title}
-                fill
-                className="object-cover group-hover:scale-105 transition-transform"
-                sizes="(max-width: 768px) 50vw, 25vw"
-              />
-            </div>
-            <div className="p-3">
-              <h3 className="font-medium text-sm line-clamp-2 mb-1">{product.title}</h3>
-              <p className="text-lg font-bold text-green-700">${product.price}</p>
-            </div>
-          </Link>
-        ))}
-      </div>
+      <ProductGrid products={relatedProducts} />
     </div>
   )
 }
