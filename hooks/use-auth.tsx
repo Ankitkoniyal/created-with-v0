@@ -52,6 +52,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  useEffect(() => {
+    const fetchAndSetProfile = async () => {
+      if (user) {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+          if (mountedRef.current) {
+            setProfile(null);
+            setIsLoading(false);
+          }
+          return;
+        }
+
+        if (mountedRef.current) {
+          setIsLoading(true);
+        }
+
+        const profileData = await fetchUserProfile(user.id, user, supabase);
+
+        if (!profileData) {
+          await ensureProfile();
+          const retryProfileData = await fetchUserProfile(user.id, user, supabase);
+          if (mountedRef.current) {
+            setProfile(retryProfileData);
+          }
+        } else {
+          if (mountedRef.current) {
+            setProfile(profileData);
+          }
+        }
+
+        if (mountedRef.current) {
+          setIsLoading(false);
+        }
+      } else {
+        if (mountedRef.current) {
+          setProfile(null);
+          setIsLoading(false);
+        }
+      }
+    };
+
+    fetchAndSetProfile();
+  }, [user]);
+
   const ensureProfile = async (): Promise<boolean> => {
     try {
       const response = await fetch("/api/profile/ensure", {
@@ -223,22 +267,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await syncServerSession("SIGNED_IN", session)
           }
           
-          setUser(session.user)
-
-          if (mountedRef.current) setIsLoading(false)
-
-          const profileData = await fetchUserProfile(session.user.id, session.user, supabase)
-          if (!profileData) {
-            await ensureProfile()
-            const retryProfileData = await fetchUserProfile(session.user.id, session.user, supabase)
-            if (mountedRef.current) setProfile(retryProfileData)
-          } else {
-            if (mountedRef.current) setProfile(profileData)
+          if (mountedRef.current) {
+            setUser(session.user);
           }
         } else {
-          setUser(null)
-          setProfile(null)
-          if (mountedRef.current) setIsLoading(false)
+          if (mountedRef.current) {
+            setUser(null);
+            setProfile(null);
+            setIsLoading(false);
+          }
         }
       } catch (error) {
         console.log("[v0] Auth initialization error:", error)
