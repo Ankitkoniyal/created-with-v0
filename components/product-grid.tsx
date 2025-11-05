@@ -1,4 +1,4 @@
-// components/product-grid.tsx - CLEAN PRODUCTION VERSION
+// components/product-grid.tsx - FIXED WITH SELLER NAMES
 "use client"
 
 import type React from "react"
@@ -12,7 +12,6 @@ import { LoadingSkeleton } from "@/components/loading-skeleton"
 import { getOptimizedImageUrl } from "@/lib/images"
 import { createClient } from "@/lib/supabase/client"
 import { useSearchParams, usePathname } from "next/navigation"
-import { normalizeCategory } from "@/lib/normalize-categories"
 
 interface Product {
   id: string
@@ -36,7 +35,6 @@ interface Product {
     id: string
     full_name: string
     avatar_url?: string
-    rating?: number
   }
 }
 
@@ -88,9 +86,17 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters }
           throw new Error('Supabase client not available.')
         }
 
+        // FIXED: Include seller data in the query
         let query = supabase
           .from('products')
-          .select('*')
+          .select(`
+            *,
+            seller:profiles!user_id (
+              id,
+              full_name,
+              avatar_url
+            )
+          `)
           .eq('status', 'active')
 
         // Apply search query filter
@@ -98,16 +104,13 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters }
           query = query.ilike('title', `%${searchQuery}%`)
         }
 
-        // Apply category filter with normalization
+        // Apply category filter
         if (filters?.category && filters.category !== 'all' && filters.category !== '') {
-          const normalizedCategory = normalizeCategory(filters.category)
-          query = query.eq('category', normalizedCategory)
+          query = query.eq('category', filters.category)
         }
 
-                // FIXED CODE:
+        // Apply subcategory filter
         if (filters?.subcategory && filters.subcategory !== 'all' && filters.subcategory !== '') {
-          // NO normalization needed - navigation already sends correct slugs
-          console.log('🔍 Filtering by subcategory:', filters.subcategory)
           query = query.eq('subcategory', filters.subcategory)
         }
 
@@ -221,6 +224,14 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters }
     if (diffInHours < 48) return "1d"
     if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}d`
     return posted.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
+
+  // Allow unregistered users to view seller ads
+  const handleSellerClick = (e: React.MouseEvent, sellerId: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    // Allow anyone to view seller ads without login
+    window.location.href = `/seller/${sellerId}`
   }
 
   if (typeof window === 'undefined') {
@@ -363,7 +374,7 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters }
                             {product.title}
                           </h4>
 
-                          <div className="mt-auto flex items-end justify-between text-xs text-gray-500">
+                            <div className="mt-auto flex items-end justify-between text-xs text-gray-500">
                             <div className="flex items-center gap-1 min-w-0 pr-1">
                               <span className="truncate"> 
                                 {product.city}, {product.province}
