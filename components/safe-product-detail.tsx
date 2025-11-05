@@ -48,6 +48,16 @@ export function SafeProductDetail({ product }: { product: any }) {
     condition: product.condition || 'Not specified',
     youtube_url: product.youtube_url || null,
     website_url: product.website_url || null,
+    seller: product.seller || {
+      id: 'unknown',
+      name: 'Seller',
+      rating: 0,
+      totalReviews: 0,
+      memberSince: '2024',
+      verified: false,
+      responseTime: 'Usually responds within 24 hours',
+      phone: null
+    },
     // Add all other properties with safe defaults
     ...product
   }
