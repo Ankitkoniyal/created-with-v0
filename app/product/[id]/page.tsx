@@ -1,4 +1,3 @@
-import { ProductDetail } from "@/components/product-detail"
 import { RelatedProducts } from "@/components/related-products"
 import { Breadcrumb } from "@/components/breadcrumb"
 import { createClient } from "@/lib/supabase/server"
@@ -14,7 +13,7 @@ interface ProductPageProps {
 
 // Generate metadata for SEO
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
-  const { id } = await params // ← ADDED AWAIT HERE
+  const { id } = await params
   const product = await getProduct(id)
   
   if (!product) {
@@ -85,16 +84,26 @@ async function getProduct(id: string) {
 
     const product = products[0]
 
-    let profileData = null
-    if (product.user_id) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name, avatar_url, created_at, phone")
-        .eq("id", product.user_id)
-        .single()
-
-      profileData = profile
-    }
+              let profileData = null
+if (product.user_id) {
+  // Simple approach - always generate readable name from user_id
+  const readableName = `User${product.user_id.substring(0, 8).toUpperCase()}`
+  
+  profileData = {
+    full_name: readableName,
+    avatar_url: null,
+    created_at: product.created_at,
+    phone: null
+  }
+  console.log('🛠️ Generated seller name:', readableName)
+} else {
+  profileData = {
+    full_name: 'Local Seller',
+    avatar_url: null,
+    created_at: product.created_at,
+    phone: null
+  }
+}
 
     let parsedTags = []
     if (product.tags) {
@@ -153,7 +162,7 @@ async function getProduct(id: string) {
       return `AD${year}${month}${day}${idSuffix}`
     }
 
-    // RETURN WITH SAFE DEFAULTS - NO UNDEFINED VALUES
+    // RETURN WITH PROPER SELLER DATA
     return {
       id: product.id,
       title: product.title || "Untitled Product",
@@ -172,16 +181,17 @@ async function getProduct(id: string) {
       postedDate: product.created_at,
       views: product.views || 0,
       adId: generateAdId(product.id, product.created_at),
-      seller: {
-        id: product.user_id,
-        name: profileData?.full_name || "User",
-        rating: 4.5,
-        totalReviews: 0,
-        memberSince: profileData?.created_at ? new Date(profileData.created_at).getFullYear().toString() : "2024",
-        verified: true,
-        responseTime: "Usually responds within 2 hours",
-        phone: profileData?.phone || null,
-      },
+            seller: {
+  id: product.user_id,
+  name: profileData?.full_name || 'Local Seller', // Use the generated readable name
+  rating: 4.5,
+  totalReviews: 0,
+  memberSince: profileData?.created_at ? new Date(profileData.created_at).getFullYear().toString() : "2024",
+  verified: true,
+  responseTime: "Usually responds within 2 hours",
+  phone: profileData?.phone || null,
+  avatar_url: profileData?.avatar_url || null,
+},
       features: parsedFeatures,
       storage: product.storage || null,
       color: product.color || null,
@@ -191,6 +201,7 @@ async function getProduct(id: string) {
       category_slug: product.category_slug || product.category?.toLowerCase().replace(/\s+/g, '-') || 'other',
       created_at: product.created_at,
       updated_at: product.updated_at || product.created_at,
+      user_id: product.user_id,
     }
   } catch (error) {
     console.error("Unexpected error fetching product:", error)
@@ -222,7 +233,7 @@ function generateProductStructuredData(product: any) {
       "priceCurrency": "CAD",
       "price": product.price_number,
       "priceValidUntil": new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      "availability": product.status === 'active' ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      "availability": "https://schema.org/InStock",
       "itemCondition": `https://schema.org/${mapConditionToSchemaOrg(product.condition)}`,
       "seller": {
         "@type": "Organization",
@@ -252,7 +263,7 @@ function mapConditionToSchemaOrg(condition: string): string {
 }
 
 export default async function ProductPage({ params }: ProductPageProps) {
-  const { id } = await params // ← ADDED AWAIT HERE
+  const { id } = await params
   console.log('🛠️ Product page loading for ID:', id)
  
   const product = await getProduct(id)
@@ -325,6 +336,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
        <RelatedProducts 
          currentProductId={product.id} 
          category={product.category || "Other"} 
+         subcategory={product.subcategory}
        />
      </div>
    </div>
