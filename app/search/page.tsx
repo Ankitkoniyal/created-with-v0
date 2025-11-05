@@ -1,11 +1,10 @@
-// app/search/page.tsx - COMPLETE FIXED VERSION
+// app/search/page.tsx - UPDATED WITHOUT GRID/LIST TOGGLE
 "use client"
 
 import { useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
-import { ProductGrid } from "@/components/product-grid"
+import { SearchResults } from "@/components/search/search-results"
 import { SearchFilters } from "@/components/search/search-filters"
-import { SubcategoryNav } from "@/components/subcategory-nav"
 
 interface SearchFilters {
   searchQuery?: string
@@ -72,7 +71,7 @@ export default function SearchPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Page Header */}
         <div className="mb-8">
@@ -93,25 +92,18 @@ export default function SearchPage() {
         </div>
 
         <div className="flex flex-col lg:flex-row gap-8">
-          {/* Desktop Filters Sidebar */}
+          {/* Desktop Filters Sidebar - SIMPLIFIED */}
           <div className="hidden lg:block w-80 flex-shrink-0">
             <SearchFilters onFiltersChange={handleFiltersChange} />
           </div>
 
-          {/* Main Content */}
+          {/* Main Content - FULL WIDTH WITHOUT IMAGE */}
           <div className="flex-1">
-            {/* Subcategory Navigation */}
-            {filters.category && (
-              <SubcategoryNav 
-                category={filters.category} 
-                selectedSubcategory={filters.subcategory}
-              />
-            )}
-
-            {/* Product Grid */}
-            <ProductGrid 
-              searchQuery={filters.searchQuery}
+            {/* Search Results with HOME SCREEN DESIGN */}
+            <SearchResults 
+              searchQuery={filters.searchQuery || ""}
               filters={filters}
+              viewMode="grid" // Default view mode, but not used anymore
             />
           </div>
         </div>
