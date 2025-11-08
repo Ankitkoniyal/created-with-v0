@@ -24,8 +24,4 @@ export default function SearchLayout({
   children: React.ReactNode
 }) {
   return children
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> dc13c296036f9d408027fc6b97e1464d41b5c2ae

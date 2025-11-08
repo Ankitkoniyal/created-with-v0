@@ -76,11 +76,7 @@ export default function HomePage() {
           <CategoryNav />
           <div className="px-4 max-w-7xl mx-auto">
             <Suspense fallback={
-<<<<<<< HEAD
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-=======
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-4">
->>>>>>> dc13c296036f9d408027fc6b97e1464d41b5c2ae
                 {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
                   <div key={i} className="h-80 bg-gray-200 rounded-lg animate-pulse"></div>
                 ))}

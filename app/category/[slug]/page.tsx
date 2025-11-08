@@ -1,5 +1,5 @@
 // app/category/[slug]/page.tsx
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { Metadata } from 'next'
 
@@ -98,8 +98,4 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
       </div>
     </>
   )
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> dc13c296036f9d408027fc6b97e1464d41b5c2ae

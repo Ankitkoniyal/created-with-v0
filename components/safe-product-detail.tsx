@@ -6,7 +6,7 @@ import { ProductDetail } from "@/components/product-detail"
 // Safe link component for external URLs
 function SafeLink({ href, children, className = "" }: { href: string; children: React.ReactNode; className?: string }) {
   return (
-    <a 
+    <a
       href={href}
       target="_blank"
       rel="nofollow noopener noreferrer"
@@ -18,15 +18,17 @@ function SafeLink({ href, children, className = "" }: { href: string; children: 
 }
 
 export function SafeProductDetail({ product }: { product: any }) {
-  // Debug what's actually received
-  console.log('🔍 SafeProductDetail received:', product)
-  
-  if (!product || typeof product !== 'object') {
+  if (process.env.NODE_ENV !== "production") {
+    // Helpful for debugging in development without spamming production logs
+    console.debug("🔍 SafeProductDetail received:", product)
+  }
+
+  if (!product || typeof product !== "object") {
     return (
       <div className="p-8 text-center bg-red-50 border border-red-200 rounded-lg">
         <h2 className="text-2xl font-bold text-red-600 mb-4">Product Loading Failed</h2>
         <p className="text-red-700">We couldn't load the product details. Please try again.</p>
-        <button 
+        <button
           onClick={() => window.location.reload()}
           className="mt-4 px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
         >
@@ -36,40 +38,54 @@ export function SafeProductDetail({ product }: { product: any }) {
     )
   }
 
-  // Ensure all required fields have values
-  const safeProduct = {
-    id: product.id || 'unknown',
-    title: product.title || 'Untitled Product',
-    price: product.price || 'Price not available',
-    location: product.location || 'Location not specified',
-    images: Array.isArray(product.images) ? product.images : ['/placeholder.svg'],
-    description: product.description || 'No description available',
-    category: product.category || 'Other',
-    condition: product.condition || 'Not specified',
-    youtube_url: product.youtube_url || null,
-    website_url: product.website_url || null,
-<<<<<<< HEAD
-=======
-    seller: product.seller || {
-      id: 'unknown',
-      name: 'Seller',
+  const safeSeller = (() => {
+    const defaultSeller = {
+      id: "unknown",
+      name: "Seller",
       rating: 0,
       totalReviews: 0,
-      memberSince: '2024',
+      memberSince: "2024",
       verified: false,
-      responseTime: 'Usually responds within 24 hours',
-      phone: null
-    },
->>>>>>> dc13c296036f9d408027fc6b97e1464d41b5c2ae
-    // Add all other properties with safe defaults
-    ...product
+      responseTime: "Usually responds within 24 hours",
+      phone: null,
+      avatar: null,
+    }
+
+    if (product.seller && typeof product.seller === "object") {
+      return {
+        ...defaultSeller,
+        ...product.seller,
+        id: product.seller.id || defaultSeller.id,
+        name: product.seller.name || defaultSeller.name,
+        memberSince: product.seller.memberSince || defaultSeller.memberSince,
+        responseTime: product.seller.responseTime || defaultSeller.responseTime,
+      }
+    }
+
+    return defaultSeller
+  })()
+
+  // Ensure all required fields have values
+  const safeProduct = {
+    id: product.id || "unknown",
+    title: product.title || "Untitled Product",
+    price: product.price || "Price not available",
+    location: product.location || "Location not specified",
+    images: Array.isArray(product.images) && product.images.length > 0 ? product.images : ["/placeholder.svg"],
+    description: product.description || "No description available",
+    category: product.category || "Other",
+    condition: product.condition || "Not specified",
+    youtube_url: product.youtube_url || null,
+    website_url: product.website_url || null,
+    seller: safeSeller,
+    // Preserve any other properties that may exist
+    ...product,
   }
 
   return (
     <div>
       <ProductDetail product={safeProduct} />
-<<<<<<< HEAD
-      
+
       {/* Render safe external links if they exist */}
       {(safeProduct.youtube_url || safeProduct.website_url) && (
         <div className="mt-6 p-4 bg-gray-50 rounded-lg border">
@@ -78,7 +94,7 @@ export function SafeProductDetail({ product }: { product: any }) {
             {safeProduct.youtube_url && (
               <div className="flex items-center">
                 <span className="text-sm text-gray-600 mr-3">YouTube:</span>
-                <SafeLink 
+                <SafeLink
                   href={safeProduct.youtube_url}
                   className="text-blue-600 hover:text-blue-800 underline text-sm"
                 >
@@ -89,7 +105,7 @@ export function SafeProductDetail({ product }: { product: any }) {
             {safeProduct.website_url && (
               <div className="flex items-center">
                 <span className="text-sm text-gray-600 mr-3">Website:</span>
-                <SafeLink 
+                <SafeLink
                   href={safeProduct.website_url}
                   className="text-blue-600 hover:text-blue-800 underline text-sm"
                 >
@@ -99,15 +115,10 @@ export function SafeProductDetail({ product }: { product: any }) {
             )}
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            External links open in new window and are marked as no-follow for SEO.
+            External links open in a new window and are marked as no-follow for SEO.
           </p>
         </div>
       )}
     </div>
   )
 }
-=======
-    </div>
-  )
-}
->>>>>>> dc13c296036f9d408027fc6b97e1464d41b5c2ae
