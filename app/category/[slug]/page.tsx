@@ -1,5 +1,5 @@
 // app/category/[slug]/page.tsx
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from "@/lib/supabase/server"
 import { notFound } from 'next/navigation'
 import { Metadata } from 'next'
 

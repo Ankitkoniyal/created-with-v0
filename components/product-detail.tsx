@@ -24,6 +24,10 @@ import {
   ChevronLeft,
   ChevronRight,
   List,
+  Youtube,
+  Globe,
+  Mail,
+  User,
 } from "lucide-react"
 import { ContactSellerModal } from "@/components/messaging/contact-seller-modal"
 import { SafetyBanner } from "@/components/ui/safety-banner"
@@ -102,7 +106,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
   ]
 
   useEffect(() => {
-    // Fetch the real ad ID from Supabase
     const fetchAdId = async () => {
       try {
         const supabase = createClient()
@@ -119,7 +122,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
           setRealAdId(product.id.slice(-6))
         }
       } catch (error) {
-        console.error("Error fetching ad ID:", error)
         setRealAdId(product.id.slice(-6))
       }
     }
@@ -127,7 +129,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
     fetchAdId()
   }, [product.id])
 
-  // Increment view count when component mounts
   useEffect(() => {
     const incrementViewCount = async () => {
       try {
@@ -141,7 +142,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
           setViewsCount(prev => prev + 1)
         }
       } catch (error) {
-        console.error("Error updating view count:", error)
+        // Silently fail for view count updates
       }
     }
 
@@ -168,12 +169,12 @@ export function ProductDetail({ product }: ProductDetailProps) {
           .single()
 
         if (error && error.code !== "PGRST116") {
-          console.error("Error checking favorite status:", error)
+          // Silently handle favorite status errors
         } else {
           setIsFavorited(!!data)
         }
       } catch (error) {
-        console.error("Error checking favorite status:", error)
+        // Silently handle favorite status errors
       }
     }
     checkFavoriteStatus()
@@ -210,7 +211,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
         toast({ title: "Added to wishlist" })
       }
     } catch (error) {
-      console.error("Error toggling favorite:", error)
       toast({ title: "Failed to update wishlist", variant: "destructive" })
     }
   }
@@ -237,17 +237,15 @@ export function ProductDetail({ product }: ProductDetailProps) {
         details: customReportReason
       })
       
-      // Successfully inserted, show toast and then close dialog with a small delay
       toast({ title: "Report submitted", description: "Thanks for keeping the marketplace safe." })
       
       setTimeout(() => {
         setShowReportDialog(false)
         setReportReason("")
         setCustomReportReason("")
-      }, 500) // 500ms delay to allow toast to render
+      }, 500)
 
     } catch (error) {
-      console.error("Error submitting report:", error)
       toast({ title: "Failed to submit report", variant: "destructive" })
     }
   }
@@ -291,7 +289,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
       }, 2000)
       toast({ title: "Link copied to clipboard!" })
     } catch (error) {
-      console.error("Failed to copy link:", error)
       const url = window.location.href
       prompt("Copy this link:", url)
       setShowShareMenu(false)
@@ -338,10 +335,24 @@ export function ProductDetail({ product }: ProductDetailProps) {
       .join(' ')
   }
 
+  const openYouTubeVideo = () => {
+    if (product.youtube_url) {
+      window.open(product.youtube_url, '_blank', 'noopener,noreferrer')
+    }
+  }
+
+  const openWebsiteUrl = () => {
+    if (product.website_url) {
+      window.open(product.website_url, '_blank', 'noopener,noreferrer')
+    }
+  }
+
+  const hasYouTubeUrl = product.youtube_url && product.youtube_url.trim() !== ""
+  const hasWebsiteUrl = product.website_url && product.website_url.trim() !== ""
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-4 md:p-6">
       <div className="lg:col-span-2 space-y-6">
-        {/* Image Gallery */}
         <Card className="overflow-hidden">
           <CardContent className="p-0">
             <div className="relative h-80 md:h-96 bg-gray-50 rounded-t-lg">
@@ -405,39 +416,34 @@ export function ProductDetail({ product }: ProductDetailProps) {
           </CardContent>
         </Card>
 
-        {/* Product Info Card - Mobile Layout */}
         <Card className="lg:hidden">
           <CardContent className="p-6">
-            <h1 className="text-2xl font-bold text-foreground mb-3">{formatTitle(product.title)}</h1>
+            <h1 className="text-2xl font-bold text-foreground mb-4">{formatTitle(product.title)}</h1>
             
-            <div className="flex items-center space-x-2 mb-4">
+            <div className="flex items-center space-x-2 mb-5">
               <span className="text-3xl font-bold text-green-900">{product.price}</span>
               {product.originalPrice && (
                 <span className="text-lg text-muted-foreground line-through">{product.originalPrice}</span>
               )}
             </div>
 
-            <div className="flex items-center justify-between text-sm text-muted-foreground mb-5">
-              <div className="flex items-center">
-                <MapPin className="h-4 w-4 mr-1" />
-                {product.location}
+            {/* Updated Location and Views Section */}
+            <div className="space-y-3 mb-5">
+              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                <MapPin className="h-4 w-4" />
+                <span>{product.location}</span>
               </div>
-              <div className="flex items-center">
-                <Eye className="h-4 w-4 mr-1" />
-                {viewsCount} views
+              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                <Eye className="h-4 w-4" />
+                <span>{viewsCount} views</span>
               </div>
-            </div>
-
-            <div className="text-sm text-muted-foreground mb-5">
-              <div className="flex flex-col space-y-1">
-                <div className="flex items-center space-x-1">
-                  <Calendar className="h-4 w-4" />
-                  <span>Posted on {formatDate(product.postedDate)}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Ad ID: </span>
-                  <span className="font-medium text-foreground">{realAdId}</span>
-                </div>
+              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                <Calendar className="h-4 w-4" />
+                <span>Posted on {formatDate(product.postedDate)}</span>
+              </div>
+              <div className="text-sm text-muted-foreground">
+                <span>Ad ID: </span>
+                <span className="font-medium text-foreground">{realAdId}</span>
               </div>
             </div>
 
@@ -452,7 +458,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                 seller={{
                   name: product.seller.name,
                   verified: product.seller.verified,
-                                 }}
+                }}
               >
                 <Button
                   className="w-full bg-green-950 hover:bg-green-800 text-white h-12"
@@ -481,6 +487,31 @@ export function ProductDetail({ product }: ProductDetailProps) {
               >
                 <Heart className={`h-4 w-4 ${isFavorited ? "fill-red-500 text-red-500" : ""}`} />
               </Button>
+              
+              {hasYouTubeUrl && (
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={openYouTubeVideo}
+                  className="w-10 h-10 rounded-full bg-red-50 hover:bg-red-100 border-red-200 text-red-600"
+                  title="Watch YouTube Video"
+                >
+                  <Youtube className="h-4 w-4" />
+                </Button>
+              )}
+              
+              {hasWebsiteUrl && (
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={openWebsiteUrl}
+                  className="w-10 h-10 rounded-full bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-600"
+                  title="Visit Website"
+                >
+                  <Globe className="h-4 w-4" />
+                </Button>
+              )}
+              
               <div className="relative" ref={shareMenuRef}>
                 <Button
                   size="icon"
@@ -571,7 +602,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
           </CardContent>
         </Card>
 
-        {/* Description Section */}
         <Card>
           <CardContent className="p-6">
             <h2 className="text-xl font-bold mb-4 text-foreground">Description</h2>
@@ -579,7 +609,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
           </CardContent>
         </Card>
 
-        {/* Product Details */}
         <Card>
           <CardContent className="p-6">
             <h2 className="text-xl font-bold text-foreground mb-4">Product Details</h2>
@@ -664,39 +693,34 @@ export function ProductDetail({ product }: ProductDetailProps) {
       </div>
 
       <div className="space-y-6">
-        {/* Product Info Card - Desktop Layout */}
         <Card className="hidden lg:block">
           <CardContent className="p-6">
-            <h1 className="text-2xl font-bold text-foreground mb-3">{formatTitle(product.title)}</h1>
+            <h1 className="text-2xl font-bold text-foreground mb-4">{formatTitle(product.title)}</h1>
             
-            <div className="flex items-center space-x-2 mb-4">
+            <div className="flex items-center space-x-2 mb-5">
               <span className="text-3xl font-bold text-green-900">{product.price}</span>
               {product.originalPrice && (
                 <span className="text-lg text-muted-foreground line-through">{product.originalPrice}</span>
               )}
             </div>
 
-            <div className="flex items-center justify-between text-sm text-muted-foreground mb-5">
-              <div className="flex items-center">
-                <MapPin className="h-4 w-4 mr-1" />
-                {product.location}
+            {/* Updated Location and Views Section */}
+            <div className="space-y-3 mb-5">
+              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                <MapPin className="h-4 w-4" />
+                <span>{product.location}</span>
               </div>
-              <div className="flex items-center">
-                <Eye className="h-4 w-4 mr-1" />
-                {viewsCount} views
+              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                <Eye className="h-4 w-4" />
+                <span>{viewsCount} views</span>
               </div>
-            </div>
-
-            <div className="text-sm text-muted-foreground mb-5">
-              <div className="flex flex-col space-y-1">
-                <div className="flex items-center space-x-1">
-                  <Calendar className="h-4 w-4" />
-                  <span>Posted on {formatDate(product.postedDate)}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Ad ID: </span>
-                  <span className="font-medium text-foreground">{realAdId}</span>
-                </div>
+              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                <Calendar className="h-4 w-4" />
+                <span>Posted on {formatDate(product.postedDate)}</span>
+              </div>
+              <div className="text-sm text-muted-foreground">
+                <span>Ad ID: </span>
+                <span className="font-medium text-foreground">{realAdId}</span>
               </div>
             </div>
 
@@ -711,7 +735,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                 seller={{
                   name: product.seller.name,
                   verified: product.seller.verified,
-                                  }}
+                }}
               >
                 <Button
                   className="w-full bg-green-950 hover:bg-green-800 text-white h-12"
@@ -740,6 +764,31 @@ export function ProductDetail({ product }: ProductDetailProps) {
               >
                 <Heart className={`h-4 w-4 ${isFavorited ? "fill-red-500 text-red-500" : ""}`} />
               </Button>
+              
+              {hasYouTubeUrl && (
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={openYouTubeVideo}
+                  className="w-10 h-10 rounded-full bg-red-50 hover:bg-red-100 border-red-200 text-red-600"
+                  title="Watch YouTube Video"
+                >
+                  <Youtube className="h-4 w-4" />
+                </Button>
+              )}
+              
+              {hasWebsiteUrl && (
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={openWebsiteUrl}
+                  className="w-10 h-10 rounded-full bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-600"
+                  title="Visit Website"
+                >
+                  <Globe className="h-4 w-4" />
+                </Button>
+              )}
+              
               <div className="relative" ref={shareMenuRef}>
                 <Button
                   size="icon"
@@ -830,7 +879,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
           </CardContent>
         </Card>
 
-        {/* Seller Information */}
+        {/* Updated Seller Information Section */}
         <Card>
           <CardContent className="p-6">
             <h3 className="font-semibold text-foreground mb-4 text-lg">Seller Information</h3>
@@ -838,53 +887,68 @@ export function ProductDetail({ product }: ProductDetailProps) {
               href={`/seller/${product.seller.id}`}
               className="flex items-center space-x-4 mb-4"
             >
-              {product.seller.avatar ? (
-                <Image 
-                  src={product.seller.avatar} 
-                  alt={product.seller.name} 
-                  width={56} 
-                  height={56} 
-                  className="rounded-full" 
-                />
-              ) : (
-                <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center">
-                  <span className="text-green-800 font-semibold text-lg">
-                    {product.seller.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")}
-                  </span>
-                </div>
-              )}
+              {(() => {
+                const name = product.seller.name || 'User'
+                const fallback = `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(name)}&backgroundType=gradientLinear`
+                const src = product.seller.avatar || fallback
+                return (
+                  <Image
+                    src={src}
+                    alt={name}
+                    width={56}
+                    height={56}
+                    className="rounded-full object-cover bg-gray-100"
+                  />
+                )
+              })()}
               <div>
                 <div className="flex items-center space-x-2 mb-1">
                   <span className="font-medium text-foreground text-base hover:text-green-900 hover:underline">
                     {product.seller.name}
                   </span>
-                  {product.seller.verified && (
-                    <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300 text-xs">
-                      <Shield className="h-3 w-3 mr-1" />
-                      Verified
-                    </Badge>
-                  )}
                 </div>
-              
               </div>
             </Link>
-            <div className="space-y-2 text-sm mb-5">
-              <div className="flex items-center p-2 bg-muted/30 rounded-md">
-                <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-                <span>Member since {product.seller.memberSince}</span>
+            
+            <div className="space-y-3 text-sm mb-5">
+              {product.seller.verified && (
+                <div className="flex items-center p-3 bg-green-50 rounded-md border border-green-200">
+                  <Mail className="h-4 w-4 mr-3 text-green-600" />
+                  <div>
+                    <div className="font-medium text-green-800">Email Verified</div>
+                  </div>
+                </div>
+              )}
+              
+              <div className="flex items-center p-3 bg-muted/30 rounded-md">
+                <Calendar className="h-4 w-4 mr-3 text-muted-foreground" />
+                <div>
+                  <div className="font-medium text-foreground">Member since</div>
+                  <div className="text-muted-foreground">{product.seller.memberSince}</div>
+                </div>
               </div>
-              <Link href={`/seller/${product.seller.id}`} className="flex items-center p-2 bg-muted/30 rounded-md text-green-900 hover:bg-green-100">
-                <List className="h-4 w-4 mr-2" />
-                <span>See all ads</span>
+              
+              <div className="flex items-center p-3 bg-muted/30 rounded-md">
+                <Clock className="h-4 w-4 mr-3 text-muted-foreground" />
+                <div>
+                  <div className="font-medium text-foreground">Response time</div>
+                  <div className="text-muted-foreground">{product.seller.responseTime}</div>
+                </div>
+              </div>
+              
+              <Link 
+                href={`/seller/${product.seller.id}`} 
+                className="flex items-center p-3 bg-green-50 hover:bg-green-100 rounded-md border border-green-200 transition-colors"
+              >
+                <List className="h-4 w-4 mr-3 text-green-700" />
+                <div>
+                  <div className="font-medium text-green-900">See all ads from this Seller</div>
+                </div>
               </Link>
             </div>
           </CardContent>
         </Card>
 
-        {/* Safety Section */}
         <Card>
           <CardContent className="p-6">
             <SafetyBanner />
@@ -902,7 +966,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
         </Card>
       </div>
     
-      {/* Report Dialog */}
       {showReportDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">

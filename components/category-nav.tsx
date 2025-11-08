@@ -45,7 +45,7 @@ export function CategoryNav() {
                 className="flex flex-col items-center p-2 lg:p-3 h-auto hover:bg-green-50 hover:text-green-600 hover:border-green-200 hover:shadow-md hover:scale-105 transition-all duration-300 ease-in-out border border-transparent rounded-lg group"
                 asChild
               >
-                <Link href={`/search?category=${encodeURIComponent(category.name)}`}>
+                <Link href={`/search?category=${encodeURIComponent(category.name.toLowerCase().replace(/\s+/g, '-').replace(/&/g, 'and'))}`}>
                   <Icon className="h-6 w-6 lg:h-8 lg:w-8 mb-1 lg:mb-2 group-hover:scale-110 transition-transform duration-300" />
                   <span className="text-xs lg:text-sm font-medium text-center leading-tight">{category.name}</span>
                 </Link>

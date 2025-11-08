@@ -13,15 +13,26 @@ export async function GET(request: Request) {
 
     // Get system metrics
     const supabase = createClient()
-    const { data: productCount } = await supabase.from("products").select("count").single()
+    const { count: productCount, error: productError } = await supabase
+      .from("products")
+      .select("*", { count: "exact", head: true })
 
-    const { data: userCount } = await supabase.from("profiles").select("count").single()
+    const { count: userCount, error: userError } = await supabase
+      .from("profiles")
+      .select("*", { count: "exact", head: true })
+
+    if (productError) {
+      console.warn("[metrics] product count failed:", productError.message)
+    }
+    if (userError) {
+      console.warn("[metrics] user count failed:", userError.message)
+    }
 
     return NextResponse.json({
       performance: metrics,
       system: {
-        totalProducts: productCount?.count || 0,
-        totalUsers: userCount?.count || 0,
+        totalProducts: productCount || 0,
+        totalUsers: userCount || 0,
         uptime: process.uptime(),
         memory: {
           used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),

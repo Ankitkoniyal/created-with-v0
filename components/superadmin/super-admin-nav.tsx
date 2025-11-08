@@ -1,3 +1,4 @@
+// components/superadmin/super-admin-nav.tsx
 "use client";
 
 import {
@@ -7,24 +8,26 @@ import {
   BarChart3,
   FileText,
   DollarSign,
-  Search,
   LogOut,
-  AlertTriangle,
   MapPin,
   Tag,
-  Shield,
   Database,
-  Eye,
   Clock,
   Flag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 interface NavStats {
   totalAds: number;
   activeAds: number;
   pendingReview: number;
   reportedAds: number;
+  totalUsers: number;
+  newUsersToday: number;
 }
 
 interface SuperAdminNavProps {
@@ -33,12 +36,13 @@ interface SuperAdminNavProps {
   activeView: string;
 }
 
-// Default stats to prevent undefined errors
 const defaultStats: NavStats = {
   totalAds: 0,
   activeAds: 0,
   pendingReview: 0,
   reportedAds: 0,
+  totalUsers: 0,
+  newUsersToday: 0,
 };
 
 const superAdminNavItems = [
@@ -60,14 +64,14 @@ const superAdminNavItems = [
     title: "Pending Review",
     href: "/superadmin/pending",
     icon: Clock,
-    badgeKey: null,
+    badgeKey: "pendingReview" as const,
     view: "pending" as const,
   },
   {
     title: "Reported Ads",
     href: "/superadmin/reported",
     icon: Flag,
-    badgeKey: null,
+    badgeKey: "reportedAds" as const,
     view: "reported" as const,
   },
   {
@@ -108,36 +112,37 @@ const superAdminNavItems = [
 ];
 
 export function SuperAdminNav({ stats = defaultStats, onNavigate, activeView }: SuperAdminNavProps) {
-  // Merge provided stats with defaults to ensure all properties exist
   const safeStats = { ...defaultStats, ...stats };
+  const { isAdmin, user } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (user && !isAdmin) {
+      router.push("/");
+    }
+  }, [user, isAdmin, router]);
 
   const handleSignOut = async () => {
-    // Implement sign out logic here
-    console.log("Signing out...");
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    window.location.href = "/";
   };
+
+  const handleBackupData = async () => {
+    // Implement backup functionality
+    console.log("Backup data functionality");
+    // You can add actual backup logic here
+    alert("Backup functionality would be implemented here");
+  };
+
+  if (user && !isAdmin) {
+    return null;
+  }
 
   return (
     <div className="w-72 bg-gray-950 text-white p-6 flex flex-col h-full">
-      <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-700">
-        <div className="w-12 h-12 bg-gradient-to-r from-green-700 to-green-800 rounded-lg flex items-center justify-center">
-          <Crown className="w-6 h-6 text-white" />
-        </div>
-        <div>
-          <h2 className="font-bold text-white">Marketplace Admin</h2>
-          <p className="text-sm text-gray-400">Super Admin Panel</p>
-        </div>
-      </div>
-
-      <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Search ads, users, reports..."
-          className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-        />
-      </div>
-
-      <nav className="space-y-1 flex-1">
+      {/* Navigation Items - No header, no search, no scrolling */}
+      <nav className="space-y-1">
         {superAdminNavItems.map((item) => {
           const isActive = activeView === item.view;
           const Icon = item.icon;
@@ -155,14 +160,15 @@ export function SuperAdminNav({ stats = defaultStats, onNavigate, activeView }: 
               )}
             >
               <div className="flex items-center gap-3">
-                <Icon className="w-4 h-4" />
-                <span>{item.title}</span>
+                <Icon className="w-4 h-4 flex-shrink-0" />
+                <span className="truncate">{item.title}</span>
               </div>
               {badgeValue !== null && badgeValue > 0 && (
-                <span className={cn("px-2 py-1 text-xs font-semibold rounded-full",
+                <span className={cn(
+                  "px-2 py-1 text-xs font-semibold rounded-full min-w-6 text-center flex-shrink-0",
                   isActive ? "bg-white text-green-700" : "bg-green-700 text-white"
                 )}>
-                  {badgeValue}
+                  {badgeValue > 99 ? '99+' : badgeValue}
                 </span>
               )}
             </button>
@@ -170,18 +176,22 @@ export function SuperAdminNav({ stats = defaultStats, onNavigate, activeView }: 
         })}
       </nav>
 
-      <div className="pt-4 border-t border-gray-700">
+      {/* Footer Actions */}
+      <div className="pt-4 border-t border-gray-700 mt-auto">
         <div className="space-y-2">
-          <button className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-2">
-            <Database className="w-4 h-4" />
-            Backup Data
+          <button 
+            onClick={handleBackupData}
+            className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-2"
+          >
+            <Database className="w-4 h-4 flex-shrink-0" />
+            <span className="truncate">Backup Data</span>
           </button>
           <button
             onClick={handleSignOut}
             className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-red-900 rounded-lg transition-colors flex items-center gap-2"
           >
-            <LogOut className="w-4 h-4" />
-            Sign Out
+            <LogOut className="w-4 h-4 flex-shrink-0" />
+            <span className="truncate">Sign Out</span>
           </button>
         </div>
       </div>

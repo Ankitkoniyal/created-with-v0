@@ -38,16 +38,22 @@ export async function POST(req: NextRequest) {
     const phone = (body?.phone as string | undefined) || (user.user_metadata?.phone as string | undefined) || ""
 
     // Upsert minimal profile. Assumes a 'profiles' table with primary key 'id' = auth.user.id
-    const { error } = await supabase.from("profiles").upsert(
-      {
-        id: user.id,
-        email: user.email,
-        full_name: fullName || null,
-        phone: phone || null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "id" },
-    )
+    const defaultRole = "user"
+    const now = new Date().toISOString()
+
+    const { error } = await supabase
+      .from("profiles")
+      .upsert(
+        {
+          id: user.id,
+          email: user.email,
+          full_name: fullName || null,
+          phone: phone || null,
+          role: defaultRole,
+          updated_at: now,
+        },
+        { onConflict: "id" },
+      )
 
     if (error) {
       // If table/column mismatch, surface a soft failure; do not break login

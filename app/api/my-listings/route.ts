@@ -31,8 +31,6 @@ async function createSupabaseServerClient() {
 }
 
 export async function GET(req: Request) {
-  console.log("[v0] === My-listings API called ===");
-
   try {
     return await withTimeout(handleMyListingsRequest(req), 8000);
   } catch (error: any) {
@@ -57,7 +55,7 @@ async function handleMyListingsRequest(req: Request) {
       throw new Error("Supabase client creation failed");
     }
   } catch (clientError) {
-    console.error("[v0] Supabase client error:", clientError);
+    console.error("[my-listings] Supabase client error:", clientError);
     return NextResponse.json(
       { listings: [], error: "Database connection failed" },
       { status: 503 }
@@ -79,7 +77,7 @@ async function handleMyListingsRequest(req: Request) {
     }
     user = authUser;
   } catch (authError) {
-    console.error("[v0] Auth timeout:", authError);
+    console.error("[my-listings] Auth timeout:", authError);
     return NextResponse.json(
       { listings: [], error: "Authentication timeout" },
       { status: 408 }
@@ -122,7 +120,7 @@ async function handleMyListingsRequest(req: Request) {
 
     return NextResponse.json({ listings }, { status: 200 });
   } catch (dbError) {
-    console.error("[v0] Database error:", dbError);
+    console.error("[my-listings] Database error:", dbError);
     return NextResponse.json(
       { listings: [], error: "Failed to load listings" },
       { status: 500 }

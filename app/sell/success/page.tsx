@@ -1,13 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, Suspense } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { CheckCircle, ArrowRight, Home, Eye } from "lucide-react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 
-export default function SellSuccessPage() {
+function SellSuccessContent() {
   const [successMessage, setSuccessMessage] = useState("Your product has been successfully listed!")
   const searchParams = useSearchParams()
   const adId = searchParams.get("id")
@@ -76,5 +76,27 @@ export default function SellSuccessPage() {
         </Card>
       </div>
     </div>
+  )
+}
+
+export default function SellSuccessPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="max-w-md mx-auto px-4">
+          <Card>
+            <CardContent className="p-8 text-center">
+              <div className="animate-pulse">
+                <div className="h-16 w-16 bg-gray-300 rounded-full mx-auto mb-4"></div>
+                <div className="h-6 bg-gray-300 rounded w-3/4 mx-auto mb-2"></div>
+                <div className="h-4 bg-gray-300 rounded w-full mx-auto"></div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    }>
+      <SellSuccessContent />
+    </Suspense>
   )
 }

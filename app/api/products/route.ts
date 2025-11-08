@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import { createServerClient } from "@supabase/ssr"
+import { z } from "zod"
+import { rateLimit } from "@/lib/rate-limit"
 
 type Product = {
   id: string
@@ -78,6 +80,23 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const start = Date.now()
 
+  const identifier =
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    req.headers.get("x-real-ip") ||
+    "unknown"
+  const limit = rateLimit(`products:post:${identifier}`, 5, 60_000)
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Please wait before posting another ad." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": Math.ceil((limit.reset - Date.now()) / 1000).toString(),
+        },
+      },
+    )
+  }
+
   const supabase = getSupabaseServer()
   if (!supabase) {
     return NextResponse.json({ error: "Service unavailable" }, { status: 503 })
@@ -96,33 +115,56 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
 
-    // Validate required fields
-    if (!body.title || !body.category || !body.condition) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    const productSchema = z.object({
+      title: z.string().min(3).max(120),
+      description: z.string().max(5000).optional().default(""),
+      price: z.number().min(0).max(100000000).optional().default(0),
+      condition: z.string().min(2).max(50),
+      location: z.string().max(200).optional().default(""),
+      city: z.string().max(100).optional().default(""),
+      province: z.string().max(100).optional().default(""),
+      images: z.array(z.string().url()).max(10).optional().default([]),
+      category_id: z.number().int().positive().optional().default(1),
+      category: z.string().min(2).max(100),
+      subcategory: z.string().max(100).nullable().optional().default(null),
+      brand: z.string().max(100).nullable().optional().default(null),
+      model: z.string().max(100).nullable().optional().default(null),
+      tags: z.array(z.string().max(40)).max(20).nullable().optional().default(null),
+      features: z.record(z.any()).nullable().optional().default(null),
+      youtube_url: z.string().url().nullable().optional().default(null),
+      website_url: z.string().url().nullable().optional().default(null),
+      show_mobile_number: z.boolean().optional().default(true),
+    })
+
+    const parsed = productSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid request", details: parsed.error.flatten() }, { status: 400 })
     }
+
+    const p = parsed.data
 
     // Prepare product data
     const productData = {
       user_id: user.id,
-      title: body.title.trim(),
-      description: body.description?.trim() || "",
-      price: body.price || 0,
-      condition: body.condition,
-      location: body.location || "",
-      city: body.city || "",
-      province: body.province || "",
-      images: body.images || [],
-      primary_image: body.images?.[0] || null,
-      category_id: body.category_id || 1,
-      category: body.category || "",
-      subcategory: body.subcategory || null,
-      brand: body.brand || null,
-      model: body.model || null,
-      tags: body.tags || null,
-      features: body.features || null,
-      youtube_url: body.youtube_url || null,
-      website_url: body.website_url || null,
-      show_mobile_number: body.show_mobile_number ?? true,
+      title: p.title.trim(),
+      description: p.description.trim(),
+      price: p.price,
+      condition: p.condition,
+      location: p.location,
+      city: p.city,
+      province: p.province,
+      images: p.images,
+      primary_image: p.images[0] || null,
+      category_id: p.category_id,
+      category: p.category,
+      subcategory: p.subcategory,
+      brand: p.brand,
+      model: p.model,
+      tags: p.tags,
+      features: p.features,
+      youtube_url: p.youtube_url,
+      website_url: p.website_url,
+      show_mobile_number: p.show_mobile_number,
       status: "active",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),

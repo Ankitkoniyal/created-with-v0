@@ -14,6 +14,7 @@ import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
 import Image from "next/image"
 import { getOptimizedImageUrl } from "@/lib/images"
+import { toast } from "sonner"
 
 interface Product {
   id: string
@@ -27,13 +28,18 @@ interface Product {
   user_id: string
 }
 
+interface ProductWithMessages extends Product {
+  messageCount: number
+}
+
 export function MyListings() {
   const { user } = useAuth()
   const router = useRouter()
-  const [listings, setListings] = useState<Product[]>([])
+  const [listings, setListings] = useState<ProductWithMessages[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [accountStatus, setAccountStatus] = useState("active")
 
   useEffect(() => {
     const fetchUserListings = async () => {
@@ -44,9 +50,27 @@ export function MyListings() {
       
       try {
         const supabase = createClient()
-        const { data, error } = await supabase
+        
+        // Check account status
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("status, account_status")
+          .eq("id", user.id)
+          .maybeSingle()
+
+        if (!profileError) {
+          const status = profile?.status || (profile as any)?.account_status
+          if (status) {
+            setAccountStatus(status)
+          }
+        } else if (profileError.code !== "42703") {
+          console.warn("[dashboard] profiles status fetch failed:", profileError.message)
+        }
+
+        // Fetch user's products
+        const { data: products, error } = await supabase
           .from("products")
-          .select("*")
+          .select("id,title,price,status,views,images,primary_image,category,created_at,user_id")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
 
@@ -54,7 +78,28 @@ export function MyListings() {
           console.error("Error fetching listings:", error)
           setListings([])
         } else {
-          setListings(data || [])
+          // Fetch message counts for each product
+          const productsWithMessages = await Promise.all(
+            (products || []).map(async (product) => {
+              const { count, error: messageError } = await supabase
+                .from("messages")
+                .select("*", { count: "exact", head: true })
+                .eq("product_id", product.id)
+                .eq("receiver_id", user.id)
+
+              return {
+                ...product,
+                images: Array.isArray(product.images) && product.images.length > 0
+                  ? product.images
+                  : product.primary_image
+                  ? [product.primary_image]
+                  : [],
+                messageCount: messageError ? 0 : count || 0,
+              }
+            })
+          )
+
+          setListings(productsWithMessages)
         }
       } catch (err) {
         console.error("Error fetching listings:", err)
@@ -65,6 +110,28 @@ export function MyListings() {
     }
 
     fetchUserListings()
+
+    // Real-time subscription for message updates
+    const supabase = createClient()
+    const channel = supabase
+      .channel('my-listings-messages')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'messages',
+          filter: `receiver_id=eq.${user?.id}`
+        }, 
+        () => {
+          fetchUserListings() // Refresh data when messages change
+        }
+      )
+      .subscribe()
+
+    return () => {
+      channel.unsubscribe().catch(() => {})
+      supabase.removeChannel(channel)
+    }
   }, [user])
 
   const filteredListings = listings.filter((listing) => {
@@ -87,11 +154,16 @@ export function MyListings() {
   }
 
   const handleEditAd = (id: string) => {
+    if (accountStatus === "deactivated") {
+      toast.error("Your account is deactivated. Please reactivate it to edit ads.")
+      return
+    }
     router.push(`/sell?edit=${id}`)
   }
 
   const handleDeleteAd = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this ad?")) return
+    const confirmDelete = window.confirm("Are you sure you want to delete this ad? This action cannot be undone.")
+    if (!confirmDelete) return
 
     try {
       const supabase = createClient()
@@ -99,14 +171,14 @@ export function MyListings() {
 
       if (error) {
         console.error("Error deleting ad:", error)
-        alert("Failed to delete ad")
+        toast.error("Failed to delete ad")
       } else {
         setListings((prev) => prev.filter((listing) => listing.id !== id))
-        alert("Ad deleted successfully")
+        toast.success("Ad deleted successfully")
       }
     } catch (error) {
       console.error("Error:", error)
-      alert("Failed to delete ad")
+      toast.error("Failed to delete ad")
     }
   }
 
@@ -117,14 +189,14 @@ export function MyListings() {
 
       if (error) {
         console.error("Error updating ad:", error)
-        alert("Failed to update ad")
+        toast.error("Failed to update ad")
       } else {
         setListings((prev) => prev.map((listing) => (listing.id === id ? { ...listing, status: "sold" } : listing)))
-        alert("Ad marked as sold")
+        toast.success("Ad marked as sold")
       }
     } catch (error) {
       console.error("Error:", error)
-      alert("Failed to update ad")
+      toast.error("Failed to update ad")
     }
   }
 
@@ -139,14 +211,14 @@ export function MyListings() {
 
       if (error) {
         console.error("Error updating ad:", error)
-        alert("Failed to update ad")
+        toast.error("Failed to update ad")
       } else {
         setListings((prev) => prev.map((listing) => (listing.id === id ? { ...listing, status: "active" } : listing)))
-        alert("Ad marked as active")
+        toast.success("Ad marked as active")
       }
     } catch (error) {
       console.error("Error:", error)
-      alert("Failed to update ad")
+      toast.error("Failed to update ad")
     }
   }
 
@@ -165,6 +237,35 @@ export function MyListings() {
 
   return (
     <div className="space-y-6">
+      {accountStatus === "deactivated" && (
+        <div className="bg-red-100 border border-red-300 rounded-lg p-4">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-600" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">Account Deactivated</h3>
+              <div className="mt-2 text-sm text-red-700">
+                <p>Your account is currently deactivated. You cannot post new ads until you reactivate your account.</p>
+              </div>
+              <div className="mt-4">
+                <div className="-mx-2 -my-1.5 flex">
+                  <Button
+                    variant="outline"
+                    className="bg-red-100 text-red-800 hover:bg-red-200 border-red-300"
+                    asChild
+                  >
+                    <Link href="/dashboard/settings">Reactivate Account</Link>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header Actions */}
       <div className="flex flex-col sm:flex-row gap-4 justify-between">
         <div className="flex flex-col sm:flex-row gap-4">
@@ -189,7 +290,7 @@ export function MyListings() {
             </SelectContent>
           </Select>
         </div>
-        <Button asChild>
+        <Button asChild disabled={accountStatus === "deactivated"}>
           <Link href="/sell">
             <Plus className="h-4 w-4 mr-2" />
             Post New Ad
@@ -224,7 +325,7 @@ export function MyListings() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleEditAd(listing.id)}>
+                    <DropdownMenuItem onClick={() => handleEditAd(listing.id)} disabled={accountStatus === "deactivated"}>
                       <Edit className="h-4 w-4 mr-2" />
                       Edit Ad
                     </DropdownMenuItem>
@@ -267,12 +368,13 @@ export function MyListings() {
                     {listing.views || 0}
                   </div>
                   <div className="flex items-center">
-                    <MessageSquare className="h-4 w-4 mr-1" />0
+                    <MessageSquare className="h-4 w-4 mr-1" />
+                    {listing.messageCount}
                   </div>
                 </div>
 
                 <div className="flex space-x-2">
-                  <Button size="sm" variant="outline" onClick={() => handleEditAd(listing.id)}>
+                  <Button size="sm" variant="outline" onClick={() => handleEditAd(listing.id)} disabled={accountStatus === "deactivated"}>
                     <Edit className="h-4 w-4" />
                   </Button>
                   <Button size="sm" variant="outline" asChild>
@@ -302,7 +404,7 @@ export function MyListings() {
                 ? "Try adjusting your search or filter criteria"
                 : "You haven't created any listings yet"}
             </p>
-            <Button asChild>
+            <Button asChild disabled={accountStatus === "deactivated"}>
               <Link href="/sell">Post Your First Ad</Link>
             </Button>
           </CardContent>

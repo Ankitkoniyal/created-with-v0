@@ -5,7 +5,15 @@ export async function POST(req: Request) {
   const res = NextResponse.json({ ok: true })
   try {
     // createServerClient refreshes cookies if a valid client session is present on the request
-    createServerClient(process.env.SUPABASE_URL || "", process.env.SUPABASE_ANON_KEY || "", {
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseAnon = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+    if (!supabaseUrl || !supabaseAnon) {
+      console.warn("[auth/sync] Supabase env missing; skipping session refresh")
+      return res
+    }
+
+    createServerClient(supabaseUrl, supabaseAnon, {
       cookies: {
         get(name: string) {
           return (

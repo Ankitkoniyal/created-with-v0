@@ -7,18 +7,20 @@ export async function GET() {
 
     // Check database connectivity
     const supabase = createClient()
-    const { data, error } = await supabase.from("products").select("count").limit(1).single()
+    const { error: dbError } = await supabase
+      .from("products")
+      .select("id", { count: "exact", head: true })
 
     const dbResponseTime = Date.now() - startTime
 
-    if (error) {
+    if (dbError) {
       return NextResponse.json(
         {
           status: "unhealthy",
           timestamp: new Date().toISOString(),
           uptime: process.uptime(),
           checks: {
-            database: { status: "fail", error: error.message, responseTime: dbResponseTime },
+            database: { status: "fail", error: dbError.message, responseTime: dbResponseTime },
             memory: {
               used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
               total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),

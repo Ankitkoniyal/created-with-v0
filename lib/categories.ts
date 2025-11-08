@@ -1,227 +1,208 @@
+// lib/categories.ts - COMPLETE FIXED VERSION
 export interface CategoryData {
   name: string
   subcategories: string[]
   filters: Record<string, string[]>
 }
 
-export const UNIFIED_CATEGORIES: CategoryData[] = [
-  {
-    name: "Vehicles",
-    subcategories: [
-      "Cars",
-      "Motorcycles",
-      "Trucks",
-      "Buses",
-      "Bicycles",
-      "Scooters",
-      "Boats",
-      "RVs",
-      "ATVs",
-      "Parts & Accessories",
-    ],
-    filters: {
-      "Vehicle Type": ["Car", "Truck", "SUV", "Motorcycle", "Van", "Bus", "Bicycle", "Scooter", "Boat", "RV", "ATV"],
-      "Fuel Type": ["Petrol", "Diesel", "Electric", "Hybrid", "CNG"],
-      Transmission: ["Manual", "Automatic", "CVT"],
-      Condition: ["New", "Used", "Certified Pre-Owned"],
-      Year: ["2024", "2023", "2022", "2021", "2020", "2019", "2018", "Older"],
-    },
-  },
-  {
-    name: "Electronics",
-    subcategories: [
-      "TV",
-      "Fridge",
-      "Oven",
-      "AC",
-      "Cooler",
-      "Toaster",
-      "Fan",
-      "Washing Machine",
-      "Microwave",
-      "Computer",
-      "Laptop",
-      "Camera",
-      "Audio System",
-    ],
-    filters: {
-      Brand: ["Apple", "Samsung", "Sony", "LG", "Dell", "HP", "Lenovo", "Asus", "Acer", "MSI"],
-      Type: ["Desktop", "Laptop", "Tablet", "TV", "Camera", "Audio", "Home Appliance"],
-      Condition: ["New", "Used", "Refurbished", "Open Box"],
-      "Screen Size": ['Under 15"', '15-17"', '17-20"', '20-24"', '24-27"', '27-32"', '32"+'],
-    },
-  },
-  {
-    name: "Mobile",
-    subcategories: [
-      "Smartphones",
-      "Tablets",
-      "Accessories",
-      "Cases & Covers",
-      "Chargers",
-      "Headphones",
-      "Smart Watches",
-      "Power Banks",
-    ],
-    filters: {
-      Brand: ["Apple", "Samsung", "Google", "OnePlus", "Xiaomi", "Huawei", "Oppo", "Vivo"],
-      Storage: ["32GB", "64GB", "128GB", "256GB", "512GB", "1TB"],
-      Condition: ["New", "Used", "Refurbished"],
-      Network: ["Unlocked", "Rogers", "Bell", "Telus", "Freedom", "Fido"],
-    },
-  },
-  {
-    name: "Real Estate",
-    subcategories: [
-      "Houses",
-      "Apartments",
-      "Commercial",
-      "Land",
-      "Rental",
-      "Vacation Rentals",
-      "Office Space",
-      "Warehouse",
-    ],
-    filters: {
-      "Property Type": ["House", "Apartment", "Condo", "Townhouse", "Villa", "Commercial", "Land"],
-      Bedrooms: ["Studio", "1 Bedroom", "2 Bedrooms", "3 Bedrooms", "4 Bedrooms", "5+ Bedrooms"],
-      Bathrooms: ["1 Bathroom", "1.5 Bathrooms", "2 Bathrooms", "2.5 Bathrooms", "3+ Bathrooms"],
-      Furnishing: ["Furnished", "Semi-Furnished", "Unfurnished"],
-      Parking: ["No Parking", "1 Space", "2 Spaces", "3+ Spaces"],
-    },
-  },
-  {
-    name: "Fashion",
-    subcategories: [
-      "Men's Clothing",
-      "Women's Clothing",
-      "Kids Clothing",
-      "Shoes",
-      "Bags",
-      "Jewelry",
-      "Watches",
-      "Accessories",
-    ],
-    filters: {
-      Gender: ["Men", "Women", "Kids", "Unisex"],
-      Size: ["XS", "S", "M", "L", "XL", "XXL", "XXXL"],
-      Condition: ["New with Tags", "New without Tags", "Used - Excellent", "Used - Good", "Used - Fair"],
-      Brand: ["Nike", "Adidas", "Zara", "H&M", "Uniqlo", "Levi's", "Calvin Klein", "Tommy Hilfiger"],
-    },
-  },
-  {
-    name: "Pets",
-    subcategories: ["Dogs", "Cats", "Birds", "Fish", "Pet Food", "Pet Accessories", "Pet Care", "Pet Services"],
-    filters: {
-      "Pet Type": ["Dog", "Cat", "Bird", "Fish", "Rabbit", "Hamster", "Guinea Pig", "Reptile"],
-      Age: ["Puppy/Kitten", "Young", "Adult", "Senior"],
-      Size: ["Small", "Medium", "Large", "Extra Large"],
-      Breed: ["Mixed", "Purebred"],
-      Gender: ["Male", "Female"],
-    },
-  },
-  {
-    name: "Furniture",
-    subcategories: ["Sofa", "Bed", "Table", "Chair", "Wardrobe", "Desk", "Cabinet", "Dining Set", "Home Decor"],
-    filters: {
-      Room: ["Living Room", "Bedroom", "Dining Room", "Office", "Kitchen", "Bathroom", "Outdoor"],
-      Material: ["Wood", "Metal", "Plastic", "Glass", "Fabric", "Leather"],
-      Condition: ["New", "Like New", "Good", "Fair", "Needs Repair"],
-      Style: ["Modern", "Traditional", "Contemporary", "Vintage", "Industrial", "Scandinavian"],
-    },
-  },
-  {
-    name: "Jobs",
-    subcategories: ["Full Time", "Part Time", "Freelance", "Internship", "Remote Work", "Contract", "Temporary"],
-    filters: {
-      "Job Type": ["Full Time", "Part Time", "Contract", "Freelance", "Internship", "Temporary"],
-      "Experience Level": ["Entry Level", "Mid Level", "Senior Level", "Executive"],
-      Industry: ["IT", "Healthcare", "Finance", "Education", "Retail", "Manufacturing", "Construction"],
-      "Salary Range": ["Under $30k", "$30k-$50k", "$50k-$70k", "$70k-$100k", "$100k+"],
-    },
-  },
-  {
-    name: "Gaming",
-    subcategories: ["Video Games", "Consoles", "PC Gaming", "Mobile Games", "Gaming Accessories", "Board Games"],
-    filters: {
-      Platform: ["PlayStation", "Xbox", "Nintendo", "PC", "Mobile", "VR"],
-      Genre: ["Action", "Adventure", "RPG", "Sports", "Racing", "Strategy", "Puzzle"],
-      Condition: ["New", "Used", "Digital"],
-      "Age Rating": ["Everyone", "Teen", "Mature", "Adults Only"],
-    },
-  },
-  {
-    name: "Books",
-    subcategories: ["Fiction", "Non-Fiction", "Educational", "Comics", "Magazines", "E-books", "Audiobooks"],
-    filters: {
-      Format: ["Hardcover", "Paperback", "E-book", "Audiobook"],
-      Genre: ["Fiction", "Non-Fiction", "Biography", "History", "Science", "Self-Help", "Romance"],
-      Condition: ["New", "Like New", "Good", "Fair", "Poor"],
-      Language: ["English", "French", "Spanish", "Other"],
-    },
-  },
-  {
-    name: "Services",
-    subcategories: [
-      "Home Services",
-      "Repair",
-      "Cleaning",
-      "Tutoring",
-      "Photography",
-      "Event Planning",
-      "Transportation",
-    ],
-    filters: {
-      "Service Type": ["Home Services", "Professional Services", "Personal Services", "Business Services"],
-      Availability: ["Weekdays", "Weekends", "Evenings", "24/7"],
-      Experience: ["Beginner", "Intermediate", "Expert", "Professional"],
-      Location: ["At Your Location", "At My Location", "Online", "Flexible"],
-    },
-  },
-  {
-    name: "Other",
-    subcategories: [
-      "Sports Equipment",
-      "Musical Instruments",
-      "Art & Crafts",
-      "Collectibles",
-      "Tools",
-      "Garden",
-      "Baby Items",
-    ],
-    filters: {
-      Category: ["Sports", "Music", "Art", "Tools", "Garden", "Baby", "Collectibles"],
-      Condition: ["New", "Used", "Vintage", "Antique"],
-      "Age Group": ["Baby", "Kids", "Teen", "Adult", "Senior"],
-      "Indoor/Outdoor": ["Indoor", "Outdoor", "Both"],
-    },
-  },
-]
+export const CATEGORIES = [
+  "Vehicles",
+  "Electronics", 
+  "Mobile",
+  "Real Estate",
+  "Fashion & Beauty",
+  "Pets & Animals",
+  "Furniture",
+  "Services",
+  "Sports", 
+  "Books & Education",
+  "Home Appliances",
+  "Free Stuff"
+] as const
 
-// Helper functions for easy access
+export const SUBCATEGORY_MAPPINGS: { [key: string]: string[] } = {
+  "Vehicles": [
+    "Cars", "Trucks", "Classic Cars", "Auto Parts", "Trailers", 
+    "Scooters", "Bicycles", "Motorcycles"
+  ],
+  "Electronics": [
+    "Tablets", "Laptops", "Headphones", "Computers", "Cameras", "TV & Audio"
+  ],
+  "Mobile": [
+    "Mobile Accessories", "Android Phones", "iPhones"
+  ],
+  "Real Estate": [
+    "Roommates", "For Rent", "For Sale", "Land"
+  ],
+  "Fashion & Beauty": [
+    "Shoes", "Accessories", "Women Clothing", "Men Clothing"
+  ],
+  "Pets & Animals": [
+    "Cats", "Birds", "Other Pets", "Dogs", "Pet Supplies"
+  ],
+  "Furniture": [
+    "Beds & Mattresses", "Book Shelves", "Chairs & Recliners", "Coffee Tables",
+    "Sofa & Couches", "Dining Tables", "Wardrobes", "TV Tables"
+  ],
+  "Services": [
+    "Nanny & Childcare", "Cleaners", "Financial & Legal", "Personal Trainer",
+    "Food & Catering", "Health & Beauty", "Moving & Storage", "Music Lessons",
+    "Photography & Video", "Skilled Trades", "Tutors & Languages", "Wedding"
+  ],
+  "Sports": [
+    "Exercise Equipment", "Sportswear", "Outdoor Gear"
+  ],
+  "Books & Education": [
+    "Fiction", "Textbooks", "Children Books", "Non-Fiction"
+  ],
+  "Home Appliances": [
+    "Coffee Makers", "Cookers", "Dishwashers", "Heaters", "Irons", 
+    "Microwaves", "Juicers & Blenders", "Refrigerators & Freezers", 
+    "Gas Stoves", "Ovens", "Toasters", "Vacuums"
+  ],
+  "Free Stuff": [
+    "Lost & Found", "Miscellaneous"
+  ]
+}
+
+// COMPLETE MAPPING: Human-readable names to database slugs
+export const SUBCATEGORY_TO_SLUG: { [key: string]: string } = {
+  // Real Estate
+  "Roommates": "roommates",
+  "For Rent": "for-rent", 
+  "For Sale": "for-sale",
+  "Land": "land",
+  
+  // Electronics
+  "Cameras": "cameras",
+  "Tablets": "tablets", 
+  "Laptops": "laptops",
+  "Headphones": "headphones",
+  "Computers": "computers",
+  "TV & Audio": "tv-audio",
+  "Other Electronics": "other-electronics",
+  
+  // Vehicles
+  "Cars": "cars",
+  "Trucks": "trucks",
+  "Classic Cars": "classic-cars",
+  "Auto Parts": "auto-parts",
+  "Trailers": "trailers",
+  "Scooters": "scooters",
+  "Bicycles": "bicycles",
+  "Motorcycles": "motorcycles",
+  
+  // Mobile
+  "Mobile Accessories": "mobile-accessories",
+  "Android Phones": "android-phones",
+  "iPhones": "iphones",
+  
+  // Fashion & Beauty
+  "Shoes": "shoes",
+  "Accessories": "accessories",
+  "Women Clothing": "women-clothing",
+  "Men Clothing": "men-clothing",
+  
+  // Pets & Animals
+  "Cats": "cats",
+  "Birds": "birds",
+  "Other Pets": "other-pets",
+  "Dogs": "dogs",
+  "Pet Supplies": "pet-supplies",
+  
+  // Furniture
+  "Beds & Mattresses": "beds-mattresses",
+  "Book Shelves": "book-shelves",
+  "Chairs & Recliners": "chairs-recliners",
+  "Coffee Tables": "coffee-tables",
+  "Sofa & Couches": "sofa-couches",
+  "Dining Tables": "dining-tables",
+  "Wardrobes": "wardrobes",
+  "TV Tables": "tv-tables",
+  
+  // Services
+  "Nanny & Childcare": "nanny-childcare",
+  "Cleaners": "cleaners",
+  "Financial & Legal": "financial-legal",
+  "Personal Trainer": "personal-trainer",
+  "Food & Catering": "food-catering",
+  "Health & Beauty": "health-beauty",
+  "Moving & Storage": "moving-storage",
+  "Music Lessons": "music-lessons",
+  "Photography & Video": "photography-video",
+  "Skilled Trades": "skilled-trades",
+  "Tutors & Languages": "tutors-languages",
+  "Wedding": "wedding",
+  
+  // Sports
+  "Exercise Equipment": "exercise-equipment",
+  "Sportswear": "sportswear",
+  "Outdoor Gear": "outdoor-gear",
+  
+  // Books & Education (align with DB slugs)
+  "Fiction": "fiction-books",
+  "Textbooks": "textbooks",
+  "Children Books": "children-books",
+  "Non-Fiction": "non-fiction-books",
+  
+  // Home Appliances
+  "Coffee Makers": "coffee-makers",
+  "Cookers": "cookers",
+  "Dishwashers": "dishwashers",
+  "Heaters": "heaters",
+  "Irons": "irons",
+  "Microwaves": "microwaves",
+  "Juicers & Blenders": "juicers-blenders",
+  "Refrigerators & Freezers": "refrigerators-freezers",
+  "Gas Stoves": "gas-stoves",
+  "Ovens": "ovens",
+  "Toasters": "toasters",
+  "Vacuums": "vacuums",
+  
+  // Free Stuff
+  "Lost & Found": "lost-found",
+  "Miscellaneous": "miscellaneous"
+}
+
+// Helper functions
 export const getCategoryByName = (name: string): CategoryData | undefined => {
-  return UNIFIED_CATEGORIES.find((cat) => cat.name === name)
+  const subcategories = SUBCATEGORY_MAPPINGS[name] || []
+  return {
+    name,
+    subcategories,
+    filters: {}
+  }
 }
 
 export const getSubcategoriesByCategory = (categoryName: string): string[] => {
-  const category = getCategoryByName(categoryName)
-  return category?.subcategories || []
+  return SUBCATEGORY_MAPPINGS[categoryName] || []
 }
 
-export const getFiltersByCategory = (categoryName: string): Record<string, string[]> => {
-  const category = getCategoryByName(categoryName)
-  return category?.filters || {}
+export const getSubcategorySlug = (subcategory: string): string => {
+  return SUBCATEGORY_TO_SLUG[subcategory] || 
+    subcategory.toLowerCase().replace(/\s+/g, '-').replace(/&/g, 'and')
 }
 
-export const getAllCategoryNames = (): string[] => {
-  return UNIFIED_CATEGORIES.map((cat) => cat.name)
+export const getSubcategoryDisplayName = (slug: string): string => {
+  const entry = Object.entries(SUBCATEGORY_TO_SLUG).find(
+    ([displayName, dbSlug]) => dbSlug === slug
+  )
+  return entry ? entry[0] : formatDisplayName(slug)
 }
 
-// Create mapping for database queries
-export const getCategoryMapping = (): Record<string, string[]> => {
-  const mapping: Record<string, string[]> = {}
-  UNIFIED_CATEGORIES.forEach((category) => {
-    mapping[category.name] = category.subcategories
-  })
-  return mapping
+const formatDisplayName = (slug: string): string => {
+  return slug
+    .split('-')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
+export const isValidCategory = (category: string): boolean => {
+  return CATEGORIES.includes(category as any)
+}
+
+export const isValidSubcategory = (category: string, subcategory: string): boolean => {
+  const subcategories = SUBCATEGORY_MAPPINGS[category] || []
+  const subcategorySlugs = subcategories.map(getSubcategorySlug)
+  return subcategorySlugs.includes(subcategory)
 }

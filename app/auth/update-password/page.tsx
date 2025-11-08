@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { createBrowserClient } from "@supabase/ssr"
+import { createClient } from "@/lib/supabase/client"
 
 export default function UpdatePasswordPage() {
   const router = useRouter()
@@ -20,14 +20,7 @@ export default function UpdatePasswordPage() {
     // If Supabase sent us a ?code=… recovery link, exchange it for a session
     const code = params?.get("code")
     async function bootstrap() {
-      const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL ||
-          (typeof window !== "undefined" && (window as any).__supabase?.url) ||
-          "",
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-          (typeof window !== "undefined" && (window as any).__supabase?.anonKey) ||
-          "",
-      )
+      const supabase = createClient()
       try {
         if (code) {
           const { error } = await supabase.auth.exchangeCodeForSession(code)
@@ -59,14 +52,7 @@ export default function UpdatePasswordPage() {
         return
       }
 
-      const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL ||
-          (typeof window !== "undefined" && (window as any).__supabase?.url) ||
-          "",
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-          (typeof window !== "undefined" && (window as any).__supabase?.anonKey) ||
-          "",
-      )
+      const supabase = createClient()
 
       const { error: updErr } = await supabase.auth.updateUser({ password })
       if (updErr) {

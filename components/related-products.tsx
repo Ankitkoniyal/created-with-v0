@@ -1,72 +1,96 @@
-// File: components/related-products.tsx
+// components/related-products.tsx
 "use client"
 
-import { useEffect, useState } from "react"
-import Link from "next/link"
-import Image from "next/image"
-import { getSupabaseClient } from "@/lib/supabase/client"
-
-interface RelatedProduct {
-  id: string
-  title: string
-  price: number
-  images: string[]
-}
+import { useState, useEffect } from 'react'
+import { ProductGrid } from './product-grid'
+import { createClient } from '@/lib/supabase/client'
 
 interface RelatedProductsProps {
-  category: string
   currentProductId: string
+  category: string
+  subcategory?: string | null
 }
 
-export function RelatedProducts({ category, currentProductId }: RelatedProductsProps) {
-  const [products, setProducts] = useState<RelatedProduct[]>([])
+export function RelatedProducts({ currentProductId, category, subcategory }: RelatedProductsProps) {
+  const [relatedProducts, setRelatedProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function fetchRelatedProducts() {
+      const supabase = createClient()
+      
       try {
-        const supabase = await getSupabaseClient()
-        if (!supabase) {
-          console.error("Supabase client not available")
-          setLoading(false)
+        // First get the current product to ensure we have correct data
+        const { data: currentProduct, error: currentError } = await supabase
+          .from('products')
+          .select('id, category, subcategory, title')
+          .eq('id', currentProductId)
+          .single()
+
+        if (currentError) {
+          console.error("Error fetching current product:", currentError)
           return
         }
 
-        const { data, error } = await supabase
-          .from("products")
-          .select("id, title, price, images")
-          .eq("category", category)
-          .neq("id", currentProductId)
-          .limit(8) // fetch 8 products to show 2 rows of 4
+        // Build query for related products
+        let query = supabase
+          .from('products')
+          .select('*')
+          .neq('id', currentProductId)
+          .eq('status', 'active')
+          .limit(8)
 
-          .limit(8) // fetch more since we show 4 per row
+        // Prioritize same subcategory, then same category
+        if (currentProduct.subcategory) {
+          query = query.eq('subcategory', currentProduct.subcategory)
+        } else {
+          query = query.eq('category', currentProduct.category)
+        }
 
+        const { data: products, error } = await query
 
         if (error) {
           console.error("Error fetching related products:", error)
-        } else {
-          setProducts(data || [])
+          return
         }
+
+        // If no products found in same subcategory/category, get any products from same category
+        if (!products || products.length === 0) {
+          const { data: fallbackProducts, error: fallbackError } = await supabase
+            .from('products')
+            .select('*')
+            .neq('id', currentProductId)
+            .eq('category', currentProduct.category)
+            .eq('status', 'active')
+            .limit(8)
+
+          if (!fallbackError) {
+            setRelatedProducts(fallbackProducts || [])
+          }
+        } else {
+          setRelatedProducts(products)
+        }
+
       } catch (error) {
-        console.error("Error in fetchRelatedProducts:", error)
+        console.error("Unexpected error fetching related products:", error)
       } finally {
         setLoading(false)
       }
     }
 
     fetchRelatedProducts()
-  }, [category, currentProductId])
+  }, [currentProductId, category, subcategory])
 
   if (loading) {
     return (
       <div className="mt-12">
         <h2 className="text-2xl font-bold mb-6">Related Products</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="animate-pulse">
-              <div className="bg-gray-200 h-48 rounded-lg"></div>
-              <div className="h-4 bg-gray-200 rounded mt-2"></div>
-              <div className="h-4 bg-gray-200 rounded mt-1 w-3/4"></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="animate-pulse">
+              <div className="bg-gray-200 h-48 rounded-lg mb-4"></div>
+              <div className="bg-gray-200 h-4 rounded mb-2"></div>
+              <div className="bg-gray-200 h-4 rounded w-3/4"></div>
             </div>
           ))}
         </div>
@@ -74,36 +98,14 @@ export function RelatedProducts({ category, currentProductId }: RelatedProductsP
     )
   }
 
-  if (products.length === 0) {
+  if (relatedProducts.length === 0) {
     return null
   }
 
   return (
-
     <div className="mt-12">
       <h2 className="text-2xl font-bold mb-6">Related Products</h2>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {products.map((product) => (
-          <Link
-            key={product.id}
-            href={`/product/${product.id}`}
-            className="group block overflow-hidden rounded-lg border border-gray-200 hover:shadow-md transition-shadow"
-          >
-            <div className="relative aspect-square overflow-hidden">
-              <Image
-                src={product.images[0] || "/placeholder-product.jpg"}
-                alt={product.title}
-                fill
-                className="object-cover group-hover:scale-105 transition-transform"
-              />
-            </div>
-            <div className="p-3">
-              <h3 className="font-medium text-sm line-clamp-2">{product.title}</h3>
-              <p className="text-lg font-bold mt-1">${product.price}</p>
-            </div>
-          </Link>
-        ))}
-      </div>
+      <ProductGrid products={relatedProducts} />
     </div>
   )
 }

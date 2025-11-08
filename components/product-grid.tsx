@@ -1,3 +1,4 @@
+// components/product-grid.tsx - FIXED WITH SELLER NAMES
 "use client"
 
 import type React from "react"
@@ -10,6 +11,7 @@ import Image from "next/image"
 import { LoadingSkeleton } from "@/components/loading-skeleton"
 import { getOptimizedImageUrl } from "@/lib/images"
 import { createClient } from "@/lib/supabase/client"
+import { useSearchParams, usePathname } from "next/navigation"
 
 interface Product {
   id: string
@@ -33,49 +35,136 @@ interface Product {
     id: string
     full_name: string
     avatar_url?: string
-    rating?: number
+  }
+}
+
+interface ProductGridProps {
+  products?: Product[]
+  searchQuery?: string
+  filters?: {
+    category?: string
+    subcategory?: string
+    condition?: string
+    minPrice?: string
+    maxPrice?: string
+    sortBy?: string
   }
 }
 
 const PRODUCTS_PER_PAGE = 20
 
-export function ProductGrid({ products: overrideProducts }: { products?: Product[] }) {
+export function ProductGrid({ products: overrideProducts, searchQuery, filters }: ProductGridProps) {
+  const searchParams = useSearchParams()
+  const pathname = usePathname()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
-  const [shouldFetch, setShouldFetch] = useState(false)
 
+  const locationFilter = searchParams.get("location") || ""
   const hasOverride = Array.isArray(overrideProducts)
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const p = window.location.pathname
-      const allow =
-        p === "/" ||
-        p.startsWith("/search") ||
-        p.startsWith("/category") ||
-        p.startsWith("/seller") ||
-        p.startsWith("/product")
-      setShouldFetch(allow)
-    }
-  }, [])
+  
+  const shouldFetch = typeof window !== 'undefined' && (
+    pathname === "/" ||
+    pathname?.startsWith("/search") ||
+    pathname?.startsWith("/category") ||
+    pathname?.startsWith("/seller") ||
+    pathname?.startsWith("/product")
+  )
 
   useEffect(() => {
     async function fetchProducts() {
       try {
+        if (typeof window === 'undefined') {
+          setLoading(false)
+          return
+        }
+
         const supabase = createClient()
         
         if (!supabase) {
-          throw new Error('Supabase client not available. Check your environment variables.')
+          throw new Error('Supabase client not available.')
         }
 
-        const { data, error } = await supabase
+        // FIXED: Include seller data in the query
+        let query = supabase
           .from('products')
-          .select('*')
+          .select(`
+            *,
+            seller:profiles!user_id (
+              id,
+              full_name,
+              avatar_url
+            )
+          `)
           .eq('status', 'active')
-          .order('created_at', { ascending: false })
-          .limit(PRODUCTS_PER_PAGE)
+
+        // Apply search query filter
+        if (searchQuery) {
+          query = query.ilike('title', `%${searchQuery}%`)
+        }
+
+        // Apply category filter
+        if (filters?.category && filters.category !== 'all' && filters.category !== '') {
+          query = query.eq('category', filters.category)
+        }
+
+        // Apply subcategory filter
+        if (filters?.subcategory && filters.subcategory !== 'all' && filters.subcategory !== '') {
+          query = query.eq('subcategory', filters.subcategory)
+        }
+
+        // Apply condition filter
+        if (filters?.condition && filters.condition !== 'all') {
+          query = query.eq('condition', filters.condition)
+        }
+
+        // Apply price filters
+        if (filters?.minPrice) {
+          query = query.gte('price', parseInt(filters.minPrice))
+        }
+        if (filters?.maxPrice) {
+          query = query.lte('price', parseInt(filters.maxPrice))
+        }
+
+        // Apply location filter
+        if (locationFilter) {
+          const locationQuery = locationFilter.toLowerCase()
+          
+          if (locationQuery.includes(",")) {
+            const [cityPart, provincePart] = locationQuery.split(",").map(s => s.trim())
+            
+            if (cityPart && provincePart) {
+              query = query.ilike("city", `%${cityPart}%`).ilike("province", `%${provincePart}%`)
+            } else if (cityPart) {
+              query = query.ilike("city", `%${cityPart}%`)
+            }
+          } else {
+            query = query.or(`city.ilike.%${locationQuery}%,province.ilike.%${locationQuery}%`)
+          }
+        }
+
+        // Apply sorting
+        if (filters?.sortBy) {
+          switch (filters.sortBy) {
+            case 'price-low':
+              query = query.order('price', { ascending: true })
+              break
+            case 'price-high':
+              query = query.order('price', { ascending: false })
+              break
+            case 'newest':
+            default:
+              query = query.order('created_at', { ascending: false })
+              break
+          }
+        } else {
+          query = query.order('created_at', { ascending: false })
+        }
+
+        query = query.limit(PRODUCTS_PER_PAGE)
+
+        const { data, error } = await query
 
         if (error) {
           throw error
@@ -84,7 +173,6 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
         setProducts(data || [])
       } catch (err: any) {
         setError(err.message || 'An unknown error occurred')
-        console.error('Error fetching products:', err)
       } finally {
         setLoading(false)
       }
@@ -98,7 +186,7 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     } else {
       setLoading(false)
     }
-  }, [hasOverride, overrideProducts, shouldFetch])
+  }, [hasOverride, overrideProducts, shouldFetch, locationFilter, searchQuery, filters])
 
   const toggleFavorite = (productId: string, e?: React.MouseEvent) => {
     if (e) {
@@ -138,6 +226,26 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
     return posted.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
 
+  // Allow unregistered users to view seller ads
+  const handleSellerClick = (e: React.MouseEvent, sellerId: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    // Allow anyone to view seller ads without login
+    window.location.href = `/seller/${sellerId}`
+  }
+
+  if (typeof window === 'undefined') {
+    return (
+      <section className="py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
+            <LoadingSkeleton type="card" count={10} />
+          </div>
+        </div>
+      </section>
+    )
+  }
+
   if (!hasOverride && !shouldFetch) {
     return null
   }
@@ -175,11 +283,27 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
       <section className="py-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center py-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Ads Found</h3>
-            <p className="text-gray-600 mb-4 text-sm">Be the first to post an ad in your area!</p>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              {searchQuery ? `No results for "${searchQuery}"` : "No Ads Found"}
+            </h3>
+            <p className="text-gray-600 mb-4 text-sm">
+              {searchQuery 
+                ? "Try different keywords or remove some filters."
+                : "Be the first to post an ad in your area!"
+              }
+            </p>
             <Button asChild className="bg-green-900 hover:bg-green-950 text-xs h-8">
               <Link href="/post">Post Your First Ad</Link>
             </Button>
+            {searchQuery && (
+              <Button 
+                variant="outline" 
+                className="ml-2 text-xs h-8"
+                onClick={() => window.location.href = '/search'}
+              >
+                Clear Search
+              </Button>
+            )}
           </div>
         </div>
       </section>
@@ -187,99 +311,100 @@ export function ProductGrid({ products: overrideProducts }: { products?: Product
   }
 
   return (
-    <section className="py-4">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-4">
-        {/* Main products grid */}
-        <div className="flex-1">
-          <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
-            {products.map((product) => {
-              const primaryImage = product.images?.[0] || "/diverse-products-still-life.png"
-              const optimizedPrimary = getOptimizedImageUrl(primaryImage, "thumb") || primaryImage
-              const provinceOrLocation = product.province || product.location || ""
+    <section className="py-4 bg-white relative z-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-col lg:flex-row gap-4">
+          <div className="flex-1">
+            <div className="mb-4 text-sm text-gray-600">
+              Found {products.length} {products.length === 1 ? 'result' : 'results'}
+              {searchQuery && ` for "${searchQuery}"`}
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-x-4 gap-y-6">
+              {products.map((product) => {
+                const primaryImage = product.images?.[0] || "/diverse-products-still-life.png"
+                const optimizedPrimary = getOptimizedImageUrl(primaryImage, "thumb") || primaryImage
 
-              return (
-                <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
-                  <Card className="h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-sm">
-                    <CardContent className="p-0 flex flex-col h-full">
-                      {/* Image Container */}
-                      <div className="relative w-full aspect-square overflow-hidden bg-gray-100">
-                        <Image
-                          src={optimizedPrimary || "/placeholder.svg"}
-                          alt={product.title}
-                          fill
-                          sizes="(max-width: 768px) 50vw, (max-width: 1200px) 20vw"
-                          className="object-cover"
-                          loading="lazy"
-                        />
-                        
-                        {/* Wishlist Button */}
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            toggleFavorite(product.id, e)
-                          }}
-                          className={`absolute top-1 right-1 p-1 rounded ${
-                            favorites.has(product.id) 
-                              ? "text-red-500 bg-white/90" 
-                              : "text-gray-400 bg-white/80"
-                          }`}
-                        >
-                          <Heart 
-                            className={`h-3.5 w-3.5 ${favorites.has(product.id) ? "fill-current" : ""}`} 
+                return (
+                  <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
+                    <Card className="h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-sm hover:shadow-md transition-shadow">
+                      <CardContent className="p-0 flex flex-col h-full">
+                        <div className="relative w-full aspect-square overflow-hidden bg-gray-100">
+                          <Image
+                            src={optimizedPrimary || "/placeholder.svg"}
+                            alt={product.title}
+                            fill
+                            sizes="(max-width: 768px) 50vw, (max-width: 1200px) 20vw"
+                            className="object-cover"
+                            loading="lazy"
+                            onError={(e) => {
+                              e.currentTarget.src = "/placeholder.svg"
+                            }}
                           />
-                        </button>
-                      </div>
-
-                      {/* Product Info */}
-                      <div className="p-2 flex flex-col flex-1">
-                        <h4 className="text-sm font-medium text-gray-900 line-clamp-2 mb-1 leading-tight">
-                          {product.title}
-                        </h4>
-
-                        {/* Price */}
-                        <div className="mb-1">
-                          <span className="text-base font-bold text-gray-900">
-                            {formatPrice(product.price as any, (product as any).price_type)}
-                            {isNegotiable((product as any).price_type) && (
-                              <span className="text-xs font-normal text-gray-600 ml-1">Negotiable</span>
-                            )}
-                          </span>
+                          
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              toggleFavorite(product.id, e)
+                            }}
+                            className={`absolute top-1 right-1 p-1 rounded ${
+                              favorites.has(product.id) 
+                                ? "text-red-500 bg-white/90" 
+                                : "text-gray-400 bg-white/80"
+                            }`}
+                          >
+                            <Heart 
+                              className={`h-3.5 w-3.5 ${favorites.has(product.id) ? "fill-current" : ""}`}
+                            />
+                          </button>
                         </div>
 
-                        <div className="mt-auto flex items-center justify-between text-xs text-gray-500">
-                          <div className="flex items-center gap-1">
-                            <MapPin className="h-3 w-3 flex-shrink-0" />
-                            <span className="truncate max-w-[60px]">
-                              {provinceOrLocation}
+                        <div className="px-2 py-0 flex flex-col flex-1">
+                          <div className="mb-1">
+                            <span className="text-base font-bold text-green-700">
+                              {formatPrice(product.price as any, (product as any).price_type)}
+                              {isNegotiable((product as any).price_type) && (
+                                <span className="text-xs font-normal text-gray-600 ml-1">Negotiable</span>
+                              )}
                             </span>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-3 w-3 flex-shrink-0" />
-                            <span>{formatTimePosted(product.created_at as any)}</span>
+                            
+                          <h4 className="text-sm font-medium text-gray-900 line-clamp-2 mb-1 leading-tight">
+                            {product.title}
+                          </h4>
+
+                            <div className="mt-auto flex items-end justify-between text-xs text-gray-500">
+                            <div className="flex items-center gap-1 min-w-0 pr-1">
+                              <span className="truncate"> 
+                                {product.city}, {product.province}
+                              </span>
+                            </div>
+                            
+                            <div className="flex items-center gap-1 flex-shrink-0"> 
+                              <span>{formatTimePosted(product.created_at as any)}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              )
-            })}
+                      </CardContent>
+                    </Card>
+                  </Link>
+                )
+              })}
+            </div>
           </div>
-        </div>
 
-        {/* Right sidebar for vertical ad */}
-        <div className="hidden lg:block w-64 flex-shrink-0">
-          <div className="sticky top-4">
-            {/* Sidebar Ad with your image */}
-            <div className="border border-gray-200 rounded-md overflow-hidden bg-white">
-              <Image 
-                src="https://gkaeeayfwrgekssmtuzn.supabase.co/storage/v1/object/public/product-images/fe09ea77-0be8-426e-9a88-9b4127f04a3c/side%20image.webp" 
-                alt="Canada's #1 Growing Marketplace" 
-                width={256} 
-                height={600} 
-                className="w-full h-auto object-cover"
-              />
+          <div className="hidden lg:block w-64 flex-shrink-0">
+            <div className="sticky top-4">
+              <div className="border border-gray-200 rounded-md overflow-hidden bg-white">
+                <Image 
+                  src="https://gkaeeayfwrgekssmtuzn.supabase.co/storage/v1/object/public/product-images/fe09ea77-0be8-426e-9a88-9b4127f04a3c/side%20image.webp" 
+                  alt="Canada's #1 Growing Marketplace" 
+                  width={256} 
+                  height={600} 
+                  className="w-full h-auto object-cover"
+                />
+              </div>
             </div>
           </div>
         </div>

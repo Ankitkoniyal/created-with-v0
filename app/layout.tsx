@@ -1,12 +1,8 @@
-import type React from "react"
 import type { Metadata } from "next"
 import { DM_Sans } from "next/font/google"
 import "./globals.css"
-import { AuthProvider } from "@/hooks/use-auth"
-import { Header } from "@/components/header"
-import { Toaster } from "@/components/ui/toaster"
-import { ErrorBoundary } from "@/components/error-boundary"
-import { WebVitalsClient } from "@/components/metrics/web-vitals-client"
+import { ClientLayout } from "./client-layout"
+import { Toaster } from "@/components/ui/toaster" // Import the Toaster
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -18,6 +14,7 @@ export const metadata: Metadata = {
   title: "MarketPlace - Buy & Sell Everything",
   description: "Your trusted marketplace for buying and selling products locally",
   generator: "v0.app",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"),
 }
 
 export default function RootLayout({
@@ -25,46 +22,18 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const publicUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || ""
-  const publicAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || ""
+  const publicUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
+  const publicAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 
   return (
-    <html lang="en">
+    <html lang="en" className={dmSans.variable}>
       <head>
-        <style>{`
-html {
-  font-family: ${dmSans.style.fontFamily};
-  --font-sans: ${dmSans.variable};
-}
-        `}</style>
         {publicUrl && <meta name="supabase-url" content={publicUrl} />}
-        {publicAnon && <meta name="supabase-anon" content={publicAnon} />}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function () {
-                if (typeof window === 'undefined') return;
-                if (!window.__supabase) {
-                  var url = ${JSON.stringify(publicUrl)};
-                  var key = ${JSON.stringify(publicAnon)};
-                  if (url && key) {
-                    window.__supabase = { url: url, key: key };
-                  }
-                }
-              })();
-            `,
-          }}
-        />
+        {publicAnon && <meta name="supabase-anon-key" content={publicAnon} />}
       </head>
-      <body className={dmSans.className}>
-        <ErrorBoundary>
-          <AuthProvider>
-            <Header />
-            {children}
-            <Toaster />
-            <WebVitalsClient />
-          </AuthProvider>
-        </ErrorBoundary>
+      <body className={`${dmSans.className} antialiased`}>
+        <ClientLayout>{children}</ClientLayout>
+        <Toaster /> {/* Add this line - it's essential for toasts to work */}
       </body>
     </html>
   )

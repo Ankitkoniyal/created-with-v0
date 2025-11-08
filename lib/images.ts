@@ -12,25 +12,29 @@ const VARIANTS: Record<Variant, { width: number; height?: number; quality: numbe
 
 export function getOptimizedImageUrl(src: string | undefined | null, variant: Variant = "card"): string {
   if (!src) return "/placeholder.svg"
-  
-  // Safety check for invalid variants
+
   const validVariants: Variant[] = ["thumb", "card", "detail", "avatar", "large"]
   const safeVariant = validVariants.includes(variant) ? variant : "card"
-  
+
   if (!SUPABASE_PUBLIC_PATTERN.test(src)) return src
 
   const v = VARIANTS[safeVariant]
-  const url = new URL(src)
-  const params = url.searchParams
 
-  const already = ["width", "height", "format", "quality", "resize"].some((k) => params.has(k))
-  if (already) return src
+  try {
+    const url = new URL(src)
+    const params = url.searchParams
 
-  params.set("format", "webp")
-  params.set("quality", String(v.quality))
-  params.set("resize", v.resize)
-  params.set("width", String(v.width))
-  if (v.height) params.set("height", String(v.height))
+    const already = ["width", "height", "format", "quality", "resize"].some((k) => params.has(k))
+    if (already) return src
 
-  return url.toString()
+    params.set("format", "webp")
+    params.set("quality", String(v.quality))
+    params.set("resize", v.resize)
+    params.set("width", String(v.width))
+    if (v.height) params.set("height", String(v.height))
+
+    return url.toString()
+  } catch {
+    return src
+  }
 }

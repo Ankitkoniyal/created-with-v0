@@ -3,10 +3,9 @@
 import type React from "react"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
-// If your project exposes a helper, prefer it. Fallback to createBrowserClient.
-import { createBrowserClient } from "@supabase/ssr"
+import { createClient } from "@/lib/supabase/client"
+import { rateLimit } from "@/lib/rate-limit"
 
 export default function ForgotPasswordPage() {
   const router = useRouter()
@@ -23,14 +22,13 @@ export default function ForgotPasswordPage() {
     setError(null)
 
     try {
-      const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL ||
-          (typeof window !== "undefined" && (window as any).__supabase?.url) ||
-          "",
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-          (typeof window !== "undefined" && (window as any).__supabase?.anonKey) ||
-          "",
-      )
+      const limit = rateLimit(`forgot:${email}`, 3, 60_000)
+      if (!limit.allowed) {
+        setError("Too many reset attempts. Please wait a minute before trying again.")
+        return
+      }
+
+      const supabase = createClient()
 
       const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/auth/update-password` : undefined
 
