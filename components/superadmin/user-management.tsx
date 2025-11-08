@@ -1,184 +1,396 @@
-// components/superadmin/super-admin-nav.tsx
-"use client";
+"use client"
 
+import { useState, useEffect, useMemo, useCallback } from "react"
+import { useRouter } from "next/navigation"
+import { toast } from "sonner"
+import { createClient } from "@/lib/supabase/client"
+import { useAuth } from "@/hooks/use-auth"
 import {
-  Crown,
-  Settings,
-  Users,
-  BarChart3,
-  FileText,
-  Search,
-  LogOut,
-  MapPin,
-  Tag,
-  Database,
-  Eye,
-  Clock,
-  Flag,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+  Card, CardHeader, CardTitle, CardContent
+} from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import {
+  Search, Users, Mail, Calendar, Phone, FileText,
+  MoreVertical, Ban, CheckCircle, Eye, Download,
+  RefreshCw, Trash2, Shield, Loader2, AlertTriangle, User, UserCheck, UserX
+} from "lucide-react"
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu"
+import {
+  Dialog, DialogContent, DialogHeader, DialogFooter,
+  DialogTitle, DialogDescription
+} from "@/components/ui/dialog"
+import {
+  Select, SelectTrigger, SelectContent, SelectItem, SelectValue
+} from "@/components/ui/select"
 
-interface NavStats {
-  totalAds: number;
-  activeAds: number;
-  pendingReview: number;
-  reportedAds: number;
+interface UserProfile {
+  id: string
+  email: string
+  full_name: string | null
+  phone: string | null
+  location: string | null
+  bio: string | null
+  avatar_url: string | null
+  created_at: string
+  last_sign_in_at: string | null
+  email_confirmed_at: string | null
+  status: "active" | "suspended" | "banned" | "deleted"
+  role: "user" | "admin" | "super_admin"
+  deleted_at: string | null
+  deletion_reason: string | null
 }
 
-interface SuperAdminNavProps {
-  stats?: Partial<NavStats>;
-  onNavigate: (view: string) => void;
-  activeView: string;
+interface UserStats {
+  totalAds: number
+  activeAds: number
+  soldAds: number
+  totalViews: number
+  reportedAds: number
 }
 
-// Default stats to prevent undefined errors
-const defaultStats: NavStats = {
-  totalAds: 0,
-  activeAds: 0,
-  pendingReview: 0,
-  reportedAds: 0,
-};
+export default function UserManagement() {
+  const router = useRouter()
+  const supabase = createClient()
+  const { user: currentUser, isAdmin } = useAuth()
 
-const superAdminNavItems = [
-  {
-    title: "Dashboard",
-    href: "/superadmin",
-    icon: BarChart3,
-    badgeKey: "pendingReview" as keyof NavStats,
-    view: "overview" as const,
-  },
-  {
-    title: "Ads Management",
-    href: "/superadmin/ads",
-    icon: FileText,
-    badgeKey: "activeAds" as keyof NavStats,
-    view: "ads" as const,
-  },
-  {
-    title: "Pending Review",
-    href: "/superadmin/pending",
-    icon: Clock,
-    badgeKey: "pendingReview" as keyof NavStats,
-    view: "pending" as const,
-  },
-  {
-    title: "Reported Ads",
-    href: "/superadmin/reported",
-    icon: Flag,
-    badgeKey: "reportedAds" as keyof NavStats,
-    view: "reported" as const,
-  },
-  {
-    title: "User Management",
-    href: "/superadmin/users",
-    icon: Users,
-    badgeKey: null,
-    view: "users" as const,
-  },
-  {
-    title: "Categories",
-    href: "/superadmin/categories",
-    icon: Tag,
-    badgeKey: null,
-    view: "categories" as const,
-  },
-  {
-    title: "Localities",
-    href: "/superadmin/localities",
-    icon: MapPin,
-    badgeKey: null,
-    view: "localities" as const,
-  },
-  {
-    title: "Analytics",
-    href: "/superadmin/analytics",
-    icon: Database,
-    badgeKey: null,
-    view: "analytics" as const,
-  },
-  {
-    title: "System Settings",
-    href: "/superadmin/settings",
-    icon: Settings,
-    badgeKey: null,
-    view: "settings" as const,
-  },
-];
+  const [users, setUsers] = useState<UserProfile[]>([])
+  const [userStats, setUserStats] = useState<Record<string, UserStats>>({})
+  const [loading, setLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null)
+  const [userDetailsOpen, setUserDetailsOpen] = useState(false)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [deleteDialog, setDeleteDialog] = useState<{ user: UserProfile, type: "soft" | "hard" } | null>(null)
+  const [deleteReason, setDeleteReason] = useState("")
 
-export function SuperAdminNav({ stats = defaultStats, onNavigate, activeView }: SuperAdminNavProps) {
-  // Merge provided stats with defaults to ensure all properties exist
-  const safeStats = { ...defaultStats, ...stats };
+  // redirect non-admins
+  useEffect(() => {
+    if (currentUser && !isAdmin) router.push("/")
+  }, [currentUser, isAdmin, router])
 
-  const handleSignOut = async () => {
-    // Implement sign out logic here
-    const supabase = await getSupabaseClient();
-    await supabase.auth.signOut();
-    window.location.href = "/";
-  };
+  // fetch all users
+  const fetchUsers = useCallback(async () => {
+    setLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .order("created_at", { ascending: false })
+
+      if (error) throw error
+      setUsers(data as UserProfile[])
+      await fetchUserStats(data.map(u => u.id))
+    } catch (err) {
+      console.error(err)
+      toast.error("Failed to fetch users")
+    } finally {
+      setLoading(false)
+    }
+  }, [supabase])
+
+  useEffect(() => { fetchUsers() }, [fetchUsers])
+
+  const fetchUserStats = async (userIds: string[]) => {
+    if (!userIds.length) return
+    try {
+      const stats: Record<string, UserStats> = {}
+      userIds.forEach(id => stats[id] = { totalAds: 0, activeAds: 0, soldAds: 0, totalViews: 0, reportedAds: 0 })
+
+      const { data: ads } = await supabase
+        .from("products")
+        .select("user_id, status, views")
+        .in("user_id", userIds)
+
+      ads?.forEach(ad => {
+        const s = stats[ad.user_id]
+        if (s) {
+          s.totalAds++
+          s.totalViews += ad.views || 0
+          if (ad.status === "active") s.activeAds++
+          if (ad.status === "sold") s.soldAds++
+        }
+      })
+
+      const { data: reports } = await supabase
+        .from("reports")
+        .select("product_id, products!inner(user_id)")
+        .in("products.user_id", userIds)
+
+      reports?.forEach(r => {
+        const product = (r as any).products
+        if (product?.user_id) stats[product.user_id].reportedAds++
+      })
+
+      setUserStats(stats)
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const handleUserAction = async (
+    userId: string,
+    action: "activate" | "suspend" | "ban" | "soft_delete",
+    reason?: string
+  ) => {
+    setActionLoading(userId)
+    try {
+      const update: Partial<UserProfile> = {
+        ...(action === "activate" && { status: "active" }),
+        ...(action === "suspend" && { status: "suspended" }),
+        ...(action === "ban" && { status: "banned" }),
+        ...(action === "soft_delete" && {
+          status: "deleted",
+          deleted_at: new Date().toISOString(),
+          deletion_reason: reason || null
+        }),
+      }
+
+      const { error } = await supabase.from("profiles").update(update).eq("id", userId)
+      if (error) throw error
+
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...update } : u))
+      if (selectedUser?.id === userId) setSelectedUser({ ...selectedUser, ...update })
+
+      toast.success(`User ${action.replace("_", " ")} successful`)
+      setDeleteDialog(null)
+      setDeleteReason("")
+    } catch (err) {
+      console.error(err)
+      toast.error("Action failed")
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleHardDelete = async (userId: string) => {
+    setActionLoading(userId)
+    try {
+      await supabase.from("products").update({ status: "deleted" }).eq("user_id", userId)
+      await supabase.from("profiles").delete().eq("id", userId)
+      setUsers(prev => prev.filter(u => u.id !== userId))
+      setUserDetailsOpen(false)
+      toast.success("User permanently deleted")
+    } catch (err) {
+      toast.error("Failed to delete user")
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const filteredUsers = useMemo(() => {
+    return users.filter(u => {
+      const match =
+        u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
+        (u.phone?.includes(searchQuery) ?? false)
+      const matchStatus = statusFilter === "all" || u.status === statusFilter
+      return match && matchStatus
+    })
+  }, [users, searchQuery, statusFilter])
+
+  const exportUsers = async () => {
+    try {
+      const csv = [
+        ["ID", "Name", "Email", "Status", "Role", "Joined", "Total Ads"],
+        ...filteredUsers.map(u => [
+          u.id, u.full_name || "N/A", u.email, u.status, u.role,
+          new Date(u.created_at).toLocaleDateString(),
+          userStats[u.id]?.totalAds || 0
+        ])
+      ].map(r => r.join(",")).join("\n")
+
+      const blob = new Blob([csv], { type: "text/csv" })
+      const a = document.createElement("a")
+      a.href = URL.createObjectURL(blob)
+      a.download = `users-${new Date().toISOString().split("T")[0]}.csv`
+      a.click()
+      toast.success("Export successful")
+    } catch {
+      toast.error("Export failed")
+    }
+  }
+
+  const getStatusBadge = (status: UserProfile["status"]) => {
+    const map = {
+      active: { color: "bg-green-600", icon: UserCheck },
+      suspended: { color: "bg-yellow-600", icon: UserX },
+      banned: { color: "bg-red-600", icon: Ban },
+      deleted: { color: "bg-gray-600", icon: Trash2 },
+    }
+    const Icon = map[status].icon
+    return (
+      <Badge className={`${map[status].color} flex items-center gap-1`}>
+        <Icon className="w-3 h-3" /> {status}
+      </Badge>
+    )
+  }
+
+  if (currentUser && !isAdmin)
+    return <p className="text-gray-400 text-center">Access denied</p>
 
   return (
-    <div className="w-72 bg-gray-900 text-white p-6 flex flex-col h-full">
-      <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-700">
-        <div className="w-12 h-12 bg-gradient-to-r from-green-700 to-green-800 rounded-lg flex items-center justify-center">
-          <Crown className="w-6 h-6 text-white" />
-        </div>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
-          <h2 className="font-bold text-white">Marketplace Admin</h2>
-          <p className="text-sm text-gray-400">Super Admin Panel</p>
+          <h1 className="text-3xl font-bold text-white">User Management</h1>
+          <p className="text-gray-400">{loading ? "Loading..." : `${filteredUsers.length} users found`}</p>
+        </div>
+        <div className="flex gap-3">
+          <Button onClick={exportUsers} disabled={!filteredUsers.length}>
+            <Download className="w-4 h-4 mr-2" /> Export
+          </Button>
+          <Button onClick={fetchUsers}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh
+          </Button>
         </div>
       </div>
 
-      <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Search ads, users, reports..."
-          className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-        />
-      </div>
+      {/* Filters */}
+      <Card className="bg-gray-800 border-gray-700">
+        <CardContent className="p-4 flex flex-col sm:flex-row gap-4">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+            <Input
+              placeholder="Search users..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="pl-10 bg-gray-700 text-white border-gray-600"
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="bg-gray-700 text-white border-gray-600 w-[160px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent className="bg-gray-800 border-gray-600 text-white">
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="suspended">Suspended</SelectItem>
+              <SelectItem value="banned">Banned</SelectItem>
+              <SelectItem value="deleted">Deleted</SelectItem>
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
 
-      <nav className="space-y-1 flex-1">
-        {superAdminNavItems.map((item) => {
-          const isActive = activeView === item.view;
-          const Icon = item.icon;
-          const badgeValue = item.badgeKey ? safeStats[item.badgeKey] : null;
-          
-          return (
-            <button
-              key={item.view}
-              onClick={() => onNavigate(item.view)}
-              className={cn(
-                "flex items-center justify-between w-full text-left px-3 py-3 rounded-lg text-sm font-medium transition-colors",
-                isActive 
-                  ? "bg-green-700 text-white" 
-                  : "text-gray-300 hover:bg-gray-800 hover:text-white",
-              )}
+      {/* Users List */}
+      <Card className="bg-gray-800 border-gray-700">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-white">
+            <Users className="w-5 h-5" /> Users
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex justify-center py-10 text-gray-400">
+              <Loader2 className="w-6 h-6 mr-2 animate-spin" /> Loading...
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredUsers.map(user => (
+                <div key={user.id} className="flex justify-between items-center p-4 bg-gray-700 rounded-lg">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-white font-semibold">{user.full_name || "Unnamed"}</span>
+                      {getStatusBadge(user.status)}
+                    </div>
+                    <div className="text-sm text-gray-300 flex flex-wrap gap-3">
+                      <span><Mail className="inline w-3 h-3" /> {user.email}</span>
+                      {user.phone && <span><Phone className="inline w-3 h-3" /> {user.phone}</span>}
+                      <span><Calendar className="inline w-3 h-3" /> {new Date(user.created_at).toLocaleDateString()}</span>
+                      <span><FileText className="inline w-3 h-3" /> {userStats[user.id]?.totalAds || 0} ads</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={() => { setSelectedUser(user); setUserDetailsOpen(true) }}>
+                      <Eye className="w-4 h-4 mr-1" /> Details
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="sm" variant="outline">
+                          <MoreVertical className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="bg-gray-800 border-gray-700 text-white">
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {user.status !== "active" &&
+                          <DropdownMenuItem onClick={() => handleUserAction(user.id, "activate")}>Activate</DropdownMenuItem>}
+                        {user.status !== "suspended" &&
+                          <DropdownMenuItem onClick={() => handleUserAction(user.id, "suspend")}>Suspend</DropdownMenuItem>}
+                        {user.status !== "banned" &&
+                          <DropdownMenuItem onClick={() => handleUserAction(user.id, "ban")}>Ban</DropdownMenuItem>}
+                        {user.status !== "deleted" &&
+                          <DropdownMenuItem onClick={() => setDeleteDialog({ user, type: "soft" })}>Soft Delete</DropdownMenuItem>}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-red-500"
+                          onClick={() => setDeleteDialog({ user, type: "hard" })}
+                        >
+                          Permanent Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+              ))}
+
+              {!filteredUsers.length && <p className="text-center text-gray-400 py-6">No users found</p>}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Delete Dialog */}
+      <Dialog open={!!deleteDialog} onOpenChange={() => setDeleteDialog(null)}>
+        <DialogContent className="bg-gray-800 border-gray-700 text-white">
+          <DialogHeader>
+            <DialogTitle>
+              {deleteDialog?.type === "soft" ? "Soft Delete User" : "Permanent Delete"}
+            </DialogTitle>
+            <DialogDescription className="text-gray-400">
+              {deleteDialog?.type === "soft"
+                ? "This hides the user but keeps their data."
+                : "This permanently removes the user and cannot be undone."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {deleteDialog?.type === "soft" && (
+            <Input
+              placeholder="Reason for deletion..."
+              value={deleteReason}
+              onChange={e => setDeleteReason(e.target.value)}
+              className="bg-gray-700 border-gray-600 text-white"
+            />
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialog(null)}>Cancel</Button>
+            <Button
+              className={deleteDialog?.type === "soft" ? "bg-orange-600" : "bg-red-600"}
+              onClick={() => {
+                if (deleteDialog?.type === "soft") {
+                  if (!deleteReason.trim()) return toast.error("Please enter reason")
+                  handleUserAction(deleteDialog.user.id, "soft_delete", deleteReason)
+                } else {
+                  handleHardDelete(deleteDialog!.user.id)
+                }
+              }}
             >
-              <div className="flex items-center gap-3">
-                <Icon className="w-4 h-4" />
-                <span>{item.title}</span>
-              </div>
-              {badgeValue !== null && badgeValue > 0 && (
-                <span className={cn("px-2 py-1 text-xs font-semibold rounded-full",
-                  isActive ? "bg-white text-green-700" : "bg-green-700 text-white"
-                )}>
-                  {badgeValue}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </nav>
-
-      <div className="pt-4 border-t border-gray-700">
-        <button 
-          onClick={handleSignOut}
-          className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-red-900 rounded-lg transition-colors flex items-center gap-2"
-        >
-          <LogOut className="w-4 h-4" />
-          Sign Out
-        </button>
-      </div>
+              {actionLoading === deleteDialog?.user.id
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : deleteDialog?.type === "soft" ? "Soft Delete" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
-  );
+  )
 }

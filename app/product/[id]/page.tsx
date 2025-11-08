@@ -1,13 +1,62 @@
-import { ProductDetail } from "@/components/product-detail"
 import { RelatedProducts } from "@/components/related-products"
 import { Breadcrumb } from "@/components/breadcrumb"
 import { createClient } from "@/lib/supabase/server"
 import { notFound } from "next/navigation"
 import { SafeProductDetail } from "@/components/safe-product-detail"
+import { Metadata } from "next"
 
 interface ProductPageProps {
   params: {
     id: string
+  }
+}
+
+// Generate metadata for SEO
+export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
+  const { id } = await params
+  const product = await getProduct(id)
+  
+  if (!product) {
+    return {
+      title: "Product Not Found",
+      description: "The product you are looking for is not available.",
+    }
+  }
+
+  const title = `${product.title} - ${product.price} | Your Marketplace`
+  const description = `${product.title} for ${product.price}. ${product.description.substring(0, 160)}${product.description.length > 160 ? '...' : ''} Located in ${product.location}.`
+  const images = product.images && product.images.length > 0 ? product.images : ['/og-image.jpg']
+  
+  return {
+    title,
+    description,
+    keywords: `${product.title}, ${product.category}, ${product.subcategory}, ${product.brand}, ${product.condition}, buy, sell, marketplace`,
+    openGraph: {
+      title,
+      description,
+      images: images.map(img => ({
+        url: img.startsWith('http') ? img : `${process.env.NEXT_PUBLIC_SITE_URL || 'https://yourdomain.com'}${img}`,
+        width: 1200,
+        height: 630,
+        alt: product.title,
+      })),
+      type: 'website',
+      url: `/product/${product.id}`,
+      siteName: 'Your Marketplace',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: images[0],
+    },
+    alternates: {
+      canonical: `/product/${product.id}`,
+    },
+    robots: {
+      index: true,
+      follow: true,
+    },
   }
 }
 
@@ -35,16 +84,26 @@ async function getProduct(id: string) {
 
     const product = products[0]
 
-    let profileData = null
-    if (product.user_id) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name, avatar_url, created_at, phone") // I added 'phone' here
-        .eq("id", product.user_id)
-        .single()
-
-      profileData = profile
-    }
+              let profileData = null
+if (product.user_id) {
+  // Simple approach - always generate readable name from user_id
+  const readableName = `User${product.user_id.substring(0, 8).toUpperCase()}`
+  
+  profileData = {
+    full_name: readableName,
+    avatar_url: null,
+    created_at: product.created_at,
+    phone: null
+  }
+  console.log('🛠️ Generated seller name:', readableName)
+} else {
+  profileData = {
+    full_name: 'Local Seller',
+    avatar_url: null,
+    created_at: product.created_at,
+    phone: null
+  }
+}
 
     let parsedTags = []
     if (product.tags) {
@@ -103,7 +162,7 @@ async function getProduct(id: string) {
       return `AD${year}${month}${day}${idSuffix}`
     }
 
-    // RETURN WITH SAFE DEFAULTS - NO UNDEFINED VALUES
+    // RETURN WITH PROPER SELLER DATA
     return {
       id: product.id,
       title: product.title || "Untitled Product",
@@ -122,20 +181,27 @@ async function getProduct(id: string) {
       postedDate: product.created_at,
       views: product.views || 0,
       adId: generateAdId(product.id, product.created_at),
-      seller: {
-        id: product.user_id,
-        name: profileData?.full_name || "Anonymous Seller",
-        rating: 4.5,
-        totalReviews: 0,
-        memberSince: profileData?.created_at ? new Date(profileData.created_at).getFullYear().toString() : "2024",
-        verified: true,
-        responseTime: "Usually responds within 2 hours",
-        phone: profileData?.phone || null, // I added this line to pass the phone number
-      },
+            seller: {
+  id: product.user_id,
+  name: profileData?.full_name || 'Local Seller', // Use the generated readable name
+  rating: 4.5,
+  totalReviews: 0,
+  memberSince: profileData?.created_at ? new Date(profileData.created_at).getFullYear().toString() : "2024",
+  verified: true,
+  responseTime: "Usually responds within 2 hours",
+  phone: profileData?.phone || null,
+  avatar_url: profileData?.avatar_url || null,
+},
       features: parsedFeatures,
       storage: product.storage || null,
       color: product.color || null,
       featured: false,
+      // Additional fields for SEO
+      price_number: product.price || 0,
+      category_slug: product.category_slug || product.category?.toLowerCase().replace(/\s+/g, '-') || 'other',
+      created_at: product.created_at,
+      updated_at: product.updated_at || product.created_at,
+      user_id: product.user_id,
     }
   } catch (error) {
     console.error("Unexpected error fetching product:", error)
@@ -143,44 +209,136 @@ async function getProduct(id: string) {
   }
 }
 
-export default async function ProductPage({ params }: ProductPageProps) {
-  const { id } = params
-  console.log('🛠️ Product page loading for ID:', id)
+// Generate structured data for rich snippets
+function generateProductStructuredData(product: any) {
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://yourdomain.com'
   
+  return {
+    "@context": "https://schema.org/",
+    "@type": "Product",
+    "name": product.title,
+    "description": product.description,
+    "image": product.images.map((img: string) => 
+      img.startsWith('http') ? img : `${baseUrl}${img}`
+    ),
+    "sku": product.adId,
+    "mpn": product.adId,
+    "brand": {
+      "@type": "Brand",
+      "name": product.brand || "Generic"
+    },
+    "offers": {
+      "@type": "Offer",
+      "url": `${baseUrl}/product/${product.id}`,
+      "priceCurrency": "CAD",
+      "price": product.price_number,
+      "priceValidUntil": new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      "availability": "https://schema.org/InStock",
+      "itemCondition": `https://schema.org/${mapConditionToSchemaOrg(product.condition)}`,
+      "seller": {
+        "@type": "Organization",
+        "name": "Your Marketplace"
+      }
+    },
+    "category": product.category,
+    "productID": product.id,
+    "datePosted": product.created_at,
+    "location": {
+      "@type": "Place",
+      "name": product.location
+    }
+  }
+}
+
+function mapConditionToSchemaOrg(condition: string): string {
+  const conditionMap: { [key: string]: string } = {
+    "new": "NewCondition",
+    "like new": "ExcellentCondition", 
+    "excellent": "ExcellentCondition",
+    "good": "GoodCondition",
+    "fair": "FairCondition",
+    "salvage": "DamagedCondition"
+  }
+  return conditionMap[condition.toLowerCase()] || "UsedCondition"
+}
+
+export default async function ProductPage({ params }: ProductPageProps) {
+  const { id } = await params
+  console.log('🛠️ Product page loading for ID:', id)
+ 
   const product = await getProduct(id)
   console.log('🛠️ Product data received:', product ? 'YES' : 'NO')
-  
+ 
   if (!product) {
-    console.log('🛠️ Product not found, showing 404')
-    notFound()
+   console.log('🛠️ Product not found, showing 404')
+   notFound()
   }
 
   console.log('🛠️ Product title:', product.title)
+  console.log('🛠️ Product seller name:', product.seller.name)
   console.log('🛠️ Product category:', product.category)
 
-  // SAFE BREADCRUMB ITEMS WITH DEFAULTS
-  const breadcrumbItems = [
-    { label: "Home", href: "/" },
-    { 
-      label: product.category || "Other", 
-      href: `/search?category=${encodeURIComponent(product.category || "Other")}` 
-    },
-    { 
-      label: product.title || "Product", 
-      href: `/product/${product.id}` 
-    },
-  ]
+  // Generate structured data
+  const structuredData = generateProductStructuredData(product)
+  const breadcrumbStructuredData = {
+   "@context": "https://schema.org",
+   "@type": "BreadcrumbList",
+   "itemListElement": [
+     {
+       "@type": "ListItem",
+       "position": 1,
+       "name": "Home",
+       "item": process.env.NEXT_PUBLIC_SITE_URL || 'https://yourdomain.com'
+     },
+     {
+       "@type": "ListItem",
+       "position": 2,
+       "name": product.category,
+       "item": `${process.env.NEXT_PUBLIC_SITE_URL || 'https://yourdomain.com'}/search?category=${encodeURIComponent(product.category)}`
+     },
+     {
+       "@type": "ListItem", 
+       "position": 3,
+       "name": product.title,
+       "item": `${process.env.NEXT_PUBLIC_SITE_URL || 'https://yourdomain.com'}/product/${product.id}`
+     }
+   ]
+ }
 
-  return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <Breadcrumb items={breadcrumbItems} />
-        <SafeProductDetail product={product} />
-        <RelatedProducts 
-          currentProductId={product.id} 
-          category={product.category || "Other"} 
-        />
-      </div>
-    </div>
-  )
+ // SAFE BREADCRUMB ITEMS WITH DEFAULTS
+ const breadcrumbItems = [
+   { label: "Home", href: "/" },
+   { 
+     label: product.category || "Other", 
+     href: `/search?category=${encodeURIComponent(product.category || "Other")}` 
+   },
+   { 
+     label: product.title || "Product", 
+     href: `/product/${product.id}` 
+   },
+ ]
+
+ return (
+   <div className="min-h-screen bg-background">
+     {/* Structured Data for SEO */}
+     <script
+       type="application/ld+json"
+       dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+     />
+     <script
+       type="application/ld+json" 
+       dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbStructuredData) }}
+     />
+     
+     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+       <Breadcrumb items={breadcrumbItems} />
+       <SafeProductDetail product={product} />
+       <RelatedProducts 
+         currentProductId={product.id} 
+         category={product.category || "Other"} 
+         subcategory={product.subcategory}
+       />
+     </div>
+   </div>
+ )
 }

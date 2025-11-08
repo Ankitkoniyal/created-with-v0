@@ -48,6 +48,19 @@ export function SafeProductDetail({ product }: { product: any }) {
     condition: product.condition || 'Not specified',
     youtube_url: product.youtube_url || null,
     website_url: product.website_url || null,
+<<<<<<< HEAD
+=======
+    seller: product.seller || {
+      id: 'unknown',
+      name: 'Seller',
+      rating: 0,
+      totalReviews: 0,
+      memberSince: '2024',
+      verified: false,
+      responseTime: 'Usually responds within 24 hours',
+      phone: null
+    },
+>>>>>>> dc13c296036f9d408027fc6b97e1464d41b5c2ae
     // Add all other properties with safe defaults
     ...product
   }
@@ -55,6 +68,7 @@ export function SafeProductDetail({ product }: { product: any }) {
   return (
     <div>
       <ProductDetail product={safeProduct} />
+<<<<<<< HEAD
       
       {/* Render safe external links if they exist */}
       {(safeProduct.youtube_url || safeProduct.website_url) && (
@@ -92,3 +106,8 @@ export function SafeProductDetail({ product }: { product: any }) {
     </div>
   )
 }
+=======
+    </div>
+  )
+}
+>>>>>>> dc13c296036f9d408027fc6b97e1464d41b5c2ae

@@ -1,9 +1,10 @@
+// components/subcategory-nav.tsx - COMPLETE FIXED VERSION
 "use client"
 
 import { Button } from "@/components/ui/button"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useCallback } from "react"
-import { getSubcategoriesByCategory } from "@/lib/categories"
+import { SUBCATEGORY_MAPPINGS, getSubcategorySlug } from "@/lib/categories"
 
 interface SubcategoryNavProps {
   category: string
@@ -21,7 +22,9 @@ export function SubcategoryNav({ category, selectedSubcategory }: SubcategoryNav
       if (subcategory === null || subcategory === "all") {
         params.delete("subcategory")
       } else {
-        params.set("subcategory", subcategory)
+        // Convert to consistent lowercase slug
+        const slug = getSubcategorySlug(subcategory)
+        params.set("subcategory", slug)
       }
 
       router.push(`/search?${params.toString()}`, { scroll: false })
@@ -29,10 +32,15 @@ export function SubcategoryNav({ category, selectedSubcategory }: SubcategoryNav
     [router, searchParams],
   )
 
-  const availableSubcategories = getSubcategoriesByCategory(category)
+  const availableSubcategories = SUBCATEGORY_MAPPINGS[category] || []
 
   if (!category || availableSubcategories.length === 0) {
     return null
+  }
+
+  const isSubcategorySelected = (subcategory: string) => {
+    if (!selectedSubcategory || selectedSubcategory === "all") return false
+    return selectedSubcategory === getSubcategorySlug(subcategory)
   }
 
   return (
@@ -45,30 +53,34 @@ export function SubcategoryNav({ category, selectedSubcategory }: SubcategoryNav
             variant={!selectedSubcategory || selectedSubcategory === "all" ? "default" : "outline"}
             size="sm"
             onClick={() => updateUrl("all")}
-            className={`${
+            className={
               !selectedSubcategory || selectedSubcategory === "all"
                 ? "bg-green-900 hover:bg-green-950 text-white"
-                : "border-gray-300 hover:border-green-400 hover:bg-green-50"
-            }`}
+                : "border-gray-300 text-gray-700 hover:border-green-400 hover:bg-green-50 hover:text-green-900"
+            }
           >
             All {category}
           </Button>
 
-          {availableSubcategories.map((subcategory) => (
-            <Button
-              key={subcategory}
-              variant={selectedSubcategory === subcategory ? "default" : "outline"}
-              size="sm"
-              onClick={() => updateUrl(subcategory)}
-              className={`${
-                selectedSubcategory === subcategory
-                  ? "bg-green-900 hover:bg-green-950 text-white"
-                  : "border-gray-300 hover:border-green-400 hover:bg-green-50"
-              }`}
-            >
-              {subcategory}
-            </Button>
-          ))}
+          {availableSubcategories.map((subcategory) => {
+            const isSelected = isSubcategorySelected(subcategory)
+            
+            return (
+              <Button
+                key={subcategory}
+                variant={isSelected ? "default" : "outline"}
+                size="sm"
+                onClick={() => updateUrl(subcategory)}
+                className={
+                  isSelected
+                    ? "bg-green-900 hover:bg-green-950 text-white"
+                    : "border-gray-300 text-gray-700 hover:border-green-400 hover:bg-green-50 hover:text-green-900"
+                }
+              >
+                {subcategory}
+              </Button>
+            )
+          })}
         </div>
       </div>
     </div>

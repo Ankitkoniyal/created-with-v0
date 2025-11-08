@@ -1,8 +1,5 @@
 "use client"
-
-import type React from "react"
-
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,24 +8,34 @@ import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Switch } from "@/components/ui/switch"
-import { Camera, Shield, Star, Calendar, AlertTriangle, Loader2 } from "lucide-react"
+import { Camera, Shield, Calendar, Loader2, AlertCircle } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 
+interface UIState {
+  isEditing: boolean
+  isSaving: boolean
+  showPasswordReset: boolean
+  isResendingVerification: boolean
+  isLoading: boolean
+}
+
 export function ProfileSettings() {
-  const { user, profile } = useAuth()
+  const { user } = useAuth()
   const { toast } = useToast()
-  const [isEditing, setIsEditing] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
-  const [showPasswordReset, setShowPasswordReset] = useState(false)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [showEmailVerification, setShowEmailVerification] = useState(false)
-  const [isResendingVerification, setIsResendingVerification] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const [uiState, setUiState] = useState<UIState>({
+    isEditing: false,
+    isSaving: false,
+    showPasswordReset: false,
+    isResendingVerification: false,
+    isLoading: true
+  })
+
   const [imageUpload, setImageUpload] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
   const [profileData, setProfileData] = useState<any>(null)
   const [formData, setFormData] = useState({
     name: "",
@@ -39,10 +46,12 @@ export function ProfileSettings() {
 
   useEffect(() => {
     const fetchProfileData = async () => {
-      if (!user) return
+      if (!user) {
+        setUiState(prev => ({ ...prev, isLoading: false }))
+        return
+      }
 
-      setIsLoading(true)
-      console.log("[v0] Fetching profile data for user:", user.id)
+      setUiState(prev => ({ ...prev, isLoading: true }))
 
       try {
         const supabase = createClient()
@@ -53,11 +62,10 @@ export function ProfileSettings() {
           .eq("id", user.id)
           .single()
 
-        if (profileError && profileError.code !== "PGRST116") {
-          console.error("[v0] Profile fetch error:", profileError)
+        if (profileError) {
+          console.error("Profile fetch error:", profileError)
         }
 
-        console.log("[v0] Profile data fetched:", profileData)
         setProfileData(profileData)
 
         setFormData({
@@ -66,131 +74,159 @@ export function ProfileSettings() {
           bio: profileData?.bio || user.user_metadata?.bio || "",
           mobile: profileData?.phone || user.user_metadata?.phone || "",
         })
-
-        console.log("[v0] Form data initialized:", {
-          name: profileData?.full_name || user.user_metadata?.full_name,
-          mobile: profileData?.phone || user.phone || "Not found",
-          email: user.email,
-        })
       } catch (error) {
-        console.error("[v0] Error fetching profile data:", error)
+        console.error("Error fetching profile data:", error)
+        toast({
+          variant: "destructive",
+          title: "Unexpected error",
+          description: "An unexpected error occurred while loading your profile.",
+        })
       } finally {
-        setIsLoading(false)
+        setUiState(prev => ({ ...prev, isLoading: false }))
       }
     }
 
     fetchProfileData()
-  }, [user])
+  }, [user, toast])
 
   const handleSave = async () => {
     if (!user) return
 
-    setIsSaving(true)
+    // Basic client-side validation
+    if (formData.name.trim().length < 2) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Name must be at least 2 characters long.",
+      })
+      return
+    }
+
+    if (formData.bio.length > 500) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Bio cannot exceed 500 characters.",
+      })
+      return
+    }
+
+    setUiState(prev => ({ ...prev, isSaving: true }))
 
     try {
       const supabase = createClient()
+      let avatarUrl = profileData?.avatar_url
 
-      let avatarUrl = profileData?.avatar_url || user.user_metadata?.avatar_url
-
+      // Handle image upload if a new file is selected
       if (imageUpload) {
-        const fileExt = imageUpload.name.split(".").pop()
-        const fileName = `${user.id}/avatar.${fileExt}`
-
         try {
-          console.log("[v0] Starting image upload to:", fileName)
+          // Create unique file name
+          const fileExt = imageUpload.name.split('.').pop()
+          const fileName = `${user.id}-${Date.now()}.${fileExt}`
+          const filePath = `avatars/${fileName}`
 
-          const { data: uploadData, error: uploadError } = await supabase.storage
-            .from("avatars")
-            .upload(fileName, imageUpload, { upsert: true })
+          console.log('Uploading image:', filePath)
 
-          if (!uploadError && uploadData) {
-            const {
-              data: { publicUrl },
-            } = supabase.storage.from("avatars").getPublicUrl(fileName)
-            avatarUrl = publicUrl
-            console.log("[v0] Image uploaded successfully:", publicUrl)
-
-            toast({
-              title: "Image Uploaded",
-              description: "Profile picture updated successfully!",
+          // Upload the image
+          const { error: uploadError, data: uploadData } = await supabase.storage
+            .from('avatars')
+            .upload(filePath, imageUpload, {
+              upsert: true,
+              cacheControl: '3600'
             })
-          } else {
-            console.error("[v0] Upload error:", uploadError)
-            toast({
-              variant: "destructive",
-              title: "Image Upload Failed",
-              description: uploadError?.message || "Failed to upload image. Please try again.",
-            })
+
+          if (uploadError) {
+            console.error('Upload error:', uploadError)
+            throw new Error(`Upload failed: ${uploadError.message}`)
           }
-        } catch (imageError) {
-          console.error("[v0] Image upload exception:", imageError)
+
+          console.log('Upload successful:', uploadData)
+
+          // Get public URL
+          const { data: { publicUrl } } = supabase.storage
+            .from('avatars')
+            .getPublicUrl(filePath)
+
+          avatarUrl = publicUrl
+          console.log('Generated public URL:', avatarUrl)
+
+          toast({
+            title: "Image Uploaded",
+            description: "Profile picture updated successfully!",
+          })
+
+        } catch (uploadError: any) {
+          console.error("Image upload failed:", uploadError)
           toast({
             variant: "destructive",
-            title: "Image Upload Failed",
-            description: "Network error during upload. Please check your connection and try again.",
+            title: "Upload Failed",
+            description: uploadError.message || "Failed to upload image. Please try again.",
           })
+          setUiState(prev => ({ ...prev, isSaving: false }))
+          return
         }
       }
 
-      const { error: authUpdateError } = await supabase.auth.updateUser({
-        data: {
-          full_name: formData.name,
-          location: formData.location,
-          bio: formData.bio,
-          avatar_url: avatarUrl,
-          phone: formData.mobile,
-        },
-      })
-
-      if (authUpdateError) {
-        throw authUpdateError
-      }
-
-      // FIXED: Add required email field and remove notification fields
+      // Update profile data
       const profileUpdateData = {
         id: user.id,
-        email: user.email!, // Required field in your schema
+        email: user.email!,
         full_name: formData.name,
         location: formData.location,
         bio: formData.bio,
-        avatar_url: avatarUrl,
         phone: formData.mobile,
         updated_at: new Date().toISOString(),
+        ...(avatarUrl && { avatar_url: avatarUrl }) // Only include avatar_url if it exists
       }
 
-      console.log("Updating profile with data:", profileUpdateData)
+      console.log('Updating profile with:', profileUpdateData)
 
-      // FIXED: Better error handling with detailed logging
-      const { data: updateResult, error: profileUpdateError } = await supabase
+      const { data: updatedProfile, error: profileUpdateError } = await supabase
         .from("profiles")
         .upsert(profileUpdateData, { onConflict: "id" })
         .select()
-
-      console.log("Update result:", updateResult)
-      console.log("Update error:", profileUpdateError)
+        .single()
 
       if (profileUpdateError) {
         console.error("Profile update error:", profileUpdateError)
-        console.error("Error code:", profileUpdateError.code)
-        console.error("Error message:", profileUpdateError.message)
-        
-        toast({
-          variant: "destructive",
-          title: "Database Error",
-          description: `Failed to update profile: ${profileUpdateError.message || 'Unknown error'}`,
-        })
-        return
+        throw new Error(profileUpdateError.message || 'Failed to update profile')
       }
+
+      // Also update user metadata
+      await supabase.auth.updateUser({
+        data: {
+          full_name: formData.name,
+          avatar_url: avatarUrl,
+        },
+      })
+
+      // Update state with the new data
+      setProfileData(updatedProfile)
+      
+      // Clear the image upload state
+      setImageUpload(null)
+      setPreviewUrl(null)
+
+      // Force refresh all components
+      window.dispatchEvent(new CustomEvent('profileUpdated'))
+      
+      // Refetch data to ensure consistency
+      setTimeout(async () => {
+        const { data: freshData } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .single()
+        setProfileData(freshData)
+      }, 500)
 
       toast({
         title: "Profile Updated",
         description: "Your profile has been updated successfully!",
       })
-      setIsEditing(false)
-      setImageUpload(null)
-      setPreviewUrl(null)
 
-      setProfileData({ ...profileData, ...profileUpdateData })
+      setUiState(prev => ({ ...prev, isEditing: false }))
+
     } catch (error: any) {
       console.error("Profile save error:", error)
       toast({
@@ -199,12 +235,13 @@ export function ProfileSettings() {
         description: error.message || "Failed to update profile. Please try again.",
       })
     } finally {
-      setIsSaving(false)
+      setUiState(prev => ({ ...prev, isSaving: false }))
     }
   }
 
   const handlePasswordReset = async () => {
     if (!user?.email) return
+    setUiState(prev => ({ ...prev, showPasswordReset: false }))
 
     try {
       const supabase = createClient()
@@ -213,40 +250,27 @@ export function ProfileSettings() {
       })
 
       if (error) {
-        toast({
-          variant: "destructive",
-          title: "Reset Failed",
-          description: "Failed to send password reset email. Please try again.",
-        })
-      } else {
-        toast({
-          title: "Reset Email Sent",
-          description: "Password reset email sent! Check your inbox.",
-        })
-        setShowPasswordReset(false)
+        throw error
       }
-    } catch (error) {
+
+      toast({
+        title: "Reset Email Sent",
+        description: "Password reset email sent! Check your inbox.",
+      })
+    } catch (error: any) {
+      console.error("Password reset error:", error)
       toast({
         variant: "destructive",
-        title: "Error",
-        description: "An error occurred. Please try again.",
+        title: "Reset Failed",
+        description: error.message || "Failed to send password reset email. Please try again.",
       })
     }
   }
 
-  const handleDeleteAccount = async () => {
-    toast({
-      title: "Account Deactivated",
-      description:
-        "Account has been deactivated. Your information is preserved for system integrity and legal compliance.",
-    })
-    setShowDeleteConfirm(false)
-  }
-
   const handleResendVerification = async () => {
     if (!user?.email) return
+    setUiState(prev => ({ ...prev, isResendingVerification: true }))
 
-    setIsResendingVerification(true)
     try {
       const supabase = createClient()
       const { error } = await supabase.auth.resend({
@@ -258,26 +282,22 @@ export function ProfileSettings() {
       })
 
       if (error) {
-        toast({
-          variant: "destructive",
-          title: "Verification Failed",
-          description: "Failed to send verification email. Please try again.",
-        })
-      } else {
-        toast({
-          title: "Verification Email Sent",
-          description: "Please check your inbox and click the verification link.",
-        })
-        setShowEmailVerification(false)
+        throw error
       }
-    } catch (error) {
+
+      toast({
+        title: "Verification Email Sent",
+        description: "Please check your inbox and click the verification link.",
+      })
+    } catch (error: any) {
+      console.error("Verification error:", error)
       toast({
         variant: "destructive",
-        title: "Error",
-        description: "An error occurred. Please try again.",
+        title: "Verification Failed",
+        description: error.message || "Failed to send verification email. Please try again.",
       })
     } finally {
-      setIsResendingVerification(false)
+      setUiState(prev => ({ ...prev, isResendingVerification: false }))
     }
   }
 
@@ -303,13 +323,12 @@ export function ProfileSettings() {
         return
       }
 
-      console.log("[v0] Image selected for upload:", file.name, file.size, file.type)
       setImageUpload(file)
       const url = URL.createObjectURL(file)
       setPreviewUrl(url)
 
-      if (!isEditing) {
-        setIsEditing(true)
+      if (!uiState.isEditing) {
+        setUiState(prev => ({ ...prev, isEditing: true }))
       }
 
       toast({
@@ -319,7 +338,22 @@ export function ProfileSettings() {
     }
   }
 
-  if (isLoading) {
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  // Get the avatar URL with cache busting
+  const getAvatarUrl = () => {
+    const url = previewUrl || profileData?.avatar_url
+    if (url && !url.includes('blob:')) {
+      return `${url}?t=${Date.now()}`
+    }
+    return url
+  }
+
+  const avatarUrl = getAvatarUrl()
+
+  if (uiState.isLoading) {
     return (
       <div className="flex items-center justify-center p-8">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -330,16 +364,27 @@ export function ProfileSettings() {
 
   return (
     <div className="space-y-6">
+      <div>
+        <h2 className="text-3xl font-bold tracking-tight">Profile Settings</h2>
+        <p className="text-muted-foreground">Manage your personal information and preferences</p>
+      </div>
+
       <Card>
         <CardContent className="p-6">
           <div className="flex items-center space-x-6">
             <div className="relative">
-              <Avatar className="h-24 w-24">
+              <Avatar className="h-24 w-24 border-2 border-green-700">
                 <AvatarImage
-                  src={previewUrl || profileData?.avatar_url || user?.user_metadata?.avatar_url || "/placeholder.svg"}
+                  src={avatarUrl || "/placeholder.svg"}
                   alt={formData.name}
+                  className="object-cover"
+                  onError={(e) => {
+                    console.error("Failed to load avatar image:", avatarUrl)
+                    const target = e.target as HTMLImageElement
+                    target.style.display = 'none'
+                  }}
                 />
-                <AvatarFallback className="text-2xl">
+                <AvatarFallback className="text-2xl bg-green-100 text-green-800 font-semibold">
                   {formData.name
                     ? formData.name
                         .split(" ")
@@ -349,45 +394,37 @@ export function ProfileSettings() {
                     : "U"}
                 </AvatarFallback>
               </Avatar>
-              <label htmlFor="avatar-upload" className="cursor-pointer">
-                <Button
-                  size="sm"
-                  className="absolute -bottom-2 -right-2 rounded-full h-10 w-10 p-0 shadow-lg hover:shadow-xl transition-shadow"
-                  type="button"
-                >
-                  <Camera className="h-5 w-5" />
-                </Button>
-                <input
-                  id="avatar-upload"
-                  type="file"
-                  accept="image/jpeg,image/jpg,image/png,image/webp"
-                  className="hidden"
-                  onChange={handleImageUpload}
-                />
-              </label>
+              
+              <input
+                ref={fileInputRef}
+                id="avatar-upload"
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/webp"
+                className="hidden"
+                onChange={handleImageUpload}
+              />
+              
             </div>
 
             <div className="flex-1">
               <div className="flex items-center space-x-2 mb-2">
                 <h2 className="text-2xl font-bold text-foreground">{formData.name || user?.email}</h2>
-                {user?.email_verified ? (
-                  <Badge variant="secondary" className="flex items-center">
-                    <Shield className="h-3 w-3 mr-1" />
-                    Verified
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="flex items-center text-orange-600 border-orange-200">
-                    <AlertTriangle className="h-3 w-3 mr-1" />
-                    Unverified
-                  </Badge>
-                )}
+                <Badge
+                  variant={user?.email_confirmed_at ? "secondary" : "outline"}
+                  className={`flex items-center ${user?.email_confirmed_at ? 'bg-green-700 text-white' : 'bg-orange-100 text-orange-800 border-orange-300'}`}
+                >
+                  {user?.email_confirmed_at ? (
+                    <>
+                      <Shield className="h-3 w-3 mr-1" />
+                      Verified
+                    </>
+                  ) : (
+                    "Unverified"
+                  )}
+                </Badge>
               </div>
 
               <div className="flex items-center space-x-4 text-sm text-muted-foreground mb-3">
-                <div className="flex items-center">
-                  <Star className="h-4 w-4 mr-1 fill-yellow-400 text-yellow-400" />
-                  <span>New Member</span>
-                </div>
                 <div className="flex items-center">
                   <Calendar className="h-4 w-4 mr-1" />
                   <span>
@@ -399,7 +436,7 @@ export function ProfileSettings() {
                 </div>
               </div>
 
-              <p className="text-muted-foreground">{formData.bio}</p>
+              <p className="text-muted-foreground">{formData.bio || "No bio yet."}</p>
             </div>
           </div>
         </CardContent>
@@ -409,16 +446,17 @@ export function ProfileSettings() {
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Personal Information</CardTitle>
           <Button
-            variant={isEditing ? "default" : "outline"}
-            onClick={() => (isEditing ? handleSave() : setIsEditing(true))}
-            disabled={isSaving}
+            variant={uiState.isEditing ? "default" : "outline"}
+            onClick={() => uiState.isEditing ? handleSave() : setUiState(prev => ({ ...prev, isEditing: true }))}
+            disabled={uiState.isSaving}
+            className={uiState.isEditing ? "bg-green-700 hover:bg-green-800" : ""}
           >
-            {isSaving ? (
+            {uiState.isSaving ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Saving...
               </>
-            ) : isEditing ? (
+            ) : uiState.isEditing ? (
               "Save Changes"
             ) : (
               "Edit Profile"
@@ -428,13 +466,15 @@ export function ProfileSettings() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
+              <Label htmlFor="name">Full Name *</Label>
               <Input
                 id="name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                disabled={!isEditing}
+                disabled={!uiState.isEditing}
+                minLength={2}
               />
+              <p className="text-xs text-muted-foreground">Minimum 2 characters required</p>
             </div>
 
             <div className="space-y-2">
@@ -449,12 +489,9 @@ export function ProfileSettings() {
                 id="phone"
                 value={formData.mobile}
                 onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
-                disabled={!isEditing}
+                disabled={!uiState.isEditing}
                 placeholder="Enter your phone number"
               />
-              <p className="text-xs text-muted-foreground">
-                {isEditing ? "Update your phone number for better communication" : "Phone number for contact purposes"}
-              </p>
             </div>
 
             <div className="space-y-2">
@@ -463,7 +500,7 @@ export function ProfileSettings() {
                 id="location"
                 value={formData.location}
                 onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                disabled={!isEditing}
+                disabled={!uiState.isEditing}
               />
             </div>
           </div>
@@ -475,7 +512,7 @@ export function ProfileSettings() {
               rows={3}
               value={formData.bio}
               onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-              disabled={!isEditing}
+              disabled={!uiState.isEditing}
               maxLength={500}
             />
             <p className="text-xs text-muted-foreground">{formData.bio.length}/500 characters</p>
@@ -488,40 +525,28 @@ export function ProfileSettings() {
           <CardTitle>Security</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!user?.email_verified && (
+          {!user?.email_confirmed_at && (
             <>
               <div className="flex items-center justify-between">
                 <div>
                   <h4 className="font-medium">Email Verification</h4>
                   <p className="text-sm text-muted-foreground">Verify your email address to secure your account</p>
                 </div>
-                <Button variant="outline" onClick={() => setShowEmailVerification(true)}>
-                  Verify Email
+                <Button
+                  variant="outline"
+                  onClick={handleResendVerification}
+                  disabled={uiState.isResendingVerification}
+                >
+                  {uiState.isResendingVerification ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    "Verify Email"
+                  )}
                 </Button>
               </div>
-
-              {showEmailVerification && (
-                <div className="mt-4 p-4 border border-border rounded-lg bg-muted/50">
-                  <p className="text-sm text-muted-foreground mb-3">
-                    A verification link will be sent to your email address.
-                  </p>
-                  <div className="flex space-x-2">
-                    <Button size="sm" onClick={handleResendVerification} disabled={isResendingVerification}>
-                      {isResendingVerification ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Sending...
-                        </>
-                      ) : (
-                        "Send Verification"
-                      )}
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setShowEmailVerification(false)}>
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              )}
 
               <Separator />
             </>
@@ -532,12 +557,15 @@ export function ProfileSettings() {
               <h4 className="font-medium">Password</h4>
               <p className="text-sm text-muted-foreground">Reset your account password</p>
             </div>
-            <Button variant="outline" onClick={() => setShowPasswordReset(true)}>
+            <Button
+              variant="outline"
+              onClick={() => setUiState(prev => ({ ...prev, showPasswordReset: true }))}
+            >
               Reset Password
             </Button>
           </div>
 
-          {showPasswordReset && (
+          {uiState.showPasswordReset && (
             <div className="mt-4 p-4 border border-border rounded-lg bg-muted/50">
               <p className="text-sm text-muted-foreground mb-3">
                 A password reset link will be sent to your email address.
@@ -546,56 +574,18 @@ export function ProfileSettings() {
                 <Button size="sm" onClick={handlePasswordReset}>
                   Send Reset Link
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => setShowPasswordReset(false)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setUiState(prev => ({ ...prev, showPasswordReset: false }))}
+                >
                   Cancel
                 </Button>
               </div>
             </div>
           )}
-
-          <Separator />
-
-          <div className="flex items-center justify-between">
-            <div>
-              <h4 className="font-medium text-red-600">Delete Account</h4>
-              <p className="text-sm text-muted-foreground">
-                Permanently deactivate your account (data preserved for system integrity)
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              className="text-red-600 border-red-200 hover:bg-red-50 bg-transparent"
-              onClick={() => setShowDeleteConfirm(true)}
-            >
-              Delete Account
-            </Button>
-          </div>
-
-          {showDeleteConfirm && (
-            <div className="mt-4 p-4 border border-red-200 rounded-lg bg-red-50">
-              <div className="flex items-start space-x-3">
-                <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm text-red-800 mb-3">
-                    <strong>Account Deactivation:</strong> Your account will be deactivated but your information will be
-                    preserved for system integrity, legal compliance, and transaction history.
-                  </p>
-                  <div className="flex space-x-2">
-                    <Button size="sm" variant="destructive" onClick={handleDeleteAccount}>
-                      Confirm Deactivation
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setShowDeleteConfirm(false)}>
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </CardContent>
       </Card>
-
-      {/* REMOVED: Notification Preferences Section - Not in your schema */}
     </div>
   )
 }

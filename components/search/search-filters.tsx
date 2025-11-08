@@ -1,302 +1,253 @@
+// components/search/search-filters.tsx - FIXED VERSION
 "use client"
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
-import { Slider } from "@/components/ui/slider"
-import { X, Filter, DollarSign, ArrowUpDown } from "lucide-react"
+import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useCallback, useState, useMemo } from "react"
-import { getAllCategoryNames, getFiltersByCategory, getCategoryByName } from "@/lib/categories"
+import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
+import { Filter, X } from "lucide-react"
 
-const SearchFilters = ({ searchQuery }: { searchQuery: string }) => {
+// Sort options
+const SORT_OPTIONS = [
+  { value: "newest", label: "Newest First" },
+  { value: "price-low", label: "Price: Low to High" },
+  { value: "price-high", label: "Price: High to Low" },
+]
+
+interface SearchFiltersProps {
+  onFiltersChange?: (filters: any) => void
+}
+
+export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  
+  const [minPrice, setMinPrice] = useState(searchParams.get("minPrice") || "")
+  const [maxPrice, setMaxPrice] = useState(searchParams.get("maxPrice") || "")
+  const [sortBy, setSortBy] = useState(searchParams.get("sortBy") || "newest")
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
 
-  const [priceRange, setPriceRange] = useState(() => [
-    Number.parseInt(searchParams.get("minPrice") || "0"),
-    Number.parseInt(searchParams.get("maxPrice") || "10000"),
-  ])
-
-  // Get current filter values directly from the URL. The URL is the source of truth.
-  const selectedCategory = searchParams.get("category") || ""
-  const selectedSubcategory = searchParams.get("subcategory") || ""
-  const location = searchParams.get("location") || ""
-  const sortBy = searchParams.get("sortBy") || "relevance"
-
-  const categoryFilters = useMemo(() => {
-    const filters: Record<string, string[]> = {}
-    const categoryData = getCategoryByName(selectedCategory)
-
-    if (categoryData) {
-      for (const [key, value] of searchParams.entries()) {
-        // Check if the key is a category-specific filter
-        const filterKey = key.toLowerCase().replace(/\s+/g, "_")
-        const isValidFilter = Object.keys(categoryData.filters).some(
-          (filterName) => filterName.toLowerCase().replace(/\s+/g, "_") === filterKey,
-        )
-
-        if (isValidFilter) {
-          filters[key] = [value]
-        }
-      }
-    }
-    return filters
-  }, [searchParams, selectedCategory])
-
-  const updateUrl = useCallback(
-    (newParams: { [key: string]: string | null }) => {
-      const params = new URLSearchParams(searchParams.toString())
-
-      Object.entries(newParams).forEach(([key, value]) => {
-        if (value === null) {
-          params.delete(key)
-        } else {
-          params.set(key, value)
-        }
-      })
-
-      router.push(`/search?${params.toString()}`, { scroll: false })
-    },
-    [router, searchParams.toString()],
-  )
-
-  const categoryOptions = selectedCategory ? getFiltersByCategory(selectedCategory) : {}
-
-  const clearFilters = useCallback(() => {
+  const applyFilters = () => {
     const params = new URLSearchParams()
-    if (searchQuery) params.set("q", searchQuery)
-    router.push(`/search?${params.toString()}`)
-  }, [router, searchQuery])
 
-  const hasActiveFilters =
-    selectedCategory ||
-    selectedSubcategory ||
-    priceRange[0] > 0 ||
-    priceRange[1] < 10000 ||
-    location ||
-    sortBy !== "relevance" ||
-    Object.keys(categoryFilters).length > 0
+    if (minPrice) params.set("minPrice", minPrice)
+    if (maxPrice) params.set("maxPrice", maxPrice)
+    if (sortBy && sortBy !== "newest") params.set("sortBy", sortBy)
+
+    router.push(`/search?${params.toString()}`)
+    
+    if (onFiltersChange) {
+      onFiltersChange({
+        minPrice: minPrice || undefined,
+        maxPrice: maxPrice || undefined,
+        sortBy: sortBy !== "newest" ? sortBy : undefined,
+      })
+    }
+
+    setShowMobileFilters(false)
+  }
+
+  const clearFilters = () => {
+    setMinPrice("")
+    setMaxPrice("")
+    setSortBy("newest")
+    
+    router.push("/search")
+    
+    if (onFiltersChange) {
+      onFiltersChange({})
+    }
+
+    setShowMobileFilters(false)
+  }
+
+  const hasActiveFilters = 
+    minPrice ||
+    maxPrice ||
+    (sortBy && sortBy !== "newest")
+
+  // Apply filters when any filter changes (for sidebar auto-apply)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+      // Auto-apply filters on desktop (sidebar mode)
+      applyFilters()
+    }
+  }, [minPrice, maxPrice, sortBy])
 
   return (
-    <div className="bg-gradient-to-br from-green-50 to-white border border-green-200 rounded-xl shadow-lg">
-      <div className="bg-gradient-to-r from-green-900 to-green-800 text-white p-4 rounded-t-xl">
+    <>
+      {/* Mobile Filter Trigger */}
+      <div className="lg:hidden bg-white border-b border-gray-200 p-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Filter className="h-5 w-5" />
-            <h3 className="font-semibold text-lg">Filters</h3>
-          </div>
-          {hasActiveFilters && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearFilters}
-              className="text-white hover:bg-white/20 hover:text-green-900 border border-white/30"
-            >
-              <X className="h-4 w-4 mr-1" />
-              Clear All
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowMobileFilters(true)}
+            className="border-gray-200 w-full"
+          >
+            <Filter className="h-4 w-4 mr-2" />
+            Filters
+          </Button>
         </div>
       </div>
 
-      <div className="p-6 space-y-6">
-        {!selectedCategory && (
-          <>
-            <div className="space-y-4">
-              <Label className="text-base font-semibold text-gray-800 flex items-center">Select Category</Label>
-              <div className="grid grid-cols-2 gap-3">
-                {getAllCategoryNames().map((category) => (
-                  <button
-                    key={category}
-                    onClick={() => updateUrl({ category: category, subcategory: null })}
-                    className="p-3 text-left border-2 border-gray-200 rounded-lg hover:border-green-400 hover:bg-green-50 transition-all duration-200 text-sm font-medium"
-                  >
-                    {category}
-                  </button>
-                ))}
+      {/* Mobile Filters Overlay */}
+      {showMobileFilters && (
+        <div className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-50">
+          <div className="absolute right-0 top-0 h-full w-4/5 max-w-sm bg-white shadow-xl overflow-y-auto">
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold">Filters</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowMobileFilters(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
-            </div>
-            <Separator className="bg-green-200" />
-          </>
-        )}
 
-        {selectedCategory && (
-          <>
-            {Object.keys(categoryOptions).length > 0 && (
-              <>
-                <div className="space-y-5">
-                  <Label className="text-base font-semibold text-gray-800">
-                    {selectedSubcategory && selectedSubcategory !== "all" ? selectedSubcategory : selectedCategory}{" "}
-                    Filters
-                  </Label>
-                  <div className="flex flex-wrap gap-4">
-                    {Object.entries(categoryOptions).map(([filterType, options]) => (
-                      <div key={filterType} className="flex-1 min-w-[200px] space-y-2">
-                        <Label className="text-sm font-medium text-gray-700">{filterType}</Label>
-                        <Select
-                          value={categoryFilters[filterType.toLowerCase().replace(/\s+/g, "_")]?.[0] || "all"}
-                          onValueChange={(value) => {
-                            const filterKey = filterType.toLowerCase().replace(/\s+/g, "_")
-                            if (value === "all") {
-                              updateUrl({ [filterKey]: null })
-                            } else {
-                              updateUrl({ [filterKey]: value })
-                            }
-                          }}
-                        >
-                          <SelectTrigger className="w-full bg-white border-2 border-gray-200 hover:border-green-400 focus:border-green-500 transition-colors">
-                            <SelectValue placeholder={`Any ${filterType}`} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all" className="font-medium text-gray-600">
-                              Any {filterType}
-                            </SelectItem>
-                            {options.map((option) => (
-                              <SelectItem key={option} value={option} className="hover:bg-green-50">
-                                {option}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    ))}
+              <div className="space-y-6">
+                {/* Price Range */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Budget Range
+                  </label>
+                  <div className="flex space-x-2">
+                    <Input
+                      type="number"
+                      placeholder="Min"
+                      value={minPrice}
+                      onChange={(e) => setMinPrice(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Max"
+                      value={maxPrice}
+                      onChange={(e) => setMaxPrice(e.target.value)}
+                      className="flex-1"
+                    />
                   </div>
                 </div>
-                <Separator className="bg-green-200" />
-              </>
-            )}
-          </>
-        )}
 
-        {(selectedCategory || selectedSubcategory) && (
-          <div className="bg-green-50 p-3 rounded-lg border border-green-200">
-            <div className="flex items-center justify-between">
-              <div className="text-sm">
-                <span className="text-gray-600">Filtering by: </span>
-                <span className="font-medium text-green-800">
-                  {selectedSubcategory && selectedSubcategory !== "all" ? selectedSubcategory : selectedCategory}
-                </span>
+                {/* Sort By */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Sort By
+                  </label>
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SORT_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
+
+              <div className="flex space-x-3 mt-8">
+                <Button
+                  variant="outline"
+                  onClick={clearFilters}
+                  className="flex-1"
+                  disabled={!hasActiveFilters}
+                >
+                  Clear
+                </Button>
+                <Button
+                  onClick={applyFilters}
+                  className="flex-1 bg-green-900 hover:bg-green-950"
+                >
+                  Apply
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Desktop Sidebar Filters - SIMPLIFIED VERSION */}
+      <div className="hidden lg:block bg-white border border-gray-200 rounded-lg p-6 sticky top-4">
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900">Filters</h3>
+            {hasActiveFilters && (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => updateUrl({ category: null, subcategory: null })}
-                className="text-green-700 hover:bg-green-100"
+                onClick={clearFilters}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50 text-xs"
               >
-                <X className="h-3 w-3" />
+                Clear All
               </Button>
+            )}
+          </div>
+
+          {/* Budget Range */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Budget Range
+            </label>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Min Price</label>
+                <Input
+                  type="number"
+                  placeholder="$0"
+                  value={minPrice}
+                  onChange={(e) => setMinPrice(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Max Price</label>
+                <Input
+                  type="number"
+                  placeholder="$10000"
+                  value={maxPrice}
+                  onChange={(e) => setMaxPrice(e.target.value)}
+                  className="w-full"
+                />
+              </div>
             </div>
           </div>
-        )}
 
-        <div className="space-y-4">
-          <Label className="text-base font-semibold text-gray-800 flex items-center">
-            <DollarSign className="h-5 w-5 mr-2 text-green-600" />
-            Price Range
-          </Label>
-          <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-            <Slider
-              value={priceRange}
-              onValueChange={setPriceRange}
-              onValueCommit={(value) => {
-                updateUrl({
-                  minPrice: value[0] > 0 ? value[0].toString() : null,
-                  maxPrice: value[1] < 10000 ? value[1].toString() : null,
-                })
-              }}
-              max={10000}
-              min={0}
-              step={50}
-              className="w-full mb-4"
-            />
-            <div className="flex justify-between text-sm font-medium text-gray-600 mb-3">
-              <span>${priceRange[0].toLocaleString()}</span>
-              <span>${priceRange[1].toLocaleString()}</span>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Input
-                placeholder="Min Price"
-                type="number"
-                value={priceRange[0]}
-                onChange={(e) => {
-                  setPriceRange([Number.parseInt(e.target.value) || 0, priceRange[1]])
-                }}
-                onBlur={(e) => {
-                  updateUrl({ minPrice: e.target.value > "0" ? e.target.value : null })
-                }}
-                className="border-2 border-gray-200 hover:border-green-400 focus:border-green-500"
-              />
-              <Input
-                placeholder="Max Price"
-                type="number"
-                value={priceRange[1]}
-                onChange={(e) => {
-                  setPriceRange([priceRange[0], Number.parseInt(e.target.value) || 10000])
-                }}
-                onBlur={(e) => {
-                  updateUrl({ maxPrice: e.target.value < "10000" ? e.target.value : null })
-                }}
-                className="border-2 border-gray-200 hover:border-green-400 focus:border-green-500"
-              />
-            </div>
+          {/* Sort By */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Sort By
+            </label>
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                {SORT_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
+
+          {/* Apply Button - Fixed size */}
+          <Button
+            onClick={applyFilters}
+            className="w-full bg-green-900 hover:bg-green-950 h-10"
+          >
+            Apply Filters
+          </Button>
         </div>
-
-        <Separator className="bg-green-200" />
-
-        <div className="space-y-3">
-          <Label className="text-base font-semibold text-gray-800">Location</Label>
-          <Input
-            placeholder="Enter city or province"
-            value={location}
-            onChange={(e) => {
-              /* No-op, we'll use a button to apply */
-            }}
-            className="border-2 border-gray-200 hover:border-green-400 focus:border-green-500"
-          />
-        </div>
-
-        <Separator className="bg-green-200" />
-
-        <div className="space-y-3">
-          <Label className="text-base font-semibold text-gray-800 flex items-center">
-            <ArrowUpDown className="h-5 w-5 mr-2 text-green-600" />
-            Sort By
-          </Label>
-          <Select value={sortBy} onValueChange={(value) => updateUrl({ sortBy: value === "relevance" ? null : value })}>
-            <SelectTrigger className="w-full bg-white border-2 border-gray-200 hover:border-green-400 focus:border-green-500 transition-colors">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="relevance">Most Relevant</SelectItem>
-              <SelectItem value="newest">Newest First</SelectItem>
-              <SelectItem value="price-low">Price: Low to High</SelectItem>
-              <SelectItem value="price-high">Price: High to Low</SelectItem>
-              <SelectItem value="distance">Nearest First</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <Button
-          onClick={() => {
-            const locationInput = document.querySelector(
-              'input[placeholder="Enter city or province"]',
-            ) as HTMLInputElement
-            if (locationInput) {
-              updateUrl({ location: locationInput.value || null })
-            }
-          }}
-          className="w-full bg-gradient-to-r from-green-900 to-green-800 hover:from-green-950 hover:to-green-900 text-white font-semibold py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200"
-        >
-          Apply Filters
-        </Button>
       </div>
-    </div>
+    </>
   )
 }
-
-export { SearchFilters }
-export default SearchFilters

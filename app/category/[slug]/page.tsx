@@ -98,4 +98,8 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
       </div>
     </>
   )
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> dc13c296036f9d408027fc6b97e1464d41b5c2ae

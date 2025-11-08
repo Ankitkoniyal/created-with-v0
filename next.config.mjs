@@ -6,7 +6,7 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  serverExternalPackages: ['@supabase/supabase-js'], // ✅ updated
+  serverExternalPackages: ['@supabase/supabase-js'],
   images: {
     unoptimized: false,
     domains: ['blob.vercel-storage.com', 'supabase.co'],

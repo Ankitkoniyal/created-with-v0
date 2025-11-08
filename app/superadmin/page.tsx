@@ -1,139 +1,183 @@
-// app/superadmin/page.tsx
 "use client"
 
 import { useState, useEffect } from "react"
 import { SuperAdminNav } from "@/components/superadmin/super-admin-nav"
 import { SuperAdminOverview } from "@/components/superadmin/super-admin-overview"
-import { AdsManagement } from "@/components/superadmin/ads-management"
+import AdsManagement from "@/components/superadmin/ads-management"
 import { PendingReview } from "@/components/superadmin/pending-review"
 import { ReportedAds } from "@/components/superadmin/reported-ads"
-import { UserManagement } from "@/components/superadmin/user-management"
 import { CategoriesManagement } from "@/components/superadmin/categories-management"
 import { LocalitiesManagement } from "@/components/superadmin/localities-management"
 import { Analytics } from "@/components/superadmin/analytics"
 import { Settings } from "@/components/superadmin/settings"
-import { getSupabaseClient } from "@/lib/supabase/client"
+import { useAuth } from "@/hooks/use-auth"
+import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
 
-type ActiveView = 
-  | "overview" 
-  | "ads" 
-  | "pending" 
-  | "reported" 
-  | "users" 
-  | "categories" 
-  | "localities" 
-  | "analytics" 
-  | "settings";
+interface DashboardStats {
+  totalUsers: number
+  totalAds: number
+  activeAds: number
+  pendingReview: number
+  reportedAds: number
+  newUsersToday: number
+  newAdsToday: number
+}
 
-export default function SuperAdminDashboard() {
-  const [activeView, setActiveView] = useState<ActiveView>("overview");
-  const [stats, setStats] = useState({
+export default function SuperAdminPage() {
+  const [activeView, setActiveView] = useState("overview")
+  const [stats, setStats] = useState<DashboardStats>({
+    totalUsers: 0,
     totalAds: 0,
     activeAds: 0,
     pendingReview: 0,
     reportedAds: 0,
-    totalUsers: 0,
+    newUsersToday: 0,
+    newAdsToday: 0
   })
+  
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
+  const { user } = useAuth()
+  const router = useRouter()
+  const supabase = createClient()
 
   useEffect(() => {
-    fetchDashboardData()
-  }, [])
+    checkSuperAdminAccess()
+  }, [user])
 
-  const fetchDashboardData = async () => {
+  const checkSuperAdminAccess = async () => {
+    if (!user) {
+      router.replace("/auth/login")
+      return
+    }
+
     try {
-      setLoading(true)
-      const supabase = await getSupabaseClient()
-      
-      // Fetch all data in parallel
-      const [
-        usersResponse,
-        productsResponse,
-        pendingAdsResponse,
-        reportedAdsResponse,
-        activeAdsResponse
-      ] = await Promise.all([
-        supabase.from('profiles').select('*', { count: 'exact' }),
-        supabase.from('products').select('*', { count: 'exact' }),
-        supabase.from('products').select('*', { count: 'exact' }).eq('status', 'pending'),
-        supabase.from('products').select('*', { count: 'exact' }).eq('status', 'reported'),
-        supabase.from('products').select('*', { count: 'exact' }).eq('status', 'active')
-      ])
+      // Get fresh profile data
+      const { data: freshProfile, error } = await supabase
+        .from('profiles')
+        .select('role, email')
+        .eq('id', user.id)
+        .single()
 
-      setStats({
-        totalUsers: usersResponse.count || 0,
-        totalAds: productsResponse.count || 0,
-        activeAds: activeAdsResponse.count || 0,
-        pendingReview: pendingAdsResponse.count || 0,
-        reportedAds: reportedAdsResponse.count || 0,
+      if (error || !freshProfile) {
+        console.error("❌ Profile fetch error:", error)
+        router.replace("/dashboard")
+        return
+      }
+
+      console.log("🛡️ Super Admin Access Check:", {
+        email: freshProfile.email,
+        role: freshProfile.role
       })
+
+      // Check both role AND specific email for security
+      const isAuthorizedSuperAdmin = 
+        freshProfile.role === 'super_admin' && 
+        freshProfile.email === "ankit.koniyal000@gmail.com"
+
+      if (!isAuthorizedSuperAdmin) {
+        console.log("❌ Access denied - Not authorized super admin")
+        router.replace("/dashboard")
+        return
+      }
+
+      console.log("✅ Access granted - Authorized super admin")
+      setIsAuthorized(true)
+
     } catch (error) {
-      console.error("Error fetching dashboard data:", error)
+      console.error("Super admin access check failed:", error)
+      router.replace("/auth/login")
     } finally {
       setLoading(false)
     }
   }
 
-  const handleNavigation = (view: ActiveView) => {
-    setActiveView(view);
-    if (view === "overview") {
-      fetchDashboardData(); // Refresh data when returning to overview
-    }
-  };
-
   const renderActiveView = () => {
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500 mx-auto"></div>
+            <p className="text-white mt-2">Verifying super admin access...</p>
+          </div>
+        </div>
+      )
+    }
+
+    if (!isAuthorized) {
+      return (
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <p className="text-red-400 text-lg">Access Denied</p>
+            <p className="text-gray-400 mt-2">You don't have permission to access this page.</p>
+          </div>
+        </div>
+      )
+    }
+
     switch (activeView) {
       case "overview":
-        return <SuperAdminOverview stats={stats} />;
+        return <SuperAdminOverview stats={stats} onNavigate={setActiveView} />
       case "ads":
-        return <AdsManagement />;
-      case "pending":
-        return <PendingReview />;
-      case "reported":
-        return <ReportedAds />;
+        return <AdsManagement />
       case "users":
-        return <UserManagement />;
+        return <div className="text-white p-6">User Management - Coming Soon</div>
       case "categories":
-        return <CategoriesManagement />;
+        return <CategoriesManagement />
       case "localities":
-        return <LocalitiesManagement />;
+        return <LocalitiesManagement />
       case "analytics":
-        return <Analytics />;
+        return <Analytics />
       case "settings":
-        return <Settings />;
+        return <Settings />
+      case "reported":
+        return <ReportedAds />
+      case "pending":
+        return <PendingReview />
       default:
-        return <SuperAdminOverview stats={stats} />;
+        return <SuperAdminOverview stats={stats} onNavigate={setActiveView} />
     }
-  };
+  }
 
   if (loading) {
     return (
-      <div className="flex min-h-screen bg-gray-900">
-        <div className="w-72 bg-gray-900 p-6 flex flex-col border-r border-gray-700">
-          <div className="h-12 w-12 animate-pulse rounded-lg bg-gray-700 mb-6" />
-          <div className="space-y-2">
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => (
-              <div key={i} className="h-10 animate-pulse rounded bg-gray-700" />
-            ))}
-          </div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500 mx-auto"></div>
+          <p className="text-white mt-2">Loading super admin panel...</p>
         </div>
-        <div className="flex-1 p-8">
-          <div className="h-10 w-64 animate-pulse rounded bg-gray-700 mb-8" />
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            {[1, 2, 3, 4].map(i => (
-              <div key={i} className="h-32 animate-pulse rounded-lg bg-gray-700" />
-            ))}
-          </div>
+      </div>
+    )
+  }
+
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+        <div className="text-center">
+          <p className="text-red-400 text-xl mb-2">Access Denied</p>
+          <p className="text-gray-400">You don't have permission to access the super admin dashboard.</p>
+          <button 
+            onClick={() => router.push("/dashboard")}
+            className="mt-4 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+          >
+            Go to User Dashboard
+          </button>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-900 text-gray-100">
-      <SuperAdminNav stats={stats} onNavigate={handleNavigation} activeView={activeView} />
-      <div className="flex-1 p-6 overflow-auto">
-        <div className="bg-gray-800 rounded-lg p-6 shadow-lg">
+    <div className="flex h-screen bg-gray-900">
+      <SuperAdminNav 
+        stats={stats}
+        onNavigate={setActiveView}
+        activeView={activeView}
+      />
+      
+      <div className="flex-1 overflow-auto">
+        <div className="p-6">
           {renderActiveView()}
         </div>
       </div>
