@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect, Suspense } from "react"
+import { useState, useEffect, Suspense, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -177,9 +177,9 @@ function LoginFormContent() {
 
       // Fetch user profile for role-based routing
       const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', data.user.id)
+        .from("profiles")
+        .select("role")
+        .eq("id", data.user.id)
         .single()
 
       if (profileError) {
@@ -188,18 +188,20 @@ function LoginFormContent() {
       }
 
       // Determine redirect path
-      const userRole = profileData?.role || 'user'
+      const userRole = profileData?.role || "user"
       const userEmail = data.user.email
       
       // Super admin must have BOTH the role AND the specific email
-      const isSuperAdmin = userRole === 'super_admin' && userEmail === "ankit.koniyal000@gmail.com"
-      const redirectPath = isSuperAdmin ? '/superadmin' : '/dashboard'
+      const isSuperAdmin = userRole === "super_admin" && userEmail === "ankit.koniyal000@gmail.com"
+      const roleRedirectPath = isSuperAdmin ? "/superadmin" : "/dashboard"
+      const safeRedirectTarget =
+        redirectedFrom && redirectedFrom !== "/" ? redirectedFrom : roleRedirectPath
 
       console.log("🔐 Login Redirect:", {
         userEmail,
         userRole,
         isSuperAdmin,
-        redirectPath
+        redirectPath: safeRedirectTarget,
       })
 
       // Handle remember me
@@ -212,12 +214,21 @@ function LoginFormContent() {
         removeItem("coinmint_rememberedCredentials")
       }
 
-      // Show success and redirect
+      // Show success feedback and navigate immediately
       setSuccessOpen(true)
-      setTimeout(() => {
-        setSuccessOpen(false)
-        router.replace(redirectPath)
-      }, 1500)
+      setIsSubmitting(false)
+
+      try {
+        router.prefetch(safeRedirectTarget)
+      } catch {
+        // Ignore prefetch errors
+      }
+
+      if (typeof window !== "undefined") {
+        window.location.replace(safeRedirectTarget)
+      } else {
+        router.replace(safeRedirectTarget)
+      }
 
     } catch (err) {
       console.error("Login error:", err)

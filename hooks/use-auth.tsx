@@ -448,6 +448,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       setIsLoading(true)
       await clearAllSessionData(supabase)
+      if (mountedRef.current) {
+        setUser(null)
+        setProfile(null)
+      }
     } catch (logoutError) {
       console.log("[v0] Logout error:", logoutError)
     } finally {

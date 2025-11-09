@@ -164,6 +164,14 @@ export const SUBCATEGORY_TO_SLUG: { [key: string]: string } = {
   "Miscellaneous": "miscellaneous"
 }
 
+export const SLUG_TO_SUBCATEGORY: { [key: string]: string } = Object.entries(SUBCATEGORY_TO_SLUG).reduce(
+  (acc, [displayName, slug]) => {
+    acc[slug] = displayName
+    return acc
+  },
+  {} as { [key: string]: string },
+)
+
 // Helper functions
 export const getCategoryByName = (name: string): CategoryData | undefined => {
   const subcategories = SUBCATEGORY_MAPPINGS[name] || []

@@ -10,11 +10,136 @@ import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { getOptimizedImageUrl } from "@/lib/images"
+import { normalizeCategory } from "@/lib/normalize-categories"
+import { resolveCategoryInput, resolveSubcategoryInput } from "@/lib/category-utils"
 
 interface SearchResultsProps {
   searchQuery: string
   filters: any
-  viewMode: "grid" | "list"
+}
+
+const tokenize = (value?: string) =>
+  (value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .split(" ")
+    .map((token) => token.trim())
+    .filter((token, index, arr) => token && token.length > 1 && arr.indexOf(token) === index)
+
+const levenshtein = (a: string, b: string) => {
+  if (a === b) return 0
+  if (!a) return b.length
+  if (!b) return a.length
+
+  const matrix: number[][] = Array.from({ length: a.length + 1 }, (_, i) =>
+    Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
+  )
+
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      if (a[i - 1] === b[j - 1]) {
+        matrix[i][j] = matrix[i - 1][j - 1]
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j - 1] + 1,
+        )
+      }
+    }
+  }
+
+  return matrix[a.length][b.length]
+}
+
+const scoreProductMatch = (product: any, tokens: string[]) => {
+  if (!tokens.length) return 0
+
+  const sourceStrings: string[] = [
+    product?.title,
+    product?.description,
+    Array.isArray(product?.tags) ? product.tags.join(" ") : product?.tags,
+    product?.category,
+    product?.subcategory,
+  ]
+    .flat()
+    .filter(Boolean)
+    .map((value) =>
+      value
+        .toString()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, ""),
+    )
+
+  if (!sourceStrings.length) return 0
+
+  let aggregateScore = 0
+
+  for (const token of tokens) {
+    let bestDistance = Number.POSITIVE_INFINITY
+
+    for (const source of sourceStrings) {
+      const sourceTokens = source.split(/[^a-z0-9]+/).filter(Boolean)
+      for (const candidate of sourceTokens) {
+        const distance = levenshtein(token, candidate)
+        if (distance < bestDistance) {
+          bestDistance = distance
+        }
+        if (distance === 0) break
+      }
+      if (bestDistance === 0) break
+    }
+
+    if (bestDistance === Number.POSITIVE_INFINITY) {
+      aggregateScore += 10
+    } else {
+      aggregateScore += bestDistance
+    }
+  }
+
+  return aggregateScore
+}
+
+const sortProductsByRelevance = (products: any[], tokens: string[]) => {
+  if (!tokens.length) return products
+
+  return [...products].sort((a, b) => {
+    const scoreA = scoreProductMatch(a, tokens)
+    const scoreB = scoreProductMatch(b, tokens)
+    return scoreA - scoreB
+  })
+}
+
+const isGoodMatch = (product: any, tokens: string[]) => {
+  if (!tokens.length) return true
+
+  const text = [
+    product?.title,
+    product?.description,
+    Array.isArray(product?.tags) ? product.tags.join(" ") : product?.tags,
+    product?.category,
+    product?.subcategory,
+  ]
+    .flat()
+    .filter(Boolean)
+    .map((value) =>
+      value
+        .toString()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, ""),
+    )
+    .join(" ")
+
+  return tokens.some((token) => {
+    if (text.includes(token)) return true
+
+    const words = text.split(/[^a-z0-9]+/).filter(Boolean)
+    return words.some((word) => levenshtein(token, word) <= Math.ceil(Math.max(word.length, token.length) * 0.35))
+  })
 }
 
 export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
@@ -27,92 +152,160 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
   useEffect(() => {
     const fetchProducts = async () => {
       setLoading(true)
-      
+
+      const searchTokens = tokenize(searchQuery)
+
       try {
+        const baseSelect = `
+          id,
+          title,
+          description,
+          price,
+          price_type,
+          condition,
+          category,
+          subcategory,
+          tags,
+          city,
+          province,
+          created_at,
+          images,
+          primary_image
+        `
+
         let query = supabase
-          .from('products')
-          .select(`
-            *,
-            seller:profiles!user_id (
-              id,
-              full_name,
-              avatar_url
+          .from("products")
+          .select(baseSelect)
+          .eq("status", "active")
+
+        if (searchTokens.length === 1) {
+          const token = searchTokens[0]
+          query = query.or(
+            [
+              `title.ilike.%${token}%`,
+              `description.ilike.%${token}%`,
+              `tags.ilike.%${token}%`,
+            ].join(","),
+          )
+        } else if (searchTokens.length > 1) {
+          for (const token of searchTokens) {
+            query = query.or(
+              [
+                `title.ilike.%${token}%`,
+                `description.ilike.%${token}%`,
+                `tags.ilike.%${token}%`,
+              ].join(","),
             )
-          `)
-          .eq('status', 'active')
-
-        if (searchQuery && searchQuery.trim() !== '') {
+          }
+        } else if (searchQuery && searchQuery.trim() !== "") {
           const cleanQuery = searchQuery.trim().toLowerCase()
-          query = query.or(`title.ilike.%${cleanQuery}%,description.ilike.%${cleanQuery}%`)
+          query = query.or(
+            [
+              `title.ilike.%${cleanQuery}%`,
+              `description.ilike.%${cleanQuery}%`,
+              `tags.ilike.%${cleanQuery}%`,
+            ].join(","),
+          )
         }
 
-        if (filters.category) {
-          let categoryFilter = filters.category.toLowerCase()
-          const categoryMap: {[key: string]: string} = {
-            'home appliances': 'home-appliances',
-            'real estate': 'real-estate',
-            'fashion & beauty': 'fashion-beauty',
-            'pets & animals': 'pets-animals',
-            'books & education': 'books-education',
-            'free stuff': 'free-stuff'
+        const resolvedCategory = resolveCategoryInput(filters.category)
+
+        if (resolvedCategory) {
+          const normalizedCategory = resolvedCategory.displayName
+          if (normalizedCategory) {
+            query = query.eq("category", normalizedCategory)
           }
-          categoryFilter = categoryMap[categoryFilter] || categoryFilter
-          query = query.eq('category', categoryFilter)
         }
 
-        if (filters.subcategory && filters.subcategory !== 'all') {
-          let subcategoryFilter = filters.subcategory.toLowerCase()
-          const subcategoryMap: {[key: string]: string} = {
-            'roommates': 'roommates',
-            'for rent': 'for-rent',
-            'for sale': 'for-sale',
-            'land': 'land',
-            'full time jobs': 'full-time-jobs',
-            'part time jobs': 'part-time-jobs',
+        const resolvedSubcategory = resolveSubcategoryInput(filters.subcategory)
+
+        if (resolvedSubcategory) {
+          const subcategoryCandidates = Array.from(
+            new Set([
+              resolvedSubcategory.displayName,
+              resolvedSubcategory.slug,
+              resolvedSubcategory.displayName.toLowerCase(),
+              resolvedSubcategory.slug.toLowerCase(),
+            ]),
+          ).filter(Boolean)
+
+          if (subcategoryCandidates.length > 0) {
+            query = query.in("subcategory", subcategoryCandidates)
           }
-          subcategoryFilter = subcategoryMap[subcategoryFilter] || subcategoryFilter
-          query = query.eq('subcategory', subcategoryFilter)
         }
 
-        if (filters.location && filters.location.trim() !== '') {
+        if (filters.location && filters.location.trim() !== "") {
           const locationFilter = filters.location.trim().toLowerCase()
-          query = query.or(`location.ilike.%${locationFilter}%,city.ilike.%${locationFilter}%,province.ilike.%${locationFilter}%`)
+          query = query.or(
+            [
+              `location.ilike.%${locationFilter}%`,
+              `city.ilike.%${locationFilter}%`,
+              `province.ilike.%${locationFilter}%`,
+            ].join(","),
+          )
         }
 
         if (filters.minPrice) {
-          query = query.gte('price', parseInt(filters.minPrice))
+          query = query.gte("price", parseInt(filters.minPrice))
         }
         if (filters.maxPrice) {
-          query = query.lte('price', parseInt(filters.maxPrice))
+          query = query.lte("price", parseInt(filters.maxPrice))
         }
 
-        if (filters.condition && filters.condition !== 'all') {
-          query = query.eq('condition', filters.condition)
+        if (filters.condition && filters.condition !== "all") {
+          query = query.eq("condition", filters.condition)
         }
 
         switch (filters.sortBy) {
-          case 'price-low':
-            query = query.order('price', { ascending: true })
+          case "price-low":
+            query = query.order("price", { ascending: true })
             break
-          case 'price-high':
-            query = query.order('price', { ascending: false })
+          case "price-high":
+            query = query.order("price", { ascending: false })
             break
-          case 'newest':
+          case "newest":
           default:
-            query = query.order('created_at', { ascending: false })
+            query = query.order("created_at", { ascending: false })
             break
         }
+
+        query = query.limit(60)
 
         const { data, error } = await query
 
         if (error) {
-          console.error('Error fetching products:', error)
+          console.error("Error fetching products:", error)
           setProducts([])
-        } else {
-          setProducts(data || [])
+          return
         }
+
+        let fetchedProducts = data || []
+
+        if ((!fetchedProducts || fetchedProducts.length === 0) && searchTokens.length > 0) {
+          const fallbackResponse = await supabase
+            .from("products")
+            .select(baseSelect)
+            .eq("status", "active")
+            .order("created_at", { ascending: false })
+            .limit(120)
+
+          if (fallbackResponse.error) {
+            console.error("Fallback product fetch failed:", fallbackResponse.error)
+            setProducts([])
+            return
+          }
+
+          const fuzzyMatches = (fallbackResponse.data || []).filter((product) =>
+            isGoodMatch(product, searchTokens),
+          )
+
+          fetchedProducts = fuzzyMatches.length > 0 ? fuzzyMatches.slice(0, 60) : fallbackResponse.data || []
+        }
+
+        const sortedProducts = sortProductsByRelevance(fetchedProducts, searchTokens)
+        setProducts(sortedProducts)
       } catch (error) {
-        console.error('Error in fetchProducts:', error)
+        console.error("Error in fetchProducts:", error)
         setProducts([])
       } finally {
         setLoading(false)
@@ -177,7 +370,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
         <span className="font-medium">{products.length}</span> product{products.length !== 1 ? 's' : ''} found
         {searchQuery && ` for "${searchQuery}"`}
         {filters.location && ` in ${filters.location}`}
-        {filters.category && ` in ${filters.category}`}
+        {filters.category && ` in ${normalizeCategory(filters.category)}`}
       </div>
 
       {/* UPDATED GRID: 2 columns on mobile, 4 columns on large screens */}

@@ -1,106 +1,22 @@
 // lib/normalize-categories.ts
+import { resolveCategoryInput, toCategorySearchKey } from "./category-utils"
+
 export const normalizeCategory = (category: string): string => {
-  if (!category) return '';
-  
-  const mappings: Record<string, string> = {
-    // Main categories
-    'vehicles': 'Vehicles',
-    'vehicle': 'Vehicles',
-    'cars': 'Vehicles',
-    'car': 'Vehicles',
-    'electronics': 'Electronics',
-    'electronic': 'Electronics',
-    'mobiles': 'Mobile',
-    'mobile phones': 'Mobile',
-    'mobile': 'Mobile',
-    'real estate': 'Real Estate',
-    'realestate': 'Real Estate',
-    'property': 'Real Estate',
-    'properties': 'Real Estate',
-    'fashion & beauty': 'Fashion & Beauty',
-    'fashion': 'Fashion & Beauty',
-    'beauty': 'Fashion & Beauty',
-    'pets & animals': 'Pets & Animals',
-    'pets': 'Pets & Animals',
-    'animals': 'Pets & Animals',
-    'pet': 'Pets & Animals',
-    'furniture': 'Furniture',
-    'services': 'Services',
-    'service': 'Services',
-    'sports': 'Sports',
-    'sport': 'Sports',
-    'books & education': 'Books & Education',
-    'books': 'Books & Education',
-    'education': 'Books & Education',
-    'home appliances': 'Home Appliances',
-    'appliances': 'Home Appliances',
-    'appliance': 'Home Appliances',
-    'free stuff': 'Free Stuff',
-    'free': 'Free Stuff',
+  if (!category) return ""
 
-    // Subcategories - Electronics
-    'cameras': 'Cameras',
-    'camera': 'Cameras',
-    'tvs': 'TV & Audio',
-    'tv': 'TV & Audio',
-    'television': 'TV & Audio',
-    'audio': 'TV & Audio',
-    'speakers': 'TV & Audio',
-    'laptops': 'Laptops',
-    'laptop': 'Laptops',
-    'notebook': 'Laptops',
-    'tablets': 'Tablets',
-    'tablet': 'Tablets',
-    'ipad': 'Tablets',
-    'headphones': 'Headphones',
-    'headphone': 'Headphones',
-    'earphones': 'Headphones',
-    'computers': 'Computers',
-    'computer': 'Computers',
-    'pc': 'Computers',
-    'desktop': 'Computers',
+  const resolved = resolveCategoryInput(category)
+  if (resolved) {
+    return resolved.displayName
+  }
 
-    // Subcategories - Mobile
-    'phones': 'Mobile Phones',
-    'phone': 'Mobile Phones',
-    'smartphone': 'Mobile Phones',
-    'android': 'Android Phones',
-    'iphone': 'iPhones',
-    'apple': 'iPhones',
-    'accessories': 'Mobile Accessories',
-    'accessory': 'Mobile Accessories',
-    'cases': 'Mobile Accessories',
-    'chargers': 'Mobile Accessories',
+  // Fallback to basic normalization to avoid breaking calls that expect non-empty string
+  return category
+}
 
-    // Subcategories - Vehicles
-    'cars': 'Cars',
-    'car': 'Cars',
-    'trucks': 'Trucks',
-    'truck': 'Trucks',
-    'motorcycles': 'Motorcycles',
-    'motorcycle': 'Motorcycles',
-    'motorbike': 'Motorcycles',
-    'scooters': 'Scooters',
-    'scooter': 'Scooters',
-    'bicycles': 'Bicycles',
-    'bicycle': 'Bicycles',
-    'bike': 'Bicycles',
-    'auto parts': 'Auto Parts',
-    'parts': 'Auto Parts',
-
-    // Subcategories - Real Estate
-    'for rent': 'For Rent',
-    'rent': 'For Rent',
-    'rental': 'For Rent',
-    'for sale': 'For Sale',
-    'sale': 'For Sale',
-    'buy': 'For Sale',
-    'roommates': 'Roommates',
-    'roommate': 'Roommates',
-    'land': 'Land',
-    'property': 'Land',
-  };
-  
-  const normalized = mappings[category.toLowerCase().trim()];
-  return normalized || category;
-};
+export const normalizeCategoryToSlug = (category: string): string => {
+  const resolved = resolveCategoryInput(category)
+  if (resolved) {
+    return resolved.slug
+  }
+  return toCategorySearchKey(category)
+}

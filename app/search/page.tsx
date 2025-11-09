@@ -7,6 +7,7 @@ import { Breadcrumb } from "@/components/breadcrumb"
 import { SearchResults } from "@/components/search/search-results"
 import { SearchFilters } from "@/components/search/search-filters"
 import { SubcategoryNav } from "@/components/subcategory-nav"
+import { resolveCategoryInput } from "@/lib/category-utils"
 
 interface FiltersState {
   category: string
@@ -42,14 +43,15 @@ export default function SearchPage() {
   })
 
   useEffect(() => {
+    const resolvedCategory = resolveCategoryInput(filters.category)?.displayName || filters.category
     let title = "Search Products | Your Marketplace"
 
-    if (searchQuery && filters.category) {
-      title = `${searchQuery} in ${filters.category} - Search Results | Your Marketplace`
+    if (searchQuery && resolvedCategory) {
+      title = `${searchQuery} in ${resolvedCategory} - Search Results | Your Marketplace`
     } else if (searchQuery) {
       title = `${searchQuery} - Search Results | Your Marketplace`
-    } else if (filters.category) {
-      title = `Browse ${filters.category} | Your Marketplace`
+    } else if (resolvedCategory) {
+      title = `Browse ${resolvedCategory} | Your Marketplace`
     }
 
     if (filters.location) {
@@ -89,6 +91,8 @@ export default function SearchPage() {
     },
   ]
 
+  const resolvedCategory = resolveCategoryInput(filters.category)?.displayName || ""
+
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -106,8 +110,8 @@ export default function SearchPage() {
             <SearchFilters onFiltersChange={handleFiltersChange} />
           </div>
           <div className="lg:col-span-3">
-            {filters.category && (
-              <SubcategoryNav category={filters.category} selectedSubcategory={filters.subcategory} />
+            {resolvedCategory && (
+              <SubcategoryNav category={resolvedCategory} selectedSubcategory={filters.subcategory} />
             )}
             <SearchResults searchQuery={searchQuery} filters={filters} />
           </div>

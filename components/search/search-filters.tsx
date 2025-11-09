@@ -29,13 +29,28 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
   const [showMobileFilters, setShowMobileFilters] = useState(false)
 
   const applyFilters = () => {
-    const params = new URLSearchParams()
+    const params = new URLSearchParams(searchParams.toString())
 
-    if (minPrice) params.set("minPrice", minPrice)
-    if (maxPrice) params.set("maxPrice", maxPrice)
-    if (sortBy && sortBy !== "newest") params.set("sortBy", sortBy)
+    if (minPrice) {
+      params.set("minPrice", minPrice)
+    } else {
+      params.delete("minPrice")
+    }
 
-    router.push(`/search?${params.toString()}`)
+    if (maxPrice) {
+      params.set("maxPrice", maxPrice)
+    } else {
+      params.delete("maxPrice")
+    }
+
+    if (sortBy && sortBy !== "newest") {
+      params.set("sortBy", sortBy)
+    } else {
+      params.delete("sortBy")
+    }
+
+    const nextQuery = params.toString()
+    router.push(nextQuery ? `/search?${nextQuery}` : "/search")
     
     if (onFiltersChange) {
       onFiltersChange({
@@ -53,7 +68,13 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
     setMaxPrice("")
     setSortBy("newest")
     
-    router.push("/search")
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete("minPrice")
+    params.delete("maxPrice")
+    params.delete("sortBy")
+
+    const nextQuery = params.toString()
+    router.push(nextQuery ? `/search?${nextQuery}` : "/search")
     
     if (onFiltersChange) {
       onFiltersChange({})

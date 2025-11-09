@@ -15,6 +15,10 @@ export const metadata: Metadata = {
   description: "Your trusted marketplace for buying and selling products locally",
   generator: "v0.app",
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"),
+  icons: {
+    icon: "/placeholder-logo.svg",
+    shortcut: "/placeholder-logo.svg",
+  },
 }
 
 export default function RootLayout({
