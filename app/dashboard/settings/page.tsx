@@ -5,19 +5,21 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
-import { Bell, Eye, Trash2, Download, AlertTriangle, Loader2 } from "lucide-react"
+import { Bell, Trash2, AlertTriangle, Loader2 } from "lucide-react"
 import { DashboardNav } from "@/components/dashboard/dashboard-nav"
 import { AuthGuard } from "@/components/auth/auth-guard"
 import { useState, useEffect } from "react"
 import { useAuth } from "@/hooks/use-auth"
 import { useToast } from "@/hooks/use-toast"
 import { createClient } from "@/lib/supabase/client"
+import { useRouter } from "next/navigation"
 
 export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
   const { toast } = useToast()
+  const router = useRouter()
 
   const [notifications, setNotifications] = useState({
     emailMessages: true,
@@ -26,6 +28,7 @@ export default function SettingsPage() {
     pushNotifications: true,
     weeklyDigest: true,
   })
+  const [isDeactivating, setIsDeactivating] = useState(false)
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -217,80 +220,18 @@ export default function SettingsPage() {
                   </CardContent>
                 </Card>
 
+                {/* Account Actions */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center">
-                      <Eye className="h-5 w-5 mr-2" />
-                      Profile Management
-                    </CardTitle>
+                    <CardTitle>Account Actions</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="font-medium">Update Profile Information</h4>
-                        <p className="text-sm text-muted-foreground">Change your name, bio, and contact details</p>
-                      </div>
-                      <Button variant="outline" onClick={() => (window.location.href = "/dashboard/profile")}>
-                        Edit Profile
-                      </Button>
-                    </div>
-
-                    <Separator />
-
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="font-medium">Change Password</h4>
-                        <p className="text-sm text-muted-foreground">Update your account password</p>
-                      </div>
-                      <Button variant="outline" onClick={() => (window.location.href = "/auth/update-password")}>
-                        Change Password
-                      </Button>
-                    </div>
-
-                    <Separator />
-                  </CardContent>
-                </Card>
-
-                {/* Account Management */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center">
-                      <Eye className="h-5 w-5 mr-2" />
-                      Account Management
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="font-medium">Download Your Data</h4>
-                        <p className="text-sm text-muted-foreground">Export all your account data and ads</p>
-                      </div>
-                      <Button variant="outline">
-                        <Download className="h-4 w-4 mr-2" />
-                        Download
-                      </Button>
-                    </div>
-
-                    <Separator />
-
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="font-medium">Account Status</h4>
-                        <div className="flex items-center space-x-2 mt-1">
-                          {user?.email_verified ? (
-                            <Badge variant="secondary" className="flex items-center">
-                              <Eye className="h-3 w-3 mr-1" />
-                              Verified
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="flex items-center text-orange-600 border-orange-200">
-                              <AlertTriangle className="h-3 w-3 mr-1" />
-                              Unverified
-                            </Badge>
-                          )}
-                          <span className="text-sm text-muted-foreground">Member since Dec 2024</span>
-                        </div>
-                      </div>
+                    <div className="rounded-lg bg-muted/40 p-4">
+                      <h4 className="font-medium">Change Password</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Need a reset link? Head to the reset page to securely update your password.
+                      </p>
+                      <Button className="mt-3" variant="outline" onClick={() => router.push("/auth/update-password")}>Go to Password Reset</Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -304,30 +245,74 @@ export default function SettingsPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="font-medium">Delete Account</h4>
-                        <p className="text-sm text-muted-foreground">
-                          Deactivate your account (your information will be preserved for system integrity)
-                        </p>
-                      </div>
+                    <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4">
+                      <h4 className="font-medium text-destructive">Deactivate Account</h4>
+                      <p className="text-sm text-destructive/80">
+                        Deactivating immediately suspends access to listings and messages. We retain your data for 30 days so
+                        you can reactivate if needed.
+                      </p>
                       <Button
+                        className="mt-4"
                         variant="destructive"
-                        onClick={() => {
-                          if (
-                            confirm("Are you sure you want to deactivate your account? This action cannot be undone.")
-                          ) {
-                            console.log(
-                              "[v0] Account deactivation requested - user data will be preserved for system integrity",
-                            )
-                            alert("Account has been deactivated. Your data is preserved for system integrity.")
+                        disabled={isDeactivating}
+                        onClick={async () => {
+                          if (!user?.id || isDeactivating) return
+                          const confirmed = confirm(
+                            "Are you sure you want to deactivate your account? You can reactivate within 30 days by contacting support or a super admin."
+                          )
+                          if (!confirmed) return
+
+                          setIsDeactivating(true)
+
+                          try {
+                            const response = await fetch("/api/account/status", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ status: "deactivated" }),
+                            })
+
+                            if (!response.ok) {
+                              const payload = await response.json().catch(() => ({}))
+                              throw new Error(payload.error || "Request failed")
+                            }
+
+                            toast({
+                              title: "Account Deactivated",
+                              description:
+                                "You have been signed out. Your data stays archived for 30 days—contact support or a super admin to reactivate.",
+                            })
+
+                            await logout()
+                            router.replace("/auth/login?message=account_deactivated")
+                          } catch (error) {
+                            console.error("Deactivate error", error)
+                            toast({
+                              variant: "destructive",
+                              title: "Deactivation Failed",
+                              description: "We couldn't deactivate your account. Please try again or contact support.",
+                            })
+                          } finally {
+                            setIsDeactivating(false)
                           }
                         }}
                       >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Deactivate Account
+                        {isDeactivating ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Deactivating...
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Deactivate Account
+                          </>
+                        )}
                       </Button>
                     </div>
+                    <p className="text-xs text-muted-foreground">
+                      Reactivation: reach out to marketplace support or a super admin within 30 days. They can restore your
+                      access instantly; after 30 days data is purged from active systems.
+                    </p>
                   </CardContent>
                 </Card>
               </div>

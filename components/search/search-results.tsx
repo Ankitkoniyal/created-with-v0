@@ -1,7 +1,7 @@
-// components/search/search-results.tsx - UPDATED WITH 4 COLUMNS AND NO SELLER TEXT
+// components/search/search-results.tsx - FIXED VERSION
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent } from "@/components/ui/card"
 import { Heart, MapPin, Clock } from "lucide-react"
@@ -12,6 +12,7 @@ import Image from "next/image"
 import { getOptimizedImageUrl } from "@/lib/images"
 import { normalizeCategory } from "@/lib/normalize-categories"
 import { resolveCategoryInput, resolveSubcategoryInput } from "@/lib/category-utils"
+const RECENT_SEARCHES_KEY = "coinmint_recent_searches"
 
 interface SearchResultsProps {
   searchQuery: string
@@ -27,6 +28,12 @@ const tokenize = (value?: string) =>
     .split(" ")
     .map((token) => token.trim())
     .filter((token, index, arr) => token && token.length > 1 && arr.indexOf(token) === index)
+
+const sanitizeSearchTerm = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[%_]/g, "")
+    .trim()
 
 const levenshtein = (a: string, b: string) => {
   if (a === b) return 0
@@ -146,14 +153,76 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
-  const supabase = createClient()
+  const [error, setError] = useState<string | null>(null)
+  const [retryToken, setRetryToken] = useState(0)
+  const supabase = useMemo(() => createClient(), [])
+  const cacheRef = useRef<Map<string, { data: any[]; timestamp: number }>>(new Map())
+  const CACHE_TTL = 1000 * 60 // 1 minute cache
   const router = useRouter()
 
+  const normalizedFilters = useMemo(
+    () => ({
+      category: filters?.category?.toString().trim() || "",
+      subcategory: filters?.subcategory?.toString().trim() || "",
+      location: filters?.location?.toString().trim() || "",
+      minPrice: filters?.minPrice?.toString().trim() || "",
+      maxPrice: filters?.maxPrice?.toString().trim() || "",
+      condition: filters?.condition?.toString().trim() || "all",
+      sortBy: filters?.sortBy?.toString().trim() || "newest",
+    }),
+    [
+      filters?.category,
+      filters?.subcategory,
+      filters?.location,
+      filters?.minPrice,
+      filters?.maxPrice,
+      filters?.condition,
+      filters?.sortBy,
+    ],
+  )
+
+  const sanitizedSearch = useMemo(() => searchQuery?.trim() || "", [searchQuery])
+  const filtersSignature = useMemo(() => JSON.stringify(normalizedFilters), [normalizedFilters])
+  const lastSavedSearchRef = useRef<string>("")
+
   useEffect(() => {
+    if (typeof window === "undefined") return
+    const trimmed = sanitizedSearch.trim()
+    if (!trimmed) return
+    if (lastSavedSearchRef.current.toLowerCase() === trimmed.toLowerCase()) return
+
+    try {
+      const stored = localStorage.getItem(RECENT_SEARCHES_KEY)
+      const existing: string[] = stored ? JSON.parse(stored) : []
+      const normalized = trimmed.toLowerCase()
+      const filtered = existing.filter((item) => item.toLowerCase() !== normalized)
+      const next = [trimmed, ...filtered].slice(0, 5)
+      localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(next))
+      lastSavedSearchRef.current = trimmed
+    } catch (error) {
+      console.warn("Failed to persist recent search", error)
+    }
+  }, [sanitizedSearch])
+
+  useEffect(() => {
+    const parsedFilters = JSON.parse(filtersSignature) as typeof normalizedFilters
+    const cacheKey = JSON.stringify({ search: sanitizedSearch, filters: parsedFilters })
+    const cached = cacheRef.current.get(cacheKey)
+
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      setError(null)
+      setProducts(cached.data)
+      setLoading(false)
+      return
+    }
+
+    let isCancelled = false
+
     const fetchProducts = async () => {
       setLoading(true)
+      setError(null)
 
-      const searchTokens = tokenize(searchQuery)
+      const searchTokens = tokenize(sanitizedSearch)
 
       try {
         const baseSelect = `
@@ -169,8 +238,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
           city,
           province,
           created_at,
-          images,
-          primary_image
+          images
         `
 
         let query = supabase
@@ -178,85 +246,87 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
           .select(baseSelect)
           .eq("status", "active")
 
-        if (searchTokens.length === 1) {
-          const token = searchTokens[0]
-          query = query.or(
-            [
-              `title.ilike.%${token}%`,
-              `description.ilike.%${token}%`,
-              `tags.ilike.%${token}%`,
-            ].join(","),
-          )
-        } else if (searchTokens.length > 1) {
-          for (const token of searchTokens) {
+        if (sanitizedSearch) {
+          const cleanQuery = sanitizeSearchTerm(sanitizedSearch)
+          if (cleanQuery) {
+            const tokenFilters = [`title.ilike.%${cleanQuery}%`, `description.ilike.%${cleanQuery}%`]
+            query = query.or(tokenFilters.join(","))
+          }
+        }
+
+        if (parsedFilters.category) {
+          const resolvedCategory = resolveCategoryInput(parsedFilters.category)
+          if (resolvedCategory) {
+            const candidates = Array.from(
+              new Set([
+                resolvedCategory.slug,
+                resolvedCategory.slug.toLowerCase(),
+                resolvedCategory.displayName,
+                resolvedCategory.displayName.toLowerCase(),
+              ]),
+            )
+            query = query.in("category", candidates)
+          } else {
+            const categoryTerm = sanitizeSearchTerm(parsedFilters.category)
+            if (categoryTerm) {
+              query = query.ilike("category", `%${categoryTerm}%`)
+            }
+          }
+        }
+
+        if (parsedFilters.subcategory && parsedFilters.subcategory.toLowerCase() !== "all") {
+          const resolvedSubcategory = resolveSubcategoryInput(parsedFilters.subcategory)
+          if (resolvedSubcategory) {
+            const candidates = Array.from(
+              new Set([
+                resolvedSubcategory.slug,
+                resolvedSubcategory.slug.toLowerCase(),
+                resolvedSubcategory.displayName,
+                resolvedSubcategory.displayName.toLowerCase(),
+              ]),
+            )
+            query = query.in("subcategory", candidates)
+          } else {
+            const subcategoryTerm = sanitizeSearchTerm(parsedFilters.subcategory)
+            if (subcategoryTerm) {
+              query = query.ilike("subcategory", `%${subcategoryTerm}%`)
+            }
+          }
+        }
+
+        if (parsedFilters.location) {
+          const locationTerm = sanitizeSearchTerm(parsedFilters.location)
+          if (locationTerm) {
+            const locationFilter = `%${locationTerm}%`
             query = query.or(
               [
-                `title.ilike.%${token}%`,
-                `description.ilike.%${token}%`,
-                `tags.ilike.%${token}%`,
+                `city.ilike.${locationFilter}`,
+                `province.ilike.${locationFilter}`,
+                `location.ilike.${locationFilter}`,
               ].join(","),
             )
           }
-        } else if (searchQuery && searchQuery.trim() !== "") {
-          const cleanQuery = searchQuery.trim().toLowerCase()
-          query = query.or(
-            [
-              `title.ilike.%${cleanQuery}%`,
-              `description.ilike.%${cleanQuery}%`,
-              `tags.ilike.%${cleanQuery}%`,
-            ].join(","),
-          )
         }
 
-        const resolvedCategory = resolveCategoryInput(filters.category)
-
-        if (resolvedCategory) {
-          const normalizedCategory = resolvedCategory.displayName
-          if (normalizedCategory) {
-            query = query.eq("category", normalizedCategory)
+        if (parsedFilters.minPrice) {
+          const minPrice = parseInt(parsedFilters.minPrice)
+          if (!Number.isNaN(minPrice)) {
+            query = query.gte("price", minPrice)
           }
         }
 
-        const resolvedSubcategory = resolveSubcategoryInput(filters.subcategory)
-
-        if (resolvedSubcategory) {
-          const subcategoryCandidates = Array.from(
-            new Set([
-              resolvedSubcategory.displayName,
-              resolvedSubcategory.slug,
-              resolvedSubcategory.displayName.toLowerCase(),
-              resolvedSubcategory.slug.toLowerCase(),
-            ]),
-          ).filter(Boolean)
-
-          if (subcategoryCandidates.length > 0) {
-            query = query.in("subcategory", subcategoryCandidates)
+        if (parsedFilters.maxPrice) {
+          const maxPrice = parseInt(parsedFilters.maxPrice)
+          if (!Number.isNaN(maxPrice)) {
+            query = query.lte("price", maxPrice)
           }
         }
 
-        if (filters.location && filters.location.trim() !== "") {
-          const locationFilter = filters.location.trim().toLowerCase()
-          query = query.or(
-            [
-              `location.ilike.%${locationFilter}%`,
-              `city.ilike.%${locationFilter}%`,
-              `province.ilike.%${locationFilter}%`,
-            ].join(","),
-          )
+        if (parsedFilters.condition && parsedFilters.condition !== "all") {
+          query = query.eq("condition", parsedFilters.condition)
         }
 
-        if (filters.minPrice) {
-          query = query.gte("price", parseInt(filters.minPrice))
-        }
-        if (filters.maxPrice) {
-          query = query.lte("price", parseInt(filters.maxPrice))
-        }
-
-        if (filters.condition && filters.condition !== "all") {
-          query = query.eq("condition", filters.condition)
-        }
-
-        switch (filters.sortBy) {
+        switch (parsedFilters.sortBy) {
           case "price-low":
             query = query.order("price", { ascending: true })
             break
@@ -273,15 +343,17 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
 
         const { data, error } = await query
 
+        if (isCancelled) return
+
         if (error) {
-          console.error("Error fetching products:", error)
+          setError(`Database error: ${error.message}`)
           setProducts([])
           return
         }
 
         let fetchedProducts = data || []
 
-        if ((!fetchedProducts || fetchedProducts.length === 0) && searchTokens.length > 0) {
+        if (fetchedProducts.length === 0 && searchTokens.length > 0) {
           const fallbackResponse = await supabase
             .from("products")
             .select(baseSelect)
@@ -290,30 +362,43 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
             .limit(120)
 
           if (fallbackResponse.error) {
-            console.error("Fallback product fetch failed:", fallbackResponse.error)
-            setProducts([])
+            if (!isCancelled) {
+              setError(`Database error: ${fallbackResponse.error.message}`)
+              setProducts([])
+            }
             return
           }
 
-          const fuzzyMatches = (fallbackResponse.data || []).filter((product) =>
-            isGoodMatch(product, searchTokens),
-          )
-
-          fetchedProducts = fuzzyMatches.length > 0 ? fuzzyMatches.slice(0, 60) : fallbackResponse.data || []
+          if (!isCancelled && fallbackResponse.data) {
+            const fuzzyMatches = fallbackResponse.data.filter((product) => isGoodMatch(product, searchTokens))
+            fetchedProducts = fuzzyMatches.length > 0 ? fuzzyMatches.slice(0, 60) : fallbackResponse.data
+          }
         }
 
         const sortedProducts = sortProductsByRelevance(fetchedProducts, searchTokens)
-        setProducts(sortedProducts)
-      } catch (error) {
-        console.error("Error in fetchProducts:", error)
-        setProducts([])
+
+        if (!isCancelled) {
+          setProducts(sortedProducts)
+          cacheRef.current.set(cacheKey, { data: sortedProducts, timestamp: Date.now() })
+        }
+      } catch (error: any) {
+        if (!isCancelled) {
+          setError(`Unexpected error: ${error.message}`)
+          setProducts([])
+        }
       } finally {
-        setLoading(false)
+        if (!isCancelled) {
+          setLoading(false)
+        }
       }
     }
 
     fetchProducts()
-  }, [searchQuery, filters, supabase])
+
+    return () => {
+      isCancelled = true
+    }
+  }, [sanitizedSearch, filtersSignature, retryToken, supabase])
 
   const toggleFavorite = (productId: string, e?: React.MouseEvent) => {
     if (e) {
@@ -353,6 +438,35 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
     return posted.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
 
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <div className="max-w-md mx-auto">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3">
+            <span className="text-2xl">⚠️</span>
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Search Error</h3>
+          <p className="text-gray-600 text-sm mb-4">{error}</p>
+          <div className="flex justify-center gap-2">
+            <Button 
+              onClick={() => setRetryToken((token) => token + 1)}
+              variant="outline"
+              size="sm"
+            >
+              Retry Search
+            </Button>
+            <Button 
+              onClick={() => router.push("/")}
+              size="sm"
+            >
+              Back to Home
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -373,7 +487,6 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
         {filters.category && ` in ${normalizeCategory(filters.category)}`}
       </div>
 
-      {/* UPDATED GRID: 2 columns on mobile, 4 columns on large screens */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {products.map((product) => {
           const primaryImage = product.images?.[0] || "/diverse-products-still-life.png"
@@ -397,11 +510,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
                     />
                     
                     <button
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        toggleFavorite(product.id, e)
-                      }}
+                      onClick={(e) => toggleFavorite(product.id, e)}
                       className={`absolute top-1 right-1 p-1 rounded ${
                         favorites.has(product.id) 
                           ? "text-red-500 bg-white/90" 
@@ -427,8 +536,6 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
                     <h4 className="text-sm font-medium text-gray-900 line-clamp-2 mb-2 leading-tight">
                       {product.title}
                     </h4>
-
-                    {/* REMOVED: Seller name section */}
 
                     <div className="mt-auto flex items-end justify-between text-xs text-gray-500">
                       <div className="flex items-center gap-1 min-w-0 pr-1">
@@ -459,19 +566,33 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
             </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">No products found</h3>
             <p className="text-gray-600 text-sm mb-4">
-              {searchQuery ? `No results for "${searchQuery}". Try adjusting your search.` : 'Try adjusting your filters.'}
+              {searchQuery
+                ? `No results for "${searchQuery}". Try adjusting your search keywords or filters.`
+                : `No products match your current filters. Try broadening your criteria.`}
             </p>
-            <Button 
-              onClick={() => {
-                const params = new URLSearchParams()
-                if (searchQuery) params.set('q', searchQuery)
-                router.push(`/search?${params.toString()}`)
-              }}
-              variant="outline"
-              size="sm"
-            >
-              Clear Filters
-            </Button>
+            <div className="flex gap-2 justify-center">
+              <Button
+                onClick={() => {
+                  const params = new URLSearchParams()
+                  if (searchQuery) params.set("q", searchQuery)
+                  router.push(`/search?${params.toString()}`)
+                  setRetryToken((token) => token + 1)
+                }}
+                variant="outline"
+                size="sm"
+              >
+                Clear Filters
+              </Button>
+              <Button
+                onClick={() => {
+                  router.push("/")
+                  setRetryToken((token) => token + 1)
+                }}
+                size="sm"
+              >
+                Browse All
+              </Button>
+            </div>
           </div>
         </div>
       )}

@@ -883,31 +883,45 @@ export function ProductDetail({ product }: ProductDetailProps) {
         <Card>
           <CardContent className="p-6">
             <h3 className="font-semibold text-foreground mb-4 text-lg">Seller Information</h3>
-            <Link
-              href={`/seller/${product.seller.id}`}
-              className="flex items-center space-x-4 mb-4"
-            >
-              {product.seller.avatar ? (
-                <Image 
-                  src={product.seller.avatar} 
-                  alt={product.seller.name} 
-                  width={56} 
-                  height={56} 
-                  className="rounded-full" 
-                />
-              ) : (
-                <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center">
-                  <User className="h-6 w-6 text-green-800" />
+            <div className="mb-4">
+              <Link
+                href={`/seller/${product.seller.id}`}
+                className="flex items-center space-x-4 mb-3"
+              >
+                {product.seller.avatar ? (
+                  <Image 
+                    src={product.seller.avatar} 
+                    alt={product.seller.name} 
+                    width={56} 
+                    height={56} 
+                    className="rounded-full" 
+                  />
+                ) : (
+                  <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center">
+                    <User className="h-6 w-6 text-green-800" />
+                  </div>
+                )}
+                <div>
+                  <div className="flex items-center space-x-2 mb-1">
+                    <span className="font-medium text-foreground text-base hover:text-green-900 hover:underline">
+                      {product.seller.name}
+                    </span>
+                  </div>
                 </div>
-              )}
-              <div>
-                <div className="flex items-center space-x-2 mb-1">
-                  <span className="font-medium text-foreground text-base hover:text-green-900 hover:underline">
-                    {product.seller.name}
-                  </span>
-                </div>
+              </Link>
+              <div className="flex gap-2">
+                <Link href={`/seller/${product.seller.id}?tab=ratings`}>
+                  <Button variant="outline" size="sm">
+                    View Ratings & Reviews
+                  </Button>
+                </Link>
+                <Link href={`/seller/${product.seller.id}?tab=comments`}>
+                  <Button variant="outline" size="sm">
+                    View Comments
+                  </Button>
+                </Link>
               </div>
-            </Link>
+            </div>
             
             <div className="space-y-3 text-sm mb-5">
               {product.seller.verified && (

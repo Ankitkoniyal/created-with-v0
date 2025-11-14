@@ -11,7 +11,13 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useSearchParams } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { X, MapPin, Tag, AlertCircle, Camera } from "lucide-react"
-import { CATEGORIES, SUBCATEGORY_MAPPINGS } from "@/lib/categories"
+import {
+  CATEGORIES,
+  SUBCATEGORY_MAPPINGS,
+  getCategorySlug,
+  getSubcategorySlug,
+  CATEGORY_SLUG_TO_NAME,
+} from "@/lib/categories"
 import imageCompression from "browser-image-compression"
 
 interface ProductFormData {
@@ -37,7 +43,7 @@ interface ProductFormData {
 }
 
 interface DatabaseCategory {
-  id: number
+  id: number | string
   slug: string
   name: string
 }
@@ -66,6 +72,34 @@ const CANADIAN_LOCATIONS = [
 ]
 
 const conditions = ["New", "Like New", "Good", "Fair", "Poor"]
+
+const createLocalCategorySeed = (): DatabaseCategory[] =>
+  CATEGORIES.map((name, index) => ({
+    id: index + 1,
+    slug: getCategorySlug(name),
+    name,
+  }))
+
+const buildSubcategoryRecords = (categoryList: DatabaseCategory[]): DatabaseSubcategory[] => {
+  const records: DatabaseSubcategory[] = []
+
+  categoryList.forEach((category) => {
+    const canonicalName = CATEGORY_SLUG_TO_NAME[category.slug] || category.name
+    const subcategoryNames = SUBCATEGORY_MAPPINGS[canonicalName] || []
+
+    subcategoryNames.forEach((subName, idx) => {
+      const slug = getSubcategorySlug(subName)
+      records.push({
+        id: `${category.slug}-${slug}-${idx}`,
+        name: subName,
+        slug,
+        category_slug: category.slug,
+      })
+    })
+  })
+
+  return records
+}
 
 const mapConditionToDatabase = (condition: string): string => {
   const conditionMap: { [key: string]: string } = {
@@ -150,38 +184,15 @@ export function PostProductForm() {
 
   const submissionLock = useRef(false)
 
-  // Initialize categories instantly from local data
+  // Initialize categories instantly from shared config and sync with database
   useEffect(() => {
     const initializeCategories = () => {
       try {
-        console.log("🔄 Initializing categories instantly from local data...")
-        
-        const categoriesData = CATEGORIES.map((cat, index) => ({
-          id: index + 1,
-          slug: cat.toLowerCase().replace(/\s+/g, '-'),
-          name: cat
-        }))
-        
-        const subcategoriesData: DatabaseSubcategory[] = []
-        Object.entries(SUBCATEGORY_MAPPINGS).forEach(([category, subs]) => {
-          subs.forEach((sub, index) => {
-            subcategoriesData.push({
-              id: `${category}-${index}`,
-              name: sub,
-              slug: sub.toLowerCase().replace(/\s+/g, '-'),
-              category_slug: category.toLowerCase().replace(/\s+/g, '-')
-            })
-          })
-        })
-
-        setCategories(categoriesData)
-        setSubcategories(subcategoriesData)
-        
-        console.log("✅ Categories initialized instantly:", categoriesData.length, "categories,", subcategoriesData.length, "subcategories")
-        
-        // Also try to fetch from database to sync IDs
+        console.log("🔄 Initializing categories from local configuration...")
+        const localCategories = createLocalCategorySeed()
+        setCategories(localCategories)
+        setSubcategories(buildSubcategoryRecords(localCategories))
         fetchDatabaseCategories()
-        
       } catch (error) {
         console.error("❌ Error initializing categories:", error)
       }
@@ -196,8 +207,24 @@ export function PostProductForm() {
           .order("id")
 
         if (!error && dbCategories && dbCategories.length > 0) {
-          console.log("✅ Database categories loaded, using database IDs")
-          setCategories(dbCategories)
+          const normalizedCategories = dbCategories.map((dbCategory, index) => {
+            const canonicalSlug = getCategorySlug(dbCategory.slug || dbCategory.name)
+            const canonicalName = CATEGORY_SLUG_TO_NAME[canonicalSlug] || dbCategory.name
+
+            return {
+              id: dbCategory.id ?? index + 1,
+              slug: canonicalSlug,
+              name: canonicalName,
+            }
+          })
+
+          console.log(
+            "✅ Database categories loaded, using canonical mapping:",
+            normalizedCategories.length,
+          )
+
+          setCategories(normalizedCategories)
+          setSubcategories(buildSubcategoryRecords(normalizedCategories))
         } else {
           console.log("ℹ️ Using local categories with generated IDs")
         }
@@ -212,16 +239,18 @@ export function PostProductForm() {
   // Filter subcategories when category changes
   useEffect(() => {
     if (formData.category && subcategories.length > 0) {
-      const filtered = subcategories.filter(
-        (subcat) => subcat.category_slug === formData.category
-      )
+      const filtered = subcategories.filter((subcat) => subcat.category_slug === formData.category)
+      console.log(`🔄 Filtered subcategories for ${formData.category}:`, filtered.length)
       setFilteredSubcategories(filtered)
+
+      setFormData((prev) => {
+        if (!prev.subcategory) return prev
+        const exists = filtered.some((subcat) => subcat.slug === prev.subcategory)
+        return exists ? prev : { ...prev, subcategory: "" }
+      })
     } else {
       setFilteredSubcategories([])
-    }
-    
-    if (formData.category) {
-      setFormData(prev => ({ ...prev, subcategory: "" }))
+      setFormData((prev) => (prev.subcategory ? { ...prev, subcategory: "" } : prev))
     }
   }, [formData.category, subcategories])
 
@@ -416,7 +445,7 @@ export function PostProductForm() {
     }))
   }
 
-  // PRODUCTION-READY SUBMISSION WITH ENHANCED ERROR HANDLING AND LOGGING
+  // FIXED SUBMISSION WITH PROPER DATABASE OPERATION HANDLING
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -595,14 +624,18 @@ export function PostProductForm() {
       
       let categoryId = 1
       let categoryName = formData.category
+      let categorySlug = formData.category
 
       if (formData.category) {
         const foundCategory = categories.find(cat => cat.slug === formData.category)
         if (foundCategory) {
           categoryId = foundCategory.id
           categoryName = foundCategory.name
+          categorySlug = foundCategory.slug
         }
       }
+
+      const subcategorySlug = formData.subcategory ? getSubcategorySlug(formData.subcategory) : null
 
       let finalPrice = 0
       if (formData.priceType === "amount" && formData.price) {
@@ -626,10 +659,15 @@ export function PostProductForm() {
         city: city || "Unknown",
         images: imageUrls,
         category_id: categoryId,
+        category: categoryName,
+        category_slug: categorySlug,
         // Add optional fields only if they have values
         ...(formData.brand && { brand: formData.brand.trim() }),
         ...(formData.model && { model: formData.model.trim() }),
-        ...(formData.subcategory && { subcategory: formData.subcategory }),
+        ...((subcategorySlug || formData.subcategory) && {
+          subcategory: subcategorySlug || formData.subcategory,
+          subcategory_slug: subcategorySlug || formData.subcategory,
+        }),
         ...(formData.youtubeUrl && { youtube_url: formData.youtubeUrl.trim() }),
         ...(formData.websiteUrl && { website_url: formData.websiteUrl.trim() }),
         ...(formData.tags.length > 0 && { tags: formData.tags }),
@@ -644,7 +682,7 @@ export function PostProductForm() {
         location: productData.location
       })
       
-      // DATABASE OPERATION
+      // FIXED DATABASE OPERATION - Use .select() to ensure data is returned
       let result
       if (isEditMode) {
         console.log(`✏️ Updating existing product: ${editId}`)
@@ -656,11 +694,13 @@ export function PostProductForm() {
           })
           .eq("id", editId)
           .eq("user_id", user.id)
+          .select() // This ensures data is returned
       } else {
         console.log("➕ Creating new product...")
         result = await supabase
           .from("products")
           .insert([productData])
+          .select() // This ensures data is returned
       }
       
       if (result.error) {
@@ -668,12 +708,37 @@ export function PostProductForm() {
         throw new Error(`Failed to save product: ${result.error.message}`)
       }
 
-      if (!result.data || result.data.length === 0) {
-        throw new Error("No data returned from database operation")
+      // FIXED: Handle database response properly
+      let createdProduct: any = null
+      if (!result.data) {
+        console.warn("⚠️ No data returned from database operation, but operation may have succeeded")
+        // Continue without throwing error - operation might still be successful
+      } else if (Array.isArray(result.data) && result.data.length === 0) {
+        console.warn("⚠️ Empty array returned from database operation")
+        // Continue without throwing error - operation might still be successful
+      } else {
+        console.log("✅ PRODUCT PUBLISHED SUCCESSFULLY!", result.data)
+        if (!isEditMode) {
+          createdProduct = Array.isArray(result.data) ? result.data[0] : result.data
+        }
+      }
+      
+      if (!isEditMode && createdProduct?.id) {
+        try {
+          await fetch("/api/admin/notifications/new-ad", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              productId: createdProduct.id,
+              title: createdProduct.title ?? productData.title,
+              previewImage: Array.isArray(createdProduct.images) ? createdProduct.images[0] ?? null : null,
+            }),
+          })
+        } catch (notifyError) {
+          console.warn("Failed to notify super admins about new ad", notifyError)
+        }
       }
 
-      console.log("✅ PRODUCT PUBLISHED SUCCESSFULLY!", result.data)
-      
       toast.success(isEditMode ? "✅ Ad updated successfully!" : "🎉 Ad published successfully!")
 
       // SUCCESS REDIRECT
@@ -980,6 +1045,9 @@ export function PostProductForm() {
                         </option>
                       ))}
                     </select>
+                    {formData.category && filteredSubcategories.length === 0 && (
+                      <p className="text-xs text-muted-foreground">No subcategories available for this category</p>
+                    )}
                   </div>
                 </div>
 

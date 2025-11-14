@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect, Suspense, useRef } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -9,7 +9,24 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react"
 import { SuccessOverlay } from "@/components/ui/success-overlay"
+import { useAuth } from "@/hooks/use-auth"
 import { createClient } from "@/lib/supabase/client"
+
+const DEFAULT_SUPER_ADMIN_EMAILS = ["ankit.koniyal000@gmail.com"]
+const SUPER_ADMIN_EMAILS = (() => {
+  const env = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAILS ?? ""
+  const derived = env
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean)
+  const merged = new Set([...DEFAULT_SUPER_ADMIN_EMAILS.map((email) => email.toLowerCase()), ...derived])
+  return Array.from(merged)
+})()
+
+const isSuperAdminEmail = (email: string | null | undefined) => {
+  if (!email) return false
+  return SUPER_ADMIN_EMAILS.includes(email.toLowerCase())
+}
 
 // Client storage utilities
 const useClientStorage = () => {
@@ -53,24 +70,22 @@ const sanitizeInput = (input: string): string => {
 }
 
 const getSafeRedirect = (redirectUrl: string | null): string => {
-  if (!redirectUrl) return "/"
+  if (!redirectUrl) return "/dashboard"
   try {
     const url = new URL(redirectUrl, window.location.origin)
     // Only allow same-origin redirects
-    if (url.origin !== window.location.origin) return "/"
-    
+    if (url.origin !== window.location.origin) return "/dashboard"
     const blockedPaths = ["/auth", "/login", "/signup"]
-    if (blockedPaths.some(path => url.pathname.startsWith(path))) return "/"
-    
+    if (blockedPaths.some((path) => url.pathname.startsWith(path))) return "/dashboard"
     return url.pathname + url.search
   } catch {
-    return "/"
+    return "/dashboard"
   }
 }
 
 const getAuthErrorMessage = (errorMessage: string): string => {
   const message = errorMessage.toLowerCase()
-  
+
   if (message.includes("invalid login credentials") || message.includes("invalid email or password")) {
     return "Invalid email or password. Please check your credentials."
   } else if (message.includes("email not confirmed")) {
@@ -89,8 +104,9 @@ function LoginFormContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { getItem, setItem, removeItem } = useClientStorage()
+  const { login, refreshProfile } = useAuth()
   const supabase = createClient()
-  
+
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -100,9 +116,10 @@ function LoginFormContent() {
   const [successOpen, setSuccessOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
 
-  const rawRedirect = searchParams.get("redirectedFrom") || "/"
+  const rawRedirect = searchParams.get("redirectedFrom")
   const redirectedFrom = getSafeRedirect(rawRedirect)
   const message = searchParams.get("message")
+  const errorParam = searchParams.get("error")
 
   useEffect(() => {
     setMounted(true)
@@ -115,6 +132,13 @@ function LoginFormContent() {
       setTimeout(() => setSuccessOpen(false), 3000)
     }
   }, [message])
+
+  // Show error message if redirected with error (e.g., banned/suspended account)
+  useEffect(() => {
+    if (errorParam) {
+      setError(decodeURIComponent(errorParam))
+    }
+  }, [errorParam])
 
   // Load saved credentials after mount
   useEffect(() => {
@@ -144,7 +168,7 @@ function LoginFormContent() {
     try {
       // Validate inputs
       const trimmedEmail = sanitizeInput(email)
-      
+
       if (!trimmedEmail || !password) {
         setError("Please fill in all required fields")
         setIsSubmitting(false)
@@ -157,81 +181,102 @@ function LoginFormContent() {
         return
       }
 
-      // Attempt login
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: trimmedEmail,
-        password: password,
+      console.log("🔐 LOGIN ATTEMPT:", { email: trimmedEmail })
+
+      // Attempt login via context helper (handles server sync)
+      const { error: loginError, session } = await login(trimmedEmail, password)
+
+      if (loginError || !session?.user) {
+        // Use the error message directly (it may contain account status details)
+        setError(loginError || "Login failed. Please try again.")
+        setIsSubmitting(false)
+        return
+      }
+
+      console.log("✅ LOGIN SUCCESS:", { 
+        userId: session.user.id, 
+        userEmail: session.user.email 
       })
 
-      if (authError) {
-        setError(getAuthErrorMessage(authError.message))
-        setIsSubmitting(false)
-        return
-      }
-
-      if (!data.session || !data.user) {
-        setError("Sign in failed. Please try again.")
-        setIsSubmitting(false)
-        return
-      }
-
-      // Fetch user profile for role-based routing
-      const { data: profileData, error: profileError } = await supabase
+      // Get user profile with more detailed query
+      const { data: profileLookup, error: profileError } = await supabase
         .from("profiles")
-        .select("role")
-        .eq("id", data.user.id)
+        .select("role, email, id")
+        .eq("id", session.user.id)
         .single()
 
-      if (profileError) {
-        console.error("Profile fetch error:", profileError)
-        // Continue with default routing if profile fetch fails
+      console.log("📊 PROFILE DATA:", {
+        profileLookup,
+        profileError,
+        profileExists: !!profileLookup
+      })
+
+      // Enhanced super admin check
+      let userRole = profileLookup?.role || "user"
+      const emailIsSuperAdmin = isSuperAdminEmail(trimmedEmail)
+
+      if (emailIsSuperAdmin && userRole !== "super_admin") {
+        try {
+          const { error: elevateError } = await supabase
+            .from("profiles")
+            .update({ role: "super_admin" })
+            .eq("id", session.user.id)
+
+          if (elevateError) {
+            console.warn("Failed to elevate user role to super_admin", elevateError)
+          } else {
+            userRole = "super_admin"
+          }
+        } catch (roleError) {
+          console.warn("Unexpected error elevating user role", roleError)
+        }
       }
 
-      // Determine redirect path
-      const userRole = profileData?.role || "user"
-      const userEmail = data.user.email
-      
-      // Super admin must have BOTH the role AND the specific email
-      const isSuperAdmin = userRole === "super_admin" && userEmail === "ankit.koniyal000@gmail.com"
+      const isSuperAdmin = emailIsSuperAdmin || userRole === "super_admin"
       const roleRedirectPath = isSuperAdmin ? "/superadmin" : "/dashboard"
-      const safeRedirectTarget =
-        redirectedFrom && redirectedFrom !== "/" ? redirectedFrom : roleRedirectPath
+      let finalRedirectTarget = redirectedFrom || roleRedirectPath
+
+      if (isSuperAdmin) {
+        if (!redirectedFrom || redirectedFrom === "/dashboard" || redirectedFrom === "/dashboard/") {
+          finalRedirectTarget = "/superadmin"
+        }
+      }
 
       console.log("🔐 Login Redirect:", {
-        userEmail,
+        trimmedEmail,
         userRole,
         isSuperAdmin,
-        redirectPath: safeRedirectTarget,
+        redirectPath: finalRedirectTarget,
       })
 
       // Handle remember me
       if (rememberMe) {
-        setItem("coinmint_rememberedCredentials", JSON.stringify({ 
-          email: trimmedEmail, 
-          rememberMe: true 
+        setItem("coinmint_rememberedCredentials", JSON.stringify({
+          email: trimmedEmail,
+          rememberMe: true,
         }))
       } else {
         removeItem("coinmint_rememberedCredentials")
       }
 
-      // Show success feedback and navigate immediately
+      // Show success feedback
       setSuccessOpen(true)
       setIsSubmitting(false)
 
-      try {
-        router.prefetch(safeRedirectTarget)
-      } catch {
-        // Ignore prefetch errors
-      }
-
-      if (typeof window !== "undefined") {
-        window.location.replace(safeRedirectTarget)
-      } else {
-        router.replace(safeRedirectTarget)
-      }
+      // Add a small delay to see the success message and ensure all data is loaded
+      console.log("🔄 WAITING 1 SECOND BEFORE REDIRECT...")
+      setTimeout(() => {
+        console.log("🎯 FINAL REDIRECT TO:", finalRedirectTarget)
+        try {
+          window.location.href = finalRedirectTarget
+        } catch (navError) {
+          console.error("Redirect failed:", navError)
+          router.replace(finalRedirectTarget)
+        }
+      }, 1000)
 
     } catch (err) {
-      console.error("Login error:", err)
+      console.error("❌ LOGIN ERROR:", err)
       setError("An unexpected error occurred. Please try again.")
       setIsSubmitting(false)
     }
@@ -261,7 +306,7 @@ function LoginFormContent() {
             Access your account
           </p>
         </CardHeader>
-        
+
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
@@ -361,7 +406,7 @@ function LoginFormContent() {
               )}
             </Button>
           </form>
-          
+
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
               Don't have an account?{" "}
@@ -378,13 +423,15 @@ function LoginFormContent() {
           </div>
         </CardContent>
       </Card>
-      
+
       <SuccessOverlay
         open={successOpen}
         title={message === "check_email" ? "Check Your Email" : "Signed In Successfully"}
-        message={message === "check_email" 
-          ? "Please check your email to verify your account before signing in." 
-          : "Welcome back! Redirecting..."}
+        message={
+          message === "check_email"
+            ? "Please check your email to verify your account before signing in."
+            : "Welcome back! Redirecting..."
+        }
         onClose={() => setSuccessOpen(false)}
         actionLabel="Continue"
       />
@@ -395,16 +442,18 @@ function LoginFormContent() {
 // Export with Suspense boundary
 export default function LoginForm() {
   return (
-    <Suspense fallback={
-      <Card className="w-full max-w-md mx-auto">
-        <CardContent className="flex items-center justify-center py-12">
-          <div className="flex items-center space-x-2">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-800"></div>
-            <span className="text-sm text-gray-600">Loading...</span>
-          </div>
-        </CardContent>
-      </Card>
-    }>
+    <Suspense
+      fallback={
+        <Card className="w-full max-w-md mx-auto">
+          <CardContent className="flex items-center justify-center py-12">
+            <div className="flex items-center space-x-2">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-800"></div>
+              <span className="text-sm text-gray-600">Loading...</span>
+            </div>
+          </CardContent>
+        </Card>
+      }
+    >
       <LoginFormContent />
     </Suspense>
   )

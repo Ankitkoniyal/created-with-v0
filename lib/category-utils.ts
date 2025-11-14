@@ -1,5 +1,5 @@
 // lib/category-utils.ts
-import { CATEGORIES, SUBCATEGORY_TO_SLUG, SLUG_TO_SUBCATEGORY } from "./categories"
+import { CATEGORIES, SUBCATEGORY_TO_SLUG, SLUG_TO_SUBCATEGORY, CATEGORY_SLUG_TO_NAME } from "./categories"
 
 export interface ResolvedCategory {
   displayName: string
@@ -22,56 +22,7 @@ const toSearchKey = (value: string) =>
 
 const categorySlug = (category: string) => toSearchKey(category)
 
-const CATEGORY_ALIASES: Record<string, string> = {
-  vehicles: "Vehicles",
-  vehicle: "Vehicles",
-  car: "Vehicles",
-  cars: "Vehicles",
-  auto: "Vehicles",
-  automobile: "Vehicles",
-  autos: "Vehicles",
-  electronics: "Electronics",
-  electronic: "Electronics",
-  gadget: "Electronics",
-  gadgets: "Electronics",
-  mobiles: "Mobile",
-  mobile: "Mobile",
-  "mobile-phones": "Mobile",
-  "mobile-phone": "Mobile",
-  phone: "Mobile",
-  phones: "Mobile",
-  cellphone: "Mobile",
-  "cell-phone": "Mobile",
-  "cell-phones": "Mobile",
-  smartphone: "Mobile",
-  smartphones: "Mobile",
-  realestate: "Real Estate",
-  "real-estate": "Real Estate",
-  "real-estates": "Real Estate",
-  property: "Real Estate",
-  properties: "Real Estate",
-  fashion: "Fashion & Beauty",
-  beauty: "Fashion & Beauty",
-  "fashion-beauty": "Fashion & Beauty",
-  pets: "Pets & Animals",
-  pet: "Pets & Animals",
-  animals: "Pets & Animals",
-  furniture: "Furniture",
-  services: "Services",
-  service: "Services",
-  jobs: "Jobs",
-  job: "Jobs",
-  sports: "Sports",
-  sport: "Sports",
-  books: "Books & Education",
-  education: "Books & Education",
-  "books-education": "Books & Education",
-  appliance: "Home Appliances",
-  appliances: "Home Appliances",
-  "home-appliances": "Home Appliances",
-  free: "Free Stuff",
-  "free-stuff": "Free Stuff",
-}
+const CATEGORY_ALIASES: Record<string, string> = { ...CATEGORY_SLUG_TO_NAME }
 
 const SUBCATEGORY_KEYS = Object.entries(SUBCATEGORY_TO_SLUG).map(([displayName, slug]) => ({
   displayName,

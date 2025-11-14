@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server"
 import { notFound } from "next/navigation"
 import { SafeProductDetail } from "@/components/safe-product-detail"
 import { Metadata } from "next"
+import { getSupabaseClient } from "@/lib/supabase/server"
+import { getCategorySlug } from "@/lib/categories"
 
 interface ProductPageProps {
   params: {
@@ -198,7 +200,7 @@ if (product.user_id) {
       featured: false,
       // Additional fields for SEO
       price_number: product.price || 0,
-      category_slug: product.category_slug || product.category?.toLowerCase().replace(/\s+/g, '-') || 'other',
+      category_slug: product.category_slug || (product.category ? getCategorySlug(product.category) : 'other'),
       created_at: product.created_at,
       updated_at: product.updated_at || product.created_at,
       user_id: product.user_id,

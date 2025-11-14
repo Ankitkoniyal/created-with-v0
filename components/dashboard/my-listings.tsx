@@ -38,7 +38,10 @@ export function MyListings() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
-  const [accountStatus, setAccountStatus] = useState("active")
+  const [error, setError] = useState<string | null>(null)
+  const [accountStatus, setAccountStatus] = useState<string>(
+    (user?.user_metadata?.account_status as string) || "active",
+  )
 
   useEffect(() => {
     const fetchUserListings = async () => {
@@ -48,18 +51,10 @@ export function MyListings() {
       }
       
       try {
+        setLoading(true)
         const supabase = createClient()
-        
-        // Check account status
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("status")
-          .eq("id", user.id)
-          .single()
-        
-        if (profile?.status) {
-          setAccountStatus(profile.status)
-        }
+
+        setAccountStatus((user?.user_metadata?.account_status as string) || "active")
 
         // Fetch user's products
         const { data: products, error } = await supabase

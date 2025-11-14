@@ -105,10 +105,17 @@ export function DashboardNav() {
   }
 
   const getAvatarUrl = () => {
+    let url = ""
     if (userProfile?.avatar_url) {
-      return userProfile.avatar_url
+      url = userProfile.avatar_url
+    } else if (user?.user_metadata?.avatar_url) {
+      url = user.user_metadata.avatar_url
     }
-    return user?.user_metadata?.avatar_url || ""
+
+    if (!url) return ""
+
+    const separator = url.includes("?") ? "&" : "?"
+    return `${url}${separator}v=${imageKey}`
   }
 
   const getAvatarInitials = () => {
@@ -138,18 +145,18 @@ export function DashboardNav() {
 
   if (isLoading) {
     return (
-      <Card className="bg-gray-800 border-gray-700 rounded-none">
-        <CardContent className="p-6">
+      <Card className="bg-card border border-border rounded-xl shadow-sm">
+        <CardContent className="space-y-4 p-6">
           <div className="flex items-center space-x-3 mb-6">
-            <div className="h-12 w-12 bg-gray-700 rounded-full animate-pulse"></div>
+            <div className="h-12 w-12 bg-muted rounded-full animate-pulse"></div>
             <div className="space-y-2">
-              <div className="h-4 bg-gray-700 rounded w-24 animate-pulse"></div>
-              <div className="h-3 bg-gray-700 rounded w-32 animate-pulse"></div>
+              <div className="h-4 bg-muted rounded w-24 animate-pulse"></div>
+              <div className="h-3 bg-muted rounded w-32 animate-pulse"></div>
             </div>
           </div>
           <div className="space-y-2">
             {[...Array(6)].map((_, i) => (
-              <div key={i} className="h-10 bg-gray-700 rounded animate-pulse"></div>
+              <div key={i} className="h-10 rounded-lg bg-muted animate-pulse"></div>
             ))}
           </div>
         </CardContent>
@@ -158,32 +165,26 @@ export function DashboardNav() {
   }
 
   return (
-    <Card className="bg-gray-800 border-gray-700 rounded-none">
-      <CardContent className="p-6">
-        <div className="flex items-center space-x-3 mb-6">
+    <Card className="h-full rounded-xl border border-border bg-card shadow-sm">
+      <CardContent className="space-y-6 p-6">
+        <div className="flex items-center space-x-3">
           <Avatar key={imageKey} className="h-12 w-12 border-2 border-green-600">
             <AvatarImage 
-              src={getAvatarUrl()} 
+              src={getAvatarUrl()}
               alt={getDisplayName()}
               className="object-cover"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement
-                target.style.display = 'none'
-              }}
             />
-            <AvatarFallback className="bg-green-900 text-green-300 font-semibold">
+            <AvatarFallback className="bg-green-50 text-green-700 font-semibold">
               {getAvatarInitials()}
             </AvatarFallback>
           </Avatar>
           <div>
-            <h3 className="font-semibold text-white">{getDisplayName()}</h3>
-            {getMemberSinceText() && (
-              <p className="text-sm text-gray-400 mt-1">{getMemberSinceText()}</p>
-            )}
+            <h3 className="font-semibold text-foreground">{getDisplayName()}</h3>
+            {getMemberSinceText() && <p className="text-sm text-muted-foreground mt-1">{getMemberSinceText()}</p>}
           </div>
         </div>
 
-        <nav className="space-y-2">
+        <nav className="space-y-2 pt-2">
           {navItems.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`))
@@ -192,10 +193,10 @@ export function DashboardNav() {
               <Button
                 key={item.href}
                 variant={isActive ? "secondary" : "ghost"}
-                className={`w-full justify-start ${
-                  isActive 
-                    ? 'bg-green-700 text-white hover:bg-green-600' 
-                    : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                className={`w-full justify-start rounded-lg border border-transparent ${
+                  isActive
+                    ? "bg-green-700 text-white hover:bg-green-600"
+                    : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
                 }`}
                 onClick={() => router.push(item.href)}
               >

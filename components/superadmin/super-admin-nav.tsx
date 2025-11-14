@@ -1,20 +1,7 @@
 // components/superadmin/super-admin-nav.tsx
 "use client";
 
-import {
-  Crown,
-  Settings,
-  Users,
-  BarChart3,
-  FileText,
-  DollarSign,
-  LogOut,
-  MapPin,
-  Tag,
-  Database,
-  Clock,
-  Flag,
-} from "lucide-react";
+import { Crown, Settings, Users, BarChart3, FileText, DollarSign, LogOut, Tag, Database, Clock, Flag, MapPin, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -96,6 +83,13 @@ const superAdminNavItems = [
     view: "localities" as const,
   },
   {
+    title: "Moderation",
+    href: "/superadmin/moderation",
+    icon: Shield,
+    badgeKey: null,
+    view: "moderation" as const,
+  },
+  {
     title: "Analytics",
     href: "/superadmin/analytics",
     icon: DollarSign,
@@ -129,10 +123,36 @@ export function SuperAdminNav({ stats = defaultStats, onNavigate, activeView }: 
   };
 
   const handleBackupData = async () => {
-    // Implement backup functionality
-    console.log("Backup data functionality");
-    // You can add actual backup logic here
-    alert("Backup functionality would be implemented here");
+    try {
+      const confirmed = confirm(
+        "This will download a full backup of your database. Continue?"
+      )
+      if (!confirmed) return
+
+      const response = await fetch("/api/admin/backup")
+      
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: "Download failed" }))
+        alert(`Backup failed: ${error.error}`)
+        return
+      }
+
+      // Get the blob and create download link
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `backup-${new Date().toISOString().split("T")[0]}.json`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+
+      alert("Backup downloaded successfully!")
+    } catch (error) {
+      console.error("Backup error:", error)
+      alert("Failed to download backup. Please try again.")
+    }
   };
 
   if (user && !isAdmin) {
@@ -151,9 +171,18 @@ export function SuperAdminNav({ stats = defaultStats, onNavigate, activeView }: 
           return (
             <button
               key={item.view}
-              onClick={() => onNavigate(item.view)}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                if (typeof onNavigate === 'function') {
+                  onNavigate(item.view)
+                } else {
+                  console.error("onNavigate is not a function", onNavigate)
+                }
+              }}
               className={cn(
-                "flex items-center justify-between w-full text-left px-3 py-3 rounded-lg text-sm font-medium transition-colors",
+                "flex items-center justify-between w-full text-left px-3 py-3 rounded-lg text-sm font-medium transition-colors cursor-pointer",
                 isActive
                   ? "bg-green-700 text-white"
                   : "text-gray-300 hover:bg-gray-800 hover:text-white",
@@ -180,15 +209,25 @@ export function SuperAdminNav({ stats = defaultStats, onNavigate, activeView }: 
       <div className="pt-4 border-t border-gray-700 mt-auto">
         <div className="space-y-2">
           <button 
-            onClick={handleBackupData}
-            className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-2"
+            type="button"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              handleBackupData()
+            }}
+            className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-2 cursor-pointer"
           >
             <Database className="w-4 h-4 flex-shrink-0" />
             <span className="truncate">Backup Data</span>
           </button>
           <button
-            onClick={handleSignOut}
-            className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-red-900 rounded-lg transition-colors flex items-center gap-2"
+            type="button"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              handleSignOut()
+            }}
+            className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-red-900 rounded-lg transition-colors flex items-center gap-2 cursor-pointer"
           >
             <LogOut className="w-4 h-4 flex-shrink-0" />
             <span className="truncate">Sign Out</span>

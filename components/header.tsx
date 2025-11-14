@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import {
   Search,
   Heart,
@@ -14,8 +14,17 @@ import {
   MapPin,
   MessageCircle,
   ChevronDown,
+  Crown,
+  FileText,
+  Clock,
+  Flag,
+  Users as UsersIcon,
+  Tag,
+  MapPin as MapPinIcon,
+  BarChart3,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   DropdownMenu,
@@ -49,8 +58,20 @@ const CANADIAN_LOCATIONS = [
   { province: "Yukon", cities: ["Whitehorse", "Dawson City"] },
 ]
 
+const SUPER_ADMIN_LINKS = [
+  { view: "overview", label: "Super Admin Dashboard", icon: Crown },
+  { view: "ads", label: "Ads Management", icon: FileText },
+  { view: "pending", label: "Pending Review", icon: Clock },
+  { view: "reported", label: "Reported Ads", icon: Flag },
+  { view: "users", label: "User Management", icon: UsersIcon },
+  { view: "categories", label: "Categories", icon: Tag },
+  { view: "localities", label: "Localities", icon: MapPinIcon },
+  { view: "analytics", label: "Analytics", icon: BarChart3 },
+  { view: "settings", label: "System Settings", icon: Settings },
+]
+
 export function Header() {
-  const { user, profile, logout, isLoading } = useAuth()
+  const { user, profile, logout, isLoading, isSuperAdmin } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -69,16 +90,22 @@ export function Header() {
   const [isLocationFocused, setIsLocationFocused] = useState(false)
   const locationInputRef = useRef<HTMLInputElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const [hasHydrated, setHasHydrated] = useState(false)
   const [notificationCounts, setNotificationCounts] = useState({
     favorites: 0,
     messages: 0,
     notifications: 0,
   })
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
 
   const allLocations = CANADIAN_LOCATIONS.flatMap(location => [
     location.province,
     ...location.cities.map(city => `${city}, ${location.province}`)
   ])
+
+  useEffect(() => {
+    setHasHydrated(true)
+  }, [])
 
   // Update search and location when URL changes
   useEffect(() => {
@@ -199,12 +226,13 @@ export function Header() {
   }
 
   const handleLogout = async () => {
+    if (isLoggingOut) return
+    setIsLoggingOut(true)
     try {
       await logout()
-      router.push("/")
     } catch (error) {
       console.error("Logout error:", error)
-      router.push("/")
+      setIsLoggingOut(false)
     }
   }
 
@@ -226,7 +254,7 @@ export function Header() {
   }
 
   useEffect(() => {
-    if (!user?.id) return
+    if (!hasHydrated || !user?.id) return
 
     const fetchNotificationCounts = async () => {
       try {
@@ -235,22 +263,43 @@ export function Header() {
           return
         }
 
-        const [favoritesResult, messagesResult] = await Promise.all([
+        const [favoritesResult, messagesResult, notificationsResult] = await Promise.all([
           supabase.from("favorites").select("*", { count: "exact", head: true }).eq("user_id", user.id),
           supabase
             .from("messages")
             .select("*", { count: "exact", head: true })
             .eq("receiver_id", user.id)
             .eq("is_read", false),
+          supabase
+            .from("notifications")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", user.id)
+            .eq("read", false),
         ])
+
+        const notificationsCount =
+          notificationsResult.count && notificationsResult.count > 0
+            ? notificationsResult.count
+            : 0
 
         setNotificationCounts({
           favorites: favoritesResult.count || 0,
           messages: messagesResult.count || 0,
-          notifications: 0,
+          notifications: notificationsCount,
         })
       } catch (error) {
-        console.error("Error fetching notification counts:", error)
+        const err = error as { code?: string; message?: string }
+        const message = (err?.message ?? "").toLowerCase()
+        const tableMissing =
+          err?.code === "42P01" || message.includes("relation") || message.includes("does not exist")
+        if (tableMissing) {
+          setNotificationCounts((prev) => ({
+            ...prev,
+            notifications: 0,
+          }))
+        } else {
+          console.error("Error fetching notification counts:", error)
+        }
       }
     }
 
@@ -258,7 +307,10 @@ export function Header() {
 
     const interval = setInterval(fetchNotificationCounts, 300000)
     return () => clearInterval(interval)
-  }, [user?.id])
+  }, [user?.id, hasHydrated])
+
+  const showUserNav = hasHydrated && !!user
+  const showAuthButtons = hasHydrated && !user
 
   return (
     <header className="sticky top-0 z-50 bg-background border-b border-border">
@@ -355,7 +407,7 @@ export function Header() {
 
           {/* User Navigation */}
           <nav className="hidden md:flex items-center space-x-4 flex-shrink-0">
-            {user && (
+            {showUserNav && (
               <>
                 <Button variant="ghost" size="sm" className="relative" asChild>
                   <Link href="/dashboard/favorites" aria-label="Favorites">
@@ -389,7 +441,7 @@ export function Header() {
                 </Button>
               </>
             )}
-            {user ? (
+            {showUserNav ? (
               <>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -400,8 +452,10 @@ export function Header() {
                           alt={profile?.name || "User"} 
                         />
                         <AvatarFallback className="bg-green-100 text-green-800 font-medium">
-                          {profile?.name || user?.email
-                            ? (profile?.name || user.email)[0]?.toUpperCase()
+                          {profile?.name
+                            ? profile.name[0]?.toUpperCase()
+                            : user?.email
+                            ? user.email[0]?.toUpperCase()
                             : "U"}
                         </AvatarFallback>
                       </Avatar>
@@ -415,22 +469,40 @@ export function Header() {
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
+                    {isSuperAdmin && (
+                      <>
+                        <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">Super Admin</DropdownMenuLabel>
+                        {SUPER_ADMIN_LINKS.map((item) => {
+                          const Icon = item.icon
+                          const href = item.view === "overview" ? "/superadmin" : `/superadmin?view=${item.view}`
+                          return (
+                            <DropdownMenuItem key={item.view} asChild>
+                              <Link href={href} className="flex items-center">
+                                <Icon className="mr-2 h-4 w-4" />
+                                <span>{item.label}</span>
+                              </Link>
+                            </DropdownMenuItem>
+                          )
+                        })}
+                        <DropdownMenuSeparator />
+                      </>
+                    )}
                     <DropdownMenuItem asChild>
-                      <Link href="/dashboard" className="flex items-center">
+                      <Link href={isSuperAdmin ? "/superadmin" : "/dashboard"} className="flex items-center">
                         <Package className="mr-2 h-4 w-4" />
-                        <span>Dashboard</span>
+                        <span>{isSuperAdmin ? "Super Admin Dashboard" : "Dashboard"}</span>
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
                       <Link href="/dashboard/profile" className="flex items-center">
                         <Settings className="mr-2 h-4 w-4" />
-                        <span>Settings</span>
+                        <span>Account Settings</span>
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleLogout}>
+                    <DropdownMenuItem onClick={handleLogout} disabled={isLoggingOut}>
                       <LogOut className="mr-2 h-4 w-4" />
-                      <span>Log out</span>
+                      <span>{isLoggingOut ? "Logging out..." : "Log out"}</span>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -446,23 +518,26 @@ export function Header() {
               </>
             ) : (
               <>
-                {!isAuthRoute && (
-                  <Button variant="ghost" size="sm" asChild>
-                    <Link href="/auth/login">
-                      <User className="h-4 w-4 mr-2" />
-                      Login/Sign up
-                    </Link>
+                {showAuthButtons && !isAuthRoute && (
+                  <Link
+                    href="/auth/login"
+                    className={buttonVariants({ variant: "ghost", size: "sm" }) + " flex items-center"}
+                  >
+                    <User className="h-4 w-4 mr-2" />
+                    Login/Sign up
+                  </Link>
+                )}
+                {showAuthButtons && (
+                  <Button
+                    size="sm"
+                    className="bg-green-900 hover:bg-green-950 text-white font-medium px-4 py-2 rounded-full"
+                    onClick={() => {
+                      router.push("/auth/login?redirectedFrom=" + encodeURIComponent("/sell"))
+                    }}
+                  >
+                    SELL NOW
                   </Button>
                 )}
-                <Button
-                  size="sm"
-                  className="bg-green-900 hover:bg-green-950 text-white font-medium px-4 py-2 rounded-full"
-                  onClick={() => {
-                    router.push("/auth/login?redirectedFrom=" + encodeURIComponent("/sell"))
-                  }}
-                >
-                  SELL NOW
-                </Button>
               </>
             )}
           </nav>

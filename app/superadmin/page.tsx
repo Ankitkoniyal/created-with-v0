@@ -1,17 +1,19 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { SuperAdminNav } from "@/components/superadmin/super-admin-nav"
 import { SuperAdminOverview } from "@/components/superadmin/super-admin-overview"
 import AdsManagement from "@/components/superadmin/ads-management"
+import UserManagement from "@/components/superadmin/user-management"
 import { PendingReview } from "@/components/superadmin/pending-review"
 import { ReportedAds } from "@/components/superadmin/reported-ads"
 import { CategoriesManagement } from "@/components/superadmin/categories-management"
-import { LocalitiesManagement } from "@/components/superadmin/localities-management"
 import { Analytics } from "@/components/superadmin/analytics"
 import { Settings } from "@/components/superadmin/settings"
+import { LocalitiesManagement } from "@/components/superadmin/localities-management"
+import { Moderation } from "@/components/superadmin/moderation"
 import { useAuth } from "@/hooks/use-auth"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 
 interface DashboardStats {
@@ -24,8 +26,27 @@ interface DashboardStats {
   newAdsToday: number
 }
 
+const VALID_VIEWS = [
+  "overview",
+  "ads",
+  "pending",
+  "reported",
+  "users",
+  "categories",
+  "localities",
+  "moderation",
+  "analytics",
+  "settings",
+]
+
 export default function SuperAdminPage() {
-  const [activeView, setActiveView] = useState("overview")
+  const searchParams = useSearchParams()
+  const initialView = useMemo(() => {
+    const param = searchParams.get("view")
+    return param && VALID_VIEWS.includes(param) ? param : "overview"
+  }, [searchParams])
+
+  const [activeView, setActiveView] = useState(initialView)
   const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
     totalAds: 0,
@@ -38,15 +59,34 @@ export default function SuperAdminPage() {
   
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
-  const { user } = useAuth()
+  const { user, isLoading } = useAuth()
   const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
+    // Wait for auth to finish loading before checking access
+    if (isLoading) {
+      return
+    }
     checkSuperAdminAccess()
-  }, [user])
+  }, [user, isLoading])
+
+  useEffect(() => {
+    const param = searchParams.get("view")
+    if (param && VALID_VIEWS.includes(param) && param !== activeView) {
+      setActiveView(param)
+    }
+    if (!param && activeView !== "overview") {
+      setActiveView("overview")
+    }
+  }, [searchParams, activeView])
 
   const checkSuperAdminAccess = async () => {
+    // Don't redirect if still loading
+    if (isLoading) {
+      return
+    }
+    
     if (!user) {
       router.replace("/auth/login")
       return
@@ -93,8 +133,26 @@ export default function SuperAdminPage() {
     }
   }
 
+  const handleNavigate = (view: string, id?: string) => {
+    try {
+      const target = VALID_VIEWS.includes(view) ? view : "overview"
+      setActiveView(target)
+      const href = id 
+        ? `/superadmin?view=${target}&id=${id}` 
+        : target === "overview" 
+          ? "/superadmin" 
+          : `/superadmin?view=${target}`
+      router.push(href)
+    } catch (error) {
+      console.error("Navigation error:", error)
+      // Fallback: just update the view state
+      const target = VALID_VIEWS.includes(view) ? view : "overview"
+      setActiveView(target)
+    }
+  }
+
   const renderActiveView = () => {
-    if (loading) {
+    if (loading || isLoading) {
       return (
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
@@ -118,15 +176,17 @@ export default function SuperAdminPage() {
 
     switch (activeView) {
       case "overview":
-        return <SuperAdminOverview stats={stats} onNavigate={setActiveView} />
+        return <SuperAdminOverview stats={stats} onNavigate={handleNavigate} />
       case "ads":
         return <AdsManagement />
       case "users":
-        return <div className="text-white p-6">User Management - Coming Soon</div>
+        return <UserManagement />
       case "categories":
         return <CategoriesManagement />
       case "localities":
         return <LocalitiesManagement />
+      case "moderation":
+        return <Moderation />
       case "analytics":
         return <Analytics />
       case "settings":
@@ -136,11 +196,11 @@ export default function SuperAdminPage() {
       case "pending":
         return <PendingReview />
       default:
-        return <SuperAdminOverview stats={stats} onNavigate={setActiveView} />
+        return <SuperAdminOverview stats={stats} onNavigate={handleNavigate} />
     }
   }
 
-  if (loading) {
+  if (loading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-900">
         <div className="text-center">
@@ -172,7 +232,7 @@ export default function SuperAdminPage() {
     <div className="flex h-screen bg-gray-900">
       <SuperAdminNav 
         stats={stats}
-        onNavigate={setActiveView}
+        onNavigate={handleNavigate}
         activeView={activeView}
       />
       

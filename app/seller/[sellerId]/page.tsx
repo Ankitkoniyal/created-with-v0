@@ -11,7 +11,9 @@ import { ProductGrid } from "@/components/product-grid"
 import { ContactSellerModal } from "@/components/messaging/contact-seller-modal"
 import { useAuth } from "@/hooks/use-auth"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import { UserRatings } from "@/components/user-ratings"
+import { UserComments } from "@/components/user-comments"
 
 interface SellerProfile {
   id: string
@@ -48,14 +50,21 @@ export default function SellerProfilePage({ params }: SellerPageProps) {
   const [sellerId, setSellerId] = useState<string>("")
   const { user } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   useEffect(() => {
     const getParams = async () => {
       const resolvedParams = await params
       setSellerId(resolvedParams.sellerId)
+      
+      // Check for tab parameter in URL
+      const tab = searchParams?.get("tab")
+      if (tab && ["ads", "ratings", "comments"].includes(tab)) {
+        setActiveTab(tab)
+      }
     }
     getParams()
-  }, [params])
+  }, [params, searchParams])
 
   useEffect(() => {
     if (!sellerId) return
@@ -208,26 +217,80 @@ export default function SellerProfilePage({ params }: SellerPageProps) {
         </CardContent>
       </Card>
 
-      {/* Seller's Ads */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <Package className="h-5 w-5 mr-2" />
-            All Ads ({products.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {products.length > 0 ? (
-            <ProductGrid products={products} />
-          ) : (
-            <div className="text-center py-12">
-              <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-foreground mb-2">No Active Ads</h3>
-              <p className="text-muted-foreground">This seller doesn&apos;t have any active listings at the moment.</p>
+      {/* Tabs for Ads, Ratings, and Comments */}
+      <div className="space-y-6">
+        {/* Tab Navigation */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex gap-2 border-b">
+              <button
+                onClick={() => setActiveTab("ads")}
+                className={`px-4 py-2 font-medium transition-colors ${
+                  activeTab === "ads"
+                    ? "border-b-2 border-primary text-primary"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Package className="h-4 w-4 inline mr-2" />
+                Ads ({products.length})
+              </button>
+              <button
+                onClick={() => setActiveTab("ratings")}
+                className={`px-4 py-2 font-medium transition-colors ${
+                  activeTab === "ratings"
+                    ? "border-b-2 border-primary text-primary"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Star className="h-4 w-4 inline mr-2" />
+                Ratings & Reviews
+              </button>
+              <button
+                onClick={() => setActiveTab("comments")}
+                className={`px-4 py-2 font-medium transition-colors ${
+                  activeTab === "comments"
+                    ? "border-b-2 border-primary text-primary"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <MessageSquare className="h-4 w-4 inline mr-2" />
+                Comments
+              </button>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        {/* Tab Content */}
+        {activeTab === "ads" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Package className="h-5 w-5 mr-2" />
+                All Ads ({products.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {products.length > 0 ? (
+                <ProductGrid products={products} />
+              ) : (
+                <div className="text-center py-12">
+                  <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-foreground mb-2">No Active Ads</h3>
+                  <p className="text-muted-foreground">This seller doesn&apos;t have any active listings at the moment.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {activeTab === "ratings" && sellerId && (
+          <UserRatings userId={sellerId} showAddRating={!!user && user.id !== sellerId} />
+        )}
+
+        {activeTab === "comments" && sellerId && (
+          <UserComments userId={sellerId} showAddComment={!!user && user.id !== sellerId} />
+        )}
+      </div>
 
       {/* Contact Seller Modal */}
       {showContactModal && seller && (

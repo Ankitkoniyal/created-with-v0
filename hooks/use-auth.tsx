@@ -1,417 +1,248 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, type ReactNode, useRef } from "react"
-import { getSupabaseClient } from "@/lib/supabase/client"
-import type { User } from "@supabase/supabase-js"
+import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback, type ReactNode } from "react"
+import type { Session, User } from "@supabase/supabase-js"
+import { createClient } from "@/lib/supabase/client"
+import type { Database } from "@/types/supabase"
 
-type UserRole = 'user' | 'admin' | 'super_admin' | 'owner'
+type UserRole = "user" | "admin" | "super_admin" | "owner"
 
-// ✅ UPDATED: Profile interface matches your actual table structure
 interface Profile {
   id: string
-  email: string // ✅ Your table has email column
-  name: string
+  email?: string
+  name?: string
   phone?: string
   avatar_url?: string
   bio?: string
   location?: string
-  created_at: string
-  updated_at: string // ✅ Your table has updated_at
-  role: UserRole
-  email_notifications: boolean // ✅ Your table has these notification fields
-  sms_notifications: boolean
-  push_notifications: boolean
+  created_at?: string
+  updated_at?: string
+  role?: UserRole
+  email_notifications?: boolean
+  sms_notifications?: boolean
+  push_notifications?: boolean
 }
 
-interface AuthContextType {
+interface AuthContextValue {
   user: User | null
   profile: Profile | null
-  login: (email: string, password: string) => Promise<{ error?: string }>
-  signup: (email: string, password: string, name: string, phone: string) => Promise<{ error?: string }>
-  logout: () => Promise<void>
   isLoading: boolean
   isAdmin: boolean
   isSuperAdmin: boolean
+  login: (email: string, password: string) => Promise<{ error?: string; session?: Session | null }>
+  signup: (email: string, password: string, name: string, phone: string) => Promise<{ error?: string }>
+  logout: () => Promise<void>
+  refreshProfile: () => Promise<void>
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
+const AuthContext = createContext<AuthContextValue | undefined>(undefined)
+
+const DEFAULT_SUPER_ADMIN_EMAILS = ["ankit.koniyal000@gmail.com"]
+const SUPER_ADMIN_EMAILS = (() => {
+  const env = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAILS ?? ""
+  const derived = env
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean)
+  const merged = new Set([...DEFAULT_SUPER_ADMIN_EMAILS.map((e) => e.toLowerCase()), ...derived])
+  return Array.from(merged)
+})()
+
+const isSuperAdminEmail = (email: string | null | undefined) => {
+  if (!email) return false
+  return SUPER_ADMIN_EMAILS.includes(email.toLowerCase())
+}
+
+const syncSessionToServer = async (event: "SIGNED_IN" | "SIGNED_OUT", session?: Session | null) => {
+  try {
+    await fetch("/api/auth/set", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event,
+        access_token: session?.access_token ?? null,
+        refresh_token: session?.refresh_token ?? null,
+      }),
+    })
+  } catch (error) {
+    console.warn("[auth] failed to sync session", error)
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const supabaseRef = useRef(createClient())
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const mountedRef = useRef(true)
 
-  const isAdmin = !!(profile && (profile.role === 'admin' || profile.role === 'super_admin' || profile.role === 'owner'))
-  const isSuperAdmin = !!(profile && profile.role === 'super_admin')
+  const loadProfile = useCallback(async (userId: string, email?: string | null): Promise<Profile | null> => {
+    try {
+      const supabase = supabaseRef.current
+      const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
+      if (error && error.code !== 'PGRST116') { // PGRST116 means no rows found
+        console.error("[auth] Error loading profile:", error)
+        return null
+      }
+      let profileData = data || null
 
-  useEffect(() => {
-    mountedRef.current = true
-    return () => {
-      mountedRef.current = false
+      if (profileData && email && isSuperAdminEmail(email) && profileData.role !== "super_admin") {
+        try {
+          const { data: updatedProfile, error: updateError } = await supabase
+            .from("profiles")
+            .update({ role: "super_admin" })
+            .eq("id", userId)
+            .select()
+            .single()
+
+          if (updateError) {
+            console.warn("[auth] Failed to elevate profile role", updateError)
+          } else {
+            profileData = updatedProfile
+          }
+        } catch (roleError) {
+          console.warn("[auth] Unexpected role elevation error", roleError)
+        }
+      }
+
+      return profileData
+    } catch (error) {
+      console.error("[auth] Unexpected error loading profile:", error)
+      return null
     }
   }, [])
 
-  useEffect(() => {
-    const fetchAndSetProfile = async () => {
-      if (user) {
-        const supabase = getSupabaseClient();
-        if (!supabase) {
-          if (mountedRef.current) {
-            setProfile(null);
-            setIsLoading(false);
-          }
-          return;
-        }
-
-        if (mountedRef.current) {
-          setIsLoading(true);
-        }
-
-        const profileData = await fetchUserProfile(user.id, user, supabase);
-
-        if (!profileData) {
-          await ensureProfile();
-          const retryProfileData = await fetchUserProfile(user.id, user, supabase);
-          if (mountedRef.current) {
-            setProfile(retryProfileData);
-          }
-        } else {
-          if (mountedRef.current) {
-            setProfile(profileData);
-          }
-        }
-
-        if (mountedRef.current) {
-          setIsLoading(false);
-        }
-      } else {
-        if (mountedRef.current) {
-          setProfile(null);
-          setIsLoading(false);
-        }
-      }
-    };
-
-    fetchAndSetProfile();
-  }, [user]);
-
-  const ensureProfile = async (): Promise<boolean> => {
-    try {
-      const response = await fetch("/api/profile/ensure", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const result = await response.json()
-      
-      if (!result.ok) {
-        console.log("[v0] Profile ensure soft failure:", result.reason)
-        return false
-      }
-      
-      console.log("[v0] Profile ensure successful")
-      return true
-    } catch (error) {
-      console.log("[v0] Profile ensure failed (non-blocking):", error)
-      return false
+  const refreshProfile = useCallback(async () => {
+    if (user?.id) {
+      const freshProfile = await loadProfile(user.id, user.email)
+      setProfile(freshProfile)
+      return freshProfile
     }
-  }
-
-  const syncServerSession = async (event: string, session: any | null) => {
-    try {
-      const response = await fetch("/api/auth/set", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          event,
-          access_token: session?.access_token || null,
-          refresh_token: session?.refresh_token || null,
-        }),
-      })
-
-      if (!response.ok) {
-        console.warn(`Auth sync failed with status: ${response.status}`)
-        return
-      }
-
-      const data = await response.json()
-      if (!data.ok) {
-        console.warn("Auth sync responded with error:", data.reason)
-      }
-    } catch (error) {
-      console.log("[v0] Server session sync failed (non-blocking):", error)
-    }
-  }
-
-  // ✅ UPDATED: Fixed profile fetching to match your actual table structure
-  const fetchUserProfile = async (userId: string, userData: User, supabase: any): Promise<Profile | null> => {
-    try {
-      if (!supabase) return null
-      
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .single()
-
-      if (error || !data) {
-        console.log("[v0] Profile fetch error:", error)
-        return null
-      }
-
-      // ✅ UPDATED: Match your actual table columns
-      return {
-        id: data.id,
-        email: data.email || userData?.email || "", // Your table has email column
-        name: data.full_name || userData?.email?.split("@")[0] || "User",
-        phone: data.phone || "",
-        avatar_url: data.avatar_url || "",
-        bio: data.bio || "",
-        location: data.location || "",
-        created_at: data.created_at,
-        updated_at: data.updated_at, // Your table has updated_at
-        role: data.role || 'user',
-        email_notifications: data.email_notifications ?? true,
-        sms_notifications: data.sms_notifications ?? false,
-        push_notifications: data.push_notifications ?? true
-      }
-    } catch (error) {
-      console.log("[v0] Profile fetch error:", error)
-      return null
-    }
-  }
-
-  const clearAllSessionData = async (supabase: any) => {
-    try {
-      await Promise.allSettled([
-        fetch("/api/auth/set", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ event: "SIGNED_OUT" }),
-        }),
-        supabase.auth.signOut(),
-      ])
-
-      if (typeof window !== "undefined") {
-        try {
-          const keys = Object.keys(localStorage)
-          keys.forEach((key) => {
-            if (key.includes("supabase") || key.includes("auth")) {
-              localStorage.removeItem(key)
-            }
-          })
-        } catch (storageError) {
-          console.log("[v0] LocalStorage clear failed:", storageError)
-        }
-      }
-    } catch (error) {
-      console.log("[v0] Session clear error:", error)
-    }
-  }
+    return null
+  }, [user?.id, user?.email, loadProfile])
 
   useEffect(() => {
-    let unsubscribe: (() => void) | undefined
+    let isMounted = true
+    const supabase = supabaseRef.current
 
-    const initializeAuth = async () => {
+    const initialise = async () => {
+      setIsLoading(true)
       try {
-        const supabase = getSupabaseClient()
-        if (!supabase) {
-          if (mountedRef.current) {
-            setUser(null)
-            setProfile(null)
-            setIsLoading(false)
-          }
-          return
-        }
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
 
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+        if (!isMounted) return
 
-        if (sessionError) {
-          if (sessionError.message?.includes("refresh_token_not_found") ||
-              sessionError.message?.includes("Invalid Refresh Token")) {
-            await clearAllSessionData(supabase)
-            if (mountedRef.current) {
-              setUser(null)
-              setProfile(null)
-              setIsLoading(false)
-            }
-            return
-          }
-          throw sessionError
-        }
+        const currentUser = session?.user ?? null
+        setUser(currentUser)
 
-        const session = sessionData?.session
-
-        if (!mountedRef.current) return
-
-        if (session?.user && (!session?.access_token || !session?.refresh_token)) {
-          await clearAllSessionData(supabase)
-          if (mountedRef.current) {
-            setUser(null)
-            setProfile(null)
-            setIsLoading(false)
-          }
-          return
-        }
-
-        if (session?.user) {
-          console.log("[v0] Found existing session for user:", session.user.email)
-          
-          if (session.access_token && session.refresh_token) {
-            await syncServerSession("SIGNED_IN", session)
-          }
-          
-          if (mountedRef.current) {
-            setUser(session.user);
-          }
+        if (currentUser) {
+          const profileData = await loadProfile(currentUser.id, currentUser.email)
+          if (!isMounted) return
+          setProfile(profileData)
         } else {
-          if (mountedRef.current) {
-            setUser(null);
-            setProfile(null);
-            setIsLoading(false);
-          }
+          setProfile(null)
         }
       } catch (error) {
-        console.log("[v0] Auth initialization error:", error)
-        if (mountedRef.current) {
+        console.warn("[auth] initial session fetch failed", error)
+        if (isMounted) {
           setUser(null)
           setProfile(null)
+        }
+      } finally {
+        if (isMounted) {
           setIsLoading(false)
         }
       }
     }
 
-    const setupAuthListener = () => {
-      try {
-        const supabase = getSupabaseClient()
-        if (!supabase) return
+    initialise()
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-          if (!mountedRef.current) return
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!isMounted) return
 
-          try {
-            if (event === "TOKEN_REFRESHED" && (!session?.access_token || !session?.refresh_token)) {
-              await clearAllSessionData(supabase)
-              if (mountedRef.current) {
-                setUser(null)
-                setProfile(null)
-                setIsLoading(false)
-              }
-              return
-            }
+      console.log("[auth] state change", event)
+      const currentUser = session?.user ?? null
+      setUser(currentUser)
+      setIsLoading(false)
 
-            if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") &&
-                session?.access_token && session?.refresh_token) {
-              await syncServerSession(event, session)
-            } else if (event === "SIGNED_OUT") {
-              await syncServerSession(event, null)
-            }
-
-            switch (event) {
-              case "SIGNED_IN":
-                if (session?.user) {
-                  setUser(session.user)
-                  if (mountedRef.current) setIsLoading(false)
-                  
-                  await ensureProfile()
-                  const profileData = await fetchUserProfile(session.user.id, session.user, supabase)
-                  if (mountedRef.current) setProfile(profileData)
-                }
-                break
-                
-              case "SIGNED_OUT":
-                setUser(null)
-                setProfile(null)
-                setIsLoading(false)
-                break
-                
-              case "TOKEN_REFRESHED":
-                if (session?.user && mountedRef.current) setUser(session.user)
-                break
-            }
-          } catch (error) {
-            console.log("[v0] Auth state change error:", error)
-            await clearAllSessionData(supabase)
-            if (mountedRef.current) {
-              setUser(null)
-              setProfile(null)
-              setIsLoading(false)
-            }
-          }
+      if (currentUser) {
+        loadProfile(currentUser.id, currentUser.email).then((profileData) => {
+          if (!isMounted) return
+          setProfile(profileData)
         })
-
-        unsubscribe = () => subscription.unsubscribe()
-      } catch (error) {
-        console.log("[v0] Auth subscription setup failed:", error)
+      } else {
+        setProfile(null)
       }
-    }
-
-    initializeAuth().then(() => {
-      setupAuthListener()
     })
 
     return () => {
-      mountedRef.current = false
-      if (unsubscribe) {
-        unsubscribe()
-      }
+      isMounted = false
+      subscription.unsubscribe()
     }
-  }, [])
+  }, [loadProfile])
 
   const login = async (email: string, password: string) => {
     try {
-      const supabase = getSupabaseClient()
-      if (!supabase) return { error: "Authentication is not configured. Please try again later." }
-
-      console.log("[v0] Login attempt for email:", email)
-
+      const supabase = supabaseRef.current
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
       if (error) {
-        const msg = String(error.message || "")
-        if (/invalid login credentials/i.test(msg)) {
-          return { error: "Invalid email or password. Please check your credentials and try again." }
-        } else if (/email not confirmed/i.test(msg)) {
-          return { error: "Please check your email and click the confirmation link before signing in." }
-        } else if (/too many/i.test(msg) || /rate/i.test(msg)) {
-          return { error: "Too many login attempts. Please wait a few minutes before trying again." }
-        }
-        return { error: msg || "Login failed. Please try again." }
+        console.error("[auth] login error", error)
+        return { error: error.message }
       }
 
-      if (data.session?.user) {
-        setUser(data.session.user)
-
-        if (data.session.access_token && data.session.refresh_token) {
-          await syncServerSession("SIGNED_IN", data.session)
-          await ensureProfile()
-          
-          const profileData = await fetchUserProfile(data.session.user.id, data.session.user, supabase)
-          if (mountedRef.current) setProfile(profileData)
+      const session = data.session
+      if (session?.user) {
+        // Check account status before allowing login
+        const accountStatus = session.user.user_metadata?.account_status as string | undefined
+        const profileData = await loadProfile(session.user.id, session.user.email)
+        
+        // Check status from profile if not in metadata
+        const status = accountStatus || profileData?.status || "active"
+        
+        // Block login if account is banned, suspended, or deleted
+        if (status === "banned") {
+          // Sign out immediately
+          await supabase.auth.signOut()
+          return { 
+            error: "Your account has been banned. Please contact support for resolution." 
+          }
         }
-
-        return {}
+        
+        if (status === "suspended") {
+          // Sign out immediately
+          await supabase.auth.signOut()
+          return { error: "Your account has been suspended. Please contact support for resolution." }
+        }
+        
+        if (status === "deleted") {
+          // Sign out immediately
+          await supabase.auth.signOut()
+          return { 
+            error: "This account has been deleted. Please contact support for resolution." 
+          }
+        }
+        
+        // Account is active, proceed with login
+        await syncSessionToServer("SIGNED_IN", session)
+        setUser(session.user)
+        setProfile(profileData)
       }
 
+      return { session }
+    } catch (error) {
+      console.error("[auth] unexpected login error", error)
       return { error: "Login failed. Please try again." }
-    } catch (err) {
-      console.log("[v0] Login error:", err)
-      return { error: "Network error. Please try again." }
     }
   }
 
   const signup = async (email: string, password: string, name: string, phone: string) => {
     try {
-      const supabase = getSupabaseClient()
-      if (!supabase) return { error: "Authentication is not configured. Please try again later." }
-
-      setIsLoading(true)
+      const supabase = supabaseRef.current
       const redirectUrl =
         process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ||
         (typeof window !== "undefined"
@@ -426,72 +257,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           data: { full_name: name, phone },
         },
       })
-      
-      setIsLoading(false)
-      
+
       if (error) {
+        console.error("[auth] signup error", error)
         return { error: error.message }
       }
-      
+
       return {}
-    } catch (signupError) {
-      console.log("[v0] Signup error:", signupError)
-      setIsLoading(false)
-      return { error: "An unexpected error occurred" }
+    } catch (error) {
+      console.error("[auth] unexpected signup error", error)
+      return { error: "Signup failed. Please try again." }
     }
   }
 
   const logout = async () => {
     try {
-      const supabase = getSupabaseClient()
-      if (!supabase) return
-      
-      setIsLoading(true)
-      await clearAllSessionData(supabase)
-      if (mountedRef.current) {
-        setUser(null)
-        setProfile(null)
+      const supabase = supabaseRef.current
+      await supabase.auth.signOut()
+      await syncSessionToServer("SIGNED_OUT")
+      setUser(null)
+      setProfile(null)
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.removeItem("coinmint_rememberedCredentials")
+        } catch (error) {
+          console.warn("[auth] failed to clear remembered credentials", error)
+        }
+        window.location.replace("/auth/login")
       }
-    } catch (logoutError) {
-      console.log("[v0] Logout error:", logoutError)
-    } finally {
-      if (mountedRef.current) {
-        setIsLoading(false)
-      }
+    } catch (error) {
+      console.error("[auth] logout error", error)
+      throw error
     }
   }
 
-  return (
-    <AuthContext.Provider value={{ 
-      user, 
-      profile, 
-      login, 
-      signup, 
-      logout, 
+  const contextValue = useMemo<AuthContextValue>(
+    () => ({
+      user,
+      profile,
       isLoading,
-      isAdmin,
-      isSuperAdmin
-    }}>
-      {children}
-    </AuthContext.Provider>
+      isAdmin:
+        !!profile && ["admin", "super_admin", "owner"].includes((profile.role ?? (isSuperAdminEmail(user?.email) ? "super_admin" : "user")) as string),
+      isSuperAdmin: (profile?.role ?? undefined) === "super_admin" || isSuperAdminEmail(user?.email),
+      login,
+      signup,
+      logout,
+      refreshProfile,
+    }),
+    [user, profile, isLoading],
   )
+
+  return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {
   const context = useContext(AuthContext)
-  
-  if (context === undefined) {
-    return {
-      user: null,
-      profile: null,
-      login: async () => ({ error: "Authentication is not available right now. Please try again later." }),
-      signup: async () => ({ error: "Authentication is not available right now. Please try again later." }),
-      logout: async () => {},
-      isLoading: false,
-      isAdmin: false,
-      isSuperAdmin: false
-    }
+
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider")
   }
-  
+
   return context
 }

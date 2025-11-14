@@ -123,7 +123,7 @@ export async function POST(req: Request) {
       youtube_url: body.youtube_url || null,
       website_url: body.website_url || null,
       show_mobile_number: body.show_mobile_number ?? true,
-      status: "active",
+      status: "pending", // New ads require admin approval before going live
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }

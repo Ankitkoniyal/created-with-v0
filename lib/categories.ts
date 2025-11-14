@@ -1,216 +1,303 @@
-// lib/categories.ts - COMPLETE FIXED VERSION
 export interface CategoryData {
   name: string
+  slug: string
   subcategories: string[]
   filters: Record<string, string[]>
 }
 
-export const CATEGORIES = [
-  "Vehicles",
-  "Electronics", 
-  "Mobile",
-  "Real Estate",
-  "Fashion & Beauty",
-  "Pets & Animals",
-  "Furniture",
-  "Services",
-  "Sports", 
-  "Books & Education",
-  "Home Appliances",
-  "Free Stuff"
-] as const
-
-export const SUBCATEGORY_MAPPINGS: { [key: string]: string[] } = {
-  "Vehicles": [
-    "Cars", "Trucks", "Classic Cars", "Auto Parts", "Trailers", 
-    "Scooters", "Bicycles", "Motorcycles"
-  ],
-  "Electronics": [
-    "Tablets", "Laptops", "Headphones", "Computers", "Cameras", "TV & Audio"
-  ],
-  "Mobile": [
-    "Mobile Accessories", "Android Phones", "iPhones"
-  ],
-  "Real Estate": [
-    "Roommates", "For Rent", "For Sale", "Land"
-  ],
-  "Fashion & Beauty": [
-    "Shoes", "Accessories", "Women Clothing", "Men Clothing"
-  ],
-  "Pets & Animals": [
-    "Cats", "Birds", "Other Pets", "Dogs", "Pet Supplies"
-  ],
-  "Furniture": [
-    "Beds & Mattresses", "Book Shelves", "Chairs & Recliners", "Coffee Tables",
-    "Sofa & Couches", "Dining Tables", "Wardrobes", "TV Tables"
-  ],
-  "Services": [
-    "Nanny & Childcare", "Cleaners", "Financial & Legal", "Personal Trainer",
-    "Food & Catering", "Health & Beauty", "Moving & Storage", "Music Lessons",
-    "Photography & Video", "Skilled Trades", "Tutors & Languages", "Wedding"
-  ],
-  "Sports": [
-    "Exercise Equipment", "Sportswear", "Outdoor Gear"
-  ],
-  "Books & Education": [
-    "Fiction", "Textbooks", "Children Books", "Non-Fiction"
-  ],
-  "Home Appliances": [
-    "Coffee Makers", "Cookers", "Dishwashers", "Heaters", "Irons", 
-    "Microwaves", "Juicers & Blenders", "Refrigerators & Freezers", 
-    "Gas Stoves", "Ovens", "Toasters", "Vacuums"
-  ],
-  "Free Stuff": [
-    "Lost & Found", "Miscellaneous"
-  ]
+interface SubcategoryConfig {
+  name: string
+  slug?: string
 }
 
-// COMPLETE MAPPING: Human-readable names to database slugs
-export const SUBCATEGORY_TO_SLUG: { [key: string]: string } = {
-  // Real Estate
-  "Roommates": "roommates",
-  "For Rent": "for-rent", 
-  "For Sale": "for-sale",
-  "Land": "land",
-  
-  // Electronics
-  "Cameras": "cameras",
-  "Tablets": "tablets", 
-  "Laptops": "laptops",
-  "Headphones": "headphones",
-  "Computers": "computers",
-  "TV & Audio": "tv-audio",
-  "Other Electronics": "other-electronics",
-  
-  // Vehicles
-  "Cars": "cars",
-  "Trucks": "trucks",
-  "Classic Cars": "classic-cars",
-  "Auto Parts": "auto-parts",
-  "Trailers": "trailers",
-  "Scooters": "scooters",
-  "Bicycles": "bicycles",
-  "Motorcycles": "motorcycles",
-  
-  // Mobile
-  "Mobile Accessories": "mobile-accessories",
-  "Android Phones": "android-phones",
-  "iPhones": "iphones",
-  
-  // Fashion & Beauty
-  "Shoes": "shoes",
-  "Accessories": "accessories",
-  "Women Clothing": "women-clothing",
-  "Men Clothing": "men-clothing",
-  
-  // Pets & Animals
-  "Cats": "cats",
-  "Birds": "birds",
-  "Other Pets": "other-pets",
-  "Dogs": "dogs",
-  "Pet Supplies": "pet-supplies",
-  
-  // Furniture
-  "Beds & Mattresses": "beds-mattresses",
-  "Book Shelves": "book-shelves",
-  "Chairs & Recliners": "chairs-recliners",
-  "Coffee Tables": "coffee-tables",
-  "Sofa & Couches": "sofa-couches",
-  "Dining Tables": "dining-tables",
-  "Wardrobes": "wardrobes",
-  "TV Tables": "tv-tables",
-  
-  // Services
-  "Nanny & Childcare": "nanny-childcare",
-  "Cleaners": "cleaners",
-  "Financial & Legal": "financial-legal",
-  "Personal Trainer": "personal-trainer",
-  "Food & Catering": "food-catering",
-  "Health & Beauty": "health-beauty",
-  "Moving & Storage": "moving-storage",
-  "Music Lessons": "music-lessons",
-  "Photography & Video": "photography-video",
-  "Skilled Trades": "skilled-trades",
-  "Tutors & Languages": "tutors-languages",
-  "Wedding": "wedding",
-  
-  // Sports
-  "Exercise Equipment": "exercise-equipment",
-  "Sportswear": "sportswear",
-  "Outdoor Gear": "outdoor-gear",
-  
-  // Books & Education
-  "Fiction": "fiction",
-  "Textbooks": "textbooks",
-  "Children Books": "children-books",
-  "Non-Fiction": "non-fiction",
-  
-  // Home Appliances
-  "Coffee Makers": "coffee-makers",
-  "Cookers": "cookers",
-  "Dishwashers": "dishwashers",
-  "Heaters": "heaters",
-  "Irons": "irons",
-  "Microwaves": "microwaves",
-  "Juicers & Blenders": "juicers-blenders",
-  "Refrigerators & Freezers": "refrigerators-freezers",
-  "Gas Stoves": "gas-stoves",
-  "Ovens": "ovens",
-  "Toasters": "toasters",
-  "Vacuums": "vacuums",
-  
-  // Free Stuff
-  "Lost & Found": "lost-found",
-  "Miscellaneous": "miscellaneous"
+interface CategoryConfig {
+  name: string
+  slug: string
+  subcategories: SubcategoryConfig[]
+  aliases?: string[]
+  nav?: boolean
 }
 
-export const SLUG_TO_SUBCATEGORY: { [key: string]: string } = Object.entries(SUBCATEGORY_TO_SLUG).reduce(
+const toSlug = (value: string): string =>
+  value
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+
+export const CATEGORY_CONFIG: CategoryConfig[] = [
+  {
+    name: "Home Appliances",
+    slug: "home-appliances",
+    aliases: ["appliance", "appliances"],
+    subcategories: [
+      { name: "Coffee Makers", slug: "coffee-makers" },
+      { name: "Cookers", slug: "cookers" },
+      { name: "Dishwashers", slug: "dishwashers" },
+      { name: "Heaters", slug: "heaters" },
+      { name: "Irons", slug: "irons" },
+      { name: "Microwaves", slug: "microwaves" },
+      { name: "Juicers & Blenders", slug: "juicers-blenders" },
+      { name: "Refrigerators & Freezers", slug: "refrigerators-freezers" },
+      { name: "Gas Stoves", slug: "gas-stoves" },
+      { name: "Ovens", slug: "ovens" },
+      { name: "Toasters", slug: "toasters" },
+      { name: "Vacuums", slug: "vacuums" },
+      { name: "Other Home Appliances", slug: "other-home-appliances" },
+    ],
+  },
+  {
+    name: "Electronics",
+    slug: "electronics",
+    aliases: ["electronic", "gadgets"],
+    subcategories: [
+      { name: "Laptops", slug: "laptops" },
+      { name: "Tablets", slug: "tablets" },
+      { name: "Cameras", slug: "cameras" },
+      { name: "Headphones", slug: "headphones" },
+      { name: "Computers", slug: "computers" },
+      { name: "TV & Audio", slug: "tv-audio" },
+      { name: "Other Electronics", slug: "other-electronics" },
+    ],
+  },
+  {
+    name: "Services",
+    slug: "services",
+    subcategories: [
+      { name: "Nanny & Childcare", slug: "nanny-childcare" },
+      { name: "Cleaners", slug: "cleaners" },
+      { name: "Financial & Legal", slug: "financial-legal" },
+      { name: "Personal Trainer", slug: "personal-trainer" },
+      { name: "Food & Catering", slug: "food-catering" },
+      { name: "Health & Beauty", slug: "health-beauty" },
+      { name: "Moving & Storage", slug: "moving-storage" },
+      { name: "Music Lessons", slug: "music-lessons" },
+      { name: "Photography & Video", slug: "photography-video" },
+      { name: "Skilled Trades", slug: "skilled-trades" },
+      { name: "Tutors & Languages", slug: "tutors-languages" },
+      { name: "Wedding", slug: "wedding" },
+      { name: "Other Services", slug: "other-services" },
+    ],
+  },
+  {
+    name: "Vehicles",
+    slug: "vehicles",
+    aliases: ["vehicle", "autos", "car", "cars"],
+    subcategories: [
+      { name: "Cars", slug: "cars" },
+      { name: "Trucks", slug: "trucks" },
+      { name: "Motorcycles", slug: "motorcycles" },
+      { name: "Scooters", slug: "scooters" },
+      { name: "Bicycles", slug: "bicycles" },
+      { name: "Classic Cars", slug: "classic-cars" },
+      { name: "Trailers", slug: "trailers" },
+      { name: "Auto Parts", slug: "auto-parts" },
+      { name: "Other Vehicles", slug: "other-vehicles" },
+    ],
+  },
+  {
+    name: "Furniture",
+    slug: "furniture",
+    subcategories: [
+      { name: "Beds & Mattresses", slug: "beds-mattresses" },
+      { name: "Sofa & Couches", slug: "sofa-couches" },
+      { name: "Dining Tables", slug: "dining-tables" },
+      { name: "Chairs & Recliners", slug: "chairs-recliners" },
+      { name: "Coffee Tables", slug: "coffee-tables" },
+      { name: "TV Tables", slug: "tv-tables" },
+      { name: "Wardrobes", slug: "wardrobes" },
+      { name: "Book Shelves", slug: "book-shelves" },
+      { name: "Other Furniture", slug: "other-furniture" },
+    ],
+  },
+  {
+    name: "Mobile",
+    slug: "mobile",
+    aliases: ["mobile-phones", "phones", "smartphones"],
+    subcategories: [
+      { name: "Android Phones", slug: "android-phones" },
+      { name: "iPhones", slug: "iphones" },
+      { name: "Mobile Accessories", slug: "mobile-accessories" },
+      { name: "Other Mobile", slug: "other-mobile" },
+    ],
+  },
+  {
+    name: "Real Estate",
+    slug: "real-estate",
+    aliases: ["property", "properties", "realestate"],
+    subcategories: [
+      { name: "Roommates", slug: "roommates" },
+      { name: "For Rent", slug: "for-rent" },
+      { name: "For Sale", slug: "for-sale" },
+      { name: "Land", slug: "land" },
+      { name: "Other Real Estate", slug: "other-real-estate" },
+    ],
+  },
+  {
+    name: "Fashion & Beauty",
+    slug: "fashion-beauty",
+    aliases: ["fashion", "beauty"],
+    subcategories: [
+      { name: "Men Clothing", slug: "men-clothing" },
+      { name: "Women Clothing", slug: "women-clothing" },
+      { name: "Shoes", slug: "shoes" },
+      { name: "Accessories", slug: "accessories" },
+      { name: "Other Fashion & Beauty", slug: "other-fashion-beauty" },
+    ],
+  },
+  {
+    name: "Pets & Animals",
+    slug: "pets-animals",
+    aliases: ["pets", "animals"],
+    subcategories: [
+      { name: "Dogs", slug: "dogs" },
+      { name: "Cats", slug: "cats" },
+      { name: "Birds", slug: "birds" },
+      { name: "Pet Supplies", slug: "pet-supplies" },
+      { name: "Other Pets & Animals", slug: "other-pets-animals" },
+    ],
+  },
+  {
+    name: "Sports",
+    slug: "sports",
+    subcategories: [
+      { name: "Exercise Equipment", slug: "exercise-equipment" },
+      { name: "Sportswear", slug: "sportswear" },
+      { name: "Outdoor Gear", slug: "outdoor-gear" },
+      { name: "Other Sports", slug: "other-sports" },
+    ],
+  },
+  {
+    name: "Books & Education",
+    slug: "books-education",
+    aliases: ["books", "education"],
+    subcategories: [
+      { name: "Fiction Books", slug: "fiction-books" },
+      { name: "Non-Fiction Books", slug: "non-fiction-books" },
+      { name: "Textbooks", slug: "textbooks" },
+      { name: "Children Books", slug: "children-books" },
+      { name: "Other Books & Education", slug: "other-books-education" },
+    ],
+  },
+  {
+    name: "Free Stuff",
+    slug: "free-stuff",
+    aliases: ["free", "giveaways"],
+    subcategories: [
+      { name: "Lost & Found", slug: "lost-found" },
+      { name: "Miscellaneous", slug: "miscellaneous" },
+      { name: "Other Free Stuff", slug: "other-free-stuff" },
+    ],
+  },
+]
+
+export const CATEGORIES = CATEGORY_CONFIG.filter((config) => config.nav !== false).map((config) => config.name)
+
+export const CATEGORY_NAME_TO_SLUG: Record<string, string> = CATEGORY_CONFIG.reduce((acc, config) => {
+  acc[config.name] = config.slug
+  return acc
+}, {} as Record<string, string>)
+
+export const CATEGORY_SLUG_TO_NAME: Record<string, string> = CATEGORY_CONFIG.reduce((acc, config) => {
+  acc[config.slug] = config.name
+  config.aliases?.forEach((alias) => {
+    acc[toSlug(alias)] = config.name
+  })
+  return acc
+}, {} as Record<string, string>)
+
+export const SUBCATEGORY_MAPPINGS: Record<string, string[]> = CATEGORY_CONFIG.reduce(
+  (acc, config) => {
+    acc[config.name] = config.subcategories.map((subcategory) => subcategory.name)
+    return acc
+  },
+  {} as Record<string, string[]>,
+)
+
+export const SUBCATEGORY_TO_SLUG: Record<string, string> = CATEGORY_CONFIG.reduce(
+  (acc, config) => {
+    config.subcategories.forEach((subcategory) => {
+      if (!acc[subcategory.name]) {
+        acc[subcategory.name] = subcategory.slug ?? toSlug(subcategory.name)
+      }
+    })
+    return acc
+  },
+  {} as Record<string, string>,
+)
+
+export const SLUG_TO_SUBCATEGORY: Record<string, string> = Object.entries(SUBCATEGORY_TO_SLUG).reduce(
   (acc, [displayName, slug]) => {
     acc[slug] = displayName
     return acc
   },
-  {} as { [key: string]: string },
+  {} as Record<string, string>,
 )
 
-// Helper functions
+export const getCategorySlug = (category: string): string => {
+  const normalized = toSlug(category)
+  const displayName = CATEGORY_SLUG_TO_NAME[normalized]
+  if (displayName) {
+    return CATEGORY_NAME_TO_SLUG[displayName] ?? normalized
+  }
+  return normalized
+}
+
+export const getCategoryDisplayName = (slugOrName: string): string => {
+  const normalized = toSlug(slugOrName)
+  return CATEGORY_SLUG_TO_NAME[normalized] || slugOrName
+}
+
 export const getCategoryByName = (name: string): CategoryData | undefined => {
-  const subcategories = SUBCATEGORY_MAPPINGS[name] || []
+  const normalizedSlug = getCategorySlug(name)
+  const displayName = CATEGORY_SLUG_TO_NAME[normalizedSlug]
+  if (!displayName) return undefined
+
+  const config = CATEGORY_CONFIG.find((item) => item.slug === normalizedSlug)
+  if (!config) return undefined
+
   return {
-    name,
-    subcategories,
-    filters: {}
+    name: displayName,
+    slug: config.slug,
+    subcategories: config.subcategories.map((subcategory) => subcategory.name),
+    filters: {},
   }
 }
 
 export const getSubcategoriesByCategory = (categoryName: string): string[] => {
-  return SUBCATEGORY_MAPPINGS[categoryName] || []
+  const normalizedSlug = getCategorySlug(categoryName)
+  const displayName = CATEGORY_SLUG_TO_NAME[normalizedSlug]
+  if (!displayName) return []
+  return SUBCATEGORY_MAPPINGS[displayName] || []
 }
 
 export const getSubcategorySlug = (subcategory: string): string => {
-  return SUBCATEGORY_TO_SLUG[subcategory] || 
-    subcategory.toLowerCase().replace(/\s+/g, '-').replace(/&/g, 'and')
+  return SUBCATEGORY_TO_SLUG[subcategory] || toSlug(subcategory)
 }
 
 export const getSubcategoryDisplayName = (slug: string): string => {
-  const entry = Object.entries(SUBCATEGORY_TO_SLUG).find(
-    ([displayName, dbSlug]) => dbSlug === slug
-  )
-  return entry ? entry[0] : formatDisplayName(slug)
+  const normalized = slug.toLowerCase()
+  return SLUG_TO_SUBCATEGORY[normalized] || formatDisplayName(normalized)
 }
 
-const formatDisplayName = (slug: string): string => {
-  return slug
-    .split('-')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
-}
+const formatDisplayName = (slug: string): string =>
+  slug
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ")
 
 export const isValidCategory = (category: string): boolean => {
-  return CATEGORIES.includes(category as any)
+  const normalized = getCategorySlug(category)
+  return CATEGORY_CONFIG.some((config) => config.slug === normalized)
 }
 
 export const isValidSubcategory = (category: string, subcategory: string): boolean => {
-  const subcategories = SUBCATEGORY_MAPPINGS[category] || []
+  const normalizedCategory = CATEGORY_SLUG_TO_NAME[getCategorySlug(category)]
+  if (!normalizedCategory) return false
+  const subcategories = SUBCATEGORY_MAPPINGS[normalizedCategory] || []
   const subcategorySlugs = subcategories.map(getSubcategorySlug)
-  return subcategorySlugs.includes(subcategory)
+  const candidateSlug = getSubcategorySlug(subcategory)
+  return subcategorySlugs.includes(candidateSlug)
 }

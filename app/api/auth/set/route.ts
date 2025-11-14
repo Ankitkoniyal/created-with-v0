@@ -64,7 +64,10 @@ export async function POST(req: NextRequest) {
       console.log(`Auth: ${event} event received`)
       
       if (access_token && refresh_token) {
-        console.log("Auth: Setting session with tokens")
+        console.log("Auth: Setting session with tokens", {
+          accessPreview: access_token.slice(0, 12) + "...",
+          refreshPreview: refresh_token.slice(0, 12) + "...",
+        })
         const { data, error } = await supabase.auth.setSession({
           access_token,
           refresh_token

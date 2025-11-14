@@ -11,14 +11,57 @@ interface AuthGuardProps {
 }
 
 export function AuthGuard({ children, requireAuth = true }: AuthGuardProps) {
-  const { user, isLoading } = useAuth()
+  const { user, profile, isLoading, isSuperAdmin } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
   const [isClient, setIsClient] = useState(false)
+  const [accountStatus, setAccountStatus] = useState<string | null>(null)
 
   useEffect(() => {
     setIsClient(true)
   }, [])
+
+  // Check account status when user is loaded
+  useEffect(() => {
+    if (!user || isLoading) return
+
+    const checkAccountStatus = async () => {
+      try {
+        // Check status from user metadata
+        const metadataStatus = user.user_metadata?.account_status as string | undefined
+        // Check status from profile
+        const profileStatus = profile?.status as string | undefined
+        
+        const status = metadataStatus || profileStatus || "active"
+        setAccountStatus(status)
+
+        // If account is banned, suspended, or deleted, sign out and redirect
+        if (status === "banned" || status === "suspended" || status === "deleted") {
+          // Don't redirect if already on login page
+          if (!pathname.startsWith('/auth/login')) {
+            const { createClient } = await import('@/lib/supabase/client')
+            const supabase = createClient()
+            await supabase.auth.signOut()
+            
+            let errorMessage = "Your account has been restricted. Please contact support for resolution."
+            if (status === "banned") {
+              errorMessage = "Your account has been banned. Please contact support for resolution."
+            } else if (status === "suspended") {
+              errorMessage = "Your account has been suspended. Please contact support for resolution."
+            } else if (status === "deleted") {
+              errorMessage = "This account has been deleted. Please contact support for resolution."
+            }
+            
+            router.push(`/auth/login?error=${encodeURIComponent(errorMessage)}`)
+          }
+        }
+      } catch (error) {
+        console.error("Error checking account status:", error)
+      }
+    }
+
+    checkAccountStatus()
+  }, [user, profile, isLoading, pathname, router])
 
   useEffect(() => {
     if (!isClient || isLoading) return
@@ -43,6 +86,14 @@ export function AuthGuard({ children, requireAuth = true }: AuthGuardProps) {
       pathname === publicPath || pathname.startsWith(publicPath + '/')
     )
 
+    // Block access if account is restricted
+    if (requireAuth && user && accountStatus && ["banned", "suspended", "deleted"].includes(accountStatus)) {
+      if (!pathname.startsWith('/auth/login')) {
+        router.push('/auth/login')
+      }
+      return
+    }
+
     if (requireAuth && !user && !isPublicPage) {
       // Clean the current path for redirect
       const cleanPath = pathname.split('?')[0]
@@ -50,11 +101,12 @@ export function AuthGuard({ children, requireAuth = true }: AuthGuardProps) {
       router.push(redirectUrl)
     }
 
-    // Redirect authenticated users away from auth pages
-    if (user && (pathname.startsWith('/auth/login') || pathname.startsWith('/auth/signup'))) {
-      router.push('/dashboard')
+    // Redirect authenticated users away from auth pages (unless account is restricted)
+    if (user && !accountStatus && (pathname.startsWith('/auth/login') || pathname.startsWith('/auth/signup'))) {
+      const redirectPath = isSuperAdmin ? '/superadmin' : '/dashboard'
+      router.push(redirectPath)
     }
-  }, [isClient, user, isLoading, requireAuth, router, pathname])
+  }, [isClient, user, accountStatus, isLoading, isSuperAdmin, requireAuth, router, pathname])
 
   // Show loading state
   if (!isClient || isLoading) {

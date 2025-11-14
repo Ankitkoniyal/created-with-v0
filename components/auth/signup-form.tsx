@@ -52,7 +52,7 @@ export function SignupForm() {
   }
 
   // RELIABLE email check using API route
-  const checkEmailExists = async (email: string): Promise<boolean> => {
+  const checkEmailExists = async (email: string): Promise<{ exists: boolean; blocked?: boolean; status?: string; message?: string }> => {
     setCheckingEmail(true)
     try {
       console.log("🔍 Checking email existence:", email)
@@ -69,14 +69,19 @@ export function SignupForm() {
       
       if (!response.ok) {
         console.error('Email check API error:', data.error)
-        return false // Fallback - let signup proceed and catch error there
+        return { exists: false } // Fallback - let signup proceed and catch error there
       }
 
       console.log('✅ Email check result:', data)
-      return data.exists
+      return {
+        exists: data.exists || false,
+        blocked: data.blocked || false,
+        status: data.status,
+        message: data.message
+      }
     } catch (error) {
       console.error('❌ Email check failed:', error)
-      return false // Fallback - let signup proceed and catch error there
+      return { exists: false } // Fallback - let signup proceed and catch error there
     } finally {
       setCheckingEmail(false)
     }
@@ -110,9 +115,17 @@ export function SignupForm() {
       
       // RELIABLE email check - this will actually work now
       console.log("📧 Checking if email exists via API...")
-      const emailExists = await checkEmailExists(formValues.email)
+      const emailCheckResult = await checkEmailExists(formValues.email)
       
-      if (emailExists) {
+      if (emailCheckResult.exists) {
+        // Check if account is blocked (banned/suspended)
+        if (emailCheckResult.blocked) {
+          setError(emailCheckResult.message || "This email cannot be used for signup. Please contact support.")
+          setIsSubmitting(false)
+          return
+        }
+        
+        // Regular existing account
         setError("An account with this email already exists. Please sign in instead.")
         setIsSubmitting(false)
         return

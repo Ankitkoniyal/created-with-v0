@@ -1,8 +1,13 @@
 // components/superadmin/super-admin-overview.tsx
 "use client"
 
-import { useState, useEffect } from "react"
-import { Card } from "@/components/ui/card"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -14,8 +19,11 @@ import {
   CheckCircle,
   BarChart3,
   UserPlus,
+  RefreshCw,
+  TrendingUp,
+  TrendingDown,
+  AlertTriangle,
 } from "lucide-react"
-import { getSupabaseClient } from "@/lib/supabase/client"
 import {
   Select,
   SelectContent,
@@ -24,40 +32,89 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { toast } from "sonner"
+import { createClient } from "@/lib/supabase/client"
+import { cn } from "@/lib/utils"
+
+type RangeOption = "7d" | "30d" | "90d"
 
 interface DashboardStats {
-  totalUsers: number;
-  totalAds: number;
-  activeAds: number;
-  pendingReview: number;
-  reportedAds: number;
+  totalUsers: number
+  totalAds: number
+  activeAds: number
+  pendingReview: number
+  reportedAds: number
+  newUsers: number
+  newAds: number
+  userGrowth: number
+  adGrowth: number
 }
 
 interface RecentUser {
-  id: string;
-  email: string;
-  created_at: string;
-  full_name?: string | null;
+  id: string
+  email: string
+  created_at: string
+  full_name?: string | null
 }
 
-interface RecentAd {
-  id: string;
-  title: string;
-  price: number;
-  category: string;
-  created_at: string;
-  status: string;
-  user_email: string;
+interface PendingAd {
+  id: string
+  title: string
+  created_at: string
+  category: string | null
+  user_email: string
 }
 
-interface SignupData {
-  date: string;
-  count: number;
+interface ReportSummary {
+  id: string
+  product_id: string
+  reason: string | null
+  created_at: string
+  title: string | null
+  user_email: string | null
 }
 
-interface SuperAdminOverviewProps {
-  stats?: Partial<DashboardStats>;
-  onNavigate: (view: string, id?: string) => void;
+interface SignupPoint {
+  date: string
+  count: number
+}
+
+const RANGE_LABELS: Record<RangeOption, string> = {
+  "7d": "Last 7 days",
+  "30d": "Last 30 days",
+  "90d": "Last 90 days",
+}
+
+const formatNumber = (value: number) => new Intl.NumberFormat().format(value)
+const computeGrowth = (current: number, previous: number) => {
+  if (previous === 0) return current === 0 ? 0 : 100
+  return Number((((current - previous) / previous) * 100).toFixed(1))
+}
+
+const buildRange = (range: RangeOption) => {
+  const now = new Date()
+  const days = range === "7d" ? 7 : range === "30d" ? 30 : 90
+  const start = new Date(now)
+  start.setDate(start.getDate() - days)
+  const prevEnd = new Date(start)
+  const prevStart = new Date(prevEnd)
+  prevStart.setDate(prevStart.getDate() - days)
+  return { start, end: now, prevStart, prevEnd }
+}
+
+function formatDate(date: string) {
+  return new Date(date).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  })
+}
+
+function formatTime(date: string) {
+  return new Date(date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+}
+
+export interface SuperAdminOverviewProps {
+  stats?: Partial<DashboardStats>
+  onNavigate: (view: string, id?: string) => void
 }
 
 const defaultStats: DashboardStats = {
@@ -66,535 +123,591 @@ const defaultStats: DashboardStats = {
   activeAds: 0,
   pendingReview: 0,
   reportedAds: 0,
-};
-
-// Helper function to calculate date for filtering
-const getDateRange = (range: "7d" | "30d" | "90d") => {
-  const days = range === '7d' ? 7 : range === '30d' ? 30 : 90;
-  const date = new Date();
-  date.setDate(date.getDate() - days);
-  return date.toISOString();
+  newUsers: 0,
+  newAds: 0,
+  userGrowth: 0,
+  adGrowth: 0,
 }
 
-export function SuperAdminOverview({ 
-  stats = defaultStats, 
-  onNavigate
-}: SuperAdminOverviewProps) {
-  const [loading, setLoading] = useState(true);
-  const [safeStats, setSafeStats] = useState<DashboardStats>(defaultStats);
-  const [recentAds, setRecentAds] = useState<RecentAd[]>([]);
-  const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
-  const [signupData, setSignupData] = useState<SignupData[]>([]);
-  const [timeRange, setTimeRange] = useState<"7d" | "30d" | "90d">("7d");
+export function SuperAdminOverview({ stats = defaultStats, onNavigate }: SuperAdminOverviewProps) {
+  const supabase = createClient()
+  const [range, setRange] = useState<RangeOption>("7d")
+  const [overview, setOverview] = useState<DashboardStats>({ ...defaultStats, ...stats })
+  const [recentUsers, setRecentUsers] = useState<RecentUser[]>([])
+  const [pendingAds, setPendingAds] = useState<PendingAd[]>([])
+  const [reportedItems, setReportedItems] = useState<ReportSummary[]>([])
+  const [signupSeries, setSignupSeries] = useState<SignupPoint[]>([])
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
-  // Fetch all dashboard data
-  const fetchDashboardStats = async () => {
+  const fetchOverview = useCallback(async () => {
+    const { start, end, prevStart, prevEnd } = buildRange(range)
+    setLoading(true)
+
     try {
-      const supabase = getSupabaseClient();
-      if (!supabase) {
-        throw new Error("Supabase client not available");
-      }
-
-      // Fetch all stats in parallel
       const [
-        usersRes,
-        adsRes,
-        pendingRes,
-        reportedRes
+        totalUsersRes,
+        totalAdsRes,
+        activeAdsRes,
+        pendingAdsRes,
+        reportedRes,
+        newUsersRes,
+        prevUsersRes,
+        newAdsRes,
+        prevAdsRes,
       ] = await Promise.all([
-        supabase.from('profiles').select('id', { count: 'exact' }),
-        supabase.from('products').select('id', { count: 'exact' }),
-        supabase.from('products').select('id', { count: 'exact' }).eq('status', 'pending'),
-        supabase.from('reports').select('id', { count: 'exact' })
-      ]);
+        supabase.from("profiles").select("id", { count: "exact", head: true }),
+        supabase.from("products").select("id", { count: "exact", head:true }),
+        supabase
+          .from("products")
+          .select("id", { count: "exact", head:true })
+          .eq("status", "active"),
+        supabase
+          .from("products")
+          .select("id", { count: "exact", head:true })
+          .eq("status", "pending"),
+        supabase.from("reports").select("id", { count: "exact", head:true }),
+        supabase
+          .from("profiles")
+          .select("id", { count: "exact", head:true })
+          .gte("created_at", start.toISOString())
+          .lt("created_at", end.toISOString()),
+        supabase
+          .from("profiles")
+          .select("id", { count: "exact", head:true })
+          .gte("created_at", prevStart.toISOString())
+          .lt("created_at", prevEnd.toISOString()),
+        supabase
+          .from("products")
+          .select("id", { count: "exact", head:true })
+          .gte("created_at", start.toISOString())
+          .lt("created_at", end.toISOString()),
+        supabase
+          .from("products")
+          .select("id", { count: "exact", head:true })
+          .gte("created_at", prevStart.toISOString())
+          .lt("created_at", prevEnd.toISOString()),
+      ])
 
-      // Fetch active ads separately
-      const activeAdsRes = await supabase
-        .from('products')
-        .select('id', { count: 'exact' })
-        .eq('status', 'active');
-
-      const newStats: DashboardStats = {
-        totalUsers: usersRes.count || 0,
-        totalAds: adsRes.count || 0,
-        activeAds: activeAdsRes.count || 0,
-        pendingReview: pendingRes.count || 0,
-        reportedAds: reportedRes.count || 0,
-      };
-
-      console.log("Dashboard stats fetched:", newStats);
-      setSafeStats(newStats);
-    } catch (error) {
-      console.error("Error fetching dashboard stats:", error);
-      toast.error("Failed to load dashboard statistics");
-    }
-  };
-
-  useEffect(() => {
-    const fetchAllData = async () => {
-      setLoading(true);
-      await Promise.all([
-        fetchDashboardStats(),
-        fetchRecentData(),
-        fetchSignupData(timeRange)
-      ]);
-      setLoading(false);
-    };
-
-    fetchAllData();
-  }, [timeRange]);
-
-  useEffect(() => {
-    let userChannel: any;
-
-    const setupRealtime = () => {
-      const supabase = getSupabaseClient();
-      
-      if (!supabase) {
-        console.error("Supabase client not available for real-time");
-        return;
-      }
-      
-      userChannel = supabase
-        .channel('new-user-signups')
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'profiles' },
-          (payload) => {
-            const newProfile = payload.new as RecentUser;
-            
-            setRecentUsers(prevUsers => [
-              {
-                id: newProfile.id,
-                email: newProfile.email,
-                created_at: newProfile.created_at,
-                full_name: newProfile.full_name,
-              },
-              ...prevUsers.slice(0, 4)
-            ]);
-            
-            setSafeStats(prev => ({ ...prev, totalUsers: prev.totalUsers + 1 }));
-            
-            toast.success(`New user signed up: ${newProfile.email}`);
-          }
+      if (
+        totalUsersRes.error ||
+        totalAdsRes.error ||
+        activeAdsRes.error ||
+        pendingAdsRes.error ||
+        reportedRes.error ||
+        newUsersRes.error ||
+        prevUsersRes.error ||
+        newAdsRes.error ||
+        prevAdsRes.error
+      ) {
+        throw (
+          totalUsersRes.error ||
+          totalAdsRes.error ||
+          activeAdsRes.error ||
+          pendingAdsRes.error ||
+          reportedRes.error ||
+          newUsersRes.error ||
+          prevUsersRes.error ||
+          newAdsRes.error ||
+          prevAdsRes.error
         )
-        .subscribe();
-    };
+      }
 
-    setupRealtime();
-    
+      const newOverview: DashboardStats = {
+        totalUsers: totalUsersRes.count ?? 0,
+        totalAds: totalAdsRes.count ?? 0,
+        activeAds: activeAdsRes.count ?? 0,
+        pendingReview: pendingAdsRes.count ?? 0,
+        reportedAds: reportedRes.count ?? 0,
+        newUsers: newUsersRes.count ?? 0,
+        newAds: newAdsRes.count ?? 0,
+        userGrowth: computeGrowth(newUsersRes.count ?? 0, prevUsersRes.count ?? 0),
+        adGrowth: computeGrowth(newAdsRes.count ?? 0, prevAdsRes.count ?? 0),
+      }
+
+      setOverview(newOverview)
+    } catch (err) {
+      console.error("Failed to load overview", err)
+      toast.error("Failed to load dashboard stats")
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }, [supabase, range])
+
+  const fetchRecentUsers = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, email, created_at, full_name")
+      .order("created_at", { ascending: false })
+      .limit(5)
+    if (!error) {
+      setRecentUsers((data as RecentUser[]) ?? [])
+    }
+  }, [supabase])
+
+  const fetchPendingAds = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("products")
+      .select("id, title, category, created_at, user_id")
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(5)
+
+    if (error || !data?.length) {
+      setPendingAds([])
+      return
+    }
+
+    const userIds = Array.from(new Set(data.map((ad) => ad.user_id)))
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, email")
+      .in("id", userIds)
+
+    const emailMap = new Map((profiles ?? []).map((profile) => [profile.id, profile.email]))
+
+    setPendingAds(
+      data.map((ad) => ({
+        id: ad.id,
+        title: ad.title,
+        created_at: ad.created_at,
+        category: ad.category ?? "Uncategorized",
+        user_email: emailMap.get(ad.user_id) ?? "Unknown user",
+      })),
+    )
+  }, [supabase])
+
+  const fetchReportedContent = useCallback(async () => {
+    try {
+      const response = await fetch("/api/admin/reports/list?limit=25")
+      if (!response.ok) {
+        setReportedItems([])
+        return
+      }
+
+      const payload = await response.json()
+      if (payload.warning === "reports_table_missing" || !Array.isArray(payload.ads)) {
+        setReportedItems([])
+        return
+      }
+
+      const flattened: ReportSummary[] = payload.ads
+        .flatMap((ad: any) =>
+          (ad.reports ?? []).map((report: any) => ({
+            id: report.id,
+            product_id: ad.id,
+            reason: report.reason ?? "No reason provided",
+            created_at: report.created_at,
+            title: ad.title ?? "Untitled",
+            user_email: ad.user_email ?? "Unknown",
+          })),
+        )
+        .sort(
+          (a: ReportSummary, b: ReportSummary) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        )
+        .slice(0, 5)
+
+      setReportedItems(flattened)
+    } catch (error) {
+      console.error("Failed to load reported content", error)
+      setReportedItems([])
+    }
+  }, [])
+
+  const fetchSignupSeries = useCallback(async () => {
+    const { start, end } = buildRange(range)
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("created_at")
+      .gte("created_at", start.toISOString())
+      .lt("created_at", end.toISOString())
+      .order("created_at", { ascending: true })
+
+    if (error || !data) {
+      setSignupSeries([])
+      return
+    }
+
+    const aggregation = new Map<string, number>()
+    data.forEach((row) => {
+      const key = row.created_at.slice(0, 10)
+      aggregation.set(key, (aggregation.get(key) ?? 0) + 1)
+    })
+
+    const points = Array.from(aggregation.entries()).map(([date, count]) => ({ date, count }))
+    setSignupSeries(points)
+  }, [supabase, range])
+
+  useEffect(() => {
+    const hydrate = async () => {
+      await Promise.all([
+        fetchOverview(),
+        fetchRecentUsers(),
+        fetchPendingAds(),
+        fetchReportedContent(),
+        fetchSignupSeries(),
+      ])
+    }
+    hydrate()
+  }, [fetchOverview, fetchRecentUsers, fetchPendingAds, fetchReportedContent, fetchSignupSeries])
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("super-admin-overview")
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => {
+        fetchOverview()
+        fetchRecentUsers()
+        fetchSignupSeries()
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => {
+        fetchOverview()
+        fetchPendingAds()
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "reports" }, () => {
+        fetchOverview()
+        fetchReportedContent()
+      })
+      .subscribe()
+
     return () => {
-      if (userChannel) {
-        const supabase = getSupabaseClient();
-        if (supabase) {
-          supabase.removeChannel(userChannel);
-        }
-      }
-    };
-  }, []);
-
-  const fetchRecentData = async () => {
-    try {
-      const supabase = getSupabaseClient();
-
-      if (!supabase) {
-        throw new Error("Supabase client not available");
-      }
-
-      const [recentUsersRes, recentAdsRes] = await Promise.all([
-        supabase
-          .from('profiles')
-          .select('id, email, created_at, full_name')
-          .order('created_at', { ascending: false })
-          .limit(5),
-        supabase
-          .from('products')
-          .select('id, title, price, category, created_at, status, user_id')
-          .order('created_at', { ascending: false })
-          .limit(5),
-      ]);
-
-      if (recentUsersRes.error) throw recentUsersRes.error;
-      if (recentAdsRes.error) throw recentAdsRes.error;
-
-      const userIds = [...new Set((recentAdsRes.data || []).map(ad => ad.user_id))];
-      
-      // Fetch user emails for the ads
-      let userEmailMap: Record<string, string> = {};
-      if (userIds.length > 0) {
-        const { data: profilesMapData, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, email')
-          .in('id', userIds);
-        
-        if (!profilesError && profilesMapData) {
-          userEmailMap = profilesMapData.reduce((acc, p) => ({
-            ...acc, 
-            [p.id]: p.email
-          }), {});
-        }
-      }
-      
-      const adsWithEmails = (recentAdsRes.data || []).map(ad => ({
-        ...ad,
-        user_email: userEmailMap[ad.user_id] || 'Unknown User',
-      }));
-
-      setRecentUsers(recentUsersRes.data as RecentUser[] || []);
-      setRecentAds(adsWithEmails as RecentAd[]);
-    } catch (error) {
-      console.error("Error fetching recent data:", error);
-      toast.error("Failed to load recent data");
+      supabase.removeChannel(channel)
     }
-  };
+  }, [supabase, fetchOverview, fetchPendingAds, fetchRecentUsers, fetchReportedContent, fetchSignupSeries])
 
-  const fetchSignupData = async (range: "7d" | "30d" | "90d") => {
-    const startDate = getDateRange(range);
-    try {
-      const supabase = getSupabaseClient();
-
-      if (!supabase) {
-        throw new Error("Supabase client not available");
-      }
-      
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('created_at')
-        .gte('created_at', startDate)
-        .order('created_at', { ascending: true });
-      
-      if (error) throw error;
-      
-      // Create date range for the selected period
-      const dateRange: string[] = [];
-      const endDate = new Date();
-      const currentDate = new Date(startDate);
-      
-      while (currentDate <= endDate) {
-        dateRange.push(currentDate.toISOString().split('T')[0]);
-        currentDate.setDate(currentDate.getDate() + 1);
-      }
-      
-      // Aggregate data by date
-      const aggregation = (data || []).reduce((acc, user) => {
-        const dateKey = user.created_at.split('T')[0]; // Get YYYY-MM-DD
-        acc[dateKey] = (acc[dateKey] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-      
-      // Fill in missing dates with 0
-      const chartData: SignupData[] = dateRange.map(date => ({
-        date,
-        count: aggregation[date] || 0,
-      }));
-
-      console.log("Signup chart data:", chartData);
-      setSignupData(chartData);
-
-    } catch (error) {
-      console.error("Error fetching signup data:", error);
-      toast.error("Failed to load signup data");
-    }
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    await Promise.all([
+      fetchOverview(),
+      fetchRecentUsers(),
+      fetchPendingAds(),
+      fetchReportedContent(),
+      fetchSignupSeries(),
+    ])
+    toast.success("Dashboard refreshed")
   }
 
-  const approveAllAds = async () => {
-    try {
-      const supabase = getSupabaseClient();
-      
-      if (!supabase) {
-        throw new Error("Supabase client not available");
-      }
-      
-      const { error } = await supabase
-        .from('products')
-        .update({ status: 'active' })
-        .eq('status', 'pending');
-        
-      if (error) throw error;
-      
-      // Refresh stats after approval
-      await fetchDashboardStats();
-      await fetchRecentData();
-      
-      toast.success("All pending ads approved successfully!");
-    } catch (error) {
-      console.error('Error approving all ads:', error);
-      toast.error("Failed to approve all pending ads");
-    }
-  }
-
-  const formatTime = (timestamp: string) => {
-    return new Date(timestamp).toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric' 
-    });
-  };
-
-  const handleViewAd = (adId: string) => {
-    onNavigate('ads', adId);
-  };
+  const rangeLabel = useMemo(() => RANGE_LABELS[range], [range])
+  const signupMax = signupSeries.reduce((max, point) => Math.max(max, point.count), 0)
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex min-h-[360px] items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto mb-4"></div>
-          <span className="text-white text-lg">Loading Dashboard...</span>
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-emerald-500" />
+          <span className="text-sm text-gray-300">Preparing overview…</span>
         </div>
       </div>
-    );
+    )
   }
 
   return (
     <div className="space-y-6 p-2">
-      <h1 className="text-3xl font-bold text-white">Dashboard Overview</h1>
-
-      {/* Main Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Total Users */}
-        <Card className="p-5 bg-gray-800 border-gray-700 hover:border-gray-600 transition-colors">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-400">Total Users</span>
-            <Users className="w-5 h-5 text-blue-500" />
-          </div>
-          <div className="mt-1">
-            <p className="text-3xl font-bold text-white">{safeStats.totalUsers.toLocaleString()}</p>
-          </div>
-        </Card>
-
-        {/* Total Ads */}
-        <Card className="p-5 bg-gray-800 border-gray-700 hover:border-gray-600 transition-colors">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-400">Total Ads</span>
-            <FileText className="w-5 h-5 text-yellow-500" />
-          </div>
-          <div className="mt-1">
-            <p className="text-3xl font-bold text-white">{safeStats.totalAds.toLocaleString()}</p>
-          </div>
-        </Card>
-
-        {/* Active Ads */}
-        <Card className="p-5 bg-gray-800 border-gray-700 hover:border-gray-600 transition-colors">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-400">Active Ads</span>
-            <CheckCircle className="w-5 h-5 text-green-500" />
-          </div>
-          <div className="mt-1">
-            <p className="text-3xl font-bold text-white">{safeStats.activeAds.toLocaleString()}</p>
-            <p className="text-xs text-gray-400 mt-1">
-              {Math.round((safeStats.activeAds / (safeStats.totalAds || 1)) * 100)}% of total
-            </p>
-          </div>
-        </Card>
-
-        {/* Pending Review */}
-        <Card 
-          className="p-5 bg-gray-800 border-gray-700 cursor-pointer hover:border-yellow-500 transition-colors"
-          onClick={() => onNavigate('pending')}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-400">Pending Review</span>
-            <Clock className="w-5 h-5 text-yellow-500" />
-          </div>
-          <div className="mt-1">
-            <p className="text-3xl font-bold text-white">{safeStats.pendingReview.toLocaleString()}</p>
-            <p className="text-xs text-yellow-400 mt-1">
-              {safeStats.pendingReview > 0 ? 'Action Required' : 'All Clear'}
-            </p>
-          </div>
-        </Card>
-        
-        {/* Reported Ads */}
-        <Card 
-          className="p-5 bg-gray-800 border-gray-700 cursor-pointer hover:border-red-500 transition-colors"
-          onClick={() => onNavigate('reported')}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-400">Reported Ads</span>
-            <Flag className="w-5 h-5 text-red-500" />
-          </div>
-          <div className="mt-1">
-            <p className="text-3xl font-bold text-white">{safeStats.reportedAds.toLocaleString()}</p>
-            <p className="text-xs text-red-400 mt-1">
-              {safeStats.reportedAds > 0 ? 'Critical Review' : 'No Active Reports'}
-            </p>
-          </div>
-        </Card>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-white">Super Admin Dashboard</h1>
+          <p className="text-sm text-gray-400">Key platform metrics • {rangeLabel}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Select value={range} onValueChange={(value: RangeOption) => setRange(value)}>
+            <SelectTrigger className="w-[140px] bg-gray-800 border-gray-700 text-white">
+              <SelectValue placeholder="Range" />
+            </SelectTrigger>
+            <SelectContent className="bg-gray-900 border-gray-700 text-white">
+              <SelectItem value="7d">Last 7 days</SelectItem>
+              <SelectItem value="30d">Last 30 days</SelectItem>
+              <SelectItem value="90d">Last 90 days</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" onClick={handleRefresh} disabled={refreshing} className="border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700 hover:text-white">
+            <RefreshCw className={cn("mr-2 h-4 w-4", refreshing && "animate-spin")} /> Refresh
+          </Button>
+        </div>
       </div>
 
-      {/* Charts and Lists Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Signups Chart */}
-        <Card className="lg:col-span-2 p-6 bg-gray-800 border-gray-700">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-white">Signups Over Time</h3>
-            <Select value={timeRange} onValueChange={(value: "7d" | "30d" | "90d") => setTimeRange(value)}>
-              <SelectTrigger className="w-[120px] bg-gray-700 border-gray-600 text-white">
-                <SelectValue placeholder="Time Range" />
-              </SelectTrigger>
-              <SelectContent className="bg-gray-800 border-gray-600 text-white">
-                <SelectItem value="7d">Last 7 Days</SelectItem>
-                <SelectItem value="30d">Last 30 Days</SelectItem>
-                <SelectItem value="90d">Last 90 Days</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="h-60 flex items-end gap-1 border-l border-b border-gray-700 pt-4 pb-2 px-2">
-            {signupData.length > 0 ? (
-              signupData.map((dataPoint) => (
-                <div 
-                  key={dataPoint.date} 
-                  className="flex flex-col items-center justify-end group h-full flex-1"
-                >
-                  <div 
-                    className="bg-green-600 w-full max-w-8 rounded-t-sm transition-all duration-300 relative hover:bg-green-500 min-h-[20px]"
-                    style={{ 
-                      height: `${Math.max(20, (dataPoint.count / Math.max(...signupData.map(d => d.count), 1)) * 80)}%` 
-                    }}
-                  >
-                    <span className="absolute -top-6 left-1/2 transform -translate-x-1/2 text-xs text-green-400 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                      {dataPoint.count} signups
-                    </span>
+      <div className="grid gap-4 lg:grid-cols-5">
+        <StatCard icon={Users} title="Total users" value={formatNumber(overview.totalUsers)} />
+        <StatCard icon={FileText} title="Total ads" value={formatNumber(overview.totalAds)} />
+        <StatCard
+          icon={CheckCircle}
+          title="Active ads"
+          value={formatNumber(overview.activeAds)}
+          helper={`${Math.round((overview.activeAds / Math.max(overview.totalAds, 1)) * 100)}% of inventory`}
+        />
+        <DeltaCard
+          icon={UserPlus}
+          title="New users"
+          value={formatNumber(overview.newUsers)}
+          delta={overview.userGrowth}
+        />
+        <DeltaCard
+          icon={BarChart3}
+          title="New ads"
+          value={formatNumber(overview.newAds)}
+          delta={overview.adGrowth}
+        />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="bg-gray-800 border-gray-700">
+          <CardHeader className="flex items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-base text-white">Recent signups</CardTitle>
+            <Badge variant="outline" className="border-gray-600 text-gray-300">
+              {recentUsers.length}
+            </Badge>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {recentUsers.length === 0 ? (
+              <p className="text-sm text-gray-400">No recent signups.</p>
+            ) : (
+              recentUsers.map((user) => (
+                <div key={user.id} className="flex items-center justify-between rounded-md border border-gray-700 bg-gray-900/60 p-3">
+                  <div>
+                    <p className="text-sm font-medium text-white">{user.full_name || "Unnamed"}</p>
+                    <p className="text-xs text-gray-400">{user.email}</p>
                   </div>
-                  <span className="text-xs text-gray-400 mt-1 truncate w-full text-center">
-                    {formatDate(dataPoint.date)}
-                  </span>
+                  <div className="text-right text-xs text-gray-500">
+                    <div>{formatDate(user.created_at)}</div>
+                    <div>{formatTime(user.created_at)}</div>
+                  </div>
                 </div>
               ))
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gray-800 border-gray-700">
+          <CardHeader className="flex items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-base text-white">Signup trend</CardTitle>
+            <Badge variant="outline" className="border-gray-600 text-gray-300">{rangeLabel}</Badge>
+          </CardHeader>
+          <CardContent>
+            {signupSeries.length === 0 ? (
+              <p className="text-sm text-gray-400">No signup activity recorded.</p>
             ) : (
-              <div className="flex items-center justify-center w-full h-full">
-                <p className="text-gray-400">No signup data for this period.</p>
+              <div className="flex gap-2">
+                {signupSeries.slice(-20).map((point) => (
+                  <div key={point.date} className="flex flex-1 flex-col items-center text-xs text-gray-500">
+                    <div className="flex h-24 w-full items-end justify-center rounded bg-emerald-900/40">
+                      <div
+                        className="w-full rounded bg-emerald-400"
+                        style={{
+                          height: signupMax ? `${Math.max(6, (point.count / signupMax) * 100)}%` : "6%",
+                        }}
+                        title={`${point.count} on ${point.date}`}
+                      />
+                    </div>
+                    <div className="mt-1 text-white">{point.count}</div>
+                    <div>{point.date.slice(5)}</div>
+                  </div>
+                ))}
               </div>
             )}
-          </div>
-        </Card>
-
-        {/* Recent Users List */}
-        <Card className="p-6 bg-gray-800 border-gray-700">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-              <UserPlus className="w-5 h-5 text-green-500" /> Recent Signups
-            </h3>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => onNavigate('users')} 
-              className="text-gray-400 hover:text-white hover:bg-gray-700"
-            >
-              View All
-            </Button>
-          </div>
-          <div className="space-y-3">
-            {recentUsers.map((user) => (
-              <div key={user.id} className="flex items-center justify-between border-b border-gray-700 pb-2 last:border-b-0">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-white truncate">
-                    {user.full_name || 'New User'}
-                  </p>
-                  <p className="text-xs text-gray-400 truncate">{user.email}</p>
-                </div>
-                <div className="text-right flex-shrink-0 ml-2">
-                  <Badge variant="outline" className="text-green-400 border-green-700 text-xs">
-                    New
-                  </Badge>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {formatTime(user.created_at)}
-                  </p>
-                </div>
-              </div>
-            ))}
-            {recentUsers.length === 0 && (
-              <p className="text-gray-500 text-sm text-center py-4">No recent signups.</p>
-            )}
-          </div>
-        </Card>
-      </div>
-      
-      {/* Recent Ads Only - Quick Actions Removed */}
-      <div className="grid grid-cols-1 gap-6">
-        {/* Recent Ads List */}
-        <Card className="p-6 bg-gray-800 border-gray-700">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-              <FileText className="w-5 h-5 text-yellow-500" /> Recent Ads Posted
-            </h3>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => onNavigate('ads')} 
-              className="text-gray-400 hover:text-white hover:bg-gray-700"
-            >
-              View All
-            </Button>
-          </div>
-          <div className="space-y-3">
-            {recentAds.map((ad) => (
-              <div key={ad.id} className="flex items-center justify-between border-b border-gray-700 pb-2 last:border-b-0">
-                <div className="flex-1 min-w-0 pr-4">
-                  <p className="text-sm font-medium text-white truncate">{ad.title}</p>
-                  <p className="text-xs text-gray-400 truncate">
-                    {ad.user_email} • {ad.category} • ${ad.price}
-                  </p>
-                </div>
-                <div className="text-right flex items-center gap-3 flex-shrink-0">
-                  <Badge 
-                    className={`text-xs ${
-                      ad.status === 'active' ? 'bg-green-600' : 
-                      ad.status === 'pending' ? 'bg-yellow-600' : 
-                      'bg-red-600'
-                    }`}
-                  >
-                    {ad.status}
-                  </Badge>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => handleViewAd(ad.id)}
-                    className="text-gray-400 hover:text-white p-1 h-8 w-8"
-                  >
-                    <Eye className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-            {recentAds.length === 0 && (
-              <p className="text-gray-500 text-sm text-center py-4">No recent ads found.</p>
-            )}
-          </div>
+          </CardContent>
         </Card>
       </div>
 
-      {/* System Status */}
-      <Card className="bg-gray-800 border-gray-700">
-        <div className="p-5 border-b border-gray-700">
-          <h3 className="text-lg font-semibold text-white">System Status</h3>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-gray-700">
-          {[
-            { name: 'API Server', status: 'Online', color: 'text-green-400' },
-            { name: 'Database', status: 'Connected', color: 'text-green-400' },
-            { name: 'Storage', status: 'Normal', color: 'text-green-400' },
-            { name: 'Cache', status: 'Active', color: 'text-green-400' },
-          ].map((service, index) => (
-            <div key={index} className="p-5">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-300">{service.name}</span>
-                <span className={`text-xs font-medium ${service.color} flex items-center gap-1`}>
-                  <span className="inline-block w-2 h-2 rounded-full bg-current"></span>
-                  {service.status}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="bg-gray-800 border-gray-700">
+          <CardHeader className="flex items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-base text-white">Pending review</CardTitle>
+            <Badge variant="outline" className="border-yellow-600 text-yellow-300">
+              {overview.pendingReview}
+            </Badge>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {pendingAds.length === 0 ? (
+              <p className="text-sm text-gray-400">No pending ads — great work!</p>
+            ) : (
+              pendingAds.map((ad) => (
+                <div key={ad.id} className="flex items-center justify-between rounded-md border border-gray-700 bg-gray-900/60 p-3">
+                  <div>
+                    <p className="text-sm font-medium text-white line-clamp-1">{ad.title}</p>
+                    <p className="text-xs text-gray-400">{ad.category}</p>
+                    <p className="text-xs text-gray-500">{ad.user_email}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-2 text-xs text-gray-500">
+                    <span>{formatDate(ad.created_at)}</span>
+                    <Button size="sm" variant="outline" onClick={() => onNavigate("pending", ad.id)} className="border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700 hover:text-white">
+                      <Eye className="mr-1 h-3 w-3" /> Review
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+            <Button size="sm" variant="outline" className="w-full border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700 hover:text-white" onClick={() => onNavigate("pending")}>View queue</Button>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gray-800 border-gray-700">
+          <CardHeader className="flex items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-base text-white">Reported content</CardTitle>
+            <Badge variant="outline" className="border-red-600 text-red-300">
+              {overview.reportedAds}
+            </Badge>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {reportedItems.length === 0 ? (
+              <p className="text-sm text-gray-400">Nothing reported in this range.</p>
+            ) : (
+              reportedItems.map((report) => (
+                <div key={report.id} className="flex items-center justify-between rounded-md border border-gray-700 bg-gray-900/60 p-3">
+                  <div>
+                    <p className="text-sm font-medium text-white line-clamp-1">{report.title}</p>
+                    <p className="text-xs text-gray-400">{report.reason || "No reason provided"}</p>
+                    <p className="text-xs text-gray-500">{report.user_email}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-2 text-xs text-gray-500">
+                    <span>{formatDate(report.created_at)}</span>
+                    <Button size="sm" variant="outline" onClick={() => onNavigate("reported", report.product_id)} className="border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700 hover:text-white">
+                      <Flag className="mr-1 h-3 w-3" /> Resolve
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+            <Button size="sm" variant="outline" className="w-full border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700 hover:text-white" onClick={() => onNavigate("reported")}>Open reports</Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <QuickAction
+          icon={Eye}
+          label="Review pending ads"
+          description="Triaged listings awaiting moderation"
+          count={overview.pendingReview}
+          actionLabel="Open queue"
+          onClick={() => onNavigate("pending")}
+        />
+        <QuickAction
+          icon={Flag}
+          label="Resolve reports"
+          description="Content flagged by the community"
+          count={overview.reportedAds}
+          tone="danger"
+          actionLabel="Resolve"
+          onClick={() => onNavigate("reported")}
+        />
+        <QuickAction
+          icon={Clock}
+          label="Pending verifications"
+          description="Check accounts awaiting approval"
+          count={recentUsers.length}
+          tone="muted"
+          actionLabel="Manage users"
+          onClick={() => onNavigate("users")}
+        />
+      </div>
     </div>
-  );
+  )
+}
+
+function StatCard({ icon: Icon, title, value, helper }: { icon: React.ElementType; title: string; value: string; helper?: string }) {
+  return (
+    <Card className="bg-gray-800 border-gray-700">
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-sm text-gray-400">{title}</p>
+            <p className="mt-2 text-3xl font-bold text-white">{value}</p>
+            {helper && <p className="text-xs text-gray-500">{helper}</p>}
+          </div>
+          <div className="rounded-lg bg-gray-900/60 p-3 text-gray-300">
+            <Icon className="h-6 w-6" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function DeltaCard({
+  icon: Icon,
+  title,
+  value,
+  delta,
+}: {
+  icon: React.ElementType
+  title: string
+  value: string
+  delta: number
+}) {
+  const positive = delta >= 0
+  return (
+    <Card className="bg-gray-800 border-gray-700">
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-sm text-gray-400">{title}</p>
+            <p className="mt-2 text-3xl font-bold text-white">{value}</p>
+            <p className={cn("mt-1 flex items-center text-sm", positive ? "text-emerald-400" : "text-red-400")}
+            >
+              {positive ? <TrendingUp className="mr-1 h-4 w-4" /> : <TrendingDown className="mr-1 h-4 w-4" />}
+              {positive && "+"}
+              {delta}% vs prev period
+            </p>
+          </div>
+          <div className="rounded-lg bg-gray-900/60 p-3 text-gray-300">
+            <Icon className="h-6 w-6" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function QuickAction({
+  icon: Icon,
+  label,
+  description,
+  count,
+  actionLabel,
+  onClick,
+  tone = "neutral",
+}: {
+  icon: React.ElementType
+  label: string
+  description: string
+  count: number
+  actionLabel: string
+  onClick: () => void
+  tone?: "neutral" | "danger" | "muted"
+}) {
+  return (
+    <Card className="bg-gray-800 border-gray-700">
+      <CardContent className="flex items-center justify-between gap-4 p-5">
+        <div>
+          <div className="flex items-center gap-2">
+            <Icon className="h-5 w-5 text-gray-300" />
+            <h3 className="font-semibold text-white">{label}</h3>
+          </div>
+          <p className="mt-1 text-sm text-gray-400">{description}</p>
+          <div className="mt-2 flex items-center gap-2 text-sm text-gray-300">
+            <Badge
+              variant="outline"
+              className={cn(
+                "border-gray-600 text-gray-200",
+                tone === "danger" && "border-red-600 text-red-300",
+                tone === "muted" && "border-gray-600 text-gray-400",
+              )}
+            >
+              {formatNumber(count)} open
+            </Badge>
+            <Button size="sm" variant="link" className="p-0 text-emerald-300" onClick={onClick}>
+              {actionLabel}
+            </Button>
+          </div>
+        </div>
+        <div className="rounded-full border border-gray-700 bg-gray-900/60 p-3">
+          {tone === "danger" ? (
+            <AlertTriangle className="h-6 w-6 text-red-400" />
+          ) : (
+            <Icon className="h-6 w-6 text-gray-300" />
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
 }

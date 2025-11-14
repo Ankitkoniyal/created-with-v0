@@ -28,19 +28,65 @@ export async function POST(request: NextRequest) {
     )
 
     // Check if email exists using admin API
-    const { data: { users }, error } = await supabaseAdmin.auth.admin.listUsers()
+    const { data: userData, error: getUserError } = await supabaseAdmin.auth.admin.getUserByEmail(email.toLowerCase())
     
-    if (error) {
-      console.error('Admin API error:', error)
+    if (getUserError && getUserError.message !== 'User not found') {
+      console.error('Admin API error:', getUserError)
       return NextResponse.json({ 
         exists: false, 
         error: 'Unable to verify email' 
       }, { status: 500 })
     }
 
-    const emailExists = users?.some(user => 
-      user.email?.toLowerCase() === email.toLowerCase()
-    )
+    const emailExists = !!userData?.user
+    
+    // If email exists, check account status
+    if (emailExists && userData.user) {
+      const accountStatus = userData.user.user_metadata?.account_status as string | undefined
+      
+      // Also check profiles table for status
+      let profileStatus: string | null = null
+      try {
+        const { data: profile } = await supabaseAdmin
+          .from("profiles")
+          .select("status")
+          .eq("id", userData.user.id)
+          .single()
+        profileStatus = profile?.status || null
+      } catch (err) {
+        // Ignore profile fetch errors
+      }
+      
+      const status = accountStatus || profileStatus || "active"
+      
+      // Block signup if account is banned or suspended
+      if (status === "banned") {
+        return NextResponse.json({ 
+          exists: true,
+          blocked: true,
+          status: "banned",
+          message: 'This email is associated with a banned account. Please contact support for resolution.'
+        })
+      }
+      
+      if (status === "suspended") {
+        return NextResponse.json({ 
+          exists: true,
+          blocked: true,
+          status: "suspended",
+          message: 'This email is associated with a suspended account. Please contact support for resolution.'
+        })
+      }
+      
+      // If status is "deleted", allow signup (soft-deleted accounts can be recreated)
+      // If status is "active", email exists, so block signup
+      if (status === "active") {
+        return NextResponse.json({ 
+          exists: true,
+          message: 'Email already registered'
+        })
+      }
+    }
 
     console.log(`📧 Email check for ${email}: ${emailExists ? 'EXISTS' : 'AVAILABLE'}`)
     
