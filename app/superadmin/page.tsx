@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, Suspense } from "react"
 import { SuperAdminNav } from "@/components/superadmin/super-admin-nav"
 import { SuperAdminOverview } from "@/components/superadmin/super-admin-overview"
 import AdsManagement from "@/components/superadmin/ads-management"
@@ -39,7 +39,7 @@ const VALID_VIEWS = [
   "settings",
 ]
 
-export default function SuperAdminPage() {
+function SuperAdminPageContent() {
   const searchParams = useSearchParams()
   const initialView = useMemo(() => {
     const param = searchParams.get("view")
@@ -242,5 +242,22 @@ export default function SuperAdminPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function SuperAdminPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gray-900">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500 mx-auto"></div>
+            <p className="text-white mt-2">Loading super admin panel...</p>
+          </div>
+        </div>
+      }
+    >
+      <SuperAdminPageContent />
+    </Suspense>
   )
 }
