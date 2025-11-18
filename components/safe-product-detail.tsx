@@ -3,25 +3,7 @@
 
 import { ProductDetail } from "@/components/product-detail"
 
-// Safe link component for external URLs
-function SafeLink({ href, children, className = "" }: { href: string; children: React.ReactNode; className?: string }) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="nofollow noopener noreferrer"
-      className={className}
-    >
-      {children}
-    </a>
-  )
-}
-
 export function SafeProductDetail({ product }: { product: any }) {
-  if (process.env.NODE_ENV !== "production") {
-    // Helpful for debugging in development without spamming production logs
-    console.debug("🔍 SafeProductDetail received:", product)
-  }
 
   if (!product || typeof product !== "object") {
     return (
@@ -86,39 +68,7 @@ export function SafeProductDetail({ product }: { product: any }) {
     <div>
       <ProductDetail product={safeProduct} />
 
-      {/* Render safe external links if they exist */}
-      {(safeProduct.youtube_url || safeProduct.website_url) && (
-        <div className="mt-6 p-4 bg-gray-50 rounded-lg border">
-          <h3 className="font-semibold text-lg mb-3">External Links</h3>
-          <div className="space-y-2">
-            {safeProduct.youtube_url && (
-              <div className="flex items-center">
-                <span className="text-sm text-gray-600 mr-3">YouTube:</span>
-                <SafeLink
-                  href={safeProduct.youtube_url}
-                  className="text-blue-600 hover:text-blue-800 underline text-sm"
-                >
-                  Watch Video
-                </SafeLink>
-              </div>
-            )}
-            {safeProduct.website_url && (
-              <div className="flex items-center">
-                <span className="text-sm text-gray-600 mr-3">Website:</span>
-                <SafeLink
-                  href={safeProduct.website_url}
-                  className="text-blue-600 hover:text-blue-800 underline text-sm"
-                >
-                  Visit Website
-                </SafeLink>
-              </div>
-            )}
-          </div>
-          <p className="text-xs text-gray-500 mt-2">
-            External links open in a new window and are marked as no-follow for SEO.
-          </p>
-        </div>
-      )}
+      {/* External Links section removed - links are still accessible via icon buttons */}
     </div>
   )
 }

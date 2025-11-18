@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Heart, MapPin, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -8,6 +8,8 @@ import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { getOptimizedImageUrl } from "@/lib/images"
 import Image from "next/image"
+import { StarRating } from "@/components/ui/star-rating"
+import { formatLocation, formatLocationString } from "@/lib/location-utils"
 
 interface Product {
   id: string
@@ -21,6 +23,11 @@ interface Product {
   condition: string
   created_at: string
   views?: number
+  user_id?: string
+  sellerRating?: {
+    average_rating: number
+    total_ratings: number
+  }
 }
 
 export function LatestAds() {
@@ -39,12 +46,38 @@ export function LatestAds() {
           .limit(8) // Show more ads in compact view
 
         if (error) {
-          console.error("Error fetching latest ads:", error)
+          // Silently handle error, show fallback UI
         } else {
-          setProducts(data || [])
+          // Fetch rating stats for all sellers
+          const userIds = [...new Set((data || []).map(p => p.user_id).filter(Boolean))]
+          let ratingsMap = new Map<string, { average_rating: number; total_ratings: number }>()
+          
+          if (userIds.length > 0) {
+            const { data: ratingStats } = await supabase
+              .from('user_rating_stats')
+              .select('to_user_id, average_rating, total_ratings')
+              .in('to_user_id', userIds)
+            
+            if (ratingStats) {
+              ratingStats.forEach(stat => {
+                ratingsMap.set(stat.to_user_id, {
+                  average_rating: stat.average_rating || 0,
+                  total_ratings: stat.total_ratings || 0
+                })
+              })
+            }
+          }
+
+          // Merge rating data with products
+          const productsWithRatings = (data || []).map(product => ({
+            ...product,
+            sellerRating: ratingsMap.get(product.user_id) || { average_rating: 0, total_ratings: 0 }
+          }))
+
+          setProducts(productsWithRatings)
         }
       } catch (err) {
-        console.error("Error:", err)
+        // Silently handle error
       } finally {
         setLoading(false)
       }
@@ -142,14 +175,27 @@ export function LatestAds() {
                       {product.title}
                     </h4>
 
+                    {/* Rating */}
+                    {product.sellerRating && product.sellerRating.average_rating > 0 && (
+                      <div className="mb-1">
+                        <StarRating 
+                          rating={product.sellerRating.average_rating} 
+                          totalRatings={product.sellerRating.total_ratings}
+                          size="sm"
+                        />
+                      </div>
+                    )}
+
                     <div className="mt-auto space-y-1">
                       {/* Location */}
                       <div className="flex items-center gap-1 text-xs text-gray-600">
                         <MapPin className="h-3 w-3 flex-shrink-0" />
                         <span className="truncate">
                           {product.city && product.province
-                            ? `${product.city}, ${product.province}`
-                            : product.location?.split(",").slice(-2).join(",").trim() || product.location}
+                            ? formatLocation(product.city, product.province)
+                            : product.location
+                              ? formatLocationString(product.location)
+                              : "Location not specified"}
                         </span>
                       </div>
                       

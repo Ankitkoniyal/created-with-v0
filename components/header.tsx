@@ -22,6 +22,7 @@ import {
   Tag,
   MapPin as MapPinIcon,
   BarChart3,
+  Plus,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { buttonVariants } from "@/components/ui/button"
@@ -41,6 +42,7 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 import { CategoryNavigation } from "@/components/category-navigation"
 import { getSupabaseClient } from "@/lib/supabase/client"
+import { createClient as createSupabaseClient } from "@/lib/supabase/client"
 
 const CANADIAN_LOCATIONS = [
   { province: "Alberta", cities: ["Calgary", "Edmonton", "Red Deer", "Lethbridge"] },
@@ -128,12 +130,57 @@ export function Header() {
 
     // Debounce the filtering
     const timeoutId = setTimeout(() => {
-      const filtered = allLocations.filter((location) =>
-        location.toLowerCase().includes(value.toLowerCase())
-      ).slice(0, 8)
+      // Try Supabase locations first
+      const fetchFromDatabase = async () => {
+        try {
+          const supabase = createSupabaseClient()
+          const searchValue = value.toLowerCase().trim()
+          
+          // Search city column directly - this is more reliable than search_text
+          // The trigram index on search_text will still help with performance
+          const { data, error } = await supabase
+            .from("locations")
+            .select("city, province, population")
+            .ilike("city", `%${searchValue}%`)
+            .order("population", { ascending: false, nullsFirst: false })
+            .limit(8)
 
-      setFilteredLocations(filtered)
-      setShowLocationSuggestions(filtered.length > 0)
+          if (error) {
+            console.error("Location search error:", error)
+            // Fallback to local list on error
+            const filtered = allLocations
+              .filter((location) => location.toLowerCase().includes(searchValue))
+              .slice(0, 8)
+            setFilteredLocations(filtered)
+            setShowLocationSuggestions(filtered.length > 0)
+            return
+          }
+
+          if (data && data.length > 0) {
+            const results = data.map((row: any) => `${row.city}, ${row.province}`)
+            setFilteredLocations(results)
+            setShowLocationSuggestions(true)
+            return
+          }
+
+          // Fallback to local list if DB has no results
+          const filtered = allLocations
+            .filter((location) => location.toLowerCase().includes(searchValue))
+            .slice(0, 8)
+          setFilteredLocations(filtered)
+          setShowLocationSuggestions(filtered.length > 0)
+        } catch (err) {
+          console.error("Location search exception:", err)
+          // Fallback to local list on any error
+          const filtered = allLocations
+            .filter((location) => location.toLowerCase().includes(value.toLowerCase()))
+            .slice(0, 8)
+          setFilteredLocations(filtered)
+          setShowLocationSuggestions(filtered.length > 0)
+        }
+      }
+
+      fetchFromDatabase()
     }, 200)
 
     return () => clearTimeout(timeoutId)
@@ -324,19 +371,19 @@ export function Header() {
 
           <div className="flex-1 max-w-4xl mx-2 sm:mx-4 lg:mx-8">
             <form onSubmit={handleSearch} className="relative">
-              <div className={`flex items-center bg-white border-2 rounded-full ${
+              <div className={`flex items-center bg-white border-2 rounded-full shadow-sm ${
                 isSearchFocused || isLocationFocused 
-                  ? "border-green-600 shadow-md" 
-                  : "border-gray-200"
-              } transition-colors duration-200`}>
+                  ? "border-green-600 shadow-lg ring-2 ring-green-600/20" 
+                  : "border-gray-200 hover:border-gray-300"
+              } transition-all duration-200`}>
                 {/* Location Input */}
-                <div className="flex items-center border-r border-gray-200 px-3 flex-1 relative min-w-0">
-                  <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-2 text-green-600 flex-shrink-0" />
+                <div className="flex items-center border-r border-gray-200 px-3 sm:px-4 flex-1 relative min-w-0">
+                  <MapPin className="h-4 w-4 sm:h-5 sm:w-5 mr-2 text-green-600 flex-shrink-0" />
                   <Input
                     ref={locationInputRef}
                     type="text"
                     placeholder="City or Location"
-                    className="border-0 bg-transparent shadow-none focus:ring-0 focus-visible:ring-0 w-full text-xs sm:text-sm pr-8"
+                    className="border-0 bg-transparent shadow-none focus:ring-0 focus-visible:ring-0 w-full text-xs sm:text-sm pr-8 placeholder:text-gray-400"
                     value={locationInput}
                     onChange={handleLocationInputChange}
                     onFocus={handleLocationFocus}
@@ -346,19 +393,20 @@ export function Header() {
                     <button
                       type="button"
                       onClick={clearLocation}
-                      className="absolute right-2 text-gray-400 hover:text-gray-600"
+                      className="absolute right-2 text-gray-400 hover:text-gray-600 transition-colors"
+                      aria-label="Clear location"
                     >
                       ×
                     </button>
                   )}
 
                   {showLocationSuggestions && filteredLocations.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 z-50 max-h-64 overflow-y-auto">
+                    <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-xl mt-1 z-50 max-h-64 overflow-y-auto">
                       {filteredLocations.map((location, index) => (
                         <button
                           key={index}
                           type="button"
-                          className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm border-b border-gray-100 last:border-b-0 flex items-center"
+                          className="w-full text-left px-4 py-2.5 hover:bg-green-50 text-sm border-b border-gray-100 last:border-b-0 flex items-center transition-colors"
                           onClick={() => handleLocationSelect(location)}
                         >
                           <MapPin className="h-3 w-3 mr-2 text-green-600 flex-shrink-0" />
@@ -370,13 +418,13 @@ export function Header() {
                 </div>
 
                 {/* Search Input */}
-                <div className="flex-2 flex items-center px-4 min-w-0 relative">
-                  <Search className="h-4 w-4 text-green-600 mr-3 flex-shrink-0" />
+                <div className="flex-2 flex items-center px-4 sm:px-5 min-w-0 relative">
+                  <Search className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 mr-3 flex-shrink-0" />
                   <Input
                     ref={searchInputRef}
                     type="search"
                     placeholder="Search products, brands and more..."
-                    className="border-0 bg-transparent shadow-none focus:ring-0 focus-visible:ring-0 text-sm placeholder:text-gray-500 pr-8"
+                    className="border-0 bg-transparent shadow-none focus:ring-0 focus-visible:ring-0 text-sm placeholder:text-gray-400 pr-8"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyPress={handleSearchKeyPress}
@@ -387,7 +435,8 @@ export function Header() {
                     <button
                       type="button"
                       onClick={clearSearch}
-                      className="absolute right-3 text-gray-400 hover:text-gray-600"
+                      className="absolute right-3 text-gray-400 hover:text-gray-600 transition-colors"
+                      aria-label="Clear search"
                     >
                       ×
                     </button>
@@ -397,9 +446,10 @@ export function Header() {
                 <Button 
                   type="submit" 
                   size="sm" 
-                  className="rounded-full px-6 py-2 mr-2 bg-green-900 hover:bg-green-950 text-white font-medium"
+                  className="rounded-full px-5 sm:px-6 py-2 mr-2 bg-green-900 hover:bg-green-950 text-white font-semibold shadow-md hover:shadow-lg transition-all duration-200"
                 >
-                  Search
+                  <Search className="h-4 w-4 mr-1.5" />
+                  <span className="hidden sm:inline">Search</span>
                 </Button>
               </div>
             </form>
@@ -508,12 +558,13 @@ export function Header() {
                 </DropdownMenu>
                 <Button
                   size="sm"
-                  className="bg-green-900 hover:bg-green-950 text-white font-medium px-4 py-2 rounded-full"
+                  className="bg-green-900 hover:bg-green-950 text-white font-bold px-5 py-2.5 rounded-full flex items-center gap-2"
                   onClick={() => {
                     router.push("/sell")
                   }}
                 >
-                  SELL NOW
+                  <Plus className="h-5 w-5" />
+                  <span>Sell</span>
                 </Button>
               </>
             ) : (
@@ -530,12 +581,13 @@ export function Header() {
                 {showAuthButtons && (
                   <Button
                     size="sm"
-                    className="bg-green-900 hover:bg-green-950 text-white font-medium px-4 py-2 rounded-full"
+                    className="bg-green-900 hover:bg-green-950 text-white font-bold px-5 py-2.5 rounded-full flex items-center gap-2"
                     onClick={() => {
                       router.push("/auth/login?redirectedFrom=" + encodeURIComponent("/sell"))
                     }}
                   >
-                    SELL NOW
+                    <Plus className="h-5 w-5" />
+                    <span>Sell</span>
                   </Button>
                 )}
               </>
@@ -547,12 +599,14 @@ export function Header() {
           </Button>
         </div>
 
-        {/* New Category Navigation */}
-        <div className="border-t border-gray-100 bg-white">
-          <div className="flex items-center justify-start py-3 px-4">
-            <CategoryNavigation />
+        {/* New Category Navigation - Hidden on auth pages */}
+        {!isAuthRoute && (
+          <div className="border-t border-gray-100 bg-white">
+            <div className="flex items-center justify-start py-3 px-4">
+              <CategoryNavigation />
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </header>
   )

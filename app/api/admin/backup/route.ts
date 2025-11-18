@@ -114,15 +114,9 @@ export async function GET() {
       .select("*")
       .order("created_at", { ascending: false })
 
-    // Fetch ratings
+    // Fetch ratings (includes comments now)
     const { data: ratings } = await adminClient
       .from("user_ratings")
-      .select("*")
-      .order("created_at", { ascending: false })
-
-    // Fetch comments
-    const { data: comments } = await adminClient
-      .from("user_comments")
       .select("*")
       .order("created_at", { ascending: false })
 
@@ -165,7 +159,7 @@ export async function GET() {
         messages: messages || [],
         favorites: favorites || [],
         ratings: ratings || [],
-        comments: comments || [],
+        // Comments are now in user_ratings table, no separate table needed
         settings: settings || [],
         reports: reports || [],
         moderation_logs: moderationLogs || [],
@@ -178,7 +172,7 @@ export async function GET() {
         total_messages: messages?.length || 0,
         total_favorites: favorites?.length || 0,
         total_ratings: ratings?.length || 0,
-        total_comments: comments?.length || 0,
+        // Comments are included in ratings (ratings_with_comments field in user_rating_stats)
         total_reports: reports?.length || 0,
       },
     }

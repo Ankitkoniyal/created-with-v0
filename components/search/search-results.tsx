@@ -7,11 +7,20 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Heart, MapPin, Clock } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import { getOptimizedImageUrl } from "@/lib/images"
 import { normalizeCategory } from "@/lib/normalize-categories"
 import { resolveCategoryInput, resolveSubcategoryInput } from "@/lib/category-utils"
+import { useDebounce } from "@/hooks/use-debounce"
+import { ErrorBoundary } from "@/components/error-boundary"
+import { getFiltersForCategory, getFilterFieldName } from "@/lib/category-filters"
+
+// Helper to safely access window in SSR
+const getSearchParams = () => {
+  if (typeof window === "undefined") return new URLSearchParams()
+  return new URLSearchParams(window.location.search)
+}
 const RECENT_SEARCHES_KEY = "coinmint_recent_searches"
 
 interface SearchResultsProps {
@@ -159,6 +168,16 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
   const cacheRef = useRef<Map<string, { data: any[]; timestamp: number }>>(new Map())
   const CACHE_TTL = 1000 * 60 // 1 minute cache
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // Get all URL params for category-specific filters
+  const urlParams = useMemo(() => {
+    const result: Record<string, string> = {}
+    searchParams.forEach((value, key) => {
+      result[key] = value
+    })
+    return result
+  }, [searchParams])
 
   const normalizedFilters = useMemo(
     () => ({
@@ -169,6 +188,8 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
       maxPrice: filters?.maxPrice?.toString().trim() || "",
       condition: filters?.condition?.toString().trim() || "all",
       sortBy: filters?.sortBy?.toString().trim() || "newest",
+      // Include all other URL params for category-specific filters
+      ...urlParams,
     }),
     [
       filters?.category,
@@ -178,10 +199,12 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
       filters?.maxPrice,
       filters?.condition,
       filters?.sortBy,
+      urlParams,
     ],
   )
 
   const sanitizedSearch = useMemo(() => searchQuery?.trim() || "", [searchQuery])
+  const debouncedSearch = useDebounce(sanitizedSearch, 300) // 300ms debounce delay
   const filtersSignature = useMemo(() => JSON.stringify(normalizedFilters), [normalizedFilters])
   const lastSavedSearchRef = useRef<string>("")
 
@@ -200,13 +223,13 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
       localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(next))
       lastSavedSearchRef.current = trimmed
     } catch (error) {
-      console.warn("Failed to persist recent search", error)
+      // Silently handle error
     }
   }, [sanitizedSearch])
 
   useEffect(() => {
     const parsedFilters = JSON.parse(filtersSignature) as typeof normalizedFilters
-    const cacheKey = JSON.stringify({ search: sanitizedSearch, filters: parsedFilters })
+    const cacheKey = JSON.stringify({ search: debouncedSearch, filters: parsedFilters })
     const cached = cacheRef.current.get(cacheKey)
 
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
@@ -326,6 +349,51 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
           query = query.eq("condition", parsedFilters.condition)
         }
 
+        // Apply category-specific filters (e.g., vehicle filters)
+        const resolvedCategory = parsedFilters.category ? resolveCategoryInput(parsedFilters.category) : null
+        if (resolvedCategory) {
+          const categoryFilterConfig = getFiltersForCategory(resolvedCategory.slug)
+          if (categoryFilterConfig) {
+            Object.entries(categoryFilterConfig.filters).forEach(([filterKey, filterConfig]) => {
+              const fieldName = getFilterFieldName(filterKey)
+              const filterValue = parsedFilters[filterKey] || parsedFilters[fieldName]
+              
+              if (!filterValue) return
+
+              if (filterConfig.type === "range") {
+                // Handle range filters (min/max)
+                const minValue = parsedFilters[`${filterKey}_min`] || parsedFilters[`${fieldName}_min`]
+                const maxValue = parsedFilters[`${filterKey}_max`] || parsedFilters[`${fieldName}_max`]
+                
+                if (minValue) {
+                  const min = parseInt(minValue)
+                  if (!Number.isNaN(min)) {
+                    query = query.gte(fieldName, min)
+                  }
+                }
+                if (maxValue) {
+                  const max = parseInt(maxValue)
+                  if (!Number.isNaN(max)) {
+                    query = query.lte(fieldName, max)
+                  }
+                }
+              } else if (filterConfig.type === "select") {
+                // Handle select filters (exact match)
+                query = query.eq(fieldName, filterValue)
+              } else if (filterConfig.type === "text") {
+                // Handle text filters (partial match)
+                query = query.ilike(fieldName, `%${filterValue}%`)
+              } else if (filterConfig.type === "number") {
+                // Handle number filters (exact match)
+                const numValue = parseInt(filterValue)
+                if (!Number.isNaN(numValue)) {
+                  query = query.eq(fieldName, numValue)
+                }
+              }
+            })
+          }
+        }
+
         switch (parsedFilters.sortBy) {
           case "price-low":
             query = query.order("price", { ascending: true })
@@ -398,7 +466,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
     return () => {
       isCancelled = true
     }
-  }, [sanitizedSearch, filtersSignature, retryToken, supabase])
+  }, [debouncedSearch, filtersSignature, retryToken, supabase])
 
   const toggleFavorite = (productId: string, e?: React.MouseEvent) => {
     if (e) {
@@ -479,15 +547,16 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
   }
 
   return (
-    <div>
-      <div className="mb-4 text-sm text-muted-foreground">
-        <span className="font-medium">{products.length}</span> product{products.length !== 1 ? 's' : ''} found
-        {searchQuery && ` for "${searchQuery}"`}
-        {filters.location && ` in ${filters.location}`}
-        {filters.category && ` in ${normalizeCategory(filters.category)}`}
-      </div>
+    <ErrorBoundary>
+      <div>
+        <div className="mb-4 text-sm text-muted-foreground">
+          <span className="font-medium">{products.length}</span> product{products.length !== 1 ? 's' : ''} found
+          {searchQuery && ` for "${searchQuery}"`}
+          {filters.location && ` in ${filters.location}`}
+          {filters.category && ` in ${normalizeCategory(filters.category)}`}
+        </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {products.map((product) => {
           const primaryImage = product.images?.[0] || "/diverse-products-still-life.png"
           const optimizedPrimary = getOptimizedImageUrl(primaryImage, "thumb") || primaryImage
@@ -596,6 +665,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </ErrorBoundary>
   )
 }

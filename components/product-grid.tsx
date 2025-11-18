@@ -6,12 +6,16 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Heart, MapPin, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import Image from "next/image"
 import { LoadingSkeleton } from "@/components/loading-skeleton"
 import { getOptimizedImageUrl } from "@/lib/images"
 import { createClient } from "@/lib/supabase/client"
 import { useSearchParams, usePathname } from "next/navigation"
+import { StarRating } from "@/components/ui/star-rating"
+import { ErrorBoundary } from "@/components/error-boundary"
+import { ProductCard } from "@/components/product-card-optimized"
+import React from "react"
 
 interface Product {
   id: string
@@ -35,6 +39,10 @@ interface Product {
     id: string
     full_name: string
     avatar_url?: string
+  }
+  sellerRating?: {
+    average_rating: number
+    total_ratings: number
   }
 }
 
@@ -60,17 +68,19 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters }
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
+  const [hasMore, setHasMore] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
 
   const locationFilter = searchParams.get("location") || ""
   const hasOverride = Array.isArray(overrideProducts)
   
-  const shouldFetch = typeof window !== 'undefined' && (
+  const shouldFetch = useMemo(() => typeof window !== 'undefined' && (
     pathname === "/" ||
     pathname?.startsWith("/search") ||
     pathname?.startsWith("/category") ||
     pathname?.startsWith("/seller") ||
     pathname?.startsWith("/product")
-  )
+  ), [pathname])
 
   useEffect(() => {
     async function fetchProducts() {
@@ -127,6 +137,51 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters }
           query = query.lte('price', parseInt(filters.maxPrice))
         }
 
+        // Apply category-specific filters
+        if (filters?.category) {
+          const resolvedCategory = resolveCategoryInput(filters.category)
+          if (resolvedCategory) {
+            const categoryFilterConfig = getFiltersForCategory(resolvedCategory.slug)
+            if (categoryFilterConfig) {
+              Object.entries(categoryFilterConfig.filters).forEach(([key, filterConfig]) => {
+                const fieldName = getFilterFieldName(key)
+                const filterValue = (filters as any)[fieldName] as string | undefined
+
+                if (filterValue) {
+                  if (filterConfig.type === "select") {
+                    query = query.eq(fieldName, filterValue)
+                  } else if (filterConfig.type === "text") {
+                    query = query.ilike(fieldName, `%${filterValue}%`)
+                  } else if (filterConfig.type === "number") {
+                    const numValue = parseInt(filterValue)
+                    if (!isNaN(numValue)) {
+                      query = query.eq(fieldName, numValue)
+                    }
+                  } else if (filterConfig.type === "range") {
+                    const minKey = `${key}_min`
+                    const maxKey = `${key}_max`
+                    const minValue = (filters as any)[minKey] as string | undefined
+                    const maxValue = (filters as any)[maxKey] as string | undefined
+
+                    if (minValue) {
+                      const min = parseInt(minValue)
+                      if (!isNaN(min)) {
+                        query = query.gte(fieldName, min)
+                      }
+                    }
+                    if (maxValue) {
+                      const max = parseInt(maxValue)
+                      if (!isNaN(max)) {
+                        query = query.lte(fieldName, max)
+                      }
+                    }
+                  }
+                }
+              })
+            }
+          }
+        }
+
         // Apply location filter
         if (locationFilter) {
           const locationQuery = locationFilter.toLowerCase()
@@ -162,7 +217,8 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters }
           query = query.order('created_at', { ascending: false })
         }
 
-        query = query.limit(PRODUCTS_PER_PAGE)
+        // Initial page
+        query = query.range(0, PRODUCTS_PER_PAGE - 1)
 
         const { data, error } = await query
 
@@ -170,7 +226,34 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters }
           throw error
         }
 
-        setProducts(data || [])
+        // Fetch rating stats for all sellers
+        const userIds = [...new Set((data || []).map(p => p.user_id).filter(Boolean))]
+        let ratingsMap = new Map<string, { average_rating: number; total_ratings: number }>()
+        
+        if (userIds.length > 0) {
+          const { data: ratingStats } = await supabase
+            .from('user_rating_stats')
+            .select('to_user_id, average_rating, total_ratings')
+            .in('to_user_id', userIds)
+          
+          if (ratingStats) {
+            ratingStats.forEach(stat => {
+              ratingsMap.set(stat.to_user_id, {
+                average_rating: stat.average_rating || 0,
+                total_ratings: stat.total_ratings || 0
+              })
+            })
+          }
+        }
+
+        // Merge rating data with products
+        const productsWithRatings = (data || []).map(product => ({
+          ...product,
+          sellerRating: ratingsMap.get(product.user_id) || { average_rating: 0, total_ratings: 0 }
+        }))
+
+        setProducts(productsWithRatings)
+        setHasMore((data || []).length === PRODUCTS_PER_PAGE)
       } catch (err: any) {
         setError(err.message || 'An unknown error occurred')
       } finally {
@@ -186,9 +269,9 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters }
     } else {
       setLoading(false)
     }
-  }, [hasOverride, overrideProducts, shouldFetch, locationFilter, searchQuery, filters])
+  }, [hasOverride, overrideProducts, shouldFetch, locationFilter, searchQuery, filters?.category, filters?.subcategory, filters?.condition, filters?.minPrice, filters?.maxPrice, filters?.sortBy])
 
-  const toggleFavorite = (productId: string, e?: React.MouseEvent) => {
+  const toggleFavorite = useCallback((productId: string, e?: React.MouseEvent) => {
     if (e) {
       e.preventDefault()
       e.stopPropagation()
@@ -198,22 +281,22 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters }
       next.has(productId) ? next.delete(productId) : next.add(productId)
       return next
     })
-  }
+  }, [])
 
-  const formatPrice = (price?: number, priceType?: string) => {
+  const formatPrice = useCallback((price?: number, priceType?: string) => {
     if (priceType === "free") return "Free"
     if (priceType === "contact") return "Contact"
     if (typeof price === "number") {
       return `$${price.toLocaleString()}`
     }
     return "Contact"
-  }
+  }, [])
 
-  const isNegotiable = (priceType?: string) => {
+  const isNegotiable = useCallback((priceType?: string) => {
     return priceType === "negotiable" || priceType === "contact"
-  }
+  }, [])
 
-  const formatTimePosted = (createdAt?: string) => {
+  const formatTimePosted = useCallback((createdAt?: string) => {
     if (!createdAt) return ""
     const now = new Date()
     const posted = new Date(createdAt)
@@ -224,7 +307,7 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters }
     if (diffInHours < 48) return "1d"
     if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}d`
     return posted.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  }
+  }, [])
 
   // Allow unregistered users to view seller ads
   const handleSellerClick = (e: React.MouseEvent, sellerId: string) => {
@@ -310,6 +393,101 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters }
     )
   }
 
+  const loadMore = async () => {
+    if (isLoadingMore || !hasMore) return
+    setIsLoadingMore(true)
+    try {
+      const supabase = createClient()
+      if (!supabase) return
+
+      // Build the same query conditions as initial load
+      let query = supabase
+        .from('products')
+        .select(`
+          *,
+          seller:profiles!user_id (
+            id,
+            full_name,
+            avatar_url
+          )
+        `)
+        .eq('status', 'active')
+
+      if (searchQuery) query = query.ilike('title', `%${searchQuery}%`)
+      if (filters?.category && filters.category !== 'all' && filters.category !== '') query = query.eq('category', filters.category)
+      if (filters?.subcategory && filters.subcategory !== 'all' && filters.subcategory !== '') query = query.eq('subcategory', filters.subcategory)
+      if (filters?.condition && filters.condition !== 'all') query = query.eq('condition', filters.condition)
+      if (filters?.minPrice) query = query.gte('price', parseInt(filters.minPrice))
+      if (filters?.maxPrice) query = query.lte('price', parseInt(filters.maxPrice))
+
+      // Location filter
+      if (locationFilter) {
+        const locationQuery = locationFilter.toLowerCase()
+        if (locationQuery.includes(",")) {
+          const [cityPart, provincePart] = locationQuery.split(",").map(s => s.trim())
+          if (cityPart && provincePart) {
+            query = query.ilike("city", `%${cityPart}%`).ilike("province", `%${provincePart}%`)
+          } else if (cityPart) {
+            query = query.ilike("city", `%${cityPart}%`)
+          }
+        } else {
+          query = query.or(`city.ilike.%${locationQuery}%,province.ilike.%${locationQuery}%`)
+        }
+      }
+
+      // Sorting
+      if (filters?.sortBy) {
+        switch (filters.sortBy) {
+          case 'price-low':
+            query = query.order('price', { ascending: true })
+            break
+          case 'price-high':
+            query = query.order('price', { ascending: false })
+            break
+          case 'newest':
+          default:
+            query = query.order('created_at', { ascending: false })
+            break
+        }
+      } else {
+        query = query.order('created_at', { ascending: false })
+      }
+
+      const from = products.length
+      const to = from + PRODUCTS_PER_PAGE - 1
+      const { data, error } = await query.range(from, to)
+      if (error) throw error
+
+      // Ratings enrichment
+      const userIds = [...new Set((data || []).map(p => p.user_id).filter(Boolean))]
+      let ratingsMap = new Map<string, { average_rating: number; total_ratings: number }>()
+      if (userIds.length > 0) {
+        const { data: ratingStats } = await supabase
+          .from('user_rating_stats')
+          .select('to_user_id, average_rating, total_ratings')
+          .in('to_user_id', userIds)
+        if (ratingStats) {
+          ratingStats.forEach(stat => {
+            ratingsMap.set(stat.to_user_id, {
+              average_rating: stat.average_rating || 0,
+              total_ratings: stat.total_ratings || 0
+            })
+          })
+        }
+      }
+      const productsWithRatings = (data || []).map(product => ({
+        ...product,
+        sellerRating: ratingsMap.get(product.user_id) || { average_rating: 0, total_ratings: 0 }
+      }))
+      setProducts(prev => [...prev, ...productsWithRatings])
+      setHasMore((data || []).length === PRODUCTS_PER_PAGE)
+    } catch (e) {
+      // swallow load more errors silently
+    } finally {
+      setIsLoadingMore(false)
+    }
+  }
+
   return (
     <section className="py-4 bg-white relative z-10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -320,78 +498,32 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters }
               {searchQuery && ` for "${searchQuery}"`}
             </div>
             
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-x-4 gap-y-6">
-              {products.map((product) => {
-                const primaryImage = product.images?.[0] || "/diverse-products-still-life.png"
-                const optimizedPrimary = getOptimizedImageUrl(primaryImage, "thumb") || primaryImage
-
-                return (
-                  <Link key={product.id} href={`/product/${product.id}`} className="block" prefetch={false}>
-                    <Card className="h-full flex flex-col overflow-hidden border border-gray-200 bg-white rounded-sm hover:shadow-md transition-shadow">
-                      <CardContent className="p-0 flex flex-col h-full">
-                        <div className="relative w-full aspect-square overflow-hidden bg-gray-100">
-                          <Image
-                            src={optimizedPrimary || "/placeholder.svg"}
-                            alt={product.title}
-                            fill
-                            sizes="(max-width: 768px) 50vw, (max-width: 1200px) 20vw"
-                            className="object-cover"
-                            loading="lazy"
-                            onError={(e) => {
-                              e.currentTarget.src = "/placeholder.svg"
-                            }}
-                          />
-                          
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              toggleFavorite(product.id, e)
-                            }}
-                            className={`absolute top-1 right-1 p-1 rounded ${
-                              favorites.has(product.id) 
-                                ? "text-red-500 bg-white/90" 
-                                : "text-gray-400 bg-white/80"
-                            }`}
-                          >
-                            <Heart 
-                              className={`h-3.5 w-3.5 ${favorites.has(product.id) ? "fill-current" : ""}`}
-                            />
-                          </button>
-                        </div>
-
-                        <div className="px-2 py-0 flex flex-col flex-1">
-                          <div className="mb-1">
-                            <span className="text-base font-bold text-green-700">
-                              {formatPrice(product.price as any, (product as any).price_type)}
-                              {isNegotiable((product as any).price_type) && (
-                                <span className="text-xs font-normal text-gray-600 ml-1">Negotiable</span>
-                              )}
-                            </span>
-                          </div>
-                            
-                          <h4 className="text-sm font-medium text-gray-900 line-clamp-2 mb-1 leading-tight">
-                            {product.title}
-                          </h4>
-
-                            <div className="mt-auto flex items-end justify-between text-xs text-gray-500">
-                            <div className="flex items-center gap-1 min-w-0 pr-1">
-                              <span className="truncate"> 
-                                {product.city}, {product.province}
-                              </span>
-                            </div>
-                            
-                            <div className="flex items-center gap-1 flex-shrink-0"> 
-                              <span>{formatTimePosted(product.created_at as any)}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                )
-              })}
-            </div>
+            <ErrorBoundary>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-x-4 gap-y-6">
+                {products.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    isFavorite={favorites.has(product.id)}
+                    onToggleFavorite={toggleFavorite}
+                    formatPrice={formatPrice}
+                    isNegotiable={isNegotiable}
+                    formatTimePosted={formatTimePosted}
+                  />
+                ))}
+              </div>
+              {hasMore && (
+                <div className="flex justify-center mt-6">
+                  <Button 
+                    onClick={loadMore} 
+                    disabled={isLoadingMore}
+                    className="bg-green-900 hover:bg-green-950"
+                  >
+                    {isLoadingMore ? "Loading..." : "Show More"}
+                  </Button>
+                </div>
+              )}
+            </ErrorBoundary>
           </div>
 
           <div className="hidden lg:block w-64 flex-shrink-0">

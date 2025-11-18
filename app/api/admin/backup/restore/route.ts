@@ -96,7 +96,6 @@ export async function POST(request: Request) {
       "messages",        // Depends on profiles, products
       "favorites",       // Depends on profiles, products
       "user_ratings",    // Depends on profiles
-      "user_comments",   // Depends on profiles
       "reported_ads",    // Depends on products, profiles
       "moderation_logs", // Depends on products, profiles
       "audit_logs",      // Depends on profiles

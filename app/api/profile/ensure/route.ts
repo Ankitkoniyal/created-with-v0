@@ -34,16 +34,23 @@ export async function POST(req: NextRequest) {
       (body?.fullName as string | undefined) ||
       (user.user_metadata?.full_name as string | undefined) ||
       (user.user_metadata?.name as string | undefined) ||
-      ""
-    const phone = (body?.phone as string | undefined) || (user.user_metadata?.phone as string | undefined) || ""
+      null
+    const phone = (body?.phone as string | undefined) || (user.user_metadata?.phone as string | undefined) || null
+    // Google OAuth provides 'picture', other providers may use 'avatar_url'
+    const avatarUrl =
+      (body?.avatarUrl as string | undefined) ||
+      (user.user_metadata?.avatar_url as string | undefined) ||
+      (user.user_metadata?.picture as string | undefined) ||
+      null
 
     // Upsert minimal profile. Assumes a 'profiles' table with primary key 'id' = auth.user.id
     const { error } = await supabase.from("profiles").upsert(
       {
         id: user.id,
         email: user.email,
-        full_name: fullName || null,
-        phone: phone || null,
+        full_name: fullName,
+        phone: phone,
+        avatar_url: avatarUrl,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "id" },

@@ -1,5 +1,4 @@
 // app/page.tsx
-import { CategoryNav } from "@/components/category-nav"
 import { ProductGrid } from "@/components/product-grid"
 import { Footer } from "@/components/footer"
 import { HeroSection } from "@/components/hero-section"
@@ -73,7 +72,6 @@ export default function HomePage() {
       <div className="min-h-screen bg-background">
         <main>
           <HeroSection />
-          <CategoryNav />
           <div className="px-4 max-w-7xl mx-auto">
             <Suspense fallback={
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">

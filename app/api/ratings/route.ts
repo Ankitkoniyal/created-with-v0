@@ -16,12 +16,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "User ID is required" }, { status: 400 })
     }
     
-    // Get all ratings for the user
-    const { data: ratings, error } = await supabase
+    // Get all ratings for the user with category ratings and comments
+    const { data: ratings, error: ratingsError } = await supabase
       .from("user_ratings")
       .select(`
         id,
         rating,
+        response_time_rating,
+        product_quality_rating,
+        communication_rating,
+        overall_experience_rating,
+        comment,
         created_at,
         updated_at,
         from_user_id,
@@ -30,29 +35,42 @@ export async function GET(req: NextRequest) {
       .eq("to_user_id", userId)
       .order("created_at", { ascending: false })
     
-    if (error) {
-      console.error("Error fetching ratings:", error)
-      return NextResponse.json({ error: "Failed to fetch ratings" }, { status: 500 })
+    // Even if ratings query fails, we can still return stats and empty ratings
+    if (ratingsError) {
+      if (process.env.NODE_ENV === "development") {
+        console.error("Error fetching ratings:", ratingsError)
+      }
+      // Continue with empty ratings array
     }
     
-    // Get rating statistics
-    const { data: stats } = await supabase
+    // Get rating statistics (use .maybeSingle() to handle no stats gracefully)
+    const { data: stats, error: statsError } = await supabase
       .from("user_rating_stats")
       .select("*")
       .eq("to_user_id", userId)
-      .single()
+      .maybeSingle()
+    
+    // Stats error is non-critical, just log in dev
+    if (statsError && process.env.NODE_ENV === "development") {
+      console.error("Error fetching rating stats:", statsError)
+    }
     
     // Check if current user has rated this user
     let userRating = null
     if (user) {
-      const { data: existingRating } = await supabase
+      const { data: existingRating, error: userRatingError } = await supabase
         .from("user_ratings")
         .select("*")
         .eq("from_user_id", user.id)
         .eq("to_user_id", userId)
-        .single()
+        .maybeSingle()
       
-      userRating = existingRating
+      // User rating error is non-critical (user might not have rated yet)
+      if (userRatingError && process.env.NODE_ENV === "development") {
+        console.error("Error fetching user rating:", userRatingError)
+      }
+      
+      userRating = existingRating || null
     }
     
     return NextResponse.json({
@@ -60,11 +78,16 @@ export async function GET(req: NextRequest) {
       stats: stats || {
         total_ratings: 0,
         average_rating: 0,
+        avg_response_time_rating: 0,
+        avg_product_quality_rating: 0,
+        avg_communication_rating: 0,
+        avg_overall_experience_rating: 0,
         five_star: 0,
         four_star: 0,
         three_star: 0,
         two_star: 0,
         one_star: 0,
+        ratings_with_comments: 0,
       },
       userRating,
     })
@@ -84,7 +107,15 @@ export async function POST(req: NextRequest) {
     }
     
     const body = await req.json()
-    const { to_user_id, rating } = body
+    const { 
+      to_user_id, 
+      rating,
+      response_time_rating,
+      product_quality_rating,
+      communication_rating,
+      overall_experience_rating,
+      comment
+    } = body
     
     if (!to_user_id || !rating) {
       return NextResponse.json({ error: "User ID and rating are required" }, { status: 400 })
@@ -92,6 +123,27 @@ export async function POST(req: NextRequest) {
     
     if (rating < 1 || rating > 5) {
       return NextResponse.json({ error: "Rating must be between 1 and 5" }, { status: 400 })
+    }
+    
+    // Validate category ratings if provided
+    const categoryRatings = {
+      response_time_rating,
+      product_quality_rating,
+      communication_rating,
+      overall_experience_rating
+    }
+    
+    for (const [key, value] of Object.entries(categoryRatings)) {
+      if (value !== null && value !== undefined) {
+        if (value < 1 || value > 5) {
+          return NextResponse.json({ error: `${key} must be between 1 and 5` }, { status: 400 })
+        }
+      }
+    }
+    
+    // Validate comment length
+    if (comment && comment.length > 2000) {
+      return NextResponse.json({ error: "Comment must be 2000 characters or less" }, { status: 400 })
     }
     
     if (to_user_id === user.id) {
@@ -106,6 +158,11 @@ export async function POST(req: NextRequest) {
           from_user_id: user.id,
           to_user_id,
           rating,
+          response_time_rating: response_time_rating || null,
+          product_quality_rating: product_quality_rating || null,
+          communication_rating: communication_rating || null,
+          overall_experience_rating: overall_experience_rating || null,
+          comment: comment?.trim() || null,
           updated_at: new Date().toISOString(),
         },
         {

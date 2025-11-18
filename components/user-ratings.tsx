@@ -13,10 +13,17 @@ import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 
 interface Rating {
   id: string
   rating: number
+  response_time_rating?: number | null
+  product_quality_rating?: number | null
+  communication_rating?: number | null
+  overall_experience_rating?: number | null
+  comment?: string | null
   created_at: string
   updated_at: string
   from_user: {
@@ -39,6 +46,11 @@ interface RatingStats {
 interface UserRating {
   id: string
   rating: number
+  response_time_rating?: number | null
+  product_quality_rating?: number | null
+  communication_rating?: number | null
+  overall_experience_rating?: number | null
+  comment?: string | null
   from_user_id: string
   to_user_id: string
 }
@@ -56,12 +68,45 @@ export function UserRatings({ userId, showAddRating = true }: UserRatingsProps) 
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [selectedRating, setSelectedRating] = useState(0)
+  const [selectedResponseTime, setSelectedResponseTime] = useState(0)
+  const [selectedProductQuality, setSelectedProductQuality] = useState(0)
+  const [selectedCommunication, setSelectedCommunication] = useState(0)
+  const [selectedOverallExperience, setSelectedOverallExperience] = useState(0)
+  const [comment, setComment] = useState("")
   const [showRatingDialog, setShowRatingDialog] = useState(false)
 
   const fetchRatings = async () => {
+    if (!userId) {
+      setLoading(false)
+      return
+    }
+
     try {
-      const response = await fetch(`/api/ratings?userId=${userId}`)
-      if (!response.ok) throw new Error("Failed to fetch ratings")
+      setLoading(true)
+      const response = await fetch(`/api/ratings?userId=${encodeURIComponent(userId)}`)
+      
+      if (!response.ok) {
+        let errorMessage = "Failed to fetch ratings"
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorMessage
+        } catch (parseError) {
+          // If response is not JSON, try to get text
+          const text = await response.text().catch(() => "")
+          errorMessage = text || errorMessage
+        }
+        
+        // Don't show error toast if user is not authenticated (ratings are still viewable)
+        if (response.status !== 401 && response.status !== 403) {
+          toast.error(errorMessage)
+        }
+        
+        // Set empty state instead of throwing
+        setRatings([])
+        setStats(null)
+        setUserRating(null)
+        return
+      }
       
       const data = await response.json()
       setRatings(data.ratings || [])
@@ -69,10 +114,29 @@ export function UserRatings({ userId, showAddRating = true }: UserRatingsProps) 
       setUserRating(data.userRating || null)
       if (data.userRating) {
         setSelectedRating(data.userRating.rating)
+        setSelectedResponseTime(data.userRating.response_time_rating || 0)
+        setSelectedProductQuality(data.userRating.product_quality_rating || 0)
+        setSelectedCommunication(data.userRating.communication_rating || 0)
+        setSelectedOverallExperience(data.userRating.overall_experience_rating || 0)
+        setComment(data.userRating.comment || "")
+      } else {
+        // Reset form when no existing rating
+        setSelectedRating(0)
+        setSelectedResponseTime(0)
+        setSelectedProductQuality(0)
+        setSelectedCommunication(0)
+        setSelectedOverallExperience(0)
+        setComment("")
       }
     } catch (error) {
-      console.error("Error fetching ratings:", error)
-      toast.error("Failed to load ratings")
+      // Only log in development
+      if (process.env.NODE_ENV === "development") {
+        console.error("Error fetching ratings:", error)
+      }
+      // Set empty state instead of showing error
+      setRatings([])
+      setStats(null)
+      setUserRating(null)
     } finally {
       setLoading(false)
     }
@@ -101,6 +165,11 @@ export function UserRatings({ userId, showAddRating = true }: UserRatingsProps) 
         body: JSON.stringify({
           to_user_id: userId,
           rating: selectedRating,
+          response_time_rating: selectedResponseTime > 0 ? selectedResponseTime : null,
+          product_quality_rating: selectedProductQuality > 0 ? selectedProductQuality : null,
+          communication_rating: selectedCommunication > 0 ? selectedCommunication : null,
+          overall_experience_rating: selectedOverallExperience > 0 ? selectedOverallExperience : null,
+          comment: comment.trim() || null,
         }),
       })
 
@@ -134,6 +203,11 @@ export function UserRatings({ userId, showAddRating = true }: UserRatingsProps) 
       toast.success("Rating deleted successfully")
       setUserRating(null)
       setSelectedRating(0)
+      setSelectedResponseTime(0)
+      setSelectedProductQuality(0)
+      setSelectedCommunication(0)
+      setSelectedOverallExperience(0)
+      setComment("")
       fetchRatings()
     } catch (error) {
       console.error("Error deleting rating:", error)
@@ -251,8 +325,8 @@ export function UserRatings({ userId, showAddRating = true }: UserRatingsProps) 
         {ratings.length > 0 && (
           <div className="border-t pt-4 space-y-4">
             <h3 className="font-medium">Recent Ratings</h3>
-            {ratings.slice(0, 5).map((rating) => (
-              <div key={rating.id} className="flex items-start gap-3">
+            {ratings.slice(0, 10).map((rating) => (
+              <div key={rating.id} className="flex items-start gap-3 pb-4 border-b last:border-0">
                 <Avatar className="h-10 w-10">
                   <AvatarImage src={rating.from_user.avatar_url} />
                   <AvatarFallback>
@@ -277,15 +351,98 @@ export function UserRatings({ userId, showAddRating = true }: UserRatingsProps) 
                       ))}
                     </div>
                   </div>
-                  <p className="text-sm text-muted-foreground">
+                  
+                  {/* Category Ratings */}
+                  {(rating.response_time_rating || rating.product_quality_rating || 
+                    rating.communication_rating || rating.overall_experience_rating) && (
+                    <div className="flex flex-wrap gap-3 mt-2 mb-2 text-xs">
+                      {rating.response_time_rating && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-muted-foreground">Response:</span>
+                          <div className="flex gap-0.5">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <Star
+                                key={star}
+                                className={`h-2.5 w-2.5 ${
+                                  star <= rating.response_time_rating!
+                                    ? "text-yellow-500 fill-yellow-500"
+                                    : "text-gray-300"
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {rating.product_quality_rating && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-muted-foreground">Product:</span>
+                          <div className="flex gap-0.5">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <Star
+                                key={star}
+                                className={`h-2.5 w-2.5 ${
+                                  star <= rating.product_quality_rating!
+                                    ? "text-yellow-500 fill-yellow-500"
+                                    : "text-gray-300"
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {rating.communication_rating && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-muted-foreground">Communication:</span>
+                          <div className="flex gap-0.5">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <Star
+                                key={star}
+                                className={`h-2.5 w-2.5 ${
+                                  star <= rating.communication_rating!
+                                    ? "text-yellow-500 fill-yellow-500"
+                                    : "text-gray-300"
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {rating.overall_experience_rating && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-muted-foreground">Experience:</span>
+                          <div className="flex gap-0.5">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <Star
+                                key={star}
+                                className={`h-2.5 w-2.5 ${
+                                  star <= rating.overall_experience_rating!
+                                    ? "text-yellow-500 fill-yellow-500"
+                                    : "text-gray-300"
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Comment */}
+                  {rating.comment && (
+                    <p className="text-sm text-foreground mt-2 mb-2 whitespace-pre-wrap">
+                      {rating.comment}
+                    </p>
+                  )}
+                  
+                  <p className="text-xs text-muted-foreground">
                     {new Date(rating.created_at).toLocaleDateString()}
                   </p>
                 </div>
               </div>
             ))}
-            {ratings.length > 5 && (
+            {ratings.length > 10 && (
               <p className="text-sm text-muted-foreground text-center pt-2">
-                Showing 5 of {ratings.length} ratings
+                Showing 10 of {ratings.length} ratings
               </p>
             )}
           </div>
@@ -294,36 +451,159 @@ export function UserRatings({ userId, showAddRating = true }: UserRatingsProps) 
 
       {/* Rating Dialog */}
       <Dialog open={showRatingDialog} onOpenChange={setShowRatingDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{userRating ? "Update Your Rating" : "Rate This User"}</DialogTitle>
-            <DialogDescription>Select a rating from 1 to 5 stars</DialogDescription>
+            <DialogDescription>
+              Rate this user based on your experience. You can rate different aspects and add a comment.
+            </DialogDescription>
           </DialogHeader>
-          <div className="py-6">
-            <div className="flex justify-center gap-2">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  type="button"
-                  onClick={() => setSelectedRating(star)}
-                  className="focus:outline-none transition-transform hover:scale-110"
-                >
-                  <Star
-                    className={`h-12 w-12 ${
-                      star <= selectedRating
-                        ? "text-yellow-500 fill-yellow-500"
-                        : "text-gray-300 hover:text-yellow-300"
-                    }`}
-                  />
-                </button>
-              ))}
+          
+          <div className="space-y-6 py-4">
+            {/* Overall Rating */}
+            <div>
+              <Label className="text-base font-semibold mb-3 block">Overall Rating *</Label>
+              <div className="flex justify-center gap-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setSelectedRating(star)}
+                    className="focus:outline-none transition-transform hover:scale-110"
+                  >
+                    <Star
+                      className={`h-10 w-10 ${
+                        star <= selectedRating
+                          ? "text-yellow-500 fill-yellow-500"
+                          : "text-gray-300 hover:text-yellow-300"
+                      }`}
+                    />
+                  </button>
+                ))}
+              </div>
+              {selectedRating > 0 && (
+                <p className="text-center mt-2 text-sm text-muted-foreground">
+                  {selectedRating} {selectedRating === 1 ? "star" : "stars"}
+                </p>
+              )}
             </div>
-            {selectedRating > 0 && (
-              <p className="text-center mt-4 text-sm text-muted-foreground">
-                You selected {selectedRating} {selectedRating === 1 ? "star" : "stars"}
+
+            {/* Category Ratings */}
+            <div className="space-y-4 border-t pt-4">
+              <Label className="text-sm font-medium text-muted-foreground">Category Ratings (Optional)</Label>
+              
+              {/* Response Time */}
+              <div>
+                <Label className="text-sm mb-2 block">Response Time</Label>
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setSelectedResponseTime(star === selectedResponseTime ? 0 : star)}
+                      className="focus:outline-none transition-transform hover:scale-110"
+                    >
+                      <Star
+                        className={`h-6 w-6 ${
+                          star <= selectedResponseTime
+                            ? "text-yellow-500 fill-yellow-500"
+                            : "text-gray-300 hover:text-yellow-300"
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Product Quality */}
+              <div>
+                <Label className="text-sm mb-2 block">Product Quality</Label>
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setSelectedProductQuality(star === selectedProductQuality ? 0 : star)}
+                      className="focus:outline-none transition-transform hover:scale-110"
+                    >
+                      <Star
+                        className={`h-6 w-6 ${
+                          star <= selectedProductQuality
+                            ? "text-yellow-500 fill-yellow-500"
+                            : "text-gray-300 hover:text-yellow-300"
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Communication */}
+              <div>
+                <Label className="text-sm mb-2 block">Communication</Label>
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setSelectedCommunication(star === selectedCommunication ? 0 : star)}
+                      className="focus:outline-none transition-transform hover:scale-110"
+                    >
+                      <Star
+                        className={`h-6 w-6 ${
+                          star <= selectedCommunication
+                            ? "text-yellow-500 fill-yellow-500"
+                            : "text-gray-300 hover:text-yellow-300"
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Overall Experience */}
+              <div>
+                <Label className="text-sm mb-2 block">Overall Experience</Label>
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setSelectedOverallExperience(star === selectedOverallExperience ? 0 : star)}
+                      className="focus:outline-none transition-transform hover:scale-110"
+                    >
+                      <Star
+                        className={`h-6 w-6 ${
+                          star <= selectedOverallExperience
+                            ? "text-yellow-500 fill-yellow-500"
+                            : "text-gray-300 hover:text-yellow-300"
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Comment */}
+            <div className="border-t pt-4">
+              <Label htmlFor="comment" className="text-sm font-medium mb-2 block">
+                Comment (Optional)
+              </Label>
+              <Textarea
+                id="comment"
+                placeholder="Share your experience with this user..."
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                className="min-h-[100px]"
+                maxLength={2000}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                {comment.length}/2000 characters
               </p>
-            )}
+            </div>
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowRatingDialog(false)}>
               Cancel

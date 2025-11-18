@@ -20,7 +20,13 @@ const nextConfig = {
         hostname: 'blob.vercel-storage.com',
       },
     ],
+    formats: ['image/webp', 'image/avif'],
   },
+  // Performance optimizations
+  compress: true,
+  poweredByHeader: false,
+  reactStrictMode: true,
+  swcMinify: true,
   async headers() {
     return [
       {

@@ -4,7 +4,8 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, MessageSquare } from "lucide-react"
+import { Plus, MessageSquare, Eye, DollarSign, Calendar, Image as ImageIcon } from "lucide-react"
+import Image from "next/image"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
@@ -45,33 +46,52 @@ export function DashboardOverview() {
     try {
       const supabase = createClient()
 
-      // Unread messages
-      const { count: unreadMessages } = await supabase
-        .from("messages")
-        .select("*", { count: "exact", head: true })
-        .eq("receiver_id", user.id)
-        .eq("is_read", false)
+      // Unread messages - with proper error handling
+      let unreadMessages = 0
+      try {
+        const { count, error: messagesError } = await supabase
+          .from("messages")
+          .select("*", { count: "exact", head: true })
+          .eq("receiver_id", user.id)
+          .eq("is_read", false)
 
-      // Products
-      const { data: products, error: productsError } = await supabase
-        .from("products")
-        .select("*")
-        .eq("user_id", user.id)
+        if (messagesError) {
+          console.error("Error fetching unread messages:", messagesError.message || messagesError)
+        } else {
+          unreadMessages = count || 0
+        }
+      } catch (messagesErr) {
+        console.error("Exception fetching messages:", messagesErr)
+      }
 
-      if (productsError) console.error("Error fetching products:", productsError)
+      // Products - with proper error handling
+      let products: any[] = []
+      try {
+        const { data, error: productsError } = await supabase
+          .from("products")
+          .select("id, title, price, status, views, images, category, created_at, updated_at")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
 
-      const activeProducts = products?.filter((p) => p.status === "active") || []
-      const recent = products
-        ?.sort(
-          (a, b) =>
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        )
-        .slice(0, 3) || []
+        if (productsError) {
+          console.error("Error fetching products:", productsError.message || productsError.code || productsError)
+        } else {
+          products = data || []
+        }
+      } catch (productsErr) {
+        console.error("Exception fetching products:", productsErr)
+      }
 
-      setStats({ activeAds: activeProducts.length, unreadMessages: unreadMessages || 0 })
+      const activeProducts = products.filter((p) => p.status === "active")
+      const recent = products.slice(0, 5) // Show top 5 most recent
+
+      setStats({ activeAds: activeProducts.length, unreadMessages })
       setRecentListings(recent)
-    } catch (error) {
-      console.error("Error fetching dashboard data:", error)
+    } catch (error: any) {
+      console.error("Error fetching dashboard data:", error?.message || error)
+      // Set defaults on error
+      setStats({ activeAds: 0, unreadMessages: 0 })
+      setRecentListings([])
     } finally {
       setLoading(false)
     }
@@ -171,7 +191,7 @@ export function DashboardOverview() {
               <CardTitle>Active Listings</CardTitle>
             </CardHeader>
             <CardContent>
-              <h3 className="text-2xl font-bold text-white">{stats.activeAds}</h3>
+              <h3 className="text-2xl font-bold text-foreground">{stats.activeAds}</h3>
               <p className="text-sm text-muted-foreground">Active Ads</p>
             </CardContent>
           </Card>
@@ -180,8 +200,20 @@ export function DashboardOverview() {
               <CardTitle>Unread Messages</CardTitle>
             </CardHeader>
             <CardContent>
-              <h3 className="text-2xl font-bold text-white">{stats.unreadMessages}</h3>
-              <p className="text-sm text-muted-foreground">Unread Messages</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-2xl font-bold text-foreground">{stats.unreadMessages}</h3>
+                  <p className="text-sm text-muted-foreground">Unread Messages</p>
+                </div>
+                {stats.unreadMessages > 0 && (
+                  <Button asChild variant="outline" size="sm" className="ml-4">
+                    <Link href="/dashboard/messages">
+                      <MessageSquare className="h-4 w-4 mr-2" />
+                      View
+                    </Link>
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -200,22 +232,70 @@ export function DashboardOverview() {
                 No recent listings. Start by creating a new listing!
               </div>
             ) : (
-              recentListings.map((listing) => (
-                <div key={listing.id} className="flex items-center justify-between rounded-lg border border-border bg-muted/30 p-4">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted">
-                      <MessageSquare className="h-6 w-6 text-muted-foreground" />
+              recentListings.map((listing) => {
+                const imageUrl = Array.isArray(listing.images) && listing.images.length > 0 
+                  ? listing.images[0] 
+                  : null
+                const formattedPrice = listing.price 
+                  ? new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }).format(listing.price)
+                  : 'N/A'
+                const daysAgo = Math.floor((new Date().getTime() - new Date(listing.created_at).getTime()) / (1000 * 60 * 60 * 24))
+                const timeAgo = daysAgo === 0 ? 'Today' : daysAgo === 1 ? 'Yesterday' : `${daysAgo} days ago`
+
+                return (
+                  <Link 
+                    key={listing.id} 
+                    href={`/product/${listing.id}`}
+                    className="flex items-center justify-between rounded-lg border border-border bg-muted/30 p-4 hover:bg-muted/50 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center space-x-4 flex-1 min-w-0">
+                      <div className="relative flex-shrink-0 h-16 w-16 rounded-lg overflow-hidden bg-muted border border-border">
+                        {imageUrl ? (
+                          <Image
+                            src={imageUrl}
+                            alt={listing.title}
+                            fill
+                            className="object-cover"
+                            sizes="64px"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center">
+                            <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-foreground truncate">{listing.title}</h4>
+                        <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <DollarSign className="h-3 w-3" />
+                            {formattedPrice}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Eye className="h-3 w-3" />
+                            {listing.views || 0} views
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {timeAgo}
+                          </span>
+                        </div>
+                        {listing.category && (
+                          <p className="text-xs text-muted-foreground mt-1">Category: {listing.category}</p>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-medium text-foreground">{listing.title}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Updated {new Date(listing.created_at).toLocaleDateString()}
-                      </p>
+                    <div className="flex-shrink-0 ml-4">
+                      <Badge 
+                        variant={listing.status === "active" ? "default" : listing.status === "pending" ? "secondary" : "outline"}
+                        className="whitespace-nowrap"
+                      >
+                        {listing.status || "active"}
+                      </Badge>
                     </div>
-                  </div>
-                  <Badge>{listing.status}</Badge>
-                </div>
-              ))
+                  </Link>
+                )
+              })
             )}
           </div>
         </div>

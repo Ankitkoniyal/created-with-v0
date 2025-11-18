@@ -10,7 +10,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useSearchParams } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
-import { X, MapPin, Tag, AlertCircle, Camera } from "lucide-react"
+import { X, MapPin, Tag, AlertCircle, Camera, Car, CarFront, Truck, Bus } from "lucide-react"
 import {
   CATEGORIES,
   SUBCATEGORY_MAPPINGS,
@@ -40,6 +40,14 @@ interface ProductFormData {
   images: File[]
   features: string[]
   imagePreviews: string[]
+  // Vehicle-specific fields
+  year: string
+  kilometerDriven: string
+  fuelType: string
+  transmission: string
+  carType: string
+  seatingCapacity: string
+  postedBy: string
 }
 
 interface DatabaseCategory {
@@ -172,6 +180,14 @@ export function PostProductForm() {
     images: [],
     features: [],
     imagePreviews: [],
+    // Vehicle-specific fields
+    year: "",
+    kilometerDriven: "",
+    fuelType: "",
+    transmission: "",
+    carType: "",
+    seatingCapacity: "",
+    postedBy: "",
   })
 
   const [newFeature, setNewFeature] = useState("")
@@ -201,12 +217,20 @@ export function PostProductForm() {
     const fetchDatabaseCategories = async () => {
       try {
         const supabase = createClient()
-        const { data: dbCategories, error } = await supabase
+        
+        // Fetch categories from database
+        const { data: dbCategories, error: categoriesError } = await supabase
           .from("categories")
           .select("id, slug, name")
           .order("id")
 
-        if (!error && dbCategories && dbCategories.length > 0) {
+        // Fetch subcategories from database
+        const { data: dbSubcategories, error: subcategoriesError } = await supabase
+          .from("subcategories")
+          .select("id, name, slug, category_slug")
+          .order("name")
+
+        if (!categoriesError && dbCategories && dbCategories.length > 0) {
           const normalizedCategories = dbCategories.map((dbCategory, index) => {
             const canonicalSlug = getCategorySlug(dbCategory.slug || dbCategory.name)
             const canonicalName = CATEGORY_SLUG_TO_NAME[canonicalSlug] || dbCategory.name
@@ -219,17 +243,30 @@ export function PostProductForm() {
           })
 
           console.log(
-            "✅ Database categories loaded, using canonical mapping:",
+            "✅ Database categories loaded:",
             normalizedCategories.length,
           )
 
           setCategories(normalizedCategories)
-          setSubcategories(buildSubcategoryRecords(normalizedCategories))
+
+          // Use database subcategories if available, otherwise fallback to config
+          if (!subcategoriesError && dbSubcategories && dbSubcategories.length > 0) {
+            console.log("✅ Database subcategories loaded:", dbSubcategories.length)
+            setSubcategories(dbSubcategories.map((sub) => ({
+              id: sub.id || `${sub.category_slug}-${sub.slug}`,
+              name: sub.name,
+              slug: sub.slug || getSubcategorySlug(sub.name),
+              category_slug: sub.category_slug,
+            })))
+          } else {
+            console.log("ℹ️ Using subcategories from config (DB subcategories not available)")
+            setSubcategories(buildSubcategoryRecords(normalizedCategories))
+          }
         } else {
           console.log("ℹ️ Using local categories with generated IDs")
         }
       } catch (error) {
-        console.log("ℹ️ Using local categories as fallback")
+        console.log("ℹ️ Using local categories as fallback", error)
       }
     }
 
@@ -285,7 +322,7 @@ export function PostProductForm() {
           setFormData({
             title: data.title || "",
             description: data.description || "",
-            price: data.price ? (data.price / 100).toString() : "",
+            price: data.price ? data.price.toString() : "",
             priceType: data.price_type || (data.price > 0 ? "amount" : "contact"),
             category: data.category_slug || "",
             subcategory: data.subcategory || "",
@@ -302,6 +339,14 @@ export function PostProductForm() {
             images: [],
             features: data.features || [],
             imagePreviews: data.images || [],
+            // Vehicle-specific fields
+            year: data.year ? data.year.toString() : "",
+            kilometerDriven: data.kilometer_driven ? data.kilometer_driven.toString() : "",
+            fuelType: data.fuel_type || "",
+            transmission: data.transmission || "",
+            carType: data.car_type || "",
+            seatingCapacity: data.seating_capacity ? data.seating_capacity.toString() : "",
+            postedBy: data.posted_by || "",
           })
         }
       } catch (error) {
@@ -563,7 +608,17 @@ export function PostProductForm() {
       if (formData.images.length > 0) {
         console.log(`📤 Uploading ${formData.images.length} images in parallel to Supabase Storage...`)
 
-        const uploadPromises = formData.images.map(async (file, i) => {
+        // Compress images in parallel before upload to reduce upload time
+        const filesToUpload = await Promise.all(
+          formData.images.map(async (file) => {
+            // Skip compression for small files (< 300KB)
+            if (file.size < 300 * 1024) return file
+            const compressed = await compressImage(file)
+            return compressed || file
+          })
+        )
+
+        const uploadPromises = filesToUpload.map(async (file, i) => {
           const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_")
           const fileName = `${user.id}/${Date.now()}-${i}-${sanitizedFileName}`
 
@@ -672,6 +727,16 @@ export function PostProductForm() {
         ...(formData.websiteUrl && { website_url: formData.websiteUrl.trim() }),
         ...(formData.tags.length > 0 && { tags: formData.tags }),
         ...(formData.features.length > 0 && { features: formData.features }),
+        // Vehicle-specific fields (only for Vehicles category)
+        ...(categorySlug === "vehicles" && {
+          ...(formData.year && { year: parseInt(formData.year) || null }),
+          ...(formData.kilometerDriven && { kilometer_driven: parseInt(formData.kilometerDriven) || null }),
+          ...(formData.fuelType && { fuel_type: formData.fuelType }),
+          ...(formData.transmission && { transmission: formData.transmission }),
+          ...(formData.carType && { car_type: formData.carType }),
+          ...(formData.seatingCapacity && { seating_capacity: parseInt(formData.seatingCapacity) || null }),
+          ...(formData.postedBy && { posted_by: formData.postedBy }),
+        }),
       }
 
       console.log("💾 Saving product to database...", {
@@ -1073,40 +1138,232 @@ export function PostProductForm() {
                     <label htmlFor="brand" className="text-foreground">Brand</label>
                     <input
                       id="brand"
-                      placeholder="e.g., Apple, Samsung, Honda"
+                      placeholder={formData.category === "vehicles" ? "e.g., Honda, Toyota, Ford" : "e.g., Apple, Samsung"}
                       value={formData.brand}
-                      onChange={(e) => handleInputChange("brand", e.target.value)}
-                      className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                      onChange={(e) => handleInputChange("brand", e.target.value.toUpperCase())}
+                      className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground uppercase"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label htmlFor="priceType" className="text-foreground">Price Type *</label>
-                    <select
-                      id="priceType"
-                      value={formData.priceType}
-                      onChange={(e) => handleInputChange("priceType", e.target.value as ProductFormData["priceType"])}
-                      className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
-                    >
-                      <option value="amount">Set Price</option>
-                      <option value="free">Free</option>
-                      <option value="contact">Contact for Price</option>
-                      <option value="swap">Swap/Exchange</option>
-                    </select>
-                  </div>
+                  {formData.category !== "vehicles" && (
+                    <div className="space-y-2">
+                      <label htmlFor="model" className="text-foreground">Model</label>
+                      <input
+                        id="model"
+                        placeholder="e.g., iPhone 14 Pro Max, Galaxy S23"
+                        value={formData.model}
+                        onChange={(e) => handleInputChange("model", e.target.value.toUpperCase())}
+                        className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground uppercase"
+                      />
+                    </div>
+                  )}
+                </div>
 
-                  <div className="space-y-2">
-                    <label htmlFor="model" className="text-foreground">Model</label>
-                    <input
-                      id="model"
-                      placeholder="e.g., iPhone 14 Pro Max, Galaxy S23"
-                      value={formData.model}
-                      onChange={(e) => handleInputChange("model", e.target.value)}
-                      className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
-                    />
+                {/* Vehicle-Specific Fields - Only show when category is Vehicles, moved above price */}
+                {formData.category === "vehicles" && (
+                  <div className="space-y-4 pt-4 border-t border-border">
+                    {/* Removed section heading per request */}
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label htmlFor="model" className="text-foreground">Model</label>
+                        <input
+                          id="model"
+                          type="text"
+                          placeholder="e.g., Civic, Camry, F-150"
+                          value={formData.model}
+                          onChange={(e) => handleInputChange("model", e.target.value.toUpperCase())}
+                          className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground uppercase"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label htmlFor="year" className="text-foreground">Year</label>
+                        <input
+                          id="year"
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="e.g., 2020"
+                          value={formData.year}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/[^0-9]/g, "")
+                            const currentYear = new Date().getFullYear()
+                            // Only validate when 4 digits typed
+                            if (value && value.length >= 4) {
+                              const year = parseInt(value)
+                              if (year < 1950 || year > currentYear + 1) {
+                                toast.error(`Year must be between 1950 and ${currentYear + 1}`)
+                                // allow typing but don't set invalid year
+                                return
+                              }
+                            }
+                            handleInputChange("year", value)
+                          }}
+                          className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label htmlFor="kilometerDriven" className="text-foreground">Kilometer Driven</label>
+                        <input
+                          id="kilometerDriven"
+                          type="number"
+                          placeholder="e.g., 50000"
+                          value={formData.kilometerDriven}
+                          onChange={(e) => {
+                            const value = e.target.value
+                            if (value) {
+                              const km = parseInt(value)
+                              if (km < 0 || km > 1000000) {
+                                toast.error("Kilometer driven must be between 0 and 1,000,000")
+                                return
+                              }
+                            }
+                            handleInputChange("kilometerDriven", value)
+                          }}
+                          className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                          min="0"
+                          max="1000000"
+                        />
+                      </div>
+
+                      {/* Hide fuel type for bicycle subcategory */}
+                      {!(["bicycles","bicycle"].includes((formData.subcategory || "").toLowerCase())) && (
+                      <div className="space-y-2">
+                        <label htmlFor="fuelType" className="text-foreground">Fuel Type</label>
+                        <select
+                          id="fuelType"
+                          value={formData.fuelType}
+                          onChange={(e) => handleInputChange("fuelType", e.target.value)}
+                          className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                        >
+                          <option value="">Select fuel type</option>
+                          <option value="gasoline">Gas</option>
+                          <option value="diesel">Diesel</option>
+                          <option value="electric">Electric</option>
+                          <option value="hybrid">Hybrid</option>
+                          <option value="plug-in-hybrid">Plug-in Hybrid</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+                      )}
+                    </div>
+
+                    {/* Hide additional options for auto-parts entirely */}
+                    {!(["auto-parts","auto_parts","autoparts","auto parts"].includes((formData.subcategory || "").toLowerCase())) && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label htmlFor="transmission" className="text-foreground">Transmission</label>
+                        <select
+                          id="transmission"
+                          value={formData.transmission}
+                          onChange={(e) => handleInputChange("transmission", e.target.value)}
+                          className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                        >
+                          <option value="">Select transmission</option>
+                          <option value="automatic">Automatic</option>
+                          <option value="manual">Manual</option>
+                          <option value="cvt">CVT</option>
+                          <option value="amt">AMT</option>
+                        </select>
+                      </div>
+
+                      {/* Hide car type when subcategory is trucks */}
+                      {!(["trucks","truck"].includes((formData.subcategory || "").toLowerCase())) && (
+                        <div className="space-y-2">
+                          <label className="text-foreground">Car Type</label>
+                          {/* Icon selector for car type */}
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            {[
+                              { value: "sedan", label: "Sedan", Icon: Car },
+                              { value: "suv", label: "SUV", Icon: CarFront },
+                              { value: "hatchback", label: "Hatchback", Icon: Car },
+                              { value: "coupe", label: "Coupe", Icon: Car },
+                              { value: "convertible", label: "Convertible", Icon: Car },
+                              { value: "wagon", label: "Wagon", Icon: Car },
+                              { value: "truck", label: "Truck", Icon: Truck },
+                              { value: "van", label: "Van", Icon: Bus },
+                              { value: "pickup", label: "Pickup", Icon: Truck },
+                              { value: "other", label: "Other", Icon: Car },
+                            ].map((opt) => (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => handleInputChange("carType", opt.value)}
+                                className={`flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm ${
+                                  formData.carType === opt.value
+                                    ? "border-green-700 bg-green-50 text-green-900"
+                                    : "border-border hover:bg-muted"
+                                }`}
+                                aria-pressed={formData.carType === opt.value}
+                              >
+                                <opt.Icon className="h-4 w-4" />
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    )}
+
+                    {!(["auto-parts","auto_parts","autoparts","auto parts"].includes((formData.subcategory || "").toLowerCase())) && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label htmlFor="seatingCapacity" className="text-foreground">Seating Capacity</label>
+                        <select
+                          id="seatingCapacity"
+                          value={formData.seatingCapacity}
+                          onChange={(e) => handleInputChange("seatingCapacity", e.target.value)}
+                          className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                        >
+                          <option value="">Select seating capacity</option>
+                          <option value="2">2 Seater</option>
+                          <option value="4">4 Seater</option>
+                          <option value="5">5 Seater</option>
+                          <option value="6">6 Seater</option>
+                          <option value="7">7 Seater</option>
+                          <option value="8">8 Seater</option>
+                          <option value="9">9+ Seater</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label htmlFor="postedBy" className="text-foreground">Posted By</label>
+                        <select
+                          id="postedBy"
+                          value={formData.postedBy}
+                          onChange={(e) => handleInputChange("postedBy", e.target.value)}
+                          className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                        >
+                          <option value="">Select</option>
+                          <option value="owner">Owner</option>
+                          <option value="dealer">Dealer</option>
+                        </select>
+                      </div>
+                    </div>
+                    )}
                   </div>
+                )}
+
+                {/* Price Type moved just above Price for all categories */}
+                <div className="space-y-2 mt-4">
+                  <label htmlFor="priceType" className="text-foreground">Price Type *</label>
+                  <select
+                    id="priceType"
+                    value={formData.priceType}
+                    onChange={(e) => handleInputChange("priceType", e.target.value as ProductFormData["priceType"])}
+                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                  >
+                    <option value="amount">Set Price</option>
+                    <option value="free">Free</option>
+                    <option value="contact">Contact for Price</option>
+                    <option value="swap">Swap/Exchange</option>
+                  </select>
                 </div>
 
                 {formData.priceType === "amount" && (
@@ -1138,7 +1395,7 @@ export function PostProductForm() {
                       step="0.01"
                       required
                     />
-                    <p className="text-xs text-muted-foreground">Enter price in dollars (max: $100,000)</p>
+                    {/* helper text removed per request */}
                   </div>
                 )}
               </div>

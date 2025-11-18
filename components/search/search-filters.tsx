@@ -1,12 +1,14 @@
 // components/search/search-filters.tsx - FIXED VERSION
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Filter, X } from "lucide-react"
+import { getFiltersForCategory, getFilterFieldName } from "@/lib/category-filters"
+import { resolveCategoryInput } from "@/lib/category-utils"
 
 // Sort options
 const SORT_OPTIONS = [
@@ -23,14 +25,40 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   
+  const categoryParam = searchParams.get("category") || ""
+  const resolvedCategory = useMemo(() => {
+    if (!categoryParam) return null
+    return resolveCategoryInput(categoryParam)
+  }, [categoryParam])
+
+  const categoryFilterConfig = useMemo(() => {
+    if (!resolvedCategory) return null
+    return getFiltersForCategory(resolvedCategory.slug)
+  }, [resolvedCategory])
+
+  // General filters
   const [minPrice, setMinPrice] = useState(searchParams.get("minPrice") || "")
   const [maxPrice, setMaxPrice] = useState(searchParams.get("maxPrice") || "")
   const [sortBy, setSortBy] = useState(searchParams.get("sortBy") || "newest")
   const [showMobileFilters, setShowMobileFilters] = useState(false)
 
+  // Category-specific filters - initialize from URL params
+  const [categoryFilters, setCategoryFilters] = useState<Record<string, string>>(() => {
+    const filters: Record<string, string> = {}
+    if (categoryFilterConfig) {
+      Object.keys(categoryFilterConfig.filters).forEach((key) => {
+        const fieldName = getFilterFieldName(key)
+        const value = searchParams.get(fieldName) || ""
+        if (value) filters[key] = value
+      })
+    }
+    return filters
+  })
+
   const applyFilters = () => {
     const params = new URLSearchParams(searchParams.toString())
 
+    // General filters
     if (minPrice) {
       params.set("minPrice", minPrice)
     } else {
@@ -49,6 +77,19 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
       params.delete("sortBy")
     }
 
+    // Category-specific filters
+    if (categoryFilterConfig) {
+      Object.keys(categoryFilterConfig.filters).forEach((key) => {
+        const fieldName = getFilterFieldName(key)
+        const value = categoryFilters[key]
+        if (value) {
+          params.set(fieldName, value)
+        } else {
+          params.delete(fieldName)
+        }
+      })
+    }
+
     const nextQuery = params.toString()
     router.push(nextQuery ? `/search?${nextQuery}` : "/search")
     
@@ -57,6 +98,7 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
         minPrice: minPrice || undefined,
         maxPrice: maxPrice || undefined,
         sortBy: sortBy !== "newest" ? sortBy : undefined,
+        ...categoryFilters,
       })
     }
 
@@ -67,11 +109,25 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
     setMinPrice("")
     setMaxPrice("")
     setSortBy("newest")
+    setCategoryFilters({})
     
     const params = new URLSearchParams(searchParams.toString())
     params.delete("minPrice")
     params.delete("maxPrice")
     params.delete("sortBy")
+
+    // Clear category-specific filters
+    if (categoryFilterConfig) {
+      Object.entries(categoryFilterConfig.filters).forEach(([key, filterConfig]) => {
+        const fieldName = getFilterFieldName(key)
+        if (filterConfig.type === "range") {
+          params.delete(`${fieldName}_min`)
+          params.delete(`${fieldName}_max`)
+        } else {
+          params.delete(fieldName)
+        }
+      })
+    }
 
     const nextQuery = params.toString()
     router.push(nextQuery ? `/search?${nextQuery}` : "/search")
@@ -86,7 +142,33 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
   const hasActiveFilters = 
     minPrice ||
     maxPrice ||
-    (sortBy && sortBy !== "newest")
+    (sortBy && sortBy !== "newest") ||
+    Object.values(categoryFilters).some(v => v !== "" && v !== undefined)
+
+  // Update category filters when URL changes
+  useEffect(() => {
+    if (categoryFilterConfig) {
+      const newFilters: Record<string, string> = {}
+      Object.entries(categoryFilterConfig.filters).forEach(([key, filterConfig]) => {
+        const fieldName = getFilterFieldName(key)
+        
+        if (filterConfig.type === "range") {
+          // Handle range filters
+          const minValue = searchParams.get(`${fieldName}_min`) || ""
+          const maxValue = searchParams.get(`${fieldName}_max`) || ""
+          if (minValue) newFilters[`${key}_min`] = minValue
+          if (maxValue) newFilters[`${key}_max`] = maxValue
+        } else {
+          // Handle other filter types
+          const value = searchParams.get(fieldName) || ""
+          if (value) newFilters[key] = value
+        }
+      })
+      setCategoryFilters(newFilters)
+    } else {
+      setCategoryFilters({})
+    }
+  }, [categoryParam, categoryFilterConfig, searchParams])
 
   // Apply filters when any filter changes (for sidebar auto-apply)
   useEffect(() => {
@@ -94,7 +176,7 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
       // Auto-apply filters on desktop (sidebar mode)
       applyFilters()
     }
-  }, [minPrice, maxPrice, sortBy])
+  }, [minPrice, maxPrice, sortBy, categoryFilters])
 
   return (
     <>
@@ -152,6 +234,140 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
                     />
                   </div>
                 </div>
+
+                {/* Category-Specific Filters (Mobile) */}
+                {categoryFilterConfig && Object.keys(categoryFilterConfig.filters).length > 0 && (
+                  <div className="border-t border-gray-200 pt-4">
+                    <h4 className="text-sm font-semibold text-gray-900 mb-4">
+                      {categoryFilterConfig.category} Filters
+                    </h4>
+                    <div className="space-y-4">
+                      {Object.entries(categoryFilterConfig.filters).map(([key, filterConfig]) => {
+                        const currentValue = categoryFilters[key] || ""
+
+                        if (filterConfig.type === "select" && filterConfig.options) {
+                          return (
+                            <div key={key}>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                {filterConfig.label}
+                              </label>
+                              <Select
+                                value={currentValue || undefined}
+                                onValueChange={(value) => {
+                                  setCategoryFilters((prev) => ({
+                                    ...prev,
+                                    [key]: value,
+                                  }))
+                                }}
+                              >
+                                <SelectTrigger className="w-full">
+                                  <SelectValue placeholder={`Select ${filterConfig.label}`} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {filterConfig.options.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )
+                        }
+
+                        if (filterConfig.type === "text") {
+                          return (
+                            <div key={key}>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                {filterConfig.label}
+                              </label>
+                              <Input
+                                type="text"
+                                placeholder={filterConfig.placeholder || filterConfig.label}
+                                value={currentValue}
+                                onChange={(e) => {
+                                  setCategoryFilters((prev) => ({
+                                    ...prev,
+                                    [key]: e.target.value,
+                                  }))
+                                }}
+                                className="w-full"
+                              />
+                            </div>
+                          )
+                        }
+
+                        if (filterConfig.type === "range" && filterConfig.min !== undefined && filterConfig.max !== undefined) {
+                          const minValue = categoryFilters[`${key}_min`] || ""
+                          const maxValue = categoryFilters[`${key}_max`] || ""
+                          return (
+                            <div key={key}>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                {filterConfig.label}
+                              </label>
+                              <div className="flex space-x-2">
+                                <Input
+                                  type="number"
+                                  placeholder={`Min`}
+                                  min={filterConfig.min}
+                                  max={filterConfig.max}
+                                  value={minValue}
+                                  onChange={(e) => {
+                                    setCategoryFilters((prev) => ({
+                                      ...prev,
+                                      [`${key}_min`]: e.target.value,
+                                    }))
+                                  }}
+                                  className="flex-1"
+                                />
+                                <Input
+                                  type="number"
+                                  placeholder={`Max`}
+                                  min={filterConfig.min}
+                                  max={filterConfig.max}
+                                  value={maxValue}
+                                  onChange={(e) => {
+                                    setCategoryFilters((prev) => ({
+                                      ...prev,
+                                      [`${key}_max`]: e.target.value,
+                                    }))
+                                  }}
+                                  className="flex-1"
+                                />
+                              </div>
+                            </div>
+                          )
+                        }
+
+                        if (filterConfig.type === "number" && filterConfig.min !== undefined && filterConfig.max !== undefined) {
+                          return (
+                            <div key={key}>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                {filterConfig.label}
+                              </label>
+                              <Input
+                                type="number"
+                                placeholder={filterConfig.label}
+                                min={filterConfig.min}
+                                max={filterConfig.max}
+                                value={currentValue}
+                                onChange={(e) => {
+                                  setCategoryFilters((prev) => ({
+                                    ...prev,
+                                    [key]: e.target.value,
+                                  }))
+                                }}
+                                className="w-full"
+                              />
+                            </div>
+                          )
+                        }
+
+                        return null
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Sort By */}
                 <div>
@@ -240,6 +456,146 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
               </div>
             </div>
           </div>
+
+          {/* Category-Specific Filters (Desktop) */}
+          {categoryFilterConfig && Object.keys(categoryFilterConfig.filters).length > 0 && (
+            <div className="border-t border-gray-200 pt-6">
+              <h4 className="text-sm font-semibold text-gray-900 mb-4">
+                {categoryFilterConfig.category} Filters
+              </h4>
+              <div className="space-y-4">
+                {Object.entries(categoryFilterConfig.filters).map(([key, filterConfig]) => {
+                  const currentValue = categoryFilters[key] || ""
+
+                  if (filterConfig.type === "select" && filterConfig.options) {
+                    return (
+                      <div key={key}>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          {filterConfig.label}
+                        </label>
+                        <Select
+                          value={currentValue || undefined}
+                          onValueChange={(value) => {
+                            setCategoryFilters((prev) => ({
+                              ...prev,
+                              [key]: value,
+                            }))
+                          }}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder={`Select ${filterConfig.label}`} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {filterConfig.options.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )
+                  }
+
+                  if (filterConfig.type === "text") {
+                    return (
+                      <div key={key}>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          {filterConfig.label}
+                        </label>
+                        <Input
+                          type="text"
+                          placeholder={filterConfig.placeholder || filterConfig.label}
+                          value={currentValue}
+                          onChange={(e) => {
+                            setCategoryFilters((prev) => ({
+                              ...prev,
+                              [key]: e.target.value,
+                            }))
+                          }}
+                          className="w-full"
+                        />
+                      </div>
+                    )
+                  }
+
+                  if (filterConfig.type === "range" && filterConfig.min !== undefined && filterConfig.max !== undefined) {
+                    const minValue = categoryFilters[`${key}_min`] || ""
+                    const maxValue = categoryFilters[`${key}_max`] || ""
+                    return (
+                      <div key={key}>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          {filterConfig.label}
+                        </label>
+                        <div className="space-y-2">
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Min</label>
+                            <Input
+                              type="number"
+                              placeholder={`Min`}
+                              min={filterConfig.min}
+                              max={filterConfig.max}
+                              value={minValue}
+                              onChange={(e) => {
+                                setCategoryFilters((prev) => ({
+                                  ...prev,
+                                  [`${key}_min`]: e.target.value,
+                                }))
+                              }}
+                              className="w-full"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Max</label>
+                            <Input
+                              type="number"
+                              placeholder={`Max`}
+                              min={filterConfig.min}
+                              max={filterConfig.max}
+                              value={maxValue}
+                              onChange={(e) => {
+                                setCategoryFilters((prev) => ({
+                                  ...prev,
+                                  [`${key}_max`]: e.target.value,
+                                }))
+                              }}
+                              className="w-full"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  if (filterConfig.type === "number" && filterConfig.min !== undefined && filterConfig.max !== undefined) {
+                    return (
+                      <div key={key}>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          {filterConfig.label}
+                        </label>
+                        <Input
+                          type="number"
+                          placeholder={filterConfig.label}
+                          min={filterConfig.min}
+                          max={filterConfig.max}
+                          value={currentValue}
+                          onChange={(e) => {
+                            setCategoryFilters((prev) => ({
+                              ...prev,
+                              [key]: e.target.value,
+                            }))
+                          }}
+                          className="w-full"
+                        />
+                      </div>
+                    )
+                  }
+
+                  return null
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Sort By */}
           <div>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { createServerClient } from "@supabase/ssr"
+import { formatLocation, formatLocationString } from "@/lib/location-utils"
 
 type Product = {
   id: string
@@ -66,7 +67,7 @@ export async function GET(req: Request) {
     ...r,
     images: r.images && Array.isArray(r.images) ? r.images : r.primary_image ? [r.primary_image] : [],
     description: r.description || "",
-    location: r.location || `${r.city || ""}, ${r.province || ""}`.replace(/^,\s*|,\s*$/g, "") || "",
+    location: r.location ? formatLocationString(r.location) : formatLocation(r.city || "", r.province || ""),
   }))
 
   const last = products[products.length - 1]

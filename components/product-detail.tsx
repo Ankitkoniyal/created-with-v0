@@ -38,6 +38,7 @@ import { getOptimizedImageUrl } from "@/lib/images"
 import { toast } from "@/components/ui/use-toast"
 import { RelatedProducts } from "@/components/related-products"
 import Link from "next/link"
+import { StarRating } from "@/components/ui/star-rating"
 
 interface Product {
   id: string
@@ -335,20 +336,20 @@ export function ProductDetail({ product }: ProductDetailProps) {
       .join(' ')
   }
 
-  const openYouTubeVideo = () => {
+  const openYouTubeVideo = useCallback(() => {
     if (product.youtube_url) {
       window.open(product.youtube_url, '_blank', 'noopener,noreferrer')
     }
-  }
+  }, [product.youtube_url])
 
-  const openWebsiteUrl = () => {
+  const openWebsiteUrl = useCallback(() => {
     if (product.website_url) {
       window.open(product.website_url, '_blank', 'noopener,noreferrer')
     }
-  }
+  }, [product.website_url])
 
-  const hasYouTubeUrl = product.youtube_url && product.youtube_url.trim() !== ""
-  const hasWebsiteUrl = product.website_url && product.website_url.trim() !== ""
+  const hasYouTubeUrl = useMemo(() => product.youtube_url && product.youtube_url.trim() !== "", [product.youtube_url])
+  const hasWebsiteUrl = useMemo(() => product.website_url && product.website_url.trim() !== "", [product.website_url])
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-4 md:p-6">
@@ -630,6 +631,20 @@ export function ProductDetail({ product }: ProductDetailProps) {
                     <span className="font-medium text-foreground">{product.model}</span>
                   </div>
                 )}
+                {product.year && (
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-muted-foreground">Year:</span>
+                    <span className="font-medium text-foreground">{product.year}</span>
+                  </div>
+                )}
+                {product.kilometer_driven != null && (
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-muted-foreground">Kilometer Driven:</span>
+                    <span className="font-medium text-foreground">
+                      {new Intl.NumberFormat().format(product.kilometer_driven)} km
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between py-2 border-b">
                   <span className="text-muted-foreground">Category:</span>
                   <span className="font-medium text-foreground">{product.category}</span>
@@ -640,6 +655,38 @@ export function ProductDetail({ product }: ProductDetailProps) {
                   <div className="flex justify-between py-2 border-b">
                     <span className="text-muted-foreground">Subcategory:</span>
                     <span className="font-medium text-foreground">{product.subcategory}</span>
+                  </div>
+                )}
+                {product.fuel_type && (
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-muted-foreground">Fuel Type:</span>
+                    <span className="font-medium text-foreground">
+                      {product.fuel_type === "gasoline" ? "Gas" : String(product.fuel_type).replace(/-/g, " ")}
+                    </span>
+                  </div>
+                )}
+                {product.transmission && (
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-muted-foreground">Transmission:</span>
+                    <span className="font-medium text-foreground">{String(product.transmission).toUpperCase()}</span>
+                  </div>
+                )}
+                {product.car_type && (
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-muted-foreground">Car Type:</span>
+                    <span className="font-medium text-foreground">{String(product.car_type).replace(/-/g, " ")}</span>
+                  </div>
+                )}
+                {product.seating_capacity != null && (
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-muted-foreground">Seating Capacity:</span>
+                    <span className="font-medium text-foreground">{product.seating_capacity}</span>
+                  </div>
+                )}
+                {product.posted_by && (
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-muted-foreground">Posted By:</span>
+                    <span className="font-medium text-foreground">{String(product.posted_by).replace(/_/g, " ")}</span>
                   </div>
                 )}
                 {product.storage && (
@@ -901,26 +948,34 @@ export function ProductDetail({ product }: ProductDetailProps) {
                     <User className="h-6 w-6 text-green-800" />
                   </div>
                 )}
-                <div>
+                <div className="flex-1">
                   <div className="flex items-center space-x-2 mb-1">
                     <span className="font-medium text-foreground text-base hover:text-green-900 hover:underline">
                       {product.seller.name}
                     </span>
+                    {/* Rating inline with seller name - clickable to view all ratings */}
+                    {product.seller.totalReviews > 0 ? (
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          window.location.href = `/seller/${product.seller.id}?tab=ratings`
+                        }}
+                        className="flex items-center cursor-pointer hover:opacity-80 transition-opacity"
+                      >
+                        <StarRating 
+                          rating={product.seller.rating || 0} 
+                          totalRatings={product.seller.totalReviews}
+                          size="sm"
+                          showCount={true}
+                        />
+                      </button>
+                    ) : (
+                      <span className="text-xs text-muted-foreground ml-2">(No ratings yet)</span>
+                    )}
                   </div>
                 </div>
               </Link>
-              <div className="flex gap-2">
-                <Link href={`/seller/${product.seller.id}?tab=ratings`}>
-                  <Button variant="outline" size="sm">
-                    View Ratings & Reviews
-                  </Button>
-                </Link>
-                <Link href={`/seller/${product.seller.id}?tab=comments`}>
-                  <Button variant="outline" size="sm">
-                    View Comments
-                  </Button>
-                </Link>
-              </div>
             </div>
             
             <div className="space-y-3 text-sm mb-5">

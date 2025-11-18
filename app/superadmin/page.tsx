@@ -101,15 +101,19 @@ function SuperAdminPageContent() {
         .single()
 
       if (error || !freshProfile) {
-        console.error("❌ Profile fetch error:", error)
+        if (process.env.NODE_ENV === "development") {
+          console.error("❌ Profile fetch error:", error)
+        }
         router.replace("/dashboard")
         return
       }
 
-      console.log("🛡️ Super Admin Access Check:", {
-        email: freshProfile.email,
-        role: freshProfile.role
-      })
+      if (process.env.NODE_ENV === "development") {
+        console.log("🛡️ Super Admin Access Check:", {
+          email: freshProfile.email,
+          role: freshProfile.role
+        })
+      }
 
       // Check both role AND specific email for security
       const isAuthorizedSuperAdmin = 
@@ -117,16 +121,22 @@ function SuperAdminPageContent() {
         freshProfile.email === "ankit.koniyal000@gmail.com"
 
       if (!isAuthorizedSuperAdmin) {
-        console.log("❌ Access denied - Not authorized super admin")
+        if (process.env.NODE_ENV === "development") {
+          console.log("❌ Access denied - Not authorized super admin")
+        }
         router.replace("/dashboard")
         return
       }
 
-      console.log("✅ Access granted - Authorized super admin")
+      if (process.env.NODE_ENV === "development") {
+        console.log("✅ Access granted - Authorized super admin")
+      }
       setIsAuthorized(true)
 
     } catch (error) {
-      console.error("Super admin access check failed:", error)
+      if (process.env.NODE_ENV === "development") {
+        console.error("Super admin access check failed:", error)
+      }
       router.replace("/auth/login")
     } finally {
       setLoading(false)
@@ -144,7 +154,7 @@ function SuperAdminPageContent() {
           : `/superadmin?view=${target}`
       router.push(href)
     } catch (error) {
-      console.error("Navigation error:", error)
+      // Silently handle navigation error
       // Fallback: just update the view state
       const target = VALID_VIEWS.includes(view) ? view : "overview"
       setActiveView(target)

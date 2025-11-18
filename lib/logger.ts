@@ -1,37 +1,40 @@
-type LogLevel = "info" | "warn" | "error" | "debug"
+// Production-safe logging utility
+// Only logs errors in production, all logs in development
 
-interface LogEntry {
-  level: LogLevel
-  message: string
-  timestamp: string
-  userId?: string
-  metadata?: Record<string, any>
-}
+type LogLevel = "info" | "warn" | "error" | "debug"
 
 class Logger {
   private isDevelopment = process.env.NODE_ENV === "development"
 
-  private formatLog(entry: LogEntry): string {
-    return JSON.stringify({
-      ...entry,
-      environment: process.env.NODE_ENV,
-      service: "olx-marketplace",
-    })
+  private shouldLog(level: LogLevel): boolean {
+    if (this.isDevelopment) return true
+    // In production, only log errors
+    return level === "error"
   }
 
-  private log(level: LogLevel, message: string, metadata?: Record<string, any>, userId?: string) {
-    const entry: LogEntry = {
+  log(level: LogLevel, message: string, metadata?: Record<string, any>, userId?: string) {
+    if (!this.shouldLog(level)) return
+
+    const logData = {
       level,
       message,
       timestamp: new Date().toISOString(),
-      userId,
-      metadata,
+      ...(metadata && { metadata }),
+      ...(userId && { userId }),
     }
 
-    if (this.isDevelopment) {
-      console.log(`[${level.toUpperCase()}] ${message}`, metadata || "")
-    } else {
-      console.log(this.formatLog(entry))
+    switch (level) {
+      case "error":
+        console.error(`[${level.toUpperCase()}]`, message, metadata || "")
+        break
+      case "warn":
+        console.warn(`[${level.toUpperCase()}]`, message, metadata || "")
+        break
+      case "debug":
+        console.debug(`[${level.toUpperCase()}]`, message, metadata || "")
+        break
+      default:
+        console.log(`[${level.toUpperCase()}]`, message, metadata || "")
     }
   }
 
@@ -43,28 +46,12 @@ class Logger {
     this.log("warn", message, metadata, userId)
   }
 
-  error(message: string, error?: Error, metadata?: Record<string, any>, userId?: string) {
-    this.log(
-      "error",
-      message,
-      {
-        ...metadata,
-        error: error
-          ? {
-              name: error.name,
-              message: error.message,
-              stack: error.stack,
-            }
-          : undefined,
-      },
-      userId,
-    )
+  error(message: string, metadata?: Record<string, any>, userId?: string) {
+    this.log("error", message, metadata, userId)
   }
 
   debug(message: string, metadata?: Record<string, any>, userId?: string) {
-    if (this.isDevelopment) {
-      this.log("debug", message, metadata, userId)
-    }
+    this.log("debug", message, metadata, userId)
   }
 }
 

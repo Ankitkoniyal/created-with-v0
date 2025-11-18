@@ -6,6 +6,7 @@ import { SafeProductDetail } from "@/components/safe-product-detail"
 import { Metadata } from "next"
 import { getSupabaseClient } from "@/lib/supabase/server"
 import { getCategorySlug } from "@/lib/categories"
+import { formatLocation, formatLocationString } from "@/lib/location-utils"
 
 interface ProductPageProps {
   params: {
@@ -86,26 +87,63 @@ async function getProduct(id: string) {
 
     const product = products[0]
 
-              let profileData = null
-if (product.user_id) {
-  // Simple approach - always generate readable name from user_id
-  const readableName = `User${product.user_id.substring(0, 8).toUpperCase()}`
-  
-  profileData = {
-    full_name: readableName,
-    avatar_url: null,
-    created_at: product.created_at,
-    phone: null
-  }
-  console.log('🛠️ Generated seller name:', readableName)
-} else {
-  profileData = {
-    full_name: 'Local Seller',
-    avatar_url: null,
-    created_at: product.created_at,
-    phone: null
-  }
-}
+    // Fetch actual profile data for the seller
+    let profileData = null
+    let sellerRating = { average_rating: 0, total_ratings: 0 }
+    
+    if (product.user_id) {
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('full_name, avatar_url, created_at, phone')
+        .eq('id', product.user_id)
+        .maybeSingle()
+      
+      if (!profileError && profile) {
+        profileData = profile
+      } else {
+        // Fallback: try to get from auth.users if profile doesn't exist
+        const { data: authUser } = await supabase.auth.admin.getUserById(product.user_id).catch(() => null)
+        if (authUser?.user) {
+          profileData = {
+            full_name: authUser.user.user_metadata?.full_name || 
+                       authUser.user.email?.split('@')[0] || 
+                       'Local Seller',
+            avatar_url: authUser.user.user_metadata?.avatar_url || null,
+            created_at: product.created_at,
+            phone: null
+          }
+        } else {
+          // Last resort fallback
+          profileData = {
+            full_name: 'Local Seller',
+            avatar_url: null,
+            created_at: product.created_at,
+            phone: null
+          }
+        }
+      }
+      
+      // Fetch seller rating stats
+      const { data: ratingStats } = await supabase
+        .from('user_rating_stats')
+        .select('average_rating, total_ratings')
+        .eq('to_user_id', product.user_id)
+        .maybeSingle()
+      
+      if (ratingStats) {
+        sellerRating = {
+          average_rating: ratingStats.average_rating || 0,
+          total_ratings: ratingStats.total_ratings || 0
+        }
+      }
+    } else {
+      profileData = {
+        full_name: 'Local Seller',
+        avatar_url: null,
+        created_at: product.created_at,
+        phone: null
+      }
+    }
 
     let parsedTags = []
     if (product.tags) {
@@ -169,7 +207,11 @@ if (product.user_id) {
       id: product.id,
       title: product.title || "Untitled Product",
       price: product.price ? `$${product.price.toLocaleString()}` : "Price on request",
-      location: (product.city && product.province) ? `${product.city}, ${product.province}` : product.location || "Location not specified",
+      location: (product.city && product.province) 
+        ? formatLocation(product.city, product.province) 
+        : product.location 
+          ? formatLocationString(product.location) 
+          : "Location not specified",
       images: product.images || ["/placeholder.svg"],
       description: cleanDescription || "No description available",
       youtube_url: product.youtube_url || youtubeUrl,
@@ -185,10 +227,12 @@ if (product.user_id) {
       adId: generateAdId(product.id, product.created_at),
             seller: {
   id: product.user_id,
-  name: profileData?.full_name || 'Local Seller', // Use the generated readable name
-  rating: 4.5,
-  totalReviews: 0,
-  memberSince: profileData?.created_at ? new Date(profileData.created_at).getFullYear().toString() : "2024",
+  name: (profileData?.full_name || 'Local Seller').trim(),
+  rating: sellerRating.average_rating || 0,
+  totalReviews: sellerRating.total_ratings || 0,
+  memberSince: profileData?.created_at 
+    ? new Date(profileData.created_at).getFullYear().toString() 
+    : new Date().getFullYear().toString(),
   verified: true,
   responseTime: "Usually responds within 2 hours",
   phone: profileData?.phone || null,
@@ -198,6 +242,14 @@ if (product.user_id) {
       storage: product.storage || null,
       color: product.color || null,
       featured: false,
+      // Vehicle-specific fields
+      year: product.year || null,
+      kilometer_driven: product.kilometer_driven ?? null,
+      fuel_type: product.fuel_type || null,
+      transmission: product.transmission || null,
+      car_type: product.car_type || null,
+      seating_capacity: product.seating_capacity ?? null,
+      posted_by: product.posted_by || null,
       // Additional fields for SEO
       price_number: product.price || 0,
       category_slug: product.category_slug || (product.category ? getCategorySlug(product.category) : 'other'),
@@ -266,19 +318,11 @@ function mapConditionToSchemaOrg(condition: string): string {
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { id } = await params
-  console.log('🛠️ Product page loading for ID:', id)
- 
   const product = await getProduct(id)
-  console.log('🛠️ Product data received:', product ? 'YES' : 'NO')
  
   if (!product) {
-   console.log('🛠️ Product not found, showing 404')
    notFound()
   }
-
-  console.log('🛠️ Product title:', product.title)
-  console.log('🛠️ Product seller name:', product.seller.name)
-  console.log('🛠️ Product category:', product.category)
 
   // Generate structured data
   const structuredData = generateProductStructuredData(product)

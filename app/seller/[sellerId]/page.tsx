@@ -13,7 +13,6 @@ import { useAuth } from "@/hooks/use-auth"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { UserRatings } from "@/components/user-ratings"
-import { UserComments } from "@/components/user-comments"
 
 interface SellerProfile {
   id: string
@@ -59,7 +58,7 @@ export default function SellerProfilePage({ params }: SellerPageProps) {
       
       // Check for tab parameter in URL
       const tab = searchParams?.get("tab")
-      if (tab && ["ads", "ratings", "comments"].includes(tab)) {
+      if (tab && ["ads", "ratings"].includes(tab)) {
         setActiveTab(tab)
       }
     }
@@ -224,7 +223,10 @@ export default function SellerProfilePage({ params }: SellerPageProps) {
           <CardContent className="p-4">
             <div className="flex gap-2 border-b">
               <button
-                onClick={() => setActiveTab("ads")}
+                onClick={() => {
+                  setActiveTab("ads")
+                  router.push(`/seller/${sellerId}`)
+                }}
                 className={`px-4 py-2 font-medium transition-colors ${
                   activeTab === "ads"
                     ? "border-b-2 border-primary text-primary"
@@ -235,7 +237,10 @@ export default function SellerProfilePage({ params }: SellerPageProps) {
                 Ads ({products.length})
               </button>
               <button
-                onClick={() => setActiveTab("ratings")}
+                onClick={() => {
+                  setActiveTab("ratings")
+                  router.push(`/seller/${sellerId}?tab=ratings`)
+                }}
                 className={`px-4 py-2 font-medium transition-colors ${
                   activeTab === "ratings"
                     ? "border-b-2 border-primary text-primary"
@@ -244,17 +249,6 @@ export default function SellerProfilePage({ params }: SellerPageProps) {
               >
                 <Star className="h-4 w-4 inline mr-2" />
                 Ratings & Reviews
-              </button>
-              <button
-                onClick={() => setActiveTab("comments")}
-                className={`px-4 py-2 font-medium transition-colors ${
-                  activeTab === "comments"
-                    ? "border-b-2 border-primary text-primary"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <MessageSquare className="h-4 w-4 inline mr-2" />
-                Comments
               </button>
             </div>
           </CardContent>
@@ -285,10 +279,6 @@ export default function SellerProfilePage({ params }: SellerPageProps) {
 
         {activeTab === "ratings" && sellerId && (
           <UserRatings userId={sellerId} showAddRating={!!user && user.id !== sellerId} />
-        )}
-
-        {activeTab === "comments" && sellerId && (
-          <UserComments userId={sellerId} showAddComment={!!user && user.id !== sellerId} />
         )}
       </div>
 

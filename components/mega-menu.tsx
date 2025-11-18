@@ -8,201 +8,156 @@ import {
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 
-// Complete updated categories structure EXACTLY matching your database
-const CATEGORIES = [
-  {
-    name: "Vehicles",
-    slug: "vehicles",
-    icon: Car,
-    color: "text-blue-400",
-    bgColor: "bg-blue-900",
-    subcategories: [
-      { name: "Cars", slug: "cars" },
-      { name: "Motorcycles", slug: "motorcycles" },
-      { name: "Bicycles", slug: "bicycles" },
-      { name: "Scooters", slug: "scooters" },
-      { name: "Auto Parts", slug: "auto-parts" }
-    ]
-  },
-  {
-    name: "Real Estate",
-    slug: "real-estate", 
-    icon: Home,
-    color: "text-purple-400",
-    bgColor: "bg-purple-900",
-    subcategories: [
-      { name: "For Rent", slug: "for-rent" },
-      { name: "For Sale", slug: "for-sale" },
-      { name: "Land", slug: "land" },
-      { name: "Roommates", slug: "roommates" }
-    ]
-  },
-  {
-    name: "Electronics",
-    slug: "electronics",
-    icon: Smartphone,
-    color: "text-green-400",
-    bgColor: "bg-green-900",
-    subcategories: [
-      { name: "Mobile Phones", slug: "mobile-phones" },
-      { name: "Laptops", slug: "laptops" },
-      { name: "Computers", slug: "computers" },
-      { name: "TV & Audio", slug: "tv-audio" },
-      { name: "Cameras", slug: "cameras" },
-      { name: "Headphones", slug: "headphones" },
-      { name: "Smartphones", slug: "smartphones" },
-      { name: "Tablets", slug: "tablets" }
-    ]
-  },
-  {
-    name: "Fashion & Beauty",
-    slug: "fashion-beauty",
-    icon: Shirt,
-    color: "text-pink-400",
-    bgColor: "bg-pink-900",
-    subcategories: [
-      { name: "Men Clothing", slug: "men-clothing" },
-      { name: "Women Clothing", slug: "women-clothing" },
-      { name: "Shoes", slug: "shoes" },
-      { name: "Accessories", slug: "accessories" }
-    ]
-  },
-  {
-    name: "Home & Garden",
-    slug: "home-garden",
-    icon: Sofa,
-    color: "text-orange-400",
-    bgColor: "bg-orange-900",
-    subcategories: [
-      { name: "Furniture", slug: "furniture" },
-      { name: "Home Decor", slug: "home-decor" },
-      { name: "Garden & Patio", slug: "garden-patio" },
-      { name: "Bedroom", slug: "bedroom" },
-      { name: "Living Room", slug: "living-room" },
-      { name: "Office Furniture", slug: "office-furniture" },
-      { name: "Outdoor Furniture", slug: "outdoor-furniture" }
-    ]
-  },
-  {
-    name: "Jobs & Services",
-    slug: "jobs-services",
-    icon: Briefcase,
-    color: "text-yellow-400",
-    bgColor: "bg-yellow-900",
-    subcategories: [
-      { name: "Full Time Jobs", slug: "full-time-jobs" },
-      { name: "Part Time Jobs", slug: "part-time-jobs" },
-      { name: "Freelance", slug: "freelance" },
-      { name: "Contract", slug: "contract-jobs" },
-      { name: "Remote", slug: "remote-jobs" }
-    ]
-  },
-  {
-    name: "Pets & Animals",
-    slug: "pets-animals",
-    icon: PawPrint,
-    color: "text-red-400",
-    bgColor: "bg-red-900",
-    subcategories: [
-      { name: "Dogs", slug: "dogs" },
-      { name: "Cats", slug: "cats" },
-      { name: "Birds", slug: "birds" },
-      { name: "Other Pets", slug: "other-pets" },
-      { name: "Pet Supplies", slug: "pet-supplies" }
-    ]
-  },
-  {
-    name: "Gaming",
-    slug: "gaming",
-    icon: Gamepad2,
-    color: "text-indigo-400",
-    bgColor: "bg-indigo-900",
-    subcategories: [
-      { name: "Video Games", slug: "video-games" },
-      { name: "Gaming Consoles", slug: "gaming-consoles" },
-      { name: "PC Gaming", slug: "pc-gaming" },
-      { name: "Board Games", slug: "board-games" },
-      { name: "VR Equipment", slug: "vr-equipment" },
-      { name: "Gaming Accessories", slug: "gaming-accessories" }
-    ]
-  },
-  {
-    name: "Books & Education",
-    slug: "books-education",
-    icon: Book,
-    color: "text-emerald-400",
-    bgColor: "bg-emerald-900",
-    subcategories: [
-      { name: "Children Books", slug: "children-books" },
-      { name: "Fiction", slug: "fiction-books" },
-      { name: "Non-Fiction", slug: "non-fiction-books" },
-      { name: "Textbooks", slug: "textbooks" }
-    ]
-  },
-  {
-    name: "Services",
-    slug: "services",
-    icon: Wrench,
-    color: "text-gray-400",
-    bgColor: "bg-gray-900",
-    subcategories: [
-      { name: "Home Services", slug: "home-services" },
-      { name: "Professional Services", slug: "professional-services" },
-      { name: "Beauty Services", slug: "beauty-services" },
-      { name: "Repair Services", slug: "repair-services" }
-    ]
-  },
-  {
-    name: "Sports",
-    slug: "sports",
-    icon: TrendingUp, // You might want to use a sports icon
-    color: "text-teal-400",
-    bgColor: "bg-teal-900",
-    subcategories: [
-      { name: "Exercise Equipment", slug: "exercise-equipment" },
-      { name: "Outdoor Gear", slug: "outdoor-gear" },
-      { name: "Sports Bikes", slug: "sports-bikes" },
-      { name: "Sportswear", slug: "sportswear" }
-    ]
-  },
-  {
-    name: "Mobile",
-    slug: "mobile",
-    icon: Smartphone,
-    color: "text-cyan-400",
-    bgColor: "bg-cyan-900",
-    subcategories: [
-      { name: "Android Phones", slug: "android-phones" },
-      { name: "iPhones", slug: "iphones" },
-      { name: "Mobile Accessories", slug: "mobile-accessories" }
-    ]
-  },
-  {
-    name: "Other",
-    slug: "other",
-    icon: Wrench,
-    color: "text-gray-400",
-    bgColor: "bg-gray-900",
-    subcategories: [
-      { name: "Free Stuff", slug: "free-stuff" },
-      { name: "Lost & Found", slug: "lost-found" },
-      { name: "Miscellaneous", slug: "miscellaneous" }
-    ]
-  }
-]
+// Import categories config for subcategories (subcategories are not in DB, only in config)
+import { CATEGORY_CONFIG, getCategorySlug, getSubcategorySlug } from "@/lib/categories"
+import { createClient } from "@/lib/supabase/client"
+import { useEffect, useState } from "react"
+
+// Map icons to categories
+const CATEGORY_ICONS: Record<string, typeof Car> = {
+  "Home Appliances": Home,
+  "Electronics": Smartphone,
+  "Services": Wrench,
+  "Vehicles": Car,
+  "Furniture": Sofa,
+  "Mobile": Smartphone,
+  "Real Estate": Home,
+  "Fashion & Beauty": Shirt,
+  "Pets & Animals": PawPrint,
+  "Sports": TrendingUp,
+  "Books & Education": Book,
+  "Free Stuff": Wrench,
+}
+
+const CATEGORY_COLORS: Record<string, { color: string; bgColor: string }> = {
+  "Home Appliances": { color: "text-orange-400", bgColor: "bg-orange-900" },
+  "Electronics": { color: "text-green-400", bgColor: "bg-green-900" },
+  "Services": { color: "text-gray-400", bgColor: "bg-gray-900" },
+  "Vehicles": { color: "text-blue-400", bgColor: "bg-blue-900" },
+  "Furniture": { color: "text-amber-400", bgColor: "bg-amber-900" },
+  "Mobile": { color: "text-cyan-400", bgColor: "bg-cyan-900" },
+  "Real Estate": { color: "text-purple-400", bgColor: "bg-purple-900" },
+  "Fashion & Beauty": { color: "text-pink-400", bgColor: "bg-pink-900" },
+  "Pets & Animals": { color: "text-red-400", bgColor: "bg-red-900" },
+  "Sports": { color: "text-teal-400", bgColor: "bg-teal-900" },
+  "Books & Education": { color: "text-emerald-400", bgColor: "bg-emerald-900" },
+  "Free Stuff": { color: "text-gray-400", bgColor: "bg-gray-900" },
+}
 
 interface MegaMenuProps {
   onClose?: () => void
   isOpen?: boolean
 }
 
+interface CategoryWithSubs {
+  name: string
+  slug: string
+  icon: typeof Car
+  color: string
+  bgColor: string
+  subcategories: Array<{ name: string; slug: string }>
+}
+
 export default function MegaMenu({ onClose, isOpen }: MegaMenuProps) {
   const [searchQuery, setSearchQuery] = useState("")
+  const [categories, setCategories] = useState<CategoryWithSubs[]>([])
   const menuRef = useRef<HTMLDivElement>(null)
+
+  // Fetch categories and subcategories from database
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const supabase = createClient()
+        
+        // Fetch categories from database
+        const { data: dbCategories } = await supabase
+          .from("categories")
+          .select("id, name, slug")
+          .order("name")
+
+        // Fetch subcategories from database (with error handling)
+        let dbSubcategories: any[] = []
+        try {
+          const { data, error } = await supabase
+            .from("subcategories")
+            .select("id, name, slug, category_slug")
+            .order("name")
+          if (!error && data) {
+            dbSubcategories = data
+          }
+        } catch (err) {
+          console.warn("Could not fetch subcategories from DB, will use config fallback:", err)
+        }
+
+        if (dbCategories && dbCategories.length > 0) {
+          // Merge DB categories with DB subcategories
+          const merged = dbCategories.map((dbCat) => {
+            const categorySlug = dbCat.slug || getCategorySlug(dbCat.name)
+            // Get subcategories for this category from database
+            const categorySubs = dbSubcategories
+              .filter((sub) => sub.category_slug === categorySlug)
+              .map((sub) => ({
+                name: sub.name,
+                slug: sub.slug || getSubcategorySlug(sub.name),
+              }))
+            
+            const icon = CATEGORY_ICONS[dbCat.name] || Wrench
+            const colors = CATEGORY_COLORS[dbCat.name] || { color: "text-gray-400", bgColor: "bg-gray-900" }
+            
+            return {
+              name: dbCat.name,
+              slug: categorySlug,
+              icon,
+              ...colors,
+              subcategories: categorySubs,
+            }
+          })
+          setCategories(merged)
+        } else {
+          // Fallback to config if DB is empty
+          const fallback = CATEGORY_CONFIG.map((config) => {
+            const icon = CATEGORY_ICONS[config.name] || Wrench
+            const colors = CATEGORY_COLORS[config.name] || { color: "text-gray-400", bgColor: "bg-gray-900" }
+            return {
+              name: config.name,
+              slug: config.slug,
+              icon,
+              ...colors,
+              subcategories: config.subcategories.map((sub) => ({
+                name: sub.name,
+                slug: sub.slug ?? getSubcategorySlug(sub.name),
+              })),
+            }
+          })
+          setCategories(fallback)
+        }
+      } catch (error) {
+        console.error("Error fetching categories:", error)
+        // Fallback to config on error
+        const fallback = CATEGORY_CONFIG.map((config) => {
+          const icon = CATEGORY_ICONS[config.name] || Wrench
+          const colors = CATEGORY_COLORS[config.name] || { color: "text-gray-400", bgColor: "bg-gray-900" }
+          return {
+            name: config.name,
+            slug: config.slug,
+            icon,
+            ...colors,
+            subcategories: config.subcategories.map((sub) => ({
+              name: sub.name,
+              slug: sub.slug ?? getSubcategorySlug(sub.name),
+            })),
+          }
+        })
+        setCategories(fallback)
+      }
+    }
+
+    fetchCategories()
+  }, [])
 
   if (!isOpen) return null
 
-  const filteredCategories = CATEGORIES.filter(category => 
+  const filteredCategories = categories.filter(category => 
     category.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     category.subcategories.some(sub => 
       sub.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -315,7 +270,7 @@ export default function MegaMenu({ onClose, isOpen }: MegaMenuProps) {
           <TrendingUp className="h-4 w-4 text-green-400" />
           <span className="text-sm font-medium text-gray-300">Popular:</span>
           <div className="flex gap-4">
-            {["Apartments for Rent", "Used Cars", "iPhone", "Jobs", "Furniture"].map((item) => (
+            {["Apartments for Rent", "Used Cars", "iPhone", "Furniture"].map((item) => (
               <Link
                 key={item}
                 href={`/search?q=${encodeURIComponent(item)}`}
