@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator"
 import { ArrowLeft, Send, MoreVertical, Package } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 import { createClient } from "@/lib/supabase/client"
 
@@ -50,6 +51,7 @@ interface ConversationViewProps {
 
 export function ConversationView({ conversationId }: ConversationViewProps) {
   const { user } = useAuth()
+  const router = useRouter()
   const [newMessage, setNewMessage] = useState("")
   const [conversationData, setConversationData] = useState<ConversationData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -273,8 +275,8 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
       const { participantId } = parseConversationId(conversationId)
 
       const { error } = await supabase.from("blocked_users").insert({
-        user_id: user.id,
-        blocked_user_id: participantId,
+        blocker_id: user.id,
+        blocked_id: participantId,
         created_at: new Date().toISOString()
       })
 
@@ -312,10 +314,10 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
 
       const { error } = await supabase.from("reports").insert({
         product_id: productId,
-        user_id: participantId,
+        reported_user_id: participantId,
         reporter_id: user.id,
         reason: reason,
-        details: `Conversation Report - Conversation ID: ${conversationId}`,
+        type: 'conversation',
         created_at: new Date().toISOString()
       })
 
@@ -350,12 +352,27 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
         .from("blocked_users")
         .select("id")
         .or(
-          `and(user_id.eq.${user.id},blocked_user_id.eq.${participantId}),and(user_id.eq.${participantId},blocked_user_id.eq.${user.id})`,
+          `and(blocker_id.eq.${user.id},blocked_id.eq.${participantId}),and(blocker_id.eq.${participantId},blocked_id.eq.${user.id})`,
         )
         .limit(1)
 
       if (!blockErr && blockCheck && blockCheck.length > 0) {
         alert("Messaging is unavailable because one of the users has been blocked.")
+        return
+      }
+
+      // Check if account is deactivated before sending
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("status")
+        .eq("id", user.id)
+        .single()
+      
+      const accountStatus = profileData?.status || (user.user_metadata?.account_status as string) || "active"
+      
+      if (accountStatus === "deactivated") {
+        alert("Your account is deactivated. Please reactivate it to send messages.")
+        router.push("/dashboard/settings")
         return
       }
 

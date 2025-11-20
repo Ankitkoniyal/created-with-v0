@@ -8,7 +8,6 @@ import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { getOptimizedImageUrl } from "@/lib/images"
 import Image from "next/image"
-import { StarRating } from "@/components/ui/star-rating"
 import { formatLocation, formatLocationString } from "@/lib/location-utils"
 
 interface Product {
@@ -24,10 +23,6 @@ interface Product {
   created_at: string
   views?: number
   user_id?: string
-  sellerRating?: {
-    average_rating: number
-    total_ratings: number
-  }
 }
 
 export function LatestAds() {
@@ -48,33 +43,7 @@ export function LatestAds() {
         if (error) {
           // Silently handle error, show fallback UI
         } else {
-          // Fetch rating stats for all sellers
-          const userIds = [...new Set((data || []).map(p => p.user_id).filter(Boolean))]
-          let ratingsMap = new Map<string, { average_rating: number; total_ratings: number }>()
-          
-          if (userIds.length > 0) {
-            const { data: ratingStats } = await supabase
-              .from('user_rating_stats')
-              .select('to_user_id, average_rating, total_ratings')
-              .in('to_user_id', userIds)
-            
-            if (ratingStats) {
-              ratingStats.forEach(stat => {
-                ratingsMap.set(stat.to_user_id, {
-                  average_rating: stat.average_rating || 0,
-                  total_ratings: stat.total_ratings || 0
-                })
-              })
-            }
-          }
-
-          // Merge rating data with products
-          const productsWithRatings = (data || []).map(product => ({
-            ...product,
-            sellerRating: ratingsMap.get(product.user_id) || { average_rating: 0, total_ratings: 0 }
-          }))
-
-          setProducts(productsWithRatings)
+          setProducts(data || [])
         }
       } catch (err) {
         // Silently handle error
@@ -174,17 +143,6 @@ export function LatestAds() {
                     <h4 className="text-xs text-gray-800 leading-tight line-clamp-2 mb-1 font-medium group-hover:text-primary transition-colors">
                       {product.title}
                     </h4>
-
-                    {/* Rating */}
-                    {product.sellerRating && product.sellerRating.average_rating > 0 && (
-                      <div className="mb-1">
-                        <StarRating 
-                          rating={product.sellerRating.average_rating} 
-                          totalRatings={product.sellerRating.total_ratings}
-                          size="sm"
-                        />
-                      </div>
-                    )}
 
                     <div className="mt-auto space-y-1">
                       {/* Location */}

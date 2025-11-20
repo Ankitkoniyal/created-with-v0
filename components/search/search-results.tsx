@@ -15,6 +15,7 @@ import { resolveCategoryInput, resolveSubcategoryInput } from "@/lib/category-ut
 import { useDebounce } from "@/hooks/use-debounce"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { getFiltersForCategory, getFilterFieldName } from "@/lib/category-filters"
+import { useLanguage } from "@/hooks/use-language"
 
 // Helper to safely access window in SSR
 const getSearchParams = () => {
@@ -159,6 +160,7 @@ const isGoodMatch = (product: any, tokens: string[]) => {
 }
 
 export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
+  const { t, language } = useLanguage()
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
@@ -499,11 +501,11 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
     const posted = new Date(createdAt)
     const diffInHours = Math.floor((now.getTime() - posted.getTime()) / (1000 * 60 * 60))
 
-    if (diffInHours < 1) return "Now"
+    if (diffInHours < 1) return language === "fr" ? "Maintenant" : "Now"
     if (diffInHours < 24) return `${diffInHours}h`
-    if (diffInHours < 48) return "1d"
-    if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}d`
-    return posted.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    if (diffInHours < 48) return "1j"
+    if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}j`
+    return posted.toLocaleDateString(language === "fr" ? "fr-FR" : "en-US", { month: 'short', day: 'numeric' })
   }
 
   if (error) {
@@ -597,7 +599,7 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
                       <span className="text-base font-bold text-green-700">
                         {formatPrice(product.price, product.price_type)}
                         {isNegotiable(product.price_type) && (
-                          <span className="text-xs font-normal text-gray-600 ml-1">Negotiable</span>
+                          <span className="text-xs font-normal text-gray-600 ml-1">{language === "fr" ? "Négociable" : "Negotiable"}</span>
                         )}
                       </span>
                     </div>
@@ -633,11 +635,15 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
               <span className="text-2xl">🔍</span>
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No products found</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">{t("products.noProducts")}</h3>
             <p className="text-gray-600 text-sm mb-4">
               {searchQuery
-                ? `No results for "${searchQuery}". Try adjusting your search keywords or filters.`
-                : `No products match your current filters. Try broadening your criteria.`}
+                ? (language === "fr" 
+                    ? `Aucun résultat pour "${searchQuery}". Essayez d'ajuster vos mots-clés ou filtres de recherche.`
+                    : `No results for "${searchQuery}". Try adjusting your search keywords or filters.`)
+                : (language === "fr"
+                    ? "Aucun produit ne correspond à vos filtres actuels. Essayez d'élargir vos critères."
+                    : "No products match your current filters. Try broadening your criteria.")}
             </p>
             <div className="flex gap-2 justify-center">
               <Button

@@ -54,7 +54,22 @@ export function MyListings() {
         setLoading(true)
         const supabase = createClient()
 
-        setAccountStatus((user?.user_metadata?.account_status as string) || "active")
+        // Check account status from profile table
+        let profileStatus: string | null = null
+        try {
+          const { data: profileData } = await supabase
+            .from("profiles")
+            .select("status")
+            .eq("id", user.id)
+            .single()
+          profileStatus = profileData?.status || null
+        } catch (err) {
+          // Ignore error, will use metadata status
+        }
+
+        // Use profile status if available, otherwise use metadata
+        const status = profileStatus || (user?.user_metadata?.account_status as string) || "active"
+        setAccountStatus(status)
 
         // Fetch user's products
         const { data: products, error } = await supabase
@@ -95,9 +110,26 @@ export function MyListings() {
 
     fetchUserListings()
 
-    // Real-time subscription for message updates
+    // Real-time subscriptions
     const supabase = createClient()
-    const subscription = supabase
+    
+    // Subscribe to profile changes to detect status updates
+    const profileChannel = supabase
+      .channel('my-listings-profile-updates')
+      .on('postgres_changes', 
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'profiles',
+          filter: `id=eq.${user?.id}`
+        }, 
+        () => {
+          fetchUserListings() // Refresh to get updated status
+        }
+      )
+      .subscribe()
+
+    const messagesChannel = supabase
       .channel('my-listings-messages')
       .on('postgres_changes', 
         { 
@@ -113,7 +145,8 @@ export function MyListings() {
       .subscribe()
 
     return () => {
-      subscription.unsubscribe()
+      profileChannel.unsubscribe()
+      messagesChannel.unsubscribe()
     }
   }, [user])
 

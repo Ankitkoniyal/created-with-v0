@@ -12,9 +12,9 @@ import { LoadingSkeleton } from "@/components/loading-skeleton"
 import { getOptimizedImageUrl } from "@/lib/images"
 import { createClient } from "@/lib/supabase/client"
 import { useSearchParams, usePathname } from "next/navigation"
-import { StarRating } from "@/components/ui/star-rating"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { ProductCard } from "@/components/product-card-optimized"
+import { useLanguage } from "@/hooks/use-language"
 import React from "react"
 
 interface Product {
@@ -40,10 +40,6 @@ interface Product {
     full_name: string
     avatar_url?: string
   }
-  sellerRating?: {
-    average_rating: number
-    total_ratings: number
-  }
 }
 
 interface ProductGridProps {
@@ -57,11 +53,13 @@ interface ProductGridProps {
     maxPrice?: string
     sortBy?: string
   }
+  showPagination?: boolean // Add prop to control pagination visibility
 }
 
 const PRODUCTS_PER_PAGE = 20
 
-export function ProductGrid({ products: overrideProducts, searchQuery, filters }: ProductGridProps) {
+export function ProductGrid({ products: overrideProducts, searchQuery, filters, showPagination = true }: ProductGridProps) {
+  const { t, language } = useLanguage()
   const searchParams = useSearchParams()
   const pathname = usePathname()
   const [products, setProducts] = useState<Product[]>([])
@@ -226,33 +224,7 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters }
           throw error
         }
 
-        // Fetch rating stats for all sellers
-        const userIds = [...new Set((data || []).map(p => p.user_id).filter(Boolean))]
-        let ratingsMap = new Map<string, { average_rating: number; total_ratings: number }>()
-        
-        if (userIds.length > 0) {
-          const { data: ratingStats } = await supabase
-            .from('user_rating_stats')
-            .select('to_user_id, average_rating, total_ratings')
-            .in('to_user_id', userIds)
-          
-          if (ratingStats) {
-            ratingStats.forEach(stat => {
-              ratingsMap.set(stat.to_user_id, {
-                average_rating: stat.average_rating || 0,
-                total_ratings: stat.total_ratings || 0
-              })
-            })
-          }
-        }
-
-        // Merge rating data with products
-        const productsWithRatings = (data || []).map(product => ({
-          ...product,
-          sellerRating: ratingsMap.get(product.user_id) || { average_rating: 0, total_ratings: 0 }
-        }))
-
-        setProducts(productsWithRatings)
+        setProducts(data || [])
         setHasMore((data || []).length === PRODUCTS_PER_PAGE)
       } catch (err: any) {
         setError(err.message || 'An unknown error occurred')
@@ -302,12 +274,12 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters }
     const posted = new Date(createdAt)
     const diffInHours = Math.floor((now.getTime() - posted.getTime()) / (1000 * 60 * 60))
 
-    if (diffInHours < 1) return "Now"
+    if (diffInHours < 1) return language === "fr" ? "Maintenant" : "Now"
     if (diffInHours < 24) return `${diffInHours}h`
-    if (diffInHours < 48) return "1d"
-    if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}d`
-    return posted.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  }, [])
+    if (diffInHours < 48) return "1j"
+    if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}j`
+    return posted.toLocaleDateString(language === "fr" ? "fr-FR" : "en-US", { month: 'short', day: 'numeric' })
+  }, [language])
 
   // Allow unregistered users to view seller ads
   const handleSellerClick = (e: React.MouseEvent, sellerId: string) => {
@@ -367,16 +339,19 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters }
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center py-8">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              {searchQuery ? `No results for "${searchQuery}"` : "No Ads Found"}
+              {searchQuery 
+                ? (language === "fr" ? `Aucun résultat pour "${searchQuery}"` : `No results for "${searchQuery}"`)
+                : t("products.noProducts")
+              }
             </h3>
             <p className="text-gray-600 mb-4 text-sm">
               {searchQuery 
-                ? "Try different keywords or remove some filters."
-                : "Be the first to post an ad in your area!"
+                ? (language === "fr" ? "Essayez d'autres mots-clés ou supprimez certains filtres." : "Try different keywords or remove some filters.")
+                : (language === "fr" ? "Soyez le premier à publier une annonce dans votre région !" : "Be the first to post an ad in your area!")
               }
             </p>
             <Button asChild className="bg-green-900 hover:bg-green-950 text-xs h-8">
-              <Link href="/post">Post Your First Ad</Link>
+              <Link href="/post">{language === "fr" ? "Publier votre première annonce" : "Post Your First Ad"}</Link>
             </Button>
             {searchQuery && (
               <Button 
@@ -384,7 +359,7 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters }
                 className="ml-2 text-xs h-8"
                 onClick={() => window.location.href = '/search'}
               >
-                Clear Search
+                {language === "fr" ? "Effacer la recherche" : "Clear Search"}
               </Button>
             )}
           </div>
@@ -458,28 +433,7 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters }
       const { data, error } = await query.range(from, to)
       if (error) throw error
 
-      // Ratings enrichment
-      const userIds = [...new Set((data || []).map(p => p.user_id).filter(Boolean))]
-      let ratingsMap = new Map<string, { average_rating: number; total_ratings: number }>()
-      if (userIds.length > 0) {
-        const { data: ratingStats } = await supabase
-          .from('user_rating_stats')
-          .select('to_user_id, average_rating, total_ratings')
-          .in('to_user_id', userIds)
-        if (ratingStats) {
-          ratingStats.forEach(stat => {
-            ratingsMap.set(stat.to_user_id, {
-              average_rating: stat.average_rating || 0,
-              total_ratings: stat.total_ratings || 0
-            })
-          })
-        }
-      }
-      const productsWithRatings = (data || []).map(product => ({
-        ...product,
-        sellerRating: ratingsMap.get(product.user_id) || { average_rating: 0, total_ratings: 0 }
-      }))
-      setProducts(prev => [...prev, ...productsWithRatings])
+      setProducts(prev => [...prev, ...(data || [])])
       setHasMore((data || []).length === PRODUCTS_PER_PAGE)
     } catch (e) {
       // swallow load more errors silently
@@ -494,15 +448,17 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters }
         <div className="flex flex-col lg:flex-row gap-4">
           <div className="flex-1">
             <div className="mb-4 text-sm text-gray-600">
-              Found {products.length} {products.length === 1 ? 'result' : 'results'}
-              {searchQuery && ` for "${searchQuery}"`}
+              {language === "fr" 
+                ? `Trouvé ${products.length} ${products.length === 1 ? 'résultat' : 'résultats'}${searchQuery ? ` pour "${searchQuery}"` : ''}`
+                : `Found ${products.length} ${products.length === 1 ? 'result' : 'results'}${searchQuery ? ` for "${searchQuery}"` : ''}`
+              }
             </div>
             
             <ErrorBoundary>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-x-4 gap-y-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-x-4 gap-y-6" key={language}>
                 {products.map((product) => (
                   <ProductCard
-                    key={product.id}
+                    key={`${product.id}-${language}`}
                     product={product}
                     isFavorite={favorites.has(product.id)}
                     onToggleFavorite={toggleFavorite}
@@ -512,7 +468,7 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters }
                   />
                 ))}
               </div>
-              {hasMore && (
+              {hasMore && showPagination && (
                 <div className="flex justify-center mt-6">
                   <Button 
                     onClick={loadMore} 

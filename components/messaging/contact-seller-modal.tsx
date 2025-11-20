@@ -48,6 +48,31 @@ export function ContactSellerModal({ product, seller, children }: ContactSellerM
     return
   }
 
+    // Check if account is deactivated
+    const supabase = createClient()
+    let accountStatus: string = "active"
+    try {
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("status")
+        .eq("id", user.id)
+        .single()
+      accountStatus = profileData?.status || (user.user_metadata?.account_status as string) || "active"
+    } catch (err) {
+      accountStatus = (user.user_metadata?.account_status as string) || "active"
+    }
+
+    if (accountStatus === "deactivated") {
+      toast({
+        variant: "destructive",
+        title: "Account Deactivated",
+        description: "Your account is deactivated. Please reactivate it to send messages.",
+      })
+      router.push("/dashboard/settings")
+      setIsOpen(false)
+      return
+    }
+
     setIsSending(true)
 
     try {

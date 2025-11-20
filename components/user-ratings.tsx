@@ -83,7 +83,9 @@ export function UserRatings({ userId, showAddRating = true }: UserRatingsProps) 
 
     try {
       setLoading(true)
-      const response = await fetch(`/api/ratings?userId=${encodeURIComponent(userId)}`)
+      // Add timestamp to prevent caching
+      const timestamp = new Date().getTime()
+      const response = await fetch(`/api/ratings?userId=${encodeURIComponent(userId)}&_t=${timestamp}`)
       
       if (!response.ok) {
         let errorMessage = "Failed to fetch ratings"
@@ -200,7 +202,7 @@ export function UserRatings({ userId, showAddRating = true }: UserRatingsProps) 
 
       if (!response.ok) throw new Error("Failed to delete rating")
 
-      toast.success("Rating deleted successfully")
+      // Immediately clear the user rating state
       setUserRating(null)
       setSelectedRating(0)
       setSelectedResponseTime(0)
@@ -208,10 +210,60 @@ export function UserRatings({ userId, showAddRating = true }: UserRatingsProps) 
       setSelectedCommunication(0)
       setSelectedOverallExperience(0)
       setComment("")
-      fetchRatings()
+      
+      // Clear ratings list temporarily to show deletion immediately
+      setRatings(prev => prev.filter(r => r.from_user.id !== user.id))
+      
+      // Update stats immediately (decrement counts)
+      if (stats) {
+        setStats(prev => {
+          if (!prev) return null
+          const newTotal = Math.max(0, prev.total_ratings - 1)
+          const ratingKey = `${userRating.rating}_star` as keyof RatingStats
+          const currentCount = prev[ratingKey] as number || 0
+          const newCount = Math.max(0, currentCount - 1)
+          
+          // Recalculate average if there are still ratings
+          let newAverage = prev.average_rating
+          if (newTotal > 0) {
+            // Approximate recalculation (exact would require all ratings)
+            const totalStars = prev.average_rating * prev.total_ratings
+            const newTotalStars = totalStars - userRating.rating
+            newAverage = newTotalStars / newTotal
+          } else {
+            newAverage = 0
+          }
+          
+          return {
+            ...prev,
+            total_ratings: newTotal,
+            average_rating: newAverage,
+            [ratingKey]: newCount,
+          }
+        })
+      }
+
+      toast.success("Rating deleted successfully")
+      
+      // Force immediate refresh - try multiple times to ensure view is updated
+      // Database views can sometimes have slight delays
+      const refreshRatings = () => {
+        fetchRatings()
+      }
+      
+      // Immediate refresh
+      refreshRatings()
+      
+      // Refresh again after short delay to catch any view updates
+      setTimeout(refreshRatings, 500)
+      
+      // Final refresh after longer delay to ensure consistency
+      setTimeout(refreshRatings, 1500)
     } catch (error) {
       console.error("Error deleting rating:", error)
       toast.error("Failed to delete rating")
+      // Re-fetch on error to restore correct state
+      fetchRatings()
     } finally {
       setSubmitting(false)
     }

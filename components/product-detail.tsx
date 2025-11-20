@@ -28,6 +28,7 @@ import {
   Globe,
   Mail,
   User,
+  Star,
 } from "lucide-react"
 import { ContactSellerModal } from "@/components/messaging/contact-seller-modal"
 import { SafetyBanner } from "@/components/ui/safety-banner"
@@ -1013,6 +1014,20 @@ export function ProductDetail({ product }: ProductDetailProps) {
                   <div className="font-medium text-green-900">See all ads from this Seller</div>
                 </div>
               </Link>
+              
+              {/* Rate this Seller Button */}
+              {user && user.id !== product.seller.id && (
+                <Link 
+                  href={`/seller/${product.seller.id}?tab=ratings`}
+                  className="flex items-center p-3 bg-yellow-50 hover:bg-yellow-100 rounded-md border border-yellow-200 transition-colors"
+                >
+                  <Star className="h-4 w-4 mr-3 text-yellow-600 fill-yellow-600" />
+                  <div>
+                    <div className="font-medium text-yellow-900">Rate this Seller</div>
+                    <div className="text-xs text-yellow-700">Share your experience</div>
+                  </div>
+                </Link>
+              )}
             </div>
           </CardContent>
         </Card>

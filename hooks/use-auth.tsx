@@ -80,8 +80,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const supabase = supabaseRef.current
       const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
-      if (error && error.code !== 'PGRST116') { // PGRST116 means no rows found
-        console.error("[auth] Error loading profile:", error)
+      // PGRST116 means no rows found - this is expected for new users, don't log as error
+      if (error && error.code !== 'PGRST116') {
+        // Only log actual errors, not "no rows found" which is expected
+        if (process.env.NODE_ENV === 'development') {
+          console.error("[auth] Error loading profile:", error)
+        }
         return null
       }
       let profileData = data || null

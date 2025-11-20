@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
-import { Bell, Trash2, AlertTriangle, Loader2 } from "lucide-react"
+import { Bell, Trash2, AlertTriangle, Loader2, CheckCircle } from "lucide-react"
 import { DashboardNav } from "@/components/dashboard/dashboard-nav"
 import { AuthGuard } from "@/components/auth/auth-guard"
 import { useState, useEffect } from "react"
@@ -29,6 +29,8 @@ export default function SettingsPage() {
     weeklyDigest: true,
   })
   const [isDeactivating, setIsDeactivating] = useState(false)
+  const [isReactivating, setIsReactivating] = useState(false)
+  const [accountStatus, setAccountStatus] = useState<string>("active")
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -36,13 +38,23 @@ export default function SettingsPage() {
 
       try {
         const supabase = createClient()
+        
+        // Get account status
+        const status = (user.user_metadata?.account_status as string) || "active"
+        setAccountStatus(status)
+        
         const { data, error } = await supabase
           .from("profiles")
-          .select("email_notifications, sms_notifications, push_notifications")
+          .select("email_notifications, sms_notifications, push_notifications, status")
           .eq("id", user.id)
           .single()
 
         if (data) {
+          // Use profile status if available, otherwise use metadata status
+          if (data.status) {
+            setAccountStatus(data.status)
+          }
+          
           setNotifications({
             emailMessages: data.email_notifications ?? true,
             emailOffers: false,
@@ -236,85 +248,163 @@ export default function SettingsPage() {
                   </CardContent>
                 </Card>
 
-                {/* Danger Zone */}
-                <Card className="border-destructive/20">
-                  <CardHeader>
-                    <CardTitle className="flex items-center text-destructive">
-                      <AlertTriangle className="h-5 w-5 mr-2" />
-                      Danger Zone
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4">
-                      <h4 className="font-medium text-destructive">Deactivate Account</h4>
-                      <p className="text-sm text-destructive/80">
-                        Deactivating immediately suspends access to listings and messages. We retain your data for 30 days so
-                        you can reactivate if needed.
-                      </p>
-                      <Button
-                        className="mt-4"
-                        variant="destructive"
-                        disabled={isDeactivating}
-                        onClick={async () => {
-                          if (!user?.id || isDeactivating) return
-                          const confirmed = confirm(
-                            "Are you sure you want to deactivate your account? You can reactivate within 30 days by contacting support or a super admin."
-                          )
-                          if (!confirmed) return
+                {/* Account Status Section */}
+                {accountStatus === "deactivated" ? (
+                  <Card className="border-yellow-200 bg-yellow-50">
+                    <CardHeader>
+                      <CardTitle className="flex items-center text-yellow-800">
+                        <AlertTriangle className="h-5 w-5 mr-2" />
+                        Account Deactivated
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="rounded-lg border border-yellow-300 bg-yellow-100 p-4">
+                        <h4 className="font-medium text-yellow-900">Reactivate Your Account</h4>
+                        <p className="text-sm text-yellow-800 mt-2">
+                          Your account is currently deactivated. You can reactivate it to regain full access to all features.
+                        </p>
+                        <Button
+                          className="mt-4 bg-yellow-600 hover:bg-yellow-700 text-white"
+                          disabled={isReactivating}
+                          onClick={async () => {
+                            if (!user?.id || isReactivating) return
+                            const confirmed = confirm(
+                              "Are you sure you want to reactivate your account? You will regain full access to all features."
+                            )
+                            if (!confirmed) return
 
-                          setIsDeactivating(true)
+                            setIsReactivating(true)
 
-                          try {
-                            const response = await fetch("/api/account/status", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ status: "deactivated" }),
-                            })
+                            try {
+                              const response = await fetch("/api/account/status", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ status: "active" }),
+                              })
 
-                            if (!response.ok) {
-                              const payload = await response.json().catch(() => ({}))
-                              throw new Error(payload.error || "Request failed")
+                              if (!response.ok) {
+                                const payload = await response.json().catch(() => ({}))
+                                throw new Error(payload.error || "Request failed")
+                              }
+
+                              toast({
+                                title: "Account Reactivated",
+                                description: "Your account has been reactivated successfully! You now have full access to all features.",
+                              })
+
+                              // Refresh the page to update the UI
+                              setAccountStatus("active")
+                              window.location.reload()
+                            } catch (error) {
+                              console.error("Reactivate error", error)
+                              toast({
+                                variant: "destructive",
+                                title: "Reactivation Failed",
+                                description: "We couldn't reactivate your account. Please try again or contact support.",
+                              })
+                            } finally {
+                              setIsReactivating(false)
                             }
+                          }}
+                        >
+                          {isReactivating ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Reactivating...
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                              Reactivate Account
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-yellow-700">
+                        Note: If you're unable to reactivate, please contact marketplace support or a super admin for assistance.
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card className="border-destructive/20">
+                    <CardHeader>
+                      <CardTitle className="flex items-center text-destructive">
+                        <AlertTriangle className="h-5 w-5 mr-2" />
+                        Danger Zone
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4">
+                        <h4 className="font-medium text-destructive">Deactivate Account</h4>
+                        <p className="text-sm text-destructive/80">
+                          Deactivating immediately suspends access to listings and messages. We retain your data for 30 days so
+                          you can reactivate if needed.
+                        </p>
+                        <Button
+                          className="mt-4"
+                          variant="destructive"
+                          disabled={isDeactivating}
+                          onClick={async () => {
+                            if (!user?.id || isDeactivating) return
+                            const confirmed = confirm(
+                              "Are you sure you want to deactivate your account? You can reactivate it anytime from the settings page."
+                            )
+                            if (!confirmed) return
 
-                            toast({
-                              title: "Account Deactivated",
-                              description:
-                                "You have been signed out. Your data stays archived for 30 days—contact support or a super admin to reactivate.",
-                            })
+                            setIsDeactivating(true)
 
-                            await logout()
-                            router.replace("/auth/login?message=account_deactivated")
-                          } catch (error) {
-                            console.error("Deactivate error", error)
-                            toast({
-                              variant: "destructive",
-                              title: "Deactivation Failed",
-                              description: "We couldn't deactivate your account. Please try again or contact support.",
-                            })
-                          } finally {
-                            setIsDeactivating(false)
-                          }
-                        }}
-                      >
-                        {isDeactivating ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Deactivating...
-                          </>
-                        ) : (
-                          <>
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Deactivate Account
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Reactivation: reach out to marketplace support or a super admin within 30 days. They can restore your
-                      access instantly; after 30 days data is purged from active systems.
-                    </p>
-                  </CardContent>
-                </Card>
+                            try {
+                              const response = await fetch("/api/account/status", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ status: "deactivated" }),
+                              })
+
+                              if (!response.ok) {
+                                const payload = await response.json().catch(() => ({}))
+                                throw new Error(payload.error || "Request failed")
+                              }
+
+                              toast({
+                                title: "Account Deactivated",
+                                description:
+                                  "Your account has been deactivated. You can reactivate it anytime from this page.",
+                              })
+
+                              // Update status and refresh
+                              setAccountStatus("deactivated")
+                              window.location.reload()
+                            } catch (error) {
+                              console.error("Deactivate error", error)
+                              toast({
+                                variant: "destructive",
+                                title: "Deactivation Failed",
+                                description: "We couldn't deactivate your account. Please try again or contact support.",
+                              })
+                            } finally {
+                              setIsDeactivating(false)
+                            }
+                          }}
+                        >
+                          {isDeactivating ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Deactivating...
+                            </>
+                          ) : (
+                            <>
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Deactivate Account
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        You can reactivate your account anytime within 30 days. After 30 days, data may be purged from active systems.
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             </div>
           </div>

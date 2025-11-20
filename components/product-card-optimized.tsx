@@ -7,8 +7,8 @@ import { Heart } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { getOptimizedImageUrl } from "@/lib/images"
-import { StarRating } from "@/components/ui/star-rating"
 import { formatLocation } from "@/lib/location-utils"
+import { useLanguage } from "@/hooks/use-language"
 
 interface ProductCardProps {
   product: {
@@ -21,10 +21,6 @@ interface ProductCardProps {
     province: string
     created_at: string
     user_id: string
-    sellerRating?: {
-      average_rating: number
-      total_ratings: number
-    }
   }
   isFavorite: boolean
   onToggleFavorite: (productId: string, e?: React.MouseEvent) => void
@@ -41,6 +37,7 @@ const ProductCard = React.memo<ProductCardProps>(({
   isNegotiable,
   formatTimePosted,
 }) => {
+  const { t, language } = useLanguage()
   const primaryImage = product.images?.[0] || "/diverse-products-still-life.png"
   const optimizedPrimary = getOptimizedImageUrl(primaryImage, "thumb") || primaryImage
 
@@ -85,7 +82,7 @@ const ProductCard = React.memo<ProductCardProps>(({
               <span className="text-base font-bold text-green-700">
                 {formatPrice(product.price, product.price_type)}
                 {isNegotiable(product.price_type) && (
-                  <span className="text-xs font-normal text-gray-600 ml-1">Negotiable</span>
+                  <span className="text-xs font-normal text-gray-600 ml-1">{language === "fr" ? "Négociable" : "Negotiable"}</span>
                 )}
               </span>
             </div>
@@ -93,17 +90,6 @@ const ProductCard = React.memo<ProductCardProps>(({
             <h4 className="text-sm font-medium text-gray-900 line-clamp-2 mb-0 leading-snug">
               {product.title}
             </h4>
-
-            {/* Rating */}
-            {product.sellerRating && product.sellerRating.average_rating > 0 && (
-              <div className="mt-0.5 mb-0">
-                <StarRating 
-                  rating={product.sellerRating.average_rating} 
-                  totalRatings={product.sellerRating.total_ratings}
-                  size="sm"
-                />
-              </div>
-            )}
 
             <div className="mt-1 flex items-end justify-between text-xs text-gray-500">
               <div className="flex items-center gap-1 min-w-0 pr-1">
@@ -125,5 +111,6 @@ const ProductCard = React.memo<ProductCardProps>(({
 
 ProductCard.displayName = "ProductCard"
 
+// Export with language dependency to ensure re-renders
 export { ProductCard }
 

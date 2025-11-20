@@ -42,7 +42,7 @@ export function RelatedProducts({ currentProductId, category, subcategory }: Rel
           .select('*')
           .neq('id', currentProductId)
           .eq('status', 'active')
-          .limit(8)
+          .limit(4)
 
         // Prioritize same subcategory, then same category
         if (currentProduct.subcategory) {
@@ -55,7 +55,7 @@ export function RelatedProducts({ currentProductId, category, subcategory }: Rel
 
         const { data: products, error } = await query
 
-          .limit(8) // fetch more since we show 4 per row
+          .limit(4) // Show max 4 related ads
 
 
         if (error) {
@@ -74,7 +74,7 @@ export function RelatedProducts({ currentProductId, category, subcategory }: Rel
             .neq('id', currentProductId)
             .eq('category', currentProduct.category)
             .eq('status', 'active')
-            .limit(8)
+            .limit(4)
 
           if (!fallbackError) {
             setRelatedProducts(fallbackProducts || [])
@@ -115,10 +115,9 @@ export function RelatedProducts({ currentProductId, category, subcategory }: Rel
   }
 
   return (
-
     <div className="mt-12">
       <h2 className="text-2xl font-bold mb-6">Related Products</h2>
-      <ProductGrid products={relatedProducts} />
+      <ProductGrid products={relatedProducts} showPagination={false} />
     </div>
   )
 }

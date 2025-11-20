@@ -130,6 +130,45 @@ const parseLocation = (location: string): { city: string; province: string } => 
 export function PostProductForm() {
   const router = useRouter()
   const { user, profile } = useAuth()
+  const [accountStatus, setAccountStatus] = useState<string>("active")
+  const [isCheckingStatus, setIsCheckingStatus] = useState(true)
+
+  // Check account status on mount
+  useEffect(() => {
+    const checkAccountStatus = async () => {
+      if (!user) {
+        setIsCheckingStatus(false)
+        return
+      }
+
+      try {
+        const supabase = createClient()
+        
+        // Check account status from profile table
+        let profileStatus: string | null = null
+        try {
+          const { data: profileData } = await supabase
+            .from("profiles")
+            .select("status")
+            .eq("id", user.id)
+            .single()
+          profileStatus = profileData?.status || null
+        } catch (err) {
+          // Ignore error, will use metadata status
+        }
+
+        // Use profile status if available, otherwise use metadata
+        const status = profileStatus || (user?.user_metadata?.account_status as string) || "active"
+        setAccountStatus(status)
+      } catch (error) {
+        console.error("Error checking account status:", error)
+      } finally {
+        setIsCheckingStatus(false)
+      }
+    }
+
+    checkAccountStatus()
+  }, [user])
 
   const compressImage = async (file: File) => {
     const options = {
@@ -505,6 +544,13 @@ export function PostProductForm() {
     if (!user) {
       console.log("❌ User not authenticated")
       toast.error("Please log in to post an ad")
+      return
+    }
+
+    // Check if account is deactivated
+    if (accountStatus === "deactivated") {
+      toast.error("Your account is deactivated. Please reactivate it to post ads.")
+      router.push("/dashboard/settings")
       return
     }
 
@@ -924,10 +970,46 @@ export function PostProductForm() {
     )
   }
 
+  if (isCheckingStatus) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+        <p className="text-muted-foreground">Checking account status...</p>
+      </div>
+    )
+  }
+
   return (
     <form onSubmit={handleSubmit}>
       <div className="rounded-xl border bg-card text-card-foreground">
         <div className="p-6">
+          {accountStatus === "deactivated" && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <strong>Account Deactivated</strong>
+                    <p className="mt-1">Your account is deactivated. You cannot post new ads until you reactivate your account.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => router.push("/dashboard/settings")}
+                    className="ml-4 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+                  >
+                    Reactivate Account
+                  </button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+          {accountStatus === "deactivated" && (
+            <div className="mb-4 p-4 bg-muted/50 rounded-lg border border-destructive/20">
+              <p className="text-sm text-muted-foreground text-center">
+                All form fields are disabled because your account is deactivated. Please reactivate your account to continue.
+              </p>
+            </div>
+          )}
           {submitError && (
             <Alert variant="destructive" className="mb-4">
               <AlertCircle className="h-4 w-4" />
@@ -962,6 +1044,7 @@ export function PostProductForm() {
                     onChange={(e) => handleInputChange("title", e.target.value)}
                     className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
                     required
+                    disabled={accountStatus === "deactivated"}
                   />
                 </div>
 
@@ -1610,7 +1693,7 @@ export function PostProductForm() {
               <button
                 type="button"
                 onClick={handleNextStep}
-                disabled={!canProceed || isSubmitting}
+                disabled={!canProceed || isSubmitting || accountStatus === "deactivated"}
                 className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 ml-auto"
               >
                 Next Step →
@@ -1618,7 +1701,7 @@ export function PostProductForm() {
             ) : (
               <button
                 type="submit"
-                disabled={isSubmitting || isUploadingImages || !isStep4Valid}
+                disabled={isSubmitting || isUploadingImages || !isStep4Valid || accountStatus === "deactivated"}
                 className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-green-600 text-white hover:bg-green-700 h-10 px-4 py-2 ml-auto"
               >
                 {isSubmitting || isUploadingImages ? (

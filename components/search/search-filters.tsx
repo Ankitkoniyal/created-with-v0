@@ -9,12 +9,13 @@ import { Input } from "@/components/ui/input"
 import { Filter, X } from "lucide-react"
 import { getFiltersForCategory, getFilterFieldName } from "@/lib/category-filters"
 import { resolveCategoryInput } from "@/lib/category-utils"
+import { useLanguage } from "@/hooks/use-language"
 
-// Sort options
+// Sort options - will be translated dynamically
 const SORT_OPTIONS = [
-  { value: "newest", label: "Newest First" },
-  { value: "price-low", label: "Price: Low to High" },
-  { value: "price-high", label: "Price: High to Low" },
+  { value: "newest", labelKey: "products.newest" },
+  { value: "price-low", labelKey: "products.priceLow" },
+  { value: "price-high", labelKey: "products.priceHigh" },
 ]
 
 interface SearchFiltersProps {
@@ -22,6 +23,7 @@ interface SearchFiltersProps {
 }
 
 export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
+  const { t } = useLanguage()
   const router = useRouter()
   const searchParams = useSearchParams()
   
@@ -190,7 +192,7 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
             className="border-gray-200 w-full"
           >
             <Filter className="h-4 w-4 mr-2" />
-            Filters
+            {t("products.filters")}
           </Button>
         </div>
       </div>
@@ -201,7 +203,7 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
           <div className="absolute right-0 top-0 h-full w-4/5 max-w-sm bg-white shadow-xl overflow-y-auto">
             <div className="p-4">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold">Filters</h3>
+                <h3 className="text-lg font-semibold">{t("products.filters")}</h3>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -376,14 +378,14 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
                   </label>
                   <Select value={sortBy} onValueChange={setSortBy}>
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Sort by" />
+                      <SelectValue placeholder={t("products.sortBy")} />
                     </SelectTrigger>
                     <SelectContent>
-                      {SORT_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
+                  {SORT_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {t(option.labelKey)}
+                    </SelectItem>
+                  ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -396,7 +398,7 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
                   className="flex-1"
                   disabled={!hasActiveFilters}
                 >
-                  Clear
+                  {t("products.clearFilters")}
                 </Button>
                 <Button
                   onClick={applyFilters}
@@ -415,7 +417,7 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
         <div className="space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900">Filters</h3>
+                <h3 className="text-lg font-semibold text-gray-900">{t("products.filters")}</h3>
             {hasActiveFilters && (
               <Button
                 variant="ghost"
@@ -607,11 +609,11 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
                 <SelectValue placeholder="Sort by" />
               </SelectTrigger>
               <SelectContent>
-                {SORT_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
+                  {SORT_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {t(option.labelKey)}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>
@@ -621,7 +623,7 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
             onClick={applyFilters}
             className="w-full bg-green-900 hover:bg-green-950 h-10"
           >
-            Apply Filters
+            {t("products.apply")}
           </Button>
         </div>
       </div>

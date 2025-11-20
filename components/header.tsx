@@ -23,6 +23,7 @@ import {
   MapPin as MapPinIcon,
   BarChart3,
   Plus,
+  LayoutDashboard,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { buttonVariants } from "@/components/ui/button"
@@ -40,6 +41,7 @@ import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
+import { useLanguage } from "@/hooks/use-language"
 import { CategoryNavigation } from "@/components/category-navigation"
 import { getSupabaseClient } from "@/lib/supabase/client"
 import { createClient as createSupabaseClient } from "@/lib/supabase/client"
@@ -74,6 +76,7 @@ const SUPER_ADMIN_LINKS = [
 
 export function Header() {
   const { user, profile, logout, isLoading, isSuperAdmin } = useAuth()
+  const { language, setLanguage, t } = useLanguage()
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -108,6 +111,7 @@ export function Header() {
   useEffect(() => {
     setHasHydrated(true)
   }, [])
+
 
   // Update search and location when URL changes
   useEffect(() => {
@@ -317,11 +321,27 @@ export function Header() {
             .select("*", { count: "exact", head: true })
             .eq("receiver_id", user.id)
             .eq("is_read", false),
-          supabase
-            .from("notifications")
-            .select("*", { count: "exact", head: true })
-            .eq("user_id", user.id)
-            .eq("read", false),
+          (async () => {
+            try {
+              const result = await supabase
+                .from("notifications")
+                .select("*", { count: "exact", head: true })
+                .eq("user_id", user.id)
+                .eq("read", false)
+              
+              // Gracefully handle if table doesn't exist
+              if (result.error && (result.error.code === '42P01' || result.error.message?.includes('does not exist'))) {
+                return { count: 0, error: null, data: null }
+              }
+              return result
+            } catch (error: any) {
+              // If table doesn't exist, return empty count
+              if (error?.code === '42P01' || error?.message?.includes('does not exist')) {
+                return { count: 0, error: null, data: null }
+              }
+              return { count: 0, error, data: null }
+            }
+          })(),
         ])
 
         const notificationsCount =
@@ -382,7 +402,7 @@ export function Header() {
                   <Input
                     ref={locationInputRef}
                     type="text"
-                    placeholder="City or Location"
+                    placeholder={t("header.locationPlaceholder")}
                     className="border-0 bg-transparent shadow-none focus:ring-0 focus-visible:ring-0 w-full text-xs sm:text-sm pr-8 placeholder:text-gray-400"
                     value={locationInput}
                     onChange={handleLocationInputChange}
@@ -423,7 +443,7 @@ export function Header() {
                   <Input
                     ref={searchInputRef}
                     type="search"
-                    placeholder="Search products, brands and more..."
+                    placeholder={t("header.searchPlaceholder")}
                     className="border-0 bg-transparent shadow-none focus:ring-0 focus-visible:ring-0 text-sm placeholder:text-gray-400 pr-8"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -449,7 +469,7 @@ export function Header() {
                   className="rounded-full px-5 sm:px-6 py-2 mr-2 bg-green-900 hover:bg-green-950 text-white font-semibold shadow-md hover:shadow-lg transition-all duration-200"
                 >
                   <Search className="h-4 w-4 mr-1.5" />
-                  <span className="hidden sm:inline">Search</span>
+                  <span className="hidden sm:inline">{t("header.search")}</span>
                 </Button>
               </div>
             </form>
@@ -537,22 +557,65 @@ export function Header() {
                         <DropdownMenuSeparator />
                       </>
                     )}
+                    <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">{t("userMenu.dashboard")}</DropdownMenuLabel>
                     <DropdownMenuItem asChild>
                       <Link href={isSuperAdmin ? "/superadmin" : "/dashboard"} className="flex items-center">
-                        <Package className="mr-2 h-4 w-4" />
-                        <span>{isSuperAdmin ? "Super Admin Dashboard" : "Dashboard"}</span>
+                        <LayoutDashboard className="mr-2 h-4 w-4" />
+                        <span>{isSuperAdmin ? "Super Admin Dashboard" : t("userMenu.overview")}</span>
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
+                      <Link href="/dashboard/listings" className="flex items-center">
+                        <Package className="mr-2 h-4 w-4" />
+                        <span>{t("userMenu.myAds")}</span>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/dashboard/favorites" className="flex items-center">
+                        <Heart className="mr-2 h-4 w-4" />
+                        <span>{t("userMenu.favorites")}</span>
+                        {notificationCounts.favorites > 0 && (
+                          <Badge variant="secondary" className="ml-auto h-5 w-5 p-0 text-xs flex items-center justify-center">
+                            {notificationCounts.favorites}
+                          </Badge>
+                        )}
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/dashboard/messages" className="flex items-center">
+                        <MessageCircle className="mr-2 h-4 w-4" />
+                        <span>{t("userMenu.messages")}</span>
+                        {notificationCounts.messages > 0 && (
+                          <Badge variant="secondary" className="ml-auto h-5 w-5 p-0 text-xs flex items-center justify-center">
+                            {notificationCounts.messages}
+                          </Badge>
+                        )}
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/dashboard/analytics" className="flex items-center">
+                        <BarChart3 className="mr-2 h-4 w-4" />
+                        <span>{t("userMenu.analytics")}</span>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">{t("userMenu.account")}</DropdownMenuLabel>
+                    <DropdownMenuItem asChild>
                       <Link href="/dashboard/profile" className="flex items-center">
+                        <User className="mr-2 h-4 w-4" />
+                        <span>{t("userMenu.profile")}</span>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/dashboard/settings" className="flex items-center">
                         <Settings className="mr-2 h-4 w-4" />
-                        <span>Account Settings</span>
+                        <span>{t("userMenu.settings")}</span>
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={handleLogout} disabled={isLoggingOut}>
                       <LogOut className="mr-2 h-4 w-4" />
-                      <span>{isLoggingOut ? "Logging out..." : "Log out"}</span>
+                      <span>{isLoggingOut ? t("header.loggingOut") : t("header.logout")}</span>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -564,7 +627,7 @@ export function Header() {
                   }}
                 >
                   <Plus className="h-5 w-5" />
-                  <span>Sell</span>
+                  <span>{t("header.sell")}</span>
                 </Button>
               </>
             ) : (
@@ -575,7 +638,7 @@ export function Header() {
                     className={buttonVariants({ variant: "ghost", size: "sm" }) + " flex items-center"}
                   >
                     <User className="h-4 w-4 mr-2" />
-                    Login/Sign up
+                    {t("header.loginSignup")}
                   </Link>
                 )}
                 {showAuthButtons && (
@@ -587,7 +650,7 @@ export function Header() {
                     }}
                   >
                     <Plus className="h-5 w-5" />
-                    <span>Sell</span>
+                    <span>{t("header.sell")}</span>
                   </Button>
                 )}
               </>

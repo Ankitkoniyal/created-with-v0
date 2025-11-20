@@ -46,6 +46,23 @@ export function DashboardOverview() {
     try {
       const supabase = createClient()
 
+      // Check account status from profile table
+      let profileStatus: string | null = null
+      try {
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("status")
+          .eq("id", user.id)
+          .single()
+        profileStatus = profileData?.status || null
+      } catch (err) {
+        // Ignore error, will use metadata status
+      }
+
+      // Use profile status if available, otherwise use metadata
+      const status = profileStatus || (user?.user_metadata?.account_status as string) || "active"
+      setAccountStatus(status)
+
       // Unread messages - with proper error handling
       let unreadMessages = 0
       try {
@@ -101,9 +118,6 @@ export function DashboardOverview() {
     let isMounted = true
     const initialise = async () => {
       await fetchDashboardData()
-      if (isMounted) {
-        setAccountStatus((user?.user_metadata?.account_status as string) || "active")
-      }
     }
 
     initialise()
@@ -115,7 +129,20 @@ export function DashboardOverview() {
     }
 
     const supabase = createClient()
-    const channel = supabase
+    
+    // Subscribe to profile changes to detect status updates
+    const profileChannel = supabase
+      .channel("dashboard-profile-updates")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user.id}` },
+        () => {
+          fetchDashboardData() // Refresh to get updated status
+        }
+      )
+      .subscribe()
+
+    const messagesChannel = supabase
       .channel("dashboard-messages")
       .on(
         "postgres_changes",
@@ -126,7 +153,8 @@ export function DashboardOverview() {
 
     return () => {
       isMounted = false
-      channel.unsubscribe()
+      profileChannel.unsubscribe()
+      messagesChannel.unsubscribe()
     }
   }, [user])
 
@@ -147,16 +175,16 @@ export function DashboardOverview() {
   return (
     <div className="min-h-screen bg-background">
       {accountStatus === "deactivated" && (
-        <div className="mx-auto mb-6 max-w-4xl rounded-lg border border-red-200 bg-red-50 p-4">
+        <div className="mx-auto mb-6 max-w-6xl rounded-lg border border-red-200 bg-red-50 p-4">
           <div className="flex items-center justify-between">
-            <div>
+            <div className="flex-1">
               <h3 className="font-semibold text-red-700">Account Deactivated</h3>
               <p className="mt-1 text-sm text-red-600">
-                Your account has been deactivated. You cannot post new ads or send messages.
+                Your account has been deactivated. You cannot post new ads, edit existing ads, or send messages. Please reactivate your account to regain full access.
               </p>
             </div>
-            <Button variant="outline" size="sm" className="border-red-800 text-red-400">
-              Contact Support
+            <Button variant="outline" size="sm" className="border-red-800 text-red-400 ml-4" asChild>
+              <Link href="/dashboard/settings">Reactivate Account</Link>
             </Button>
           </div>
         </div>

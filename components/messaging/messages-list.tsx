@@ -61,17 +61,41 @@ export function MessagesList() {
     
     const { data, error } = await supabase
       .from("blocked_users")
-      .select("blocked_user_id")
-      .eq("user_id", user.id)
+      .select("blocked_id")
+      .eq("blocker_id", user.id)
 
     if (error) {
-      console.error("Error fetching blocked users:", error)
+      // Handle case where table doesn't exist or schema cache issue
+      const errorMessage = error.message || ""
+      const isTableNotFound = 
+        error.code === '42P01' || 
+        errorMessage.includes("Could not find the table") ||
+        errorMessage.includes("schema cache") ||
+        errorMessage.includes("does not exist")
+      
+      if (isTableNotFound) {
+        // Silently return empty set - table may not be created yet
+        // This is expected if the migration hasn't been run
+        return new Set<string>()
+      }
+      
+      // Only log unexpected errors (not table not found errors)
+      console.warn("Error fetching blocked users (non-critical):", error.code || error.message)
       return new Set<string>()
     }
     
-    return new Set(data?.map(item => item.blocked_user_id) || [])
-  } catch (error) {
-    console.error("Unexpected error in fetchBlockedUsers:", error)
+    return new Set(data?.map(item => item.blocked_id) || [])
+  } catch (error: any) {
+    // Catch any unexpected errors and handle gracefully
+    const errorMessage = error?.message || ""
+    if (errorMessage.includes("Could not find the table") || 
+        errorMessage.includes("schema cache") ||
+        errorMessage.includes("does not exist")) {
+      // Table doesn't exist - return empty set silently
+      return new Set<string>()
+    }
+    // Log only unexpected errors
+    console.warn("Unexpected error in fetchBlockedUsers (non-critical):", error)
     return new Set<string>()
   }
 }
@@ -231,8 +255,8 @@ export function MessagesList() {
       const { error } = await supabase
         .from("blocked_users")
         .insert({ 
-          user_id: user.id, 
-          blocked_user_id: userId,
+          blocker_id: user.id, 
+          blocked_id: userId,
           created_at: new Date().toISOString()
         })
 
@@ -276,10 +300,10 @@ export function MessagesList() {
         .from("reports")
         .insert({
           product_id: productId,
-          user_id: participantId,
+          reported_user_id: participantId,
           reporter_id: user.id,
           reason: reason,
-          details: `Conversation Report - Conversation ID: ${conversationId}`,
+          type: 'conversation',
           created_at: new Date().toISOString()
         })
 
