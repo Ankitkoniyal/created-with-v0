@@ -69,7 +69,19 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters, 
   const [hasMore, setHasMore] = useState(true)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
 
-  const locationFilter = searchParams.get("location") || ""
+  // Get location: Priority 1) URL param, 2) localStorage
+  const getLocationFilter = () => {
+    if (typeof window === "undefined") return ""
+    const urlLocation = searchParams.get("location") || ""
+    if (urlLocation) return urlLocation
+    try {
+      return localStorage.getItem("user_selected_location") || ""
+    } catch {
+      return ""
+    }
+  }
+  
+  const locationFilter = getLocationFilter()
   const hasOverride = Array.isArray(overrideProducts)
   
   const shouldFetch = useMemo(() => typeof window !== 'undefined' && (
@@ -107,9 +119,107 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters, 
           `)
           .eq('status', 'active')
 
-        // Apply search query filter
+        // CRITICAL: Apply location filter FIRST to ensure it's always ANDed with other filters
+        // Location filters MUST be applied before search query to ensure strict AND logic
+        if (locationFilter) {
+          const locationQuery = locationFilter.trim()
+          if (locationQuery) {
+            // Province abbreviation to full name mapping
+            const provinceMap: Record<string, string> = {
+              'ab': 'alberta', 'bc': 'british columbia', 'mb': 'manitoba', 'nb': 'new brunswick',
+              'nl': 'newfoundland and labrador', 'nt': 'northwest territories', 'ns': 'nova scotia',
+              'nu': 'nunavut', 'on': 'ontario', 'pe': 'prince edward island', 'qc': 'quebec',
+              'sk': 'saskatchewan', 'yt': 'yukon',
+            }
+            
+            // Normalize: remove accents, lowercase
+            const normalized = locationQuery.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            
+            if (normalized.includes(",")) {
+              // Format: "City, Province"
+              let [cityPart, provincePart] = normalized.split(",").map(s => s.trim())
+              
+              // Convert province abbreviation to full name if needed
+              if (provincePart && provincePart.length <= 2) {
+                const fullName = provinceMap[provincePart]
+                if (fullName) {
+                  provincePart = fullName
+                }
+              }
+              
+              if (cityPart && provincePart) {
+                // Build city variants for Saint/St handling
+                const cityVariants = [cityPart]
+                if (cityPart.startsWith("saint ")) {
+                  cityVariants.push(cityPart.replace(/^saint /, "st "))
+                  cityVariants.push(cityPart.replace(/^saint /, "st. "))
+                } else if (cityPart.startsWith("st. ")) {
+                  cityVariants.push(cityPart.replace(/^st\. /, "saint "))
+                  cityVariants.push(cityPart.replace(/^st\. /, "st "))
+                } else if (cityPart.startsWith("st ")) {
+                  cityVariants.push(cityPart.replace(/^st /, "saint "))
+                  cityVariants.push(cityPart.replace(/^st /, "st. "))
+                }
+                
+                // ABSOLUTE FIX: Apply city and province filters separately - Supabase ANDs chained filters
+                // This ensures: (search) AND (city matches ANY variant) AND (province matches ANY variant)
+                if (cityVariants.length === 1) {
+                  query = query.ilike("city", `%${cityVariants[0]}%`)
+                } else {
+                  const cityConditions = cityVariants.map(v => `city.ilike.%${v}%`).join(",")
+                  query = query.or(cityConditions)
+                }
+                
+                // Build province variants
+                const provinceVariants = provincePart.length <= 2 && provinceMap[provincePart]
+                  ? [provinceMap[provincePart], provincePart]
+                  : [provincePart]
+                
+                if (provinceVariants.length === 1) {
+                  query = query.ilike("province", `%${provinceVariants[0]}%`)
+                } else {
+                  const provinceConditions = provinceVariants.map(v => `province.ilike.%${v}%`).join(",")
+                  query = query.or(provinceConditions)
+                }
+              } else if (cityPart) {
+                // Only city provided
+                query = query.ilike("city", `%${cityPart}%`)
+                // Also try Saint/St variations
+                if (cityPart.startsWith("saint ")) {
+                  query = query.or(`city.ilike.%${cityPart.replace(/^saint /, "st ")}%,city.ilike.%${cityPart.replace(/^saint /, "st. ")}%`)
+                } else if (cityPart.startsWith("st. ") || cityPart.startsWith("st ")) {
+                  query = query.or(`city.ilike.%${cityPart.replace(/^st\.? /, "saint ")}%`)
+                }
+              }
+            } else {
+              // Single term - match city OR province
+              // Check if it's a province abbreviation
+              const fullProvinceName = provinceMap[normalized]
+              if (fullProvinceName) {
+                // It's a province abbreviation
+                query = query.or(`province.ilike.%${fullProvinceName}%,province.ilike.%${normalized}%`)
+              } else {
+                // Could be city or province name
+                query = query.or(`city.ilike.%${normalized}%,province.ilike.%${normalized}%`)
+              }
+              // Also try Saint/St variations for city
+              if (normalized.startsWith("saint ")) {
+                query = query.or(`city.ilike.%${normalized.replace(/^saint /, "st ")}%,city.ilike.%${normalized.replace(/^saint /, "st. ")}%`)
+              } else if (normalized.startsWith("st. ") || normalized.startsWith("st ")) {
+                query = query.or(`city.ilike.%${normalized.replace(/^st\.? /, "saint ")}%`)
+              }
+            }
+          }
+        }
+
+        // CRITICAL: Apply search query filter AFTER location to ensure AND logic
+        // This ensures: (location matches) AND (title OR description contains search term)
         if (searchQuery) {
-          query = query.ilike('title', `%${searchQuery}%`)
+          const cleanQuery = searchQuery.trim().toLowerCase().replace(/[%_]/g, "")
+          if (cleanQuery) {
+            const tokenFilters = [`title.ilike.%${cleanQuery}%`, `description.ilike.%${cleanQuery}%`]
+            query = query.or(tokenFilters.join(","))
+          }
         }
 
         // Apply category filter
@@ -180,20 +290,106 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters, 
           }
         }
 
-        // Apply location filter
+        // Apply location filter - FIXED: properly handles province abbreviations
         if (locationFilter) {
-          const locationQuery = locationFilter.toLowerCase()
-          
-          if (locationQuery.includes(",")) {
-            const [cityPart, provincePart] = locationQuery.split(",").map(s => s.trim())
-            
-            if (cityPart && provincePart) {
-              query = query.ilike("city", `%${cityPart}%`).ilike("province", `%${provincePart}%`)
-            } else if (cityPart) {
-              query = query.ilike("city", `%${cityPart}%`)
+          const locationQuery = locationFilter.trim()
+          if (locationQuery) {
+            // Province abbreviation to full name mapping
+            const provinceMap: Record<string, string> = {
+              'ab': 'alberta',
+              'bc': 'british columbia',
+              'mb': 'manitoba',
+              'nb': 'new brunswick',
+              'nl': 'newfoundland and labrador',
+              'nt': 'northwest territories',
+              'ns': 'nova scotia',
+              'nu': 'nunavut',
+              'on': 'ontario',
+              'pe': 'prince edward island',
+              'qc': 'quebec',
+              'sk': 'saskatchewan',
+              'yt': 'yukon',
             }
-          } else {
-            query = query.or(`city.ilike.%${locationQuery}%,province.ilike.%${locationQuery}%`)
+            
+            // Normalize: remove accents, lowercase
+            const normalized = locationQuery.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            
+            if (normalized.includes(",")) {
+              // Format: "City, Province"
+              let [cityPart, provincePart] = normalized.split(",").map(s => s.trim())
+              
+              // Convert province abbreviation to full name if needed
+              if (provincePart && provincePart.length <= 2) {
+                const fullName = provinceMap[provincePart]
+                if (fullName) {
+                  provincePart = fullName
+                }
+              }
+              
+              if (cityPart && provincePart) {
+                // Build city variants for Saint/St handling
+                const cityVariants = [cityPart]
+                if (cityPart.startsWith("saint ")) {
+                  cityVariants.push(cityPart.replace(/^saint /, "st "))
+                  cityVariants.push(cityPart.replace(/^saint /, "st. "))
+                } else if (cityPart.startsWith("st. ")) {
+                  cityVariants.push(cityPart.replace(/^st\. /, "saint "))
+                  cityVariants.push(cityPart.replace(/^st\. /, "st "))
+                } else if (cityPart.startsWith("st ")) {
+                  cityVariants.push(cityPart.replace(/^st /, "saint "))
+                  cityVariants.push(cityPart.replace(/^st /, "st. "))
+                }
+                
+                // Build province variants
+                const provinceVariants = provincePart.length <= 2 && provinceMap[provincePart]
+                  ? [provinceMap[provincePart], provincePart]
+                  : [provincePart]
+                
+                // ABSOLUTE FIX: Apply city and province filters separately - Supabase ANDs chained filters
+                // This ensures: (search) AND (city matches ANY variant) AND (province matches ANY variant)
+                // Use .or() for variants within the same field - each .or() creates a separate OR group
+                // Multiple OR groups are ANDed together by Supabase
+                if (cityVariants.length === 1) {
+                  query = query.ilike("city", `%${cityVariants[0]}%`)
+                } else {
+                  const cityConditions = cityVariants.map(v => `city.ilike.%${v}%`).join(",")
+                  query = query.or(cityConditions)
+                }
+                
+                if (provinceVariants.length === 1) {
+                  query = query.ilike("province", `%${provinceVariants[0]}%`)
+                } else {
+                  const provinceConditions = provinceVariants.map(v => `province.ilike.%${v}%`).join(",")
+                  query = query.or(provinceConditions)
+                }
+              } else if (cityPart) {
+                // Only city provided
+                query = query.ilike("city", `%${cityPart}%`)
+                // Also try Saint/St variations
+                if (cityPart.startsWith("saint ")) {
+                  query = query.or(`city.ilike.%${cityPart.replace(/^saint /, "st ")}%,city.ilike.%${cityPart.replace(/^saint /, "st. ")}%`)
+                } else if (cityPart.startsWith("st. ") || cityPart.startsWith("st ")) {
+                  query = query.or(`city.ilike.%${cityPart.replace(/^st\.? /, "saint ")}%`)
+                }
+              }
+            } else {
+              // Single term - match city OR province
+              // Check if it's a province abbreviation
+              const fullProvinceName = provinceMap[normalized]
+              if (fullProvinceName) {
+                // It's a province abbreviation
+                query = query.or(`province.ilike.%${fullProvinceName}%,province.ilike.%${normalized}%`)
+              } else {
+                // Could be city or province name
+                query = query.or(`city.ilike.%${normalized}%,province.ilike.%${normalized}%`)
+              }
+              // Also try Saint/St variations for city
+              if (normalized.startsWith("saint ")) {
+                query = query.or(`city.ilike.%${normalized.replace(/^saint /, "st ")}%,city.ilike.%${normalized.replace(/^saint /, "st. ")}%`)
+              } else if (normalized.startsWith("st. ") || normalized.startsWith("st ")) {
+                query = query.or(`city.ilike.%${normalized.replace(/^st\.? /, "saint ")}%`)
+              }
+            }
           }
         }
 
@@ -395,18 +591,96 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters, 
       if (filters?.minPrice) query = query.gte('price', parseInt(filters.minPrice))
       if (filters?.maxPrice) query = query.lte('price', parseInt(filters.maxPrice))
 
-      // Location filter
+      // Location filter - FIXED: properly handles province abbreviations
       if (locationFilter) {
-        const locationQuery = locationFilter.toLowerCase()
-        if (locationQuery.includes(",")) {
-          const [cityPart, provincePart] = locationQuery.split(",").map(s => s.trim())
-          if (cityPart && provincePart) {
-            query = query.ilike("city", `%${cityPart}%`).ilike("province", `%${provincePart}%`)
-          } else if (cityPart) {
-            query = query.ilike("city", `%${cityPart}%`)
+        const locationQuery = locationFilter.trim()
+        if (locationQuery) {
+          // Province abbreviation to full name mapping
+          const provinceMap: Record<string, string> = {
+            'ab': 'alberta',
+            'bc': 'british columbia',
+            'mb': 'manitoba',
+            'nb': 'new brunswick',
+            'nl': 'newfoundland and labrador',
+            'nt': 'northwest territories',
+            'ns': 'nova scotia',
+            'nu': 'nunavut',
+            'on': 'ontario',
+            'pe': 'prince edward island',
+            'qc': 'quebec',
+            'sk': 'saskatchewan',
+            'yt': 'yukon',
           }
-        } else {
-          query = query.or(`city.ilike.%${locationQuery}%,province.ilike.%${locationQuery}%`)
+          
+          // Normalize: remove accents, lowercase
+          const normalized = locationQuery.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+          
+          if (normalized.includes(",")) {
+            // Format: "City, Province"
+            let [cityPart, provincePart] = normalized.split(",").map(s => s.trim())
+            
+            // Convert province abbreviation to full name if needed
+            if (provincePart && provincePart.length <= 2) {
+              const fullName = provinceMap[provincePart]
+              if (fullName) {
+                provincePart = fullName
+              }
+            }
+            
+            if (cityPart && provincePart) {
+              // Build city variants for Saint/St handling
+              const cityVariants = [cityPart]
+              if (cityPart.startsWith("saint ")) {
+                cityVariants.push(cityPart.replace(/^saint /, "st "))
+                cityVariants.push(cityPart.replace(/^saint /, "st. "))
+              } else if (cityPart.startsWith("st. ")) {
+                cityVariants.push(cityPart.replace(/^st\. /, "saint "))
+                cityVariants.push(cityPart.replace(/^st\. /, "st "))
+              } else if (cityPart.startsWith("st ")) {
+                cityVariants.push(cityPart.replace(/^st /, "saint "))
+                cityVariants.push(cityPart.replace(/^st /, "st. "))
+              }
+              
+              // ABSOLUTE FIX: In Supabase, multiple .or() calls create separate OR groups that are ANDed together
+              // This ensures: (title matches) AND (city matches any variant) AND (province matches any variant)
+              // Combine all city variants in single OR call
+              const cityConditions = cityVariants.map(v => `city.ilike.%${v}%`).join(",")
+              query = query.or(cityConditions)
+              
+              // Combine all province variants in single OR call (ANDed with city OR group)
+              const provinceVariants = provincePart.length <= 2 && provinceMap[provincePart]
+                ? [provinceMap[provincePart], provincePart]
+                : [provincePart]
+              const provinceConditions = provinceVariants.map(v => `province.ilike.%${v}%`).join(",")
+              query = query.or(provinceConditions)
+            } else if (cityPart) {
+              // Only city provided
+              query = query.ilike("city", `%${cityPart}%`)
+              // Also try Saint/St variations
+              if (cityPart.startsWith("saint ")) {
+                query = query.or(`city.ilike.%${cityPart.replace(/^saint /, "st ")}%,city.ilike.%${cityPart.replace(/^saint /, "st. ")}%`)
+              } else if (cityPart.startsWith("st. ") || cityPart.startsWith("st ")) {
+                query = query.or(`city.ilike.%${cityPart.replace(/^st\.? /, "saint ")}%`)
+              }
+            }
+          } else {
+            // Single term - match city OR province
+            // Check if it's a province abbreviation
+            const fullProvinceName = provinceMap[normalized]
+            if (fullProvinceName) {
+              // It's a province abbreviation
+              query = query.or(`province.ilike.%${fullProvinceName}%,province.ilike.%${normalized}%`)
+            } else {
+              // Could be city or province name
+              query = query.or(`city.ilike.%${normalized}%,province.ilike.%${normalized}%`)
+            }
+            // Also try Saint/St variations for city
+            if (normalized.startsWith("saint ")) {
+              query = query.or(`city.ilike.%${normalized.replace(/^saint /, "st ")}%,city.ilike.%${normalized.replace(/^saint /, "st. ")}%`)
+            } else if (normalized.startsWith("st. ") || normalized.startsWith("st ")) {
+              query = query.or(`city.ilike.%${normalized.replace(/^st\.? /, "saint ")}%`)
+            }
+          }
         }
       }
 
@@ -447,13 +721,6 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters, 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col lg:flex-row gap-4">
           <div className="flex-1">
-            <div className="mb-4 text-sm text-gray-600">
-              {language === "fr" 
-                ? `Trouvé ${products.length} ${products.length === 1 ? 'résultat' : 'résultats'}${searchQuery ? ` pour "${searchQuery}"` : ''}`
-                : `Found ${products.length} ${products.length === 1 ? 'result' : 'results'}${searchQuery ? ` for "${searchQuery}"` : ''}`
-              }
-            </div>
-            
             <ErrorBoundary>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-x-4 gap-y-6" key={language}>
                 {products.map((product) => (

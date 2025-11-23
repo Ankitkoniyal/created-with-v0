@@ -7,6 +7,7 @@ import { Metadata } from "next"
 import { getSupabaseClient } from "@/lib/supabase/server"
 import { getCategorySlug } from "@/lib/categories"
 import { formatLocation, formatLocationString } from "@/lib/location-utils"
+import { generateProductSchema, generateBreadcrumbSchema, generateVideoSchema } from "@/lib/seo/structured-data"
 
 interface ProductPageProps {
   params: {
@@ -86,6 +87,11 @@ async function getProduct(id: string) {
     }
 
     const product = products[0]
+
+    // Only show active products to public (owners can see their own pending ads via dashboard)
+    if (product.status !== "active") {
+      return null
+    }
 
     // Fetch actual profile data for the seller
     let profileData = null
@@ -263,57 +269,60 @@ async function getProduct(id: string) {
   }
 }
 
-// Generate structured data for rich snippets
+// Generate enhanced structured data for rich snippets and AI search
 function generateProductStructuredData(product: any) {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://yourdomain.com'
+  const productUrl = `${baseUrl}/product/${product.id}`
   
-  return {
-    "@context": "https://schema.org/",
-    "@type": "Product",
-    "name": product.title,
-    "description": product.description,
-    "image": product.images.map((img: string) => 
-      img.startsWith('http') ? img : `${baseUrl}${img}`
-    ),
-    "sku": product.adId,
-    "mpn": product.adId,
-    "brand": {
-      "@type": "Brand",
-      "name": product.brand || "Generic"
-    },
-    "offers": {
-      "@type": "Offer",
-      "url": `${baseUrl}/product/${product.id}`,
-      "priceCurrency": "CAD",
-      "price": product.price_number,
-      "priceValidUntil": new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      "availability": "https://schema.org/InStock",
-      "itemCondition": `https://schema.org/${mapConditionToSchemaOrg(product.condition)}`,
-      "seller": {
-        "@type": "Organization",
-        "name": "Your Marketplace"
-      }
-    },
-    "category": product.category,
-    "productID": product.id,
-    "datePosted": product.created_at,
-    "location": {
-      "@type": "Place",
-      "name": product.location
-    }
-  }
-}
-
-function mapConditionToSchemaOrg(condition: string): string {
+  // Map condition to schema.org format
   const conditionMap: { [key: string]: string } = {
     "new": "NewCondition",
     "like new": "ExcellentCondition", 
     "excellent": "ExcellentCondition",
     "good": "GoodCondition",
     "fair": "FairCondition",
+    "poor": "FairCondition",
     "salvage": "DamagedCondition"
   }
-  return conditionMap[condition.toLowerCase()] || "UsedCondition"
+  const schemaCondition = conditionMap[product.condition?.toLowerCase()] || "UsedCondition"
+  
+  // Parse location for better structured data
+  const locationParts = product.location?.split(', ') || []
+  const city = locationParts[0] || ''
+  const province = locationParts[1] || 'Canada'
+  
+  // Generate product schema with all enhancements
+  const productSchema = generateProductSchema({
+    name: product.title,
+    description: product.description,
+    image: product.images?.map((img: string) => 
+      img.startsWith('http') ? img : `${baseUrl}${img}`
+    ) || [`${baseUrl}/og-image.jpg`],
+    sku: product.adId,
+    brand: product.brand ? { name: product.brand } : undefined,
+    offers: {
+      price: product.price_number?.toString() || "0",
+      priceCurrency: "CAD",
+      availability: "https://schema.org/InStock",
+      itemCondition: `https://schema.org/${schemaCondition}`,
+      url: productUrl,
+    },
+    category: product.category,
+    condition: schemaCondition,
+    location: {
+      addressLocality: city,
+      addressRegion: province,
+      addressCountry: "CA",
+    },
+    aggregateRating: product.seller?.rating && product.seller?.totalReviews 
+      ? {
+          ratingValue: product.seller.rating.toString(),
+          reviewCount: product.seller.totalReviews.toString(),
+        }
+      : undefined,
+  })
+  
+  return productSchema
 }
 
 export default async function ProductPage({ params }: ProductPageProps) {
@@ -324,32 +333,33 @@ export default async function ProductPage({ params }: ProductPageProps) {
    notFound()
   }
 
-  // Generate structured data
+  // Generate enhanced structured data
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://yourdomain.com'
   const structuredData = generateProductStructuredData(product)
-  const breadcrumbStructuredData = {
-   "@context": "https://schema.org",
-   "@type": "BreadcrumbList",
-   "itemListElement": [
-     {
-       "@type": "ListItem",
-       "position": 1,
-       "name": "Home",
-       "item": process.env.NEXT_PUBLIC_SITE_URL || 'https://yourdomain.com'
-     },
-     {
-       "@type": "ListItem",
-       "position": 2,
-       "name": product.category,
-       "item": `${process.env.NEXT_PUBLIC_SITE_URL || 'https://yourdomain.com'}/search?category=${encodeURIComponent(product.category)}`
-     },
-     {
-       "@type": "ListItem", 
-       "position": 3,
-       "name": product.title,
-       "item": `${process.env.NEXT_PUBLIC_SITE_URL || 'https://yourdomain.com'}/product/${product.id}`
-     }
-   ]
- }
+  
+  // Enhanced breadcrumb schema
+  const breadcrumbStructuredData = generateBreadcrumbSchema([
+    { name: "Home", url: baseUrl },
+    { 
+      name: product.category || "Products", 
+      url: `${baseUrl}/search?category=${encodeURIComponent(product.category || "Other")}`
+    },
+    { 
+      name: product.title || "Product", 
+      url: `${baseUrl}/product/${product.id}`
+    },
+  ])
+  
+  // Video schema if YouTube URL exists
+  let videoSchema = null
+  if (product.youtube_url) {
+    videoSchema = generateVideoSchema(
+      product.youtube_url,
+      product.title,
+      product.description,
+      product.images?.[0]
+    )
+  }
 
  // SAFE BREADCRUMB ITEMS WITH DEFAULTS
  const breadcrumbItems = [
@@ -366,7 +376,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
  return (
    <div className="min-h-screen bg-background">
-     {/* Structured Data for SEO */}
+     {/* Enhanced Structured Data for SEO and AI Search */}
      <script
        type="application/ld+json"
        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
@@ -375,6 +385,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
        type="application/ld+json" 
        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbStructuredData) }}
      />
+     {videoSchema && (
+       <script
+         type="application/ld+json"
+         dangerouslySetInnerHTML={{ __html: JSON.stringify(videoSchema) }}
+       />
+     )}
      
      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
        <Breadcrumb items={breadcrumbItems} />

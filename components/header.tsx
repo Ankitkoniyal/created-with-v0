@@ -24,6 +24,8 @@ import {
   BarChart3,
   Plus,
   LayoutDashboard,
+  Sparkles,
+  ArrowRight,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { buttonVariants } from "@/components/ui/button"
@@ -82,8 +84,23 @@ export function Header() {
   const searchParams = useSearchParams()
   const isAuthRoute = !!pathname && pathname.startsWith("/auth")
   
-  // Get current location from URL if available
-  const currentLocation = searchParams.get("location") || ""
+  // Location persistence key
+  const LOCATION_STORAGE_KEY = "user_selected_location"
+  
+  // Get current location: Priority 1) URL param, 2) localStorage, 3) empty
+  const getInitialLocation = () => {
+    if (typeof window === "undefined") return ""
+    const urlLocation = searchParams.get("location") || ""
+    if (urlLocation) return urlLocation
+    try {
+      const stored = localStorage.getItem(LOCATION_STORAGE_KEY)
+      return stored || ""
+    } catch {
+      return ""
+    }
+  }
+  
+  const currentLocation = getInitialLocation()
   const currentQuery = searchParams.get("q") || ""
   
   const [searchQuery, setSearchQuery] = useState(currentQuery)
@@ -113,12 +130,46 @@ export function Header() {
   }, [])
 
 
-  // Update search and location when URL changes
+  // Initialize location from localStorage on mount
   useEffect(() => {
-    setSelectedLocation(currentLocation)
-    setLocationInput(currentLocation)
+    if (typeof window === "undefined") return
+    const storedLocation = localStorage.getItem(LOCATION_STORAGE_KEY) || ""
+    const urlLocation = searchParams.get("location") || ""
+    
+    // If URL has location, use it and update localStorage
+    if (urlLocation) {
+      setSelectedLocation(urlLocation)
+      setLocationInput(urlLocation)
+      try {
+        localStorage.setItem(LOCATION_STORAGE_KEY, urlLocation)
+      } catch {}
+    } 
+    // If no URL location but we have stored location, use it and update URL if on home/search
+    else if (storedLocation && (pathname === "/" || pathname === "/search")) {
+      setSelectedLocation(storedLocation)
+      setLocationInput(storedLocation)
+      // Update URL with stored location
+      const params = new URLSearchParams(searchParams.toString())
+      params.set("location", storedLocation)
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+    }
+    
     setSearchQuery(currentQuery)
-  }, [currentLocation, currentQuery])
+  }, []) // Only run on mount
+  
+  // Update location when URL changes (but don't override if user just selected)
+  useEffect(() => {
+    const urlLocation = searchParams.get("location") || ""
+    if (urlLocation && urlLocation !== selectedLocation) {
+      setSelectedLocation(urlLocation)
+      setLocationInput(urlLocation)
+      // Update localStorage
+      try {
+        localStorage.setItem(LOCATION_STORAGE_KEY, urlLocation)
+      } catch {}
+    }
+    setSearchQuery(currentQuery)
+  }, [searchParams])
 
   // Debounced location search
   const handleLocationInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -196,6 +247,13 @@ export function Header() {
     setShowLocationSuggestions(false)
     locationInputRef.current?.blur()
     
+    // Save to localStorage for persistence
+    try {
+      localStorage.setItem(LOCATION_STORAGE_KEY, location)
+    } catch (err) {
+      console.error("Failed to save location to localStorage:", err)
+    }
+    
     // Create search params
     const params = new URLSearchParams()
     
@@ -233,9 +291,13 @@ export function Header() {
     setTimeout(() => {
       setShowLocationSuggestions(false)
       // Restore current location if input is empty
-      if (!locationInput.trim() && currentLocation) {
-        setLocationInput(currentLocation)
-        setSelectedLocation(currentLocation)
+      const storedLocation = typeof window !== "undefined" 
+        ? localStorage.getItem(LOCATION_STORAGE_KEY) || ""
+        : ""
+      const locationToRestore = selectedLocation || storedLocation
+      if (!locationInput.trim() && locationToRestore) {
+        setLocationInput(locationToRestore)
+        setSelectedLocation(locationToRestore)
       }
     }, 200)
   }
@@ -295,10 +357,22 @@ export function Header() {
     }
   }
 
-  // Clear location
+  // Clear location - also remove from localStorage
   const clearLocation = () => {
     setLocationInput("")
     setSelectedLocation("")
+    try {
+      localStorage.removeItem(LOCATION_STORAGE_KEY)
+    } catch (err) {
+      console.error("Failed to remove location from localStorage:", err)
+    }
+    
+    // Update URL to remove location param
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete("location")
+    const newUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname
+    router.push(newUrl, { scroll: false })
+    
     if (locationInputRef.current) {
       locationInputRef.current.focus()
     }
@@ -409,7 +483,7 @@ export function Header() {
                     onFocus={handleLocationFocus}
                     onBlur={handleLocationBlur}
                   />
-                  {locationInput && (
+                  {hasHydrated && locationInput && (
                     <button
                       type="button"
                       onClick={clearLocation}
@@ -621,12 +695,11 @@ export function Header() {
                 </DropdownMenu>
                 <Button
                   size="sm"
-                  className="bg-green-900 hover:bg-green-950 text-white font-bold px-5 py-2.5 rounded-full flex items-center gap-2"
+                  className="bg-green-900 hover:bg-green-950 text-white font-bold px-6 py-3 rounded-xl shadow-2xl shadow-green-900/40 hover:shadow-green-900/60 border-2 border-green-800 hover:border-green-700"
                   onClick={() => {
                     router.push("/sell")
                   }}
                 >
-                  <Plus className="h-5 w-5" />
                   <span>{t("header.sell")}</span>
                 </Button>
               </>
@@ -644,12 +717,11 @@ export function Header() {
                 {showAuthButtons && (
                   <Button
                     size="sm"
-                    className="bg-green-900 hover:bg-green-950 text-white font-bold px-5 py-2.5 rounded-full flex items-center gap-2"
+                    className="bg-green-900 hover:bg-green-950 text-white font-bold px-6 py-3 rounded-xl shadow-2xl shadow-green-900/40 hover:shadow-green-900/60 border-2 border-green-800 hover:border-green-700"
                     onClick={() => {
                       router.push("/auth/login?redirectedFrom=" + encodeURIComponent("/sell"))
                     }}
                   >
-                    <Plus className="h-5 w-5" />
                     <span>{t("header.sell")}</span>
                   </Button>
                 )}

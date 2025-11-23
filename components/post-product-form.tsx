@@ -10,7 +10,8 @@ import { useAuth } from "@/hooks/use-auth"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useSearchParams } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
-import { X, MapPin, Tag, AlertCircle, Camera, Car, CarFront, Truck, Bus } from "lucide-react"
+import { X, MapPin, Tag, AlertCircle, Camera, Car, CarFront, Truck, Bus, CheckCircle2, Loader2 } from "lucide-react"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
 import {
   CATEGORIES,
   SUBCATEGORY_MAPPINGS,
@@ -236,6 +237,15 @@ export function PostProductForm() {
   const [isLoadingEditData, setIsLoadingEditData] = useState(false)
   const [isUploadingImages, setIsUploadingImages] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  
+  // Publishing progress state
+  const [publishProgress, setPublishProgress] = useState({
+    stage: "" as "compressing" | "uploading" | "saving" | "finalizing" | "",
+    message: "",
+    progress: 0,
+    currentStep: 0,
+    totalSteps: 0,
+  })
 
   const submissionLock = useRef(false)
 
@@ -484,16 +494,23 @@ export function PostProductForm() {
     }
   }
 
-  // Clean up object URLs when component unmounts
+  // Clean up object URLs only on component unmount
+  // Individual blob URLs are cleaned up in removeImage function
   useEffect(() => {
     return () => {
+      // Clean up all blob URLs only when component unmounts
       formData.imagePreviews.forEach(url => {
-        if (url.startsWith('blob:')) {
-          URL.revokeObjectURL(url)
+        if (url && url.startsWith('blob:')) {
+          try {
+            URL.revokeObjectURL(url)
+          } catch (error) {
+            // Silently ignore errors from already-revoked URLs
+          }
         }
       })
     }
-  }, [formData.imagePreviews])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Only run cleanup on unmount
 
   const addFeature = () => {
     if (newFeature.trim() && !formData.features.includes(newFeature.trim())) {
@@ -605,9 +622,10 @@ export function PostProductForm() {
         return
       }
       
-      if (priceValue > 100000) {
+      // Database supports DECIMAL(10,2) = max 99,999,999.99
+      if (priceValue > 99999999.99) {
         console.log("❌ Price validation failed - too high")
-        toast.error("Price cannot exceed $100,000")
+        toast.error("Price cannot exceed $99,999,999.99")
         return
       }
     }
@@ -643,6 +661,15 @@ export function PostProductForm() {
     submissionLock.current = true
     setIsSubmitting(true)
     setSubmitError(null)
+    
+    // Initialize progress
+    setPublishProgress({
+      stage: "compressing",
+      message: "Preparing images...",
+      progress: 0,
+      currentStep: 0,
+      totalSteps: formData.images.length > 0 ? 4 : 3, // compressing, uploading, saving, finalizing (or 3 if no images)
+    })
 
     try {
       const supabase = createClient()
@@ -654,15 +681,38 @@ export function PostProductForm() {
       if (formData.images.length > 0) {
         console.log(`📤 Uploading ${formData.images.length} images in parallel to Supabase Storage...`)
 
+        // Update progress: Compressing images
+        setPublishProgress({
+          stage: "compressing",
+          message: `Compressing ${formData.images.length} image${formData.images.length > 1 ? 's' : ''}...`,
+          progress: 10,
+          currentStep: 1,
+          totalSteps: 4,
+        })
+
         // Compress images in parallel before upload to reduce upload time
         const filesToUpload = await Promise.all(
-          formData.images.map(async (file) => {
+          formData.images.map(async (file, index) => {
             // Skip compression for small files (< 300KB)
             if (file.size < 300 * 1024) return file
             const compressed = await compressImage(file)
+            // Update progress during compression
+            setPublishProgress(prev => ({
+              ...prev,
+              progress: 10 + (index + 1) / formData.images.length * 20,
+            }))
             return compressed || file
           })
         )
+
+        // Update progress: Starting upload
+        setPublishProgress({
+          stage: "uploading",
+          message: `Uploading ${filesToUpload.length} image${filesToUpload.length > 1 ? 's' : ''}...`,
+          progress: 30,
+          currentStep: 2,
+          totalSteps: 4,
+        })
 
         const uploadPromises = filesToUpload.map(async (file, i) => {
           const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_")
@@ -670,6 +720,13 @@ export function PostProductForm() {
 
           try {
             console.log(`📤 Uploading image ${i + 1}: ${fileName}`)
+
+            // Update progress for each image upload
+            setPublishProgress(prev => ({
+              ...prev,
+              message: `Uploading image ${i + 1} of ${filesToUpload.length}...`,
+              progress: 30 + ((i + 1) / filesToUpload.length) * 40,
+            }))
 
             const { data, error } = await supabase.storage
               .from("product-images")
@@ -748,6 +805,48 @@ export function PostProductForm() {
 
       console.log("💾 Preparing product data for database...")
       
+      // Update progress: Saving to database
+      setPublishProgress({
+        stage: "saving",
+        message: "Saving your ad...",
+        progress: formData.images.length > 0 ? 70 : 50,
+        currentStep: formData.images.length > 0 ? 3 : 2,
+        totalSteps: formData.images.length > 0 ? 4 : 3,
+      })
+      
+      // Check auto-approve setting
+      let productStatus = "pending"
+      let shouldScheduleAutoApprove = false
+      
+      if (!isEditMode) {
+        try {
+          const { data: platformSettings } = await supabase
+            .from("platform_settings")
+            .select("auto_approve_ads, auto_approve_delay_minutes")
+            .eq("id", "global")
+            .single()
+          
+          if (platformSettings?.auto_approve_ads) {
+            const delayMinutes = platformSettings.auto_approve_delay_minutes ?? 0
+            if (delayMinutes === 0) {
+              // Immediate auto-approval
+              productStatus = "active"
+              console.log("✅ Auto-approve enabled: Setting status to 'active' immediately")
+            } else {
+              // Delayed auto-approval - keep as pending and schedule
+              productStatus = "pending"
+              shouldScheduleAutoApprove = true
+              console.log(`⏰ Auto-approve enabled with ${delayMinutes} minute delay: Will approve later`)
+            }
+          } else {
+            console.log("⏳ Auto-approve disabled: Status set to 'pending' for manual review")
+          }
+        } catch (settingsError) {
+          console.warn("Failed to check auto-approve setting, defaulting to pending:", settingsError)
+          // Default to pending if we can't check settings
+        }
+      }
+      
       // PROPER PRODUCT DATA STRUCTURE MATCHING DATABASE
       const productData = {
         user_id: user.id,
@@ -762,6 +861,7 @@ export function PostProductForm() {
         category_id: categoryId,
         category: categoryName,
         category_slug: categorySlug,
+        status: isEditMode ? undefined : productStatus, // Use determined status
         // Add optional fields only if they have values
         ...(formData.brand && { brand: formData.brand.trim() }),
         ...(formData.model && { model: formData.model.trim() }),
@@ -773,16 +873,43 @@ export function PostProductForm() {
         ...(formData.websiteUrl && { website_url: formData.websiteUrl.trim() }),
         ...(formData.tags.length > 0 && { tags: formData.tags }),
         ...(formData.features.length > 0 && { features: formData.features }),
-        // Vehicle-specific fields (only for Vehicles category)
-        ...(categorySlug === "vehicles" && {
-          ...(formData.year && { year: parseInt(formData.year) || null }),
-          ...(formData.kilometerDriven && { kilometer_driven: parseInt(formData.kilometerDriven) || null }),
-          ...(formData.fuelType && { fuel_type: formData.fuelType }),
-          ...(formData.transmission && { transmission: formData.transmission }),
-          ...(formData.carType && { car_type: formData.carType }),
-          ...(formData.seatingCapacity && { seating_capacity: parseInt(formData.seatingCapacity) || null }),
-          ...(formData.postedBy && { posted_by: formData.postedBy }),
-        }),
+        // Vehicle-specific fields (only for Vehicles category, excluding auto-parts and bicycles)
+        ...(categorySlug === "vehicles" && (() => {
+          const normalizeSubcategory = (subcat: string): string => {
+            return (subcat || "").toLowerCase().trim().replace(/[_-]/g, "-")
+          }
+          
+          const subcategory = normalizeSubcategory(subcategorySlug || formData.subcategory)
+          
+          // Don't save vehicle fields for auto-parts and bicycles
+          const hideAllFields = [
+            "auto-parts", "auto parts", "autoparts",
+            "bicycles", "bicycle"
+          ]
+          
+          if (hideAllFields.some(h => subcategory.includes(h))) {
+            return {}
+          }
+          
+          // Fields to hide for motorcycles and scooters
+          const hideCarTypeAndSeating = [
+            "motorcycles", "motorcycle",
+            "scooters", "scooter"
+          ]
+          
+          const shouldHideCarTypeAndSeating = hideCarTypeAndSeating.some(h => subcategory.includes(h))
+          
+          return {
+            ...(formData.year && { year: parseInt(formData.year) || null }),
+            ...(formData.kilometerDriven && { kilometer_driven: parseInt(formData.kilometerDriven) || null }),
+            ...(formData.fuelType && { fuel_type: formData.fuelType }),
+            ...(formData.transmission && { transmission: formData.transmission }),
+            // Only include car_type and seating_capacity if not motorcycle/scooter
+            ...(!shouldHideCarTypeAndSeating && formData.carType && { car_type: formData.carType }),
+            ...(!shouldHideCarTypeAndSeating && formData.seatingCapacity && { seating_capacity: parseInt(formData.seatingCapacity) || null }),
+            ...(formData.postedBy && { posted_by: formData.postedBy }),
+          }
+        })()),
       }
 
       console.log("💾 Saving product to database...", {
@@ -790,7 +917,9 @@ export function PostProductForm() {
         category_id: productData.category_id,
         price: productData.price,
         images_count: productData.images.length,
-        location: productData.location
+        location: productData.location,
+        status: productData.status, // Log status to verify it's set
+        isEditMode
       })
       
       // FIXED DATABASE OPERATION - Use .select() to ensure data is returned
@@ -808,10 +937,48 @@ export function PostProductForm() {
           .select() // This ensures data is returned
       } else {
         console.log("➕ Creating new product...")
+        const insertData = {
+          ...productData,
+          status: productStatus // Use the determined status (active or pending)
+        }
+        console.log("📝 Insert data status:", insertData.status)
         result = await supabase
           .from("products")
-          .insert([productData])
+          .insert([insertData])
           .select() // This ensures data is returned
+        
+        // Schedule delayed auto-approval if needed
+        if (shouldScheduleAutoApprove && result.data && result.data[0]) {
+          try {
+            const { data: platformSettings } = await supabase
+              .from("platform_settings")
+              .select("auto_approve_delay_minutes")
+              .eq("id", "global")
+              .single()
+            
+            const delayMinutes = platformSettings?.auto_approve_delay_minutes ?? 0
+            if (delayMinutes > 0) {
+              // Schedule auto-approval via API
+              const scheduleResponse = await fetch("/api/admin/products/auto-approve", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  productId: result.data[0].id,
+                  delayMinutes: delayMinutes,
+                }),
+              })
+              
+              if (scheduleResponse.ok) {
+                console.log(`✅ Scheduled auto-approval for product ${result.data[0].id} in ${delayMinutes} minutes`)
+              } else {
+                console.warn("Failed to schedule auto-approval, but product was created")
+              }
+            }
+          } catch (scheduleError) {
+            console.warn("Error scheduling auto-approval:", scheduleError)
+            // Don't fail the product creation if scheduling fails
+          }
+        }
       }
       
       if (result.error) {
@@ -834,6 +1001,15 @@ export function PostProductForm() {
         }
       }
       
+      // Update progress: Finalizing
+      setPublishProgress({
+        stage: "finalizing",
+        message: "Finalizing...",
+        progress: 90,
+        currentStep: formData.images.length > 0 ? 4 : 3,
+        totalSteps: formData.images.length > 0 ? 4 : 3,
+      })
+
       if (!isEditMode && createdProduct?.id) {
         try {
           await fetch("/api/admin/notifications/new-ad", {
@@ -850,12 +1026,19 @@ export function PostProductForm() {
         }
       }
 
+      // Complete progress
+      setPublishProgress(prev => ({
+        ...prev,
+        progress: 100,
+        message: isEditMode ? "Ad updated successfully!" : "Ad published successfully!",
+      }))
+
       toast.success(isEditMode ? "✅ Ad updated successfully!" : "🎉 Ad published successfully!")
 
       // SUCCESS REDIRECT
       setTimeout(() => {
         router.push(isEditMode ? "/dashboard/listings" : "/sell/success")
-      }, 1000)
+      }, 1500)
 
     } catch (error: any) {
       console.error("❌ Submission error:", error)
@@ -875,6 +1058,16 @@ export function PostProductForm() {
     } finally {
       setIsSubmitting(false)
       submissionLock.current = false
+      // Reset progress after a delay to allow success animation
+      setTimeout(() => {
+        setPublishProgress({
+          stage: "",
+          message: "",
+          progress: 0,
+          currentStep: 0,
+          totalSteps: 0,
+        })
+      }, 2000)
       console.log("🔓 Submission lock released")
     }
   }
@@ -900,7 +1093,8 @@ export function PostProductForm() {
         if (formData.priceType === "amount" && formData.price) {
           const priceValue = parseFloat(formData.price)
           if (isNaN(priceValue) || priceValue < 0) errors.push("Price must be a valid positive number")
-          if (priceValue > 100000) errors.push("Price cannot exceed $100,000")
+          // Database supports DECIMAL(10,2) = max 99,999,999.99
+          if (priceValue > 99999999.99) errors.push("Price cannot exceed $99,999,999.99")
         }
         break
         
@@ -949,7 +1143,7 @@ export function PostProductForm() {
   // Enhanced validation for final submission
   const isStep1Valid = formData.title.trim().length >= 5 && formData.description.trim().length >= 10
   const isStep2Valid = formData.category && formData.condition && 
-    (formData.priceType !== "amount" || (formData.price && parseFloat(formData.price) >= 0 && parseFloat(formData.price) <= 100000))
+    (formData.priceType !== "amount" || (formData.price && parseFloat(formData.price) >= 0 && parseFloat(formData.price) <= 99999999.99))
   const isStep3Valid = true // Optional step
   const isStep4Valid = formData.location && formData.postalCode && isValidCanadianPostalCode(formData.postalCode)
 
@@ -1095,8 +1289,22 @@ export function PostProductForm() {
                             alt={`Product ${index + 1}`}
                             className="h-full w-full object-cover"
                             onError={(e) => {
-                              console.error(`Failed to load image: ${preview}`)
-                              e.currentTarget.src = "/placeholder.svg"
+                              // Silently handle blob URL errors (they can be revoked during re-renders)
+                              // Only log if it's not a blob URL or if placeholder also fails
+                              if (!preview?.startsWith('blob:')) {
+                                console.warn(`Failed to load image: ${preview}`)
+                              }
+                              // Prevent infinite loop by checking if already set to placeholder
+                              if (e.currentTarget.src !== window.location.origin + "/placeholder.svg") {
+                                e.currentTarget.src = "/placeholder.svg"
+                              }
+                            }}
+                            onLoad={(e) => {
+                              // Verify the image actually loaded successfully
+                              if (e.currentTarget.complete && e.currentTarget.naturalHeight === 0) {
+                                // Image failed to load but didn't trigger onError
+                                e.currentTarget.src = "/placeholder.svg"
+                              }
                             }}
                           />
                         </div>
@@ -1245,242 +1453,320 @@ export function PostProductForm() {
                 </div>
 
                 {/* Vehicle-Specific Fields - Only show when category is Vehicles, moved above price */}
-                {formData.category === "vehicles" && (
-                  <div className="space-y-4 pt-4 border-t border-border">
-                    {/* Removed section heading per request */}
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label htmlFor="model" className="text-foreground">Model</label>
-                        <input
-                          id="model"
-                          type="text"
-                          placeholder="e.g., Civic, Camry, F-150"
-                          value={formData.model}
-                          onChange={(e) => handleInputChange("model", e.target.value.toUpperCase())}
-                          className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground uppercase"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label htmlFor="year" className="text-foreground">Year</label>
-                        <input
-                          id="year"
-                          type="text"
-                          inputMode="numeric"
-                          placeholder="e.g., 2020"
-                          value={formData.year}
-                          onChange={(e) => {
-                            const value = e.target.value.replace(/[^0-9]/g, "")
-                            const currentYear = new Date().getFullYear()
-                            // Only validate when 4 digits typed
-                            if (value && value.length >= 4) {
-                              const year = parseInt(value)
-                              if (year < 1950 || year > currentYear + 1) {
-                                toast.error(`Year must be between 1950 and ${currentYear + 1}`)
-                                // allow typing but don't set invalid year
-                                return
-                              }
-                            }
-                            handleInputChange("year", value)
-                          }}
-                          className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label htmlFor="kilometerDriven" className="text-foreground">Kilometer Driven</label>
-                        <input
-                          id="kilometerDriven"
-                          type="number"
-                          placeholder="e.g., 50000"
-                          value={formData.kilometerDriven}
-                          onChange={(e) => {
-                            const value = e.target.value
-                            if (value) {
-                              const km = parseInt(value)
-                              if (km < 0 || km > 1000000) {
-                                toast.error("Kilometer driven must be between 0 and 1,000,000")
-                                return
-                              }
-                            }
-                            handleInputChange("kilometerDriven", value)
-                          }}
-                          className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
-                          min="0"
-                          max="1000000"
-                        />
-                      </div>
-
-                      {/* Hide fuel type for bicycle subcategory */}
-                      {!(["bicycles","bicycle"].includes((formData.subcategory || "").toLowerCase())) && (
-                      <div className="space-y-2">
-                        <label htmlFor="fuelType" className="text-foreground">Fuel Type</label>
-                        <select
-                          id="fuelType"
-                          value={formData.fuelType}
-                          onChange={(e) => handleInputChange("fuelType", e.target.value)}
-                          className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
-                        >
-                          <option value="">Select fuel type</option>
-                          <option value="gasoline">Gas</option>
-                          <option value="diesel">Diesel</option>
-                          <option value="electric">Electric</option>
-                          <option value="hybrid">Hybrid</option>
-                          <option value="plug-in-hybrid">Plug-in Hybrid</option>
-                          <option value="other">Other</option>
-                        </select>
-                      </div>
-                      )}
-                    </div>
-
-                    {/* Hide additional options for auto-parts entirely */}
-                    {!(["auto-parts","auto_parts","autoparts","auto parts"].includes((formData.subcategory || "").toLowerCase())) && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label htmlFor="transmission" className="text-foreground">Transmission</label>
-                        <select
-                          id="transmission"
-                          value={formData.transmission}
-                          onChange={(e) => handleInputChange("transmission", e.target.value)}
-                          className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
-                        >
-                          <option value="">Select transmission</option>
-                          <option value="automatic">Automatic</option>
-                          <option value="manual">Manual</option>
-                          <option value="cvt">CVT</option>
-                          <option value="amt">AMT</option>
-                        </select>
-                      </div>
-
-                      {/* Hide car type when subcategory is trucks */}
-                      {!(["trucks","truck"].includes((formData.subcategory || "").toLowerCase())) && (
+                {formData.category === "vehicles" && (() => {
+                  // Helper function to normalize subcategory for comparison
+                  const normalizeSubcategory = (subcat: string): string => {
+                    return (subcat || "").toLowerCase().trim().replace(/[_-]/g, "-")
+                  }
+                  
+                  const subcategory = normalizeSubcategory(formData.subcategory)
+                  
+                  // Subcategories that should hide ALL vehicle-specific fields
+                  const hideAllFields = [
+                    "auto-parts", "auto parts", "autoparts",
+                    "bicycles", "bicycle"
+                  ]
+                  
+                  // Subcategories that should hide car type and seating capacity (motorcycles, scooters)
+                  const hideCarTypeAndSeating = [
+                    "motorcycles", "motorcycle",
+                    "scooters", "scooter"
+                  ]
+                  
+                  // Subcategories that should hide car type only (trucks)
+                  const hideCarType = [
+                    "trucks", "truck"
+                  ]
+                  
+                  const shouldHideAll = hideAllFields.some(h => subcategory.includes(h))
+                  const shouldHideCarTypeAndSeating = hideCarTypeAndSeating.some(h => subcategory.includes(h))
+                  const shouldHideCarType = hideCarType.some(h => subcategory.includes(h))
+                  
+                  // Get placeholder text based on subcategory
+                  const getModelPlaceholder = () => {
+                    if (subcategory.includes("motorcycle")) return "e.g., CBR600RR, R1, Ninja"
+                    if (subcategory.includes("scooter")) return "e.g., Vespa, Honda Activa"
+                    return "e.g., Civic, Camry, F-150"
+                  }
+                  
+                  // Don't show vehicle fields at all for auto-parts and bicycles
+                  if (shouldHideAll) {
+                    return null
+                  }
+                  
+                  return (
+                    <div className="space-y-4 pt-4 border-t border-border">
+                      {/* Removed section heading per request */}
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <label className="text-foreground">Car Type</label>
-                          {/* Icon selector for car type */}
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                            {[
-                              { value: "sedan", label: "Sedan", Icon: Car },
-                              { value: "suv", label: "SUV", Icon: CarFront },
-                              { value: "hatchback", label: "Hatchback", Icon: Car },
-                              { value: "coupe", label: "Coupe", Icon: Car },
-                              { value: "convertible", label: "Convertible", Icon: Car },
-                              { value: "wagon", label: "Wagon", Icon: Car },
-                              { value: "truck", label: "Truck", Icon: Truck },
-                              { value: "van", label: "Van", Icon: Bus },
-                              { value: "pickup", label: "Pickup", Icon: Truck },
-                              { value: "other", label: "Other", Icon: Car },
-                            ].map((opt) => (
-                              <button
-                                key={opt.value}
-                                type="button"
-                                onClick={() => handleInputChange("carType", opt.value)}
-                                className={`flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm ${
-                                  formData.carType === opt.value
-                                    ? "border-green-700 bg-green-50 text-green-900"
-                                    : "border-border hover:bg-muted"
-                                }`}
-                                aria-pressed={formData.carType === opt.value}
-                              >
-                                <opt.Icon className="h-4 w-4" />
-                                {opt.label}
-                              </button>
-                            ))}
+                          <label htmlFor="model" className="text-foreground">Model</label>
+                          <input
+                            id="model"
+                            type="text"
+                            placeholder={getModelPlaceholder()}
+                            value={formData.model}
+                            onChange={(e) => handleInputChange("model", e.target.value.toUpperCase())}
+                            className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground uppercase"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label htmlFor="year" className="text-foreground">Year</label>
+                          <input
+                            id="year"
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="e.g., 2020"
+                            value={formData.year}
+                            onChange={(e) => {
+                              const value = e.target.value.replace(/[^0-9]/g, "")
+                              const currentYear = new Date().getFullYear()
+                              // Only validate when 4 digits typed
+                              if (value && value.length >= 4) {
+                                const year = parseInt(value)
+                                if (year < 1950 || year > currentYear + 1) {
+                                  toast.error(`Year must be between 1950 and ${currentYear + 1}`)
+                                  // allow typing but don't set invalid year
+                                  return
+                                }
+                              }
+                              handleInputChange("year", value)
+                            }}
+                            className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label htmlFor="kilometerDriven" className="text-foreground">Kilometer Driven</label>
+                          <input
+                            id="kilometerDriven"
+                            type="number"
+                            placeholder="e.g., 50000"
+                            value={formData.kilometerDriven}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              if (value) {
+                                const km = parseInt(value)
+                                if (km < 0 || km > 1000000) {
+                                  toast.error("Kilometer driven must be between 0 and 1,000,000")
+                                  return
+                                }
+                              }
+                              handleInputChange("kilometerDriven", value)
+                            }}
+                            className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                            min="0"
+                            max="1000000"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label htmlFor="fuelType" className="text-foreground">Fuel Type</label>
+                          <select
+                            id="fuelType"
+                            value={formData.fuelType}
+                            onChange={(e) => handleInputChange("fuelType", e.target.value)}
+                            className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                          >
+                            <option value="">Select fuel type</option>
+                            <option value="gasoline">Gas</option>
+                            <option value="diesel">Diesel</option>
+                            <option value="electric">Electric</option>
+                            <option value="hybrid">Hybrid</option>
+                            <option value="plug-in-hybrid">Plug-in Hybrid</option>
+                            <option value="other">Other</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Transmission field - separate for motorcycles/scooters, or with car type for cars */}
+                      {shouldHideCarTypeAndSeating ? (
+                        // For motorcycles and scooters: transmission and posted by in same row
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label htmlFor="transmission" className="text-foreground">Transmission</label>
+                            <select
+                              id="transmission"
+                              value={formData.transmission}
+                              onChange={(e) => handleInputChange("transmission", e.target.value)}
+                              className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                            >
+                              <option value="">Select transmission</option>
+                              <option value="automatic">Automatic</option>
+                              <option value="manual">Manual</option>
+                              <option value="cvt">CVT</option>
+                              <option value="amt">AMT</option>
+                            </select>
+                          </div>
+                          <div className="space-y-2">
+                            <label htmlFor="postedBy" className="text-foreground">Posted By</label>
+                            <select
+                              id="postedBy"
+                              value={formData.postedBy}
+                              onChange={(e) => handleInputChange("postedBy", e.target.value)}
+                              className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                            >
+                              <option value="">Select</option>
+                              <option value="owner">Owner</option>
+                              <option value="dealer">Dealer</option>
+                            </select>
+                          </div>
+                        </div>
+                      ) : (
+                        // For cars: transmission in one column, car type below in full width
+                        <>
+                          <div className="space-y-2">
+                            <label htmlFor="transmission" className="text-foreground">Transmission</label>
+                            <select
+                              id="transmission"
+                              value={formData.transmission}
+                              onChange={(e) => handleInputChange("transmission", e.target.value)}
+                              className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                            >
+                              <option value="">Select transmission</option>
+                              <option value="automatic">Automatic</option>
+                              <option value="manual">Manual</option>
+                              <option value="cvt">CVT</option>
+                              <option value="amt">AMT</option>
+                            </select>
+                          </div>
+
+                          {/* Hide car type for trucks */}
+                          {!shouldHideCarType && (
+                            <div className="space-y-2">
+                              <label className="text-foreground">Car Type</label>
+                              {/* Icon selector for car type - single row */}
+                              <div className="flex flex-wrap gap-2">
+                                {[
+                                  { value: "sedan", label: "Sedan", Icon: Car },
+                                  { value: "suv", label: "SUV", Icon: CarFront },
+                                  { value: "hatchback", label: "Hatchback", Icon: Car },
+                                  { value: "coupe", label: "Coupe", Icon: Car },
+                                  { value: "convertible", label: "Convertible", Icon: Car },
+                                  { value: "wagon", label: "Wagon", Icon: Car },
+                                  { value: "truck", label: "Truck", Icon: Truck },
+                                  { value: "van", label: "Van", Icon: Bus },
+                                  { value: "pickup", label: "Pickup", Icon: Truck },
+                                  { value: "other", label: "Other", Icon: Car },
+                                ].map((opt) => (
+                                  <button
+                                    key={opt.value}
+                                    type="button"
+                                    onClick={() => handleInputChange("carType", opt.value)}
+                                    className={`flex items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm whitespace-nowrap ${
+                                      formData.carType === opt.value
+                                        ? "border-green-700 bg-green-50 text-green-900"
+                                        : "border-border hover:bg-muted"
+                                    }`}
+                                    aria-pressed={formData.carType === opt.value}
+                                  >
+                                    <opt.Icon className="h-4 w-4 flex-shrink-0" />
+                                    <span>{opt.label}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {/* Hide seating capacity for motorcycles and scooters */}
+                      {!shouldHideCarTypeAndSeating && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label htmlFor="seatingCapacity" className="text-foreground">Seating Capacity</label>
+                            <select
+                              id="seatingCapacity"
+                              value={formData.seatingCapacity}
+                              onChange={(e) => handleInputChange("seatingCapacity", e.target.value)}
+                              className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                            >
+                              <option value="">Select seating capacity</option>
+                              <option value="2">2 Seater</option>
+                              <option value="4">4 Seater</option>
+                              <option value="5">5 Seater</option>
+                              <option value="6">6 Seater</option>
+                              <option value="7">7 Seater</option>
+                              <option value="8">8 Seater</option>
+                              <option value="9">9+ Seater</option>
+                            </select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <label htmlFor="postedBy" className="text-foreground">Posted By</label>
+                            <select
+                              id="postedBy"
+                              value={formData.postedBy}
+                              onChange={(e) => handleInputChange("postedBy", e.target.value)}
+                              className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                            >
+                              <option value="">Select</option>
+                              <option value="owner">Owner</option>
+                              <option value="dealer">Dealer</option>
+                            </select>
                           </div>
                         </div>
                       )}
                     </div>
-                    )}
+                  )
+                })()}
 
-                    {!(["auto-parts","auto_parts","autoparts","auto parts"].includes((formData.subcategory || "").toLowerCase())) && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label htmlFor="seatingCapacity" className="text-foreground">Seating Capacity</label>
-                        <select
-                          id="seatingCapacity"
-                          value={formData.seatingCapacity}
-                          onChange={(e) => handleInputChange("seatingCapacity", e.target.value)}
-                          className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
-                        >
-                          <option value="">Select seating capacity</option>
-                          <option value="2">2 Seater</option>
-                          <option value="4">4 Seater</option>
-                          <option value="5">5 Seater</option>
-                          <option value="6">6 Seater</option>
-                          <option value="7">7 Seater</option>
-                          <option value="8">8 Seater</option>
-                          <option value="9">9+ Seater</option>
-                        </select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <label htmlFor="postedBy" className="text-foreground">Posted By</label>
-                        <select
-                          id="postedBy"
-                          value={formData.postedBy}
-                          onChange={(e) => handleInputChange("postedBy", e.target.value)}
-                          className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
-                        >
-                          <option value="">Select</option>
-                          <option value="owner">Owner</option>
-                          <option value="dealer">Dealer</option>
-                        </select>
-                      </div>
+                {/* Price Type and Price side by side */}
+                <div className="mt-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label htmlFor="priceType" className="text-foreground">Price Type *</label>
+                      <select
+                        id="priceType"
+                        value={formData.priceType}
+                        onChange={(e) => handleInputChange("priceType", e.target.value as ProductFormData["priceType"])}
+                        className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                      >
+                        <option value="amount">Set Price</option>
+                        <option value="free">Free</option>
+                        <option value="contact">Contact for Price</option>
+                        <option value="swap">Swap/Exchange</option>
+                      </select>
                     </div>
+
+                    {formData.priceType === "amount" && (
+                      <div className="space-y-2">
+                        <label htmlFor="price" className="text-foreground">Price *</label>
+                        <input
+                          id="price"
+                          type="number"
+                          placeholder="0.00"
+                          value={formData.price}
+                          onChange={(e) => {
+                            const value = e.target.value
+                            if (value) {
+                              const numValue = parseFloat(value)
+                              // Database supports DECIMAL(10,2) = max 99,999,999.99
+                              if (numValue > 99999999.99) {
+                                toast.error("Price cannot exceed $99,999,999.99")
+                                return
+                              }
+                              if (numValue < 0) {
+                                toast.error("Price cannot be negative")
+                                return
+                              }
+                            }
+                            handleInputChange("price", value)
+                          }}
+                          className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
+                          min="0"
+                          max="99999999.99"
+                          step="0.01"
+                          required
+                        />
+                        {/* helper text removed per request */}
+                      </div>
                     )}
                   </div>
-                )}
-
-                {/* Price Type moved just above Price for all categories */}
-                <div className="space-y-2 mt-4">
-                  <label htmlFor="priceType" className="text-foreground">Price Type *</label>
-                  <select
-                    id="priceType"
-                    value={formData.priceType}
-                    onChange={(e) => handleInputChange("priceType", e.target.value as ProductFormData["priceType"])}
-                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
-                  >
-                    <option value="amount">Set Price</option>
-                    <option value="free">Free</option>
-                    <option value="contact">Contact for Price</option>
-                    <option value="swap">Swap/Exchange</option>
-                  </select>
                 </div>
-
-                {formData.priceType === "amount" && (
-                  <div className="space-y-2">
-                    <label htmlFor="price" className="text-foreground">Price *</label>
-                    <input
-                      id="price"
-                      type="number"
-                      placeholder="0.00"
-                      value={formData.price}
-                      onChange={(e) => {
-                        const value = e.target.value
-                        if (value) {
-                          const numValue = parseFloat(value)
-                          if (numValue > 100000) {
-                            toast.error("Price cannot exceed $100,000")
-                            return
-                          }
-                          if (numValue < 0) {
-                            toast.error("Price cannot be negative")
-                            return
-                          }
-                        }
-                        handleInputChange("price", value)
-                      }}
-                      className="w-full px-3 py-2 border-2 border-border rounded-md focus:border-primary focus:outline-none bg-background text-foreground"
-                      min="0"
-                      max="100000"
-                      step="0.01"
-                      required
-                    />
-                    {/* helper text removed per request */}
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -1717,6 +2003,114 @@ export function PostProductForm() {
           </div>
         </div>
       </div>
+
+      {/* Publishing Progress Modal */}
+      <Dialog open={isSubmitting} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md" showCloseButton={false}>
+          <div className="flex flex-col items-center justify-center p-8 space-y-6">
+            {/* Animated Icon */}
+            <div className="relative">
+              {publishProgress.progress === 100 ? (
+                <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center animate-scale-in">
+                  <CheckCircle2 className="w-12 h-12 text-green-600" />
+                </div>
+              ) : (
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center animate-spin">
+                  <Loader2 className="w-10 h-10 text-white" />
+                </div>
+              )}
+              {/* Progress Ring */}
+              {publishProgress.progress < 100 && (
+                <svg className="absolute inset-0 w-20 h-20 transform -rotate-90" viewBox="0 0 80 80">
+                  <circle
+                    cx="40"
+                    cy="40"
+                    r="36"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    fill="none"
+                    className="text-green-100"
+                  />
+                  <circle
+                    cx="40"
+                    cy="40"
+                    r="36"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    fill="none"
+                    strokeDasharray={`${2 * Math.PI * 36}`}
+                    strokeDashoffset={`${2 * Math.PI * 36 * (1 - publishProgress.progress / 100)}`}
+                    className="text-green-600 transition-all duration-300"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              )}
+            </div>
+
+            {/* Progress Text */}
+            <div className="text-center space-y-2">
+              <h3 className="text-xl font-semibold text-gray-900">
+                {publishProgress.progress === 100 
+                  ? (isEditMode ? "Ad Updated!" : "Ad Published!")
+                  : (isEditMode ? "Updating Ad..." : "Publishing Ad...")
+                }
+              </h3>
+              <p className="text-sm text-gray-600">
+                {publishProgress.message || "Please wait..."}
+              </p>
+            </div>
+
+            {/* Progress Bar */}
+            {publishProgress.progress < 100 && (
+              <div className="w-full space-y-2">
+                <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                  <div
+                    className="bg-gradient-to-r from-green-500 to-green-600 h-2.5 rounded-full transition-all duration-500 ease-out"
+                    style={{ width: `${publishProgress.progress}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>{Math.round(publishProgress.progress)}%</span>
+                  <span>
+                    {publishProgress.currentStep} / {publishProgress.totalSteps} steps
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Step Indicators */}
+            {publishProgress.progress < 100 && (
+              <div className="flex items-center justify-center space-x-2">
+                {Array.from({ length: publishProgress.totalSteps }).map((_, index) => {
+                  const stepNum = index + 1
+                  const isActive = stepNum === publishProgress.currentStep
+                  const isCompleted = stepNum < publishProgress.currentStep
+                  
+                  return (
+                    <div
+                      key={stepNum}
+                      className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                        isCompleted
+                          ? "bg-green-600 scale-125"
+                          : isActive
+                          ? "bg-green-500 scale-125 animate-pulse"
+                          : "bg-gray-300"
+                      }`}
+                    />
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Success Message */}
+            {publishProgress.progress === 100 && (
+              <p className="text-sm text-green-600 font-medium animate-fade-in">
+                Redirecting you now...
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </form>
   )
 }

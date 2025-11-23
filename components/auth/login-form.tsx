@@ -120,6 +120,7 @@ function LoginFormContent() {
   const rawRedirect = searchParams.get("redirectedFrom")
   const redirectedFrom = getSafeRedirect(rawRedirect)
   const message = searchParams.get("message")
+  const welcomeParam = searchParams.get("welcome")
   const errorParam = searchParams.get("error")
 
   useEffect(() => {
@@ -300,15 +301,21 @@ function LoginFormContent() {
       setSuccessOpen(true)
       setIsSubmitting(false)
 
+      // Check if this is a first-time login (new signup) by checking welcome parameter
+      const isNewSignup = welcomeParam === "true"
+      const redirectUrl = isNewSignup 
+        ? `${finalRedirectTarget}${finalRedirectTarget.includes('?') ? '&' : '?'}welcome=true`
+        : finalRedirectTarget
+
       // Add a small delay to see the success message and ensure all data is loaded
       console.log("🔄 WAITING 1 SECOND BEFORE REDIRECT...")
       setTimeout(() => {
-        console.log("🎯 FINAL REDIRECT TO:", finalRedirectTarget)
+        console.log("🎯 FINAL REDIRECT TO:", redirectUrl)
         try {
-          window.location.href = finalRedirectTarget
+          window.location.href = redirectUrl
         } catch (navError) {
           console.error("Redirect failed:", navError)
-          router.replace(finalRedirectTarget)
+          router.replace(redirectUrl)
         }
       }, 1000)
 

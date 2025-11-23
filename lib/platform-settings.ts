@@ -20,6 +20,7 @@ export interface PlatformSettings {
   max_images_per_ad: number
   max_ad_duration: number
   auto_approve_ads: boolean
+  auto_approve_delay_minutes?: number | null
   stripe_enabled: boolean
   paypal_enabled: boolean
   support_email: string | null

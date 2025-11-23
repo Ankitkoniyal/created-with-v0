@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent } from "@/components/ui/card"
-import { Heart, MapPin, Clock } from "lucide-react"
+import { Heart, MapPin, Clock, Bookmark, BookmarkCheck } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -16,6 +16,11 @@ import { useDebounce } from "@/hooks/use-debounce"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { getFiltersForCategory, getFilterFieldName } from "@/lib/category-filters"
 import { useLanguage } from "@/hooks/use-language"
+import { useAuth } from "@/hooks/use-auth"
+import { toast } from "sonner"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 // Helper to safely access window in SSR
 const getSearchParams = () => {
@@ -161,11 +166,15 @@ const isGoodMatch = (product: any, tokens: string[]) => {
 
 export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
   const { t, language } = useLanguage()
+  const { user } = useAuth()
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
   const [retryToken, setRetryToken] = useState(0)
+  const [showSaveDialog, setShowSaveDialog] = useState(false)
+  const [saveSearchName, setSaveSearchName] = useState("")
+  const [savingSearch, setSavingSearch] = useState(false)
   const supabase = useMemo(() => createClient(), [])
   const cacheRef = useRef<Map<string, { data: any[]; timestamp: number }>>(new Map())
   const CACHE_TTL = 1000 * 60 // 1 minute cache
@@ -271,65 +280,117 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
           .select(baseSelect)
           .eq("status", "active")
 
+        // CRITICAL: Apply location filter FIRST to ensure it's always ANDed with other filters
+        // Location filters MUST be applied before search query to ensure strict AND logic
+        if (parsedFilters.location) {
+          const locationFilter = parsedFilters.location.trim()
+          if (locationFilter) {
+            // Province abbreviation to full name mapping
+            const provinceMap: Record<string, string> = {
+              'mb': 'manitoba', 'ab': 'alberta', 'bc': 'british columbia', 
+              'on': 'ontario', 'qc': 'quebec', 'sk': 'saskatchewan',
+              'nb': 'new brunswick', 'ns': 'nova scotia', 'pe': 'prince edward island',
+              'nl': 'newfoundland and labrador', 'yt': 'yukon', 'nt': 'northwest territories',
+              'nu': 'nunavut'
+            }
+            
+            console.log("🔍 Location Filter Debug:", { locationFilter, parsedFilters: parsedFilters.location })
+            
+            if (locationFilter.includes(",")) {
+              // Format: "City, Province" - BOTH must match (strict AND logic)
+              const parts = locationFilter.split(",").map((s: string) => s.trim())
+              const city = parts[0]?.toLowerCase()
+              const province = parts[1]?.toLowerCase()
+              
+              console.log("🔍 Parsed Location:", { city, province, parts, originalLocation: locationFilter })
+              
+              // CRITICAL FIX: Use PostgREST filter syntax with explicit AND logic
+              // We need: (city matches) AND (province matches abbreviation OR full name)
+              // In Supabase, we chain .ilike() for AND, and use .or() for OR within a group
+              
+              // CRITICAL FIX: Apply city and province filters with explicit AND logic
+              // In Supabase PostgREST, chained filters are ANDed by default
+              // We MUST ensure both city AND province match
+              
+              // Apply city filter - always required
+              if (city) {
+                query = query.ilike("city", `%${city}%`)
+              }
+              
+              // Apply province filter - ANDed with city above
+              if (province) {
+                const provinceFullName = provinceMap[province]
+                
+                // Handle province abbreviation (MB -> Manitoba)
+                // Use .or() to match EITHER abbreviation OR full name
+                // This creates: (city matches) AND (province matches abbreviation OR full name)
+                if (provinceFullName && provinceFullName !== province) {
+                  // Match either "Manitoba" OR "MB" (case-insensitive via ilike)
+                  query = query.or(`province.ilike.%${provinceFullName}%,province.ilike.%${province}%`)
+                } else {
+                  // Direct province match (already full name like "Manitoba")
+                  query = query.ilike("province", `%${province}%`)
+                }
+              }
+              
+              console.log("✅ Location filters applied to query:", { 
+                city, 
+                province, 
+                provinceFullName: provinceMap[province],
+                hasCityFilter: !!city,
+                hasProvinceFilter: !!province
+              })
+              
+              console.log("✅ Location filters applied:", { city, province, provinceFullName: provinceMap[province] })
+            } else {
+              // Single term - search in both city OR province (not both required)
+              const term = locationFilter.toLowerCase()
+              query = query.or(`city.ilike.%${term}%,province.ilike.%${term}%`)
+            }
+          }
+        }
+
+        // CRITICAL: Apply search query filter - MUST be applied after location to ensure AND logic
+        // This ensures: (location matches) AND (title OR description OR category OR subcategory contains search term)
         if (sanitizedSearch) {
           const cleanQuery = sanitizeSearchTerm(sanitizedSearch)
           if (cleanQuery) {
-            const tokenFilters = [`title.ilike.%${cleanQuery}%`, `description.ilike.%${cleanQuery}%`]
+            // Search in title, description, category, and subcategory
+            // Tags are searched client-side in the fallback/fuzzy matching
+            const tokenFilters = [
+              `title.ilike.%${cleanQuery}%`,
+              `description.ilike.%${cleanQuery}%`,
+              `category.ilike.%${cleanQuery}%`,
+              `subcategory.ilike.%${cleanQuery}%`
+            ]
             query = query.or(tokenFilters.join(","))
+            
+            console.log("🔍 Search Query Applied:", {
+              searchTerm: cleanQuery,
+              searchingIn: ["title", "description", "category", "subcategory"]
+            })
           }
         }
 
         if (parsedFilters.category) {
           const resolvedCategory = resolveCategoryInput(parsedFilters.category)
           if (resolvedCategory) {
-            const candidates = Array.from(
-              new Set([
-                resolvedCategory.slug,
-                resolvedCategory.slug.toLowerCase(),
-                resolvedCategory.displayName,
-                resolvedCategory.displayName.toLowerCase(),
-              ]),
-            )
-            query = query.in("category", candidates)
+            // Use exact match for category
+            query = query.eq("category", resolvedCategory.displayName)
           } else {
-            const categoryTerm = sanitizeSearchTerm(parsedFilters.category)
-            if (categoryTerm) {
-              query = query.ilike("category", `%${categoryTerm}%`)
-            }
+            // Fallback to direct match
+            query = query.eq("category", parsedFilters.category)
           }
         }
 
         if (parsedFilters.subcategory && parsedFilters.subcategory.toLowerCase() !== "all") {
           const resolvedSubcategory = resolveSubcategoryInput(parsedFilters.subcategory)
           if (resolvedSubcategory) {
-            const candidates = Array.from(
-              new Set([
-                resolvedSubcategory.slug,
-                resolvedSubcategory.slug.toLowerCase(),
-                resolvedSubcategory.displayName,
-                resolvedSubcategory.displayName.toLowerCase(),
-              ]),
-            )
-            query = query.in("subcategory", candidates)
+            // Use exact match for subcategory
+            query = query.eq("subcategory", resolvedSubcategory.displayName)
           } else {
-            const subcategoryTerm = sanitizeSearchTerm(parsedFilters.subcategory)
-            if (subcategoryTerm) {
-              query = query.ilike("subcategory", `%${subcategoryTerm}%`)
-            }
-          }
-        }
-
-        if (parsedFilters.location) {
-          const locationTerm = sanitizeSearchTerm(parsedFilters.location)
-          if (locationTerm) {
-            const locationFilter = `%${locationTerm}%`
-            query = query.or(
-              [
-                `city.ilike.${locationFilter}`,
-                `province.ilike.${locationFilter}`,
-                `location.ilike.${locationFilter}`,
-              ].join(","),
-            )
+            // Fallback to direct match
+            query = query.eq("subcategory", parsedFilters.subcategory)
           }
         }
 
@@ -356,16 +417,17 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
         if (resolvedCategory) {
           const categoryFilterConfig = getFiltersForCategory(resolvedCategory.slug)
           if (categoryFilterConfig) {
+            const filtersAny = parsedFilters as any
             Object.entries(categoryFilterConfig.filters).forEach(([filterKey, filterConfig]) => {
               const fieldName = getFilterFieldName(filterKey)
-              const filterValue = parsedFilters[filterKey] || parsedFilters[fieldName]
+              const filterValue = filtersAny[filterKey] || filtersAny[fieldName]
               
               if (!filterValue) return
 
               if (filterConfig.type === "range") {
                 // Handle range filters (min/max)
-                const minValue = parsedFilters[`${filterKey}_min`] || parsedFilters[`${fieldName}_min`]
-                const maxValue = parsedFilters[`${filterKey}_max`] || parsedFilters[`${fieldName}_max`]
+                const minValue = filtersAny[`${filterKey}_min`] || filtersAny[`${fieldName}_min`]
+                const maxValue = filtersAny[`${filterKey}_max`] || filtersAny[`${fieldName}_max`]
                 
                 if (minValue) {
                   const min = parseInt(minValue)
@@ -411,7 +473,27 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
 
         query = query.limit(60)
 
+        console.log("🔍 Final Query Before Execution:", {
+          location: parsedFilters.location,
+          searchQuery: sanitizedSearch,
+          category: parsedFilters.category
+        })
+
         const { data, error } = await query
+
+        // DEBUG: Log results to see what's actually returned
+        if (data) {
+          const locations = [...new Set(data.map((p: any) => `${p.city || 'N/A'}, ${p.province || 'N/A'}`))]
+          console.log("📊 Query Results:", {
+            total: data.length,
+            locations: locations,
+            sampleLocations: locations.slice(0, 10)
+          })
+        }
+        
+        if (error) {
+          console.error("❌ Query Error:", error)
+        }
 
         if (isCancelled) return
 
@@ -423,7 +505,10 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
 
         let fetchedProducts = data || []
 
-        if (fetchedProducts.length === 0 && searchTokens.length > 0) {
+        // CRITICAL FIX: Fallback query MUST also respect location filter
+        // If no results found, only use fallback if location filter is NOT set
+        // If location filter IS set, don't show results from other locations
+        if (fetchedProducts.length === 0 && searchTokens.length > 0 && !parsedFilters.location) {
           const fallbackResponse = await supabase
             .from("products")
             .select(baseSelect)
@@ -442,6 +527,51 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
           if (!isCancelled && fallbackResponse.data) {
             const fuzzyMatches = fallbackResponse.data.filter((product) => isGoodMatch(product, searchTokens))
             fetchedProducts = fuzzyMatches.length > 0 ? fuzzyMatches.slice(0, 60) : fallbackResponse.data
+          }
+        }
+
+        // CRITICAL SAFETY NET: Filter out any products that don't match the location filter
+        // This ensures that even if the database query fails, we don't show wrong locations
+        if (parsedFilters.location && fetchedProducts.length > 0) {
+          const locationFilter = parsedFilters.location.trim().toLowerCase()
+          if (locationFilter.includes(",")) {
+            const parts = locationFilter.split(",").map((s: string) => s.trim())
+            const city = parts[0]
+            const province = parts[1]
+            const provinceMap: Record<string, string> = {
+              'mb': 'manitoba', 'ab': 'alberta', 'bc': 'british columbia', 
+              'on': 'ontario', 'qc': 'quebec', 'sk': 'saskatchewan',
+              'nb': 'new brunswick', 'ns': 'nova scotia', 'pe': 'prince edward island',
+              'nl': 'newfoundland and labrador', 'yt': 'yukon', 'nt': 'northwest territories',
+              'nu': 'nunavut'
+            }
+            const provinceFullName = province ? provinceMap[province] : null
+            
+            fetchedProducts = fetchedProducts.filter((product: any) => {
+              const productCity = (product.city || "").toLowerCase()
+              const productProvince = (product.province || "").toLowerCase()
+              
+              // Check city match
+              const cityMatches = city ? productCity.includes(city) : true
+              
+              // Check province match (handle both abbreviation and full name)
+              let provinceMatches = true
+              if (province) {
+                if (provinceFullName) {
+                  provinceMatches = productProvince.includes(provinceFullName) || productProvince.includes(province)
+                } else {
+                  provinceMatches = productProvince.includes(province)
+                }
+              }
+              
+              return cityMatches && provinceMatches
+            })
+            
+            console.log("🛡️ Client-side location filter applied:", {
+              originalCount: data?.length || 0,
+              filteredCount: fetchedProducts.length,
+              location: parsedFilters.location
+            })
           }
         }
 
@@ -548,14 +678,138 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
     )
   }
 
+  const handleSaveSearch = async () => {
+    if (!user) {
+      toast.error("Please log in to save searches")
+      router.push("/auth/login")
+      return
+    }
+
+    if (!saveSearchName.trim()) {
+      toast.error("Please enter a name for this search")
+      return
+    }
+
+    setSavingSearch(true)
+    try {
+      const searchData: any = {
+        name: saveSearchName.trim(),
+        email_alerts: true,
+      }
+
+      if (searchQuery) searchData.search_query = searchQuery
+      if (filters.category) searchData.category = filters.category
+      if (filters.subcategory) searchData.subcategory = filters.subcategory
+      if (filters.location) searchData.location = filters.location
+      if (filters.city) searchData.city = filters.city
+      if (filters.province) searchData.province = filters.province
+      if (filters.minPrice) searchData.min_price = parseFloat(filters.minPrice)
+      if (filters.maxPrice) searchData.max_price = parseFloat(filters.maxPrice)
+      if (filters.condition && filters.condition !== "all") searchData.condition = filters.condition
+
+      const response = await fetch("/api/saved-searches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(searchData),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        if (response.status === 409) {
+          toast.error("This search is already saved")
+        } else {
+          throw new Error(data.error || "Failed to save search")
+        }
+        return
+      }
+
+      toast.success("Search saved! You'll get alerts for new matching items.")
+      setShowSaveDialog(false)
+      setSaveSearchName("")
+    } catch (error: any) {
+      console.error("Error saving search:", error)
+      toast.error(error.message || "Failed to save search")
+    } finally {
+      setSavingSearch(false)
+    }
+  }
+
+  const getDefaultSearchName = () => {
+    const parts: string[] = []
+    if (searchQuery) parts.push(`"${searchQuery}"`)
+    if (filters.category) parts.push(`in ${normalizeCategory(filters.category)}`)
+    if (filters.location || filters.city) {
+      const loc = filters.city || filters.location
+      parts.push(`in ${loc}`)
+    }
+    return parts.join(" ") || "My Search"
+  }
+
   return (
     <ErrorBoundary>
       <div>
-        <div className="mb-4 text-sm text-muted-foreground">
-          <span className="font-medium">{products.length}</span> product{products.length !== 1 ? 's' : ''} found
-          {searchQuery && ` for "${searchQuery}"`}
-          {filters.location && ` in ${filters.location}`}
-          {filters.category && ` in ${normalizeCategory(filters.category)}`}
+        <div className="mb-4 flex items-center justify-between">
+          <div className="text-sm text-muted-foreground">
+            <span className="font-medium">{products.length}</span> product{products.length !== 1 ? 's' : ''} found
+            {searchQuery && ` for "${searchQuery}"`}
+            {filters.location && ` in ${filters.location}`}
+            {filters.category && ` in ${normalizeCategory(filters.category)}`}
+          </div>
+          
+          {user && (searchQuery || filters.category) && (
+            <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2"
+                  onClick={() => setSaveSearchName(getDefaultSearchName())}
+                >
+                  <Bookmark className="h-4 w-4" />
+                  Save Search
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Save This Search</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div>
+                    <Label htmlFor="search-name">Search Name</Label>
+                    <Input
+                      id="search-name"
+                      value={saveSearchName}
+                      onChange={(e) => setSaveSearchName(e.target.value)}
+                      placeholder="e.g., iPhone under $800"
+                      className="mt-2"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Give this search a name so you can find it later
+                    </p>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    <p className="font-medium mb-1">Search Criteria:</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      {searchQuery && <li>Query: "{searchQuery}"</li>}
+                      {filters.category && <li>Category: {normalizeCategory(filters.category)}</li>}
+                      {filters.location && <li>Location: {filters.location}</li>}
+                      {(filters.minPrice || filters.maxPrice) && (
+                        <li>Price: ${filters.minPrice || "0"} - ${filters.maxPrice || "Any"}</li>
+                      )}
+                    </ul>
+                  </div>
+                  <Button
+                    onClick={handleSaveSearch}
+                    disabled={savingSearch || !saveSearchName.trim()}
+                    className="w-full bg-green-600 hover:bg-green-700"
+                  >
+                    {savingSearch ? "Saving..." : "Save Search"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

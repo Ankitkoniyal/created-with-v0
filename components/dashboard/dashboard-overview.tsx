@@ -1,14 +1,16 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, MessageSquare, Eye, DollarSign, Calendar, Image as ImageIcon } from "lucide-react"
+import { Plus, MessageSquare, Eye, DollarSign, Calendar, Image as ImageIcon, CheckCircle2, X } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
+import { SuccessOverlay } from "@/components/ui/success-overlay"
 
 interface UserStats {
   activeAds: number
@@ -27,13 +29,28 @@ interface RecentListing {
 }
 
 export function DashboardOverview() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [stats, setStats] = useState<UserStats>({ activeAds: 0, unreadMessages: 0 })
   const [recentListings, setRecentListings] = useState<RecentListing[]>([])
   const [loading, setLoading] = useState(true)
+  const [showWelcome, setShowWelcome] = useState(false)
   const [accountStatus, setAccountStatus] = useState<string>(
     (user?.user_metadata?.account_status as string) || "active",
   )
+
+  // Check for welcome parameter from Google signup
+  useEffect(() => {
+    const welcome = searchParams.get("welcome")
+    if (welcome === "true") {
+      setShowWelcome(true)
+      // Remove the parameter from URL without reload
+      const newUrl = new URL(window.location.href)
+      newUrl.searchParams.delete("welcome")
+      router.replace(newUrl.pathname + newUrl.search, { scroll: false })
+    }
+  }, [searchParams, router])
 
   const fetchDashboardData = async () => {
     if (!user) {
@@ -328,6 +345,14 @@ export function DashboardOverview() {
           </div>
         </div>
       </div>
+
+      <SuccessOverlay
+        open={showWelcome}
+        title="Welcome to MarketPlace!"
+        message={`Welcome${profile?.name ? `, ${profile.name}` : ''}! Your account has been created successfully. Start by posting your first ad or exploring the marketplace.`}
+        onClose={() => setShowWelcome(false)}
+        actionLabel="Get Started"
+      />
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr"
+import { createClient } from "@supabase/supabase-js"
 import { cookies } from "next/headers"
 import { type NextRequest, NextResponse } from "next/server"
 
@@ -66,12 +67,65 @@ export async function GET(request: NextRequest) {
             (user.user_metadata?.full_name as string | undefined) ||
             (user.user_metadata?.name as string | undefined) ||
             null
-          const phone = (user.user_metadata?.phone as string | undefined) || null
+          // For OAuth, phone should be NULL unless explicitly provided (Google doesn't provide phone)
+          // Also filter out test/dummy phone numbers
+          const rawPhone = (user.user_metadata?.phone as string | undefined) || null
+          const phone = rawPhone && !['1234567890', '123456789', '0000000000', '1111111111'].includes(rawPhone)
+            ? rawPhone
+            : null
           // Google OAuth provides 'picture', other providers may use 'avatar_url'
           const avatarUrl =
             (user.user_metadata?.avatar_url as string | undefined) ||
             (user.user_metadata?.picture as string | undefined) ||
             null
+          
+          // Determine registration method from user identities
+          // Use Supabase Admin API to get user identities (most reliable for OAuth)
+          const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+          const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+          
+          let registrationMethod = 'email'
+          if (supabaseUrl && serviceKey) {
+            try {
+              const adminClient = createClient(supabaseUrl, serviceKey, {
+                auth: { autoRefreshToken: false, persistSession: false },
+              })
+              
+              // Get user identities using Admin API
+              const { data: userData, error: identityError } = await adminClient.auth.admin.getUserById(user.id)
+              
+              if (!identityError && userData?.user?.identities) {
+                // Find OAuth provider (not email)
+                const oauthIdentity = userData.user.identities.find((id: any) => id.provider !== 'email')
+                if (oauthIdentity) {
+                  const provider = oauthIdentity.provider
+                  registrationMethod = provider === 'google' ? 'google' 
+                    : provider === 'facebook' ? 'facebook'
+                    : provider === 'apple' ? 'apple'
+                    : provider === 'github' ? 'github'
+                    : 'unknown'
+                }
+              }
+            } catch (err) {
+              console.warn("[v0] Failed to get user identities, defaulting to email:", err)
+              // Default to 'email' if check fails
+            }
+          }
+          
+          // Check if profile already exists to determine if this is a new signup
+          // Also check if user was just created (within last 5 minutes) to catch email confirmations
+          const { data: existingProfileById } = await supabase
+            .from("profiles")
+            .select("id, created_at")
+            .eq("id", user.id)
+            .maybeSingle()
+
+          // Check if user was created recently (within last 5 minutes) - indicates new signup
+          const userCreatedAt = user.created_at ? new Date(user.created_at).getTime() : 0
+          const fiveMinutesAgo = Date.now() - 5 * 60 * 1000
+          const isRecentlyCreated = userCreatedAt > fiveMinutesAgo
+          
+          const isNewSignup = !existingProfileById || isRecentlyCreated
           
           // Upsert profile - if existing profile with different ID exists, 
           // this will create a new profile entry (Supabase allows this)
@@ -81,8 +135,9 @@ export async function GET(request: NextRequest) {
               id: user.id,
               email: user.email,
               full_name: fullName,
-              phone: phone,
+              phone: phone, // NULL for OAuth signups
               avatar_url: avatarUrl,
+              registration_method: registrationMethod,
               updated_at: new Date().toISOString(),
             },
             { onConflict: "id" },
@@ -99,7 +154,44 @@ export async function GET(request: NextRequest) {
             user.email?.toLowerCase() === "ankit.koniyal000@gmail.com"
           
           const redirectPath = isSuperAdmin ? "/superadmin" : "/dashboard"
-          return NextResponse.redirect(new URL(redirectPath, requestUrl.origin))
+          const redirectUrl = new URL(redirectPath, requestUrl.origin)
+          
+          // Add welcome parameter for new signups
+          if (isNewSignup) {
+            redirectUrl.searchParams.set("welcome", "true")
+            
+            // Send welcome email if email notifications are enabled
+            try {
+              const { data: profile } = await supabase
+                .from("profiles")
+                .select("email_notifications")
+                .eq("id", user.id)
+                .single()
+              
+              if (user.email && profile?.email_notifications !== false) {
+                const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || requestUrl.origin
+                await fetch(`${siteUrl}/api/notifications/email`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    to: user.email,
+                    type: "welcome",
+                    data: {
+                      userName: fullName || user.email.split("@")[0],
+                    },
+                  }),
+                }).catch((err) => {
+                  console.warn("Failed to send welcome email:", err)
+                  // Don't fail the signup if email fails
+                })
+              }
+            } catch (emailError) {
+              console.warn("Welcome email error:", emailError)
+              // Don't fail the signup if email fails
+            }
+          }
+          
+          return NextResponse.redirect(redirectUrl)
         }
       } catch (upsertErr) {
         console.warn("[v0] Profile ensure in callback failed:", (upsertErr as any)?.message)

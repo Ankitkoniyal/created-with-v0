@@ -1,6 +1,7 @@
 "use client"
 
 import { Suspense } from "react"
+import { Analytics } from "@vercel/analytics/react"
 import { AuthProvider } from "@/hooks/use-auth"
 import { LanguageProvider } from "@/hooks/use-language"
 import { Header } from "@/components/header"
@@ -26,6 +27,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
         expand={false}
       />
       <WebVitalsClient />
+      <Analytics />
     </AuthProvider>
   )
 }

@@ -2,6 +2,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { Metadata } from 'next'
+import { generateItemListSchema, generateBreadcrumbSchema } from '@/lib/seo/structured-data'
 
 interface CategoryPageProps {
   params: { slug: string }
@@ -62,6 +63,8 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
 
 export default async function CategoryPage({ params }: CategoryPageProps) {
   const supabase = createClient()
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://yourdomain.com'
+  
   const { data: category } = await supabase
     .from('categories')
     .select('name, description, slug')
@@ -72,24 +75,52 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
     notFound()
   }
 
-  // Generate structured data
-  const categoryStructuredData = {
+  // Fetch top products in this category for ItemList schema
+  const { data: products } = await supabase
+    .from('products')
+    .select('id, title, images')
+    .eq('category', category.name)
+    .eq('status', 'active')
+    .limit(10)
+    .order('created_at', { ascending: false })
+
+  // Generate ItemList schema with actual products
+  const itemListItems = (products || []).map((product) => ({
+    name: product.title,
+    url: `${baseUrl}/product/${product.id}`,
+    image: product.images?.[0] ? (product.images[0].startsWith('http') ? product.images[0] : `${baseUrl}${product.images[0]}`) : undefined,
+  }))
+
+  const itemListSchema = generateItemListSchema(itemListItems)
+
+  // Breadcrumb schema
+  const breadcrumbSchema = generateBreadcrumbSchema([
+    { name: "Home", url: baseUrl },
+    { name: category.name, url: `${baseUrl}/category/${category.slug}` },
+  ])
+
+  // CollectionPage schema
+  const collectionPageSchema = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
-    "name": `${category.name} - Your Marketplace`,
-    "description": category.description || `Find great deals on ${category.name} in Canada`,
-    "url": `/category/${category.slug}`,
-    "mainEntity": {
-      "@type": "ItemList",
-      "name": category.name
-    }
+    "name": `Buy & Sell ${category.name} in Canada`,
+    "description": category.description || `Find great deals on ${category.name} in Canada. Buy and sell ${category.name} locally with free classifieds.`,
+    "url": `${baseUrl}/category/${category.slug}`,
   }
 
   return (
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(categoryStructuredData) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionPageSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
 
       <div className="container mx-auto px-4 py-8">

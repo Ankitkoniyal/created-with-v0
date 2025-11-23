@@ -22,6 +22,7 @@ const DEFAULT_SETTINGS: Partial<PlatformSettings> = {
   max_images_per_ad: 8,
   max_ad_duration: 30,
   auto_approve_ads: false,
+  auto_approve_delay_minutes: null,
   stripe_enabled: false,
   paypal_enabled: false,
   support_email: "support@marketplace.example.com",

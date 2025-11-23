@@ -1,0 +1,9 @@
+{
+  "crons": [
+    {
+      "path": "/api/admin/products/auto-approve",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}
+

@@ -35,7 +35,11 @@ export async function POST(req: NextRequest) {
       (user.user_metadata?.full_name as string | undefined) ||
       (user.user_metadata?.name as string | undefined) ||
       null
-    const phone = (body?.phone as string | undefined) || (user.user_metadata?.phone as string | undefined) || null
+    // Filter out test/dummy phone numbers
+    const rawPhone = (body?.phone as string | undefined) || (user.user_metadata?.phone as string | undefined) || null
+    const phone = rawPhone && !['1234567890', '123456789', '0000000000', '1111111111'].includes(rawPhone)
+      ? rawPhone
+      : null
     // Google OAuth provides 'picture', other providers may use 'avatar_url'
     const avatarUrl =
       (body?.avatarUrl as string | undefined) ||
@@ -43,7 +47,16 @@ export async function POST(req: NextRequest) {
       (user.user_metadata?.picture as string | undefined) ||
       null
 
+    // Determine registration method (only set if not already set)
+    const provider = (user.app_metadata?.provider as string | undefined) || 'email'
+    const registrationMethod = provider === 'google' ? 'google' 
+      : provider === 'facebook' ? 'facebook'
+      : provider === 'apple' ? 'apple'
+      : provider === 'github' ? 'github'
+      : 'email'
+
     // Upsert minimal profile. Assumes a 'profiles' table with primary key 'id' = auth.user.id
+    // Only update registration_method if it's not already set (to preserve existing data)
     const { error } = await supabase.from("profiles").upsert(
       {
         id: user.id,
@@ -51,6 +64,7 @@ export async function POST(req: NextRequest) {
         full_name: fullName,
         phone: phone,
         avatar_url: avatarUrl,
+        registration_method: registrationMethod,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "id" },

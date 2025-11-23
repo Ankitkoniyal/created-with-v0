@@ -66,9 +66,9 @@ function SellSuccessContent() {
             <div className="mt-6 p-4 bg-muted rounded-lg">
               <h3 className="font-semibold text-sm mb-2">What happens next?</h3>
               <ul className="text-xs text-muted-foreground space-y-1">
-                <li>• Your listing is now live and searchable</li>
-                <li>• Buyers can contact you through our messaging system</li>
-                <li>• You'll receive notifications for any inquiries</li>
+                <li>• Your listing is pending for review</li>
+                <li>• It will be published once approved by our team</li>
+                <li>• You'll receive a notification when it's approved</li>
                 <li>• You can manage your ads from the dashboard</li>
               </ul>
             </div>

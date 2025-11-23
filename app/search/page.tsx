@@ -22,8 +22,20 @@ interface FiltersState {
 export default function SearchPage() {
   const searchParams = useSearchParams()
 
+  // Get location: Priority 1) URL param, 2) localStorage
+  const getLocationFromStorage = () => {
+    if (typeof window === "undefined") return ""
+    const urlLocation = searchParams.get("location") || ""
+    if (urlLocation) return urlLocation
+    try {
+      return localStorage.getItem("user_selected_location") || ""
+    } catch {
+      return ""
+    }
+  }
+
   const urlQuery = searchParams.get("q") || ""
-  const urlLocation = searchParams.get("location") || ""
+  const urlLocation = getLocationFromStorage()
   const urlCategory = searchParams.get("category") || ""
   const urlSubcategory = searchParams.get("subcategory") || ""
   const urlMinPrice = searchParams.get("minPrice") || ""
@@ -64,6 +76,8 @@ export default function SearchPage() {
   }, [searchQuery, filters.category, filters.location])
 
   useEffect(() => {
+    // Re-get location in case localStorage changed
+    const currentLocation = getLocationFromStorage()
     setSearchQuery(urlQuery)
     setFilters({
       category: urlCategory,
@@ -71,10 +85,10 @@ export default function SearchPage() {
       minPrice: urlMinPrice,
       maxPrice: urlMaxPrice,
       condition: urlCondition,
-      location: urlLocation,
+      location: currentLocation,
       sortBy: urlSortBy,
     })
-  }, [urlQuery, urlLocation, urlCategory, urlSubcategory, urlMinPrice, urlMaxPrice, urlCondition, urlSortBy])
+  }, [urlQuery, urlCategory, urlSubcategory, urlMinPrice, urlMaxPrice, urlCondition, urlSortBy, searchParams])
 
   const handleFiltersChange = (newFilters: Partial<FiltersState>) => {
     setFilters((prev) => ({

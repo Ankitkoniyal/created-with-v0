@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { LayoutDashboard, Package, Heart, User, Settings, MessageSquare } from "lucide-react"
+import { LayoutDashboard, Package, Heart, User, Settings, MessageSquare, Search } from "lucide-react"
 import { usePathname } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 import { useState, useEffect } from "react"
@@ -138,6 +138,7 @@ export function DashboardNav() {
     { title: "Overview", href: "/dashboard", icon: LayoutDashboard },
     { title: "My Ads", href: "/dashboard/listings", icon: Package },
     { title: "Favorites", href: "/dashboard/favorites", icon: Heart, badge: dashboardCounts.favorites > 0 ? dashboardCounts.favorites.toString() : undefined },
+    { title: "Saved Searches", href: "/dashboard/saved-searches", icon: Search },
     { title: "Messages", href: "/dashboard/messages", icon: MessageSquare, badge: dashboardCounts.messages > 0 ? dashboardCounts.messages.toString() : undefined },
     { title: "Profile", href: "/dashboard/profile", icon: User },
     { title: "Settings", href: "/dashboard/settings", icon: Settings },

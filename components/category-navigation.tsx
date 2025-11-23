@@ -397,7 +397,7 @@ export function CategoryNavigation() {
             className="absolute top-full left-0 z-50 mt-1 w-[820px] min-h-[420px] max-h-[70vh] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl"
             ref={dropdownRef}
           >
-            <div className="flex h-full">
+            <div className="flex h-full min-h-[420px]">
               <div className="relative flex h-full w-2/5 flex-col bg-gray-900 p-4 text-white">
                 <div className="mb-3 flex items-center justify-between">
                   <span className="text-sm font-semibold uppercase tracking-wide text-gray-200">

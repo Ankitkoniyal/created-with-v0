@@ -53,6 +53,11 @@ export function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="/faq" className="hover:text-primary transition-colors">
+                  FAQ
+                </Link>
+              </li>
+              <li>
                 <Link href="/sell" className="hover:text-primary transition-colors">
                   Sell Your Item
                 </Link>

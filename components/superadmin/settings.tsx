@@ -50,6 +50,7 @@ interface PlatformSettings {
   max_images_per_ad: number
   max_ad_duration: number
   auto_approve_ads: boolean
+  auto_approve_delay_minutes?: number | null
   stripe_enabled: boolean
   paypal_enabled: boolean
   support_email: string | null
@@ -90,6 +91,7 @@ const DEFAULT_SETTINGS: PlatformSettings = {
   max_images_per_ad: 8,
   max_ad_duration: 30,
   auto_approve_ads: false,
+  auto_approve_delay_minutes: null,
   stripe_enabled: false,
   paypal_enabled: false,
   support_email: "support@marketplace.example.com",
@@ -163,8 +165,9 @@ export function Settings() {
   const handleSave = async () => {
     setSaving(true)
     try {
-      const payload: PlatformSettings = {
-        ...settings,
+      // Build payload with all settings
+      const payload: any = {
+        id: "global",
         site_name: settings.site_name.trim() || DEFAULT_SETTINGS.site_name,
         site_description: settings.site_description.trim() || DEFAULT_SETTINGS.site_description,
         site_url: settings.site_url.trim(),
@@ -174,17 +177,90 @@ export function Settings() {
         privacy_url: settings.privacy_url?.trim() || null,
         currency: settings.currency.trim().toUpperCase(),
         currency_symbol: settings.currency_symbol.trim() || DEFAULT_SETTINGS.currency_symbol,
+        enable_notifications: settings.enable_notifications,
+        enable_email_verification: settings.enable_email_verification,
+        enable_user_registration: settings.enable_user_registration,
+        maintenance_mode: settings.maintenance_mode,
+        items_per_page: settings.items_per_page,
+        max_images_per_ad: settings.max_images_per_ad,
+        max_ad_duration: settings.max_ad_duration,
+        auto_approve_ads: settings.auto_approve_ads,
+        auto_approve_delay_minutes: (() => {
+          const value = settings.auto_approve_delay_minutes
+          if (value === null || value === undefined || value === "" || (typeof value === 'string' && value.trim() === "")) {
+            return null
+          }
+          const numValue = typeof value === 'number' ? value : parseInt(String(value), 10)
+          return isNaN(numValue) || numValue < 0 ? null : numValue
+        })(),
+        stripe_enabled: settings.stripe_enabled,
+        paypal_enabled: settings.paypal_enabled,
       }
 
-      const { error } = await supabase.from("platform_settings").upsert(payload, { onConflict: "id" })
-      if (error) throw error
+      // Add optional fields
+      if (settings.require_phone_verification !== undefined) {
+        payload.require_phone_verification = settings.require_phone_verification
+      }
+      if (settings.allow_anonymous_browsing !== undefined) {
+        payload.allow_anonymous_browsing = settings.allow_anonymous_browsing
+      }
+      if (settings.enable_ratings !== undefined) {
+        payload.enable_ratings = settings.enable_ratings
+      }
+      if (settings.enable_comments !== undefined) {
+        payload.enable_comments = settings.enable_comments
+      }
+      if (settings.max_ads_per_user !== undefined) {
+        payload.max_ads_per_user = settings.max_ads_per_user
+      }
+      if (settings.featured_ads_enabled !== undefined) {
+        payload.featured_ads_enabled = settings.featured_ads_enabled
+      }
+      if (settings.featured_ads_price !== undefined) {
+        payload.featured_ads_price = settings.featured_ads_price
+      }
+      if (settings.enable_search_suggestions !== undefined) {
+        payload.enable_search_suggestions = settings.enable_search_suggestions
+      }
+      if (settings.min_price !== undefined) {
+        payload.min_price = settings.min_price
+      }
+      if (settings.max_price !== undefined) {
+        payload.max_price = settings.max_price
+      }
+      if (settings.enable_email_alerts !== undefined) {
+        payload.enable_email_alerts = settings.enable_email_alerts
+      }
+      if (settings.spam_detection_enabled !== undefined) {
+        payload.spam_detection_enabled = settings.spam_detection_enabled
+      }
+      if (settings.auto_delete_expired_ads !== undefined) {
+        payload.auto_delete_expired_ads = settings.auto_delete_expired_ads
+      }
+      if (settings.expired_ads_retention_days !== undefined) {
+        payload.expired_ads_retention_days = settings.expired_ads_retention_days
+      }
+
+      // Use API route to bypass RLS (uses service role key)
+      const response = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settings: payload }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || result.message || "Failed to save settings")
+      }
 
       // Clear cache so changes take effect immediately
       clearSettingsCache()
       toast.success("Settings saved successfully")
     } catch (err: any) {
       console.error("Failed to save settings", err)
-      toast.error(err.message || "Failed to save settings")
+      const errorMessage = err?.message || err?.error?.message || "Failed to save settings. Please check console for details."
+      toast.error(errorMessage)
     } finally {
       setSaving(false)
     }
@@ -333,7 +409,7 @@ export function Settings() {
         >
           <ToggleRow
             label="Require email verification"
-            helper="Users must confirm their email before logging in"
+            helper="Users must confirm their email before logging in (Supabase Auth setting)"
             checked={settings.enable_email_verification}
             onCheckedChange={(checked) => handleInputChange("enable_email_verification", checked)}
             isActive={false}
@@ -347,25 +423,53 @@ export function Settings() {
           />
           <ToggleRow
             label="Allow new registrations"
-            helper="If disabled, only admins can invite users"
+            helper="If disabled, only admins can invite users (Not yet enforced in signup flow)"
             checked={settings.enable_user_registration}
             onCheckedChange={(checked) => handleInputChange("enable_user_registration", checked)}
             isActive={false}
           />
           <ToggleRow
             label="Allow anonymous browsing"
-            helper="Non-logged-in users can browse listings"
+            helper="Non-logged-in users can browse listings (Currently always allowed)"
             checked={settings.allow_anonymous_browsing ?? true}
             onCheckedChange={(checked) => handleInputChange("allow_anonymous_browsing", checked)}
-            isActive={true}
+            isActive={false}
           />
           <ToggleRow
             label="Auto approve listings"
-            helper="Publish new ads immediately without manual review"
+            helper="Publish new ads automatically without manual review"
             checked={settings.auto_approve_ads}
             onCheckedChange={(checked) => handleInputChange("auto_approve_ads", checked)}
-            isActive={false}
+            isActive={true}
           />
+          {settings.auto_approve_ads && (
+            <FieldGroup label="Auto-approve delay (minutes)">
+              <Input
+                type="number"
+                min={0}
+                max={1440}
+                value={settings.auto_approve_delay_minutes === null || settings.auto_approve_delay_minutes === undefined ? "" : String(settings.auto_approve_delay_minutes)}
+                onChange={(e) => {
+                  const value = e.target.value.trim()
+                  if (value === "") {
+                    handleInputChange("auto_approve_delay_minutes", null)
+                  } else {
+                    const numValue = parseInt(value, 10)
+                    if (!isNaN(numValue) && numValue >= 0) {
+                      handleInputChange("auto_approve_delay_minutes", numValue)
+                    }
+                  }
+                }}
+                placeholder="0 = immediate, or enter minutes (e.g., 60 for 1 hour)"
+                className="bg-gray-800 border-gray-700 text-white"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {settings.auto_approve_delay_minutes 
+                  ? `Ads will be auto-approved after ${settings.auto_approve_delay_minutes} minute(s)`
+                  : "Ads will be approved immediately when posted"}
+              </p>
+            </FieldGroup>
+          )}
           <ToggleRow
             label="Maintenance mode"
             helper="Show a maintenance notice to visitors (ACTIVE - Works immediately)"

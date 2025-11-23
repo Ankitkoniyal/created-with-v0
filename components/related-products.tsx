@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react'
 import { ProductGrid } from './product-grid'
 import { createClient } from '@/lib/supabase/client'
+import { logger } from '@/lib/logger'
 
 interface RelatedProductsProps {
   currentProductId: string
@@ -17,7 +18,7 @@ export function RelatedProducts({ currentProductId, category, subcategory }: Rel
 
   useEffect(() => {
     async function fetchRelatedProducts() {
-      console.log('Fetching current product:', currentProductId)
+      logger.debug('Fetching current product', { currentProductId })
       
       const supabase = createClient()
       
@@ -30,11 +31,11 @@ export function RelatedProducts({ currentProductId, category, subcategory }: Rel
           .single()
 
         if (currentError) {
-          console.error('Error fetching current product:', currentError)
+          logger.error('Error fetching current product', { error: currentError, currentProductId })
           return
         }
 
-        console.log('Current product found:', currentProduct)
+        logger.debug('Current product found', { product: currentProduct })
 
         // Build query for related products
         let query = supabase
@@ -46,28 +47,25 @@ export function RelatedProducts({ currentProductId, category, subcategory }: Rel
 
         // Prioritize same subcategory, then same category
         if (currentProduct.subcategory) {
-          console.log('Filtering by subcategory slug:', currentProduct.subcategory)
+          logger.debug('Filtering by subcategory slug', { subcategory: currentProduct.subcategory })
           query = query.eq('subcategory', currentProduct.subcategory)
         } else {
-          console.log('Filtering by category:', currentProduct.category)
+          logger.debug('Filtering by category', { category: currentProduct.category })
           query = query.eq('category', currentProduct.category)
         }
 
         const { data: products, error } = await query
 
-          .limit(4) // Show max 4 related ads
-
-
         if (error) {
-          console.error('Error fetching related products:', error)
+          logger.error('Error fetching related products', { error })
           return
         }
 
-        console.log('Found', products?.length || 0, 'related products')
+        logger.debug('Found related products', { count: products?.length || 0 })
 
         // If no products found in same subcategory/category, get any products from same category
         if (!products || products.length === 0) {
-          console.log('No related products found, fetching from same category')
+          logger.debug('No related products found, fetching from same category')
           const { data: fallbackProducts, error: fallbackError } = await supabase
             .from('products')
             .select('*')
@@ -84,7 +82,7 @@ export function RelatedProducts({ currentProductId, category, subcategory }: Rel
         }
 
       } catch (error) {
-        console.error('Unexpected error:', error)
+        logger.error('Unexpected error in fetchRelatedProducts', { error })
       } finally {
         setLoading(false)
       }

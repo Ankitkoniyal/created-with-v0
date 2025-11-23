@@ -171,11 +171,9 @@ export function SignupForm() {
       console.log("✅ Signup successful:", data.user?.email)
       
       if (data.user) {
-        setSuccessOpen(true)
-        setTimeout(() => {
-          setSuccessOpen(false)
-          router.push("/auth/login?message=check_email")
-        }, 2000)
+        // For email signup, redirect to login with welcome parameter
+        // The login page will handle showing welcome message after email confirmation
+        router.push("/auth/login?welcome=true&message=check_email")
       } else {
         setError("Failed to create account. Please try again.")
         setIsSubmitting(false)

@@ -172,19 +172,39 @@ export async function POST(request: Request) {
               console.warn("Failed to fetch product for notification", productError)
             }
           } else if (productRow?.user_id) {
-            const statusLabel = status.replace(/_/g, " ")
-            const messageParts = [`Your ad "${productRow.title ?? "listing"}" is now ${statusLabel}.`]
+            // Get user email from profiles table
+            const { data: userProfile } = await adminClient
+              .from("profiles")
+              .select("email, email_notifications")
+              .eq("id", productRow.user_id)
+              .single()
+
+            const statusLabel = status === "active" ? "approved and live" : status.replace(/_/g, " ")
+            const titleText = status === "active" 
+              ? "🎉 Your ad has been approved!" 
+              : status === "rejected"
+              ? "Ad status updated"
+              : "Ad status updated"
+            
+            const messageParts = [
+              status === "active" 
+                ? `Great news! Your ad "${productRow.title ?? "listing"}" has been approved and is now live on the platform.`
+                : `Your ad "${productRow.title ?? "listing"}" is now ${statusLabel}.`
+            ]
             if (note) {
               messageParts.push(`Moderator note: ${note}`)
             }
 
+            // Create notification
             await insertNotifications(adminClient, [
               {
                 userId: productRow.user_id,
                 actorId: actor.id,
-                title: "Ad status updated",
+                title: titleText,
                 message: messageParts.join(" "),
                 type: "ad_status_change",
+                link: `/product/${adId}`,
+                priority: status === "active" ? "success" : status === "rejected" ? "warning" : "info",
                 data: {
                   productId: adId,
                   status,
@@ -192,6 +212,34 @@ export async function POST(request: Request) {
                 },
               },
             ])
+
+            // Send email notification if user has email notifications enabled
+            if (userProfile?.email && userProfile?.email_notifications !== false) {
+              try {
+                const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL?.replace('.supabase.co', '') || 'http://localhost:3000'
+                await fetch(`${siteUrl}/api/notifications/email`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    to: userProfile.email,
+                    type: status === "active" ? "ad_approved" : "ad_status_change",
+                    subject: status === "active" 
+                      ? "🎉 Your ad has been approved!"
+                      : `Your ad status has been updated`,
+                    data: {
+                      productTitle: productRow.title,
+                      productId: adId,
+                      status,
+                      note,
+                      productUrl: `${siteUrl}/product/${adId}`,
+                    },
+                  }),
+                })
+              } catch (emailError) {
+                console.warn("Failed to send email notification", emailError)
+                // Don't fail the request if email fails
+              }
+            }
           }
         } catch (notificationError) {
           console.warn("Status update succeeded but notification failed", notificationError)
