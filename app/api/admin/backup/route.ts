@@ -144,13 +144,59 @@ export async function GET() {
       .order("created_at", { ascending: false })
       .limit(1000) // Limit to last 1000 entries
 
+    // Fetch Storage file manifests (list all files in buckets)
+    const storageManifest: Record<string, any[]> = {}
+    const storageBuckets = ['product-images', 'avatars']
+    
+    for (const bucket of storageBuckets) {
+      try {
+        const { data: files, error: storageError } = await adminClient.storage
+          .from(bucket)
+          .list('', {
+            limit: 10000,
+            offset: 0,
+            sortBy: { column: 'created_at', order: 'asc' }
+          })
+        
+        if (storageError) {
+          console.warn(`Failed to list files in bucket ${bucket}:`, storageError)
+          storageManifest[bucket] = []
+        } else {
+          // Get public URLs for each file
+          const filesWithUrls = (files || []).map(file => {
+            const { data: urlData } = adminClient.storage
+              .from(bucket)
+              .getPublicUrl(file.name)
+            
+            return {
+              name: file.name,
+              id: file.id,
+              created_at: file.created_at,
+              updated_at: file.updated_at,
+              last_accessed_at: file.last_accessed_at,
+              metadata: file.metadata,
+              public_url: urlData.publicUrl,
+              size: file.metadata?.size || null,
+              mimetype: file.metadata?.mimetype || null,
+            }
+          })
+          
+          storageManifest[bucket] = filesWithUrls
+        }
+      } catch (err) {
+        console.warn(`Error backing up bucket ${bucket}:`, err)
+        storageManifest[bucket] = []
+      }
+    }
+
     // Compile backup data
     const backupData = {
       metadata: {
         backup_date: new Date().toISOString(),
         backup_type: "full",
-        version: "1.0",
+        version: "2.0", // Updated version to indicate Storage manifest included
         generated_by: user.email,
+        note: "Storage files are listed in storage_manifest. Use /api/admin/backup/download-storage to download actual files.",
       },
       data: {
         profiles: profiles || [],
@@ -165,6 +211,7 @@ export async function GET() {
         moderation_logs: moderationLogs || [],
         audit_logs: auditLogs || [],
       },
+      storage_manifest: storageManifest,
       statistics: {
         total_users: profiles?.length || 0,
         total_products: products?.length || 0,
@@ -174,6 +221,10 @@ export async function GET() {
         total_ratings: ratings?.length || 0,
         // Comments are included in ratings (ratings_with_comments field in user_rating_stats)
         total_reports: reports?.length || 0,
+        total_storage_files: Object.values(storageManifest).reduce((sum, files) => sum + files.length, 0),
+        storage_by_bucket: Object.fromEntries(
+          Object.entries(storageManifest).map(([bucket, files]) => [bucket, files.length])
+        ),
       },
     }
 

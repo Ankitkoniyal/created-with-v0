@@ -195,8 +195,8 @@ export async function POST(request: Request) {
               messageParts.push(`Moderator note: ${note}`)
             }
 
-            // Create notification
-            await insertNotifications(adminClient, [
+            // Create notification for ad owner
+            const ownerNotifications = [
               {
                 userId: productRow.user_id,
                 actorId: actor.id,
@@ -211,7 +211,67 @@ export async function POST(request: Request) {
                   note,
                 },
               },
-            ])
+            ]
+
+            // Notify users who favorited this ad (only for sold/deleted status changes)
+            const favoriteNotifications: Array<{
+              userId: string
+              actorId: string
+              title: string
+              message: string
+              type: string
+              link: string | null
+              priority: string
+              data: Record<string, unknown>
+            }> = []
+
+            if (status === "sold" || status === "deleted" || status === "inactive") {
+              try {
+                // Get all users who favorited this product
+                const { data: favorites, error: favoritesError } = await adminClient
+                  .from("favorites")
+                  .select("user_id")
+                  .eq("product_id", adId)
+
+                if (!favoritesError && favorites && favorites.length > 0) {
+                  // Filter out the ad owner (they already get a notification)
+                  const favoriteUserIds = favorites
+                    .map((f) => f.user_id)
+                    .filter((userId) => userId !== productRow.user_id)
+
+                  const statusMessage = status === "sold" 
+                    ? "has been sold" 
+                    : status === "deleted"
+                    ? "has been deleted"
+                    : "is no longer available"
+
+                  for (const userId of favoriteUserIds) {
+                    favoriteNotifications.push({
+                      userId,
+                      actorId: actor.id,
+                      title: status === "sold" ? "Ad you favorited has been sold" : "Ad you favorited is no longer available",
+                      message: `The ad "${productRow.title ?? "listing"}" you saved to your favorites ${statusMessage}.`,
+                      type: "ad_status_change",
+                      link: status === "deleted" ? null : `/product/${adId}`,
+                      priority: status === "sold" ? "info" : "warning",
+                      data: {
+                        productId: adId,
+                        status,
+                      },
+                    })
+                  }
+                }
+              } catch (error) {
+                console.warn(`Failed to fetch favorites for product ${adId}`, error)
+                // Continue even if favorites fetch fails
+              }
+            }
+
+            // Send all notifications
+            const allNotifications = [...ownerNotifications, ...favoriteNotifications]
+            if (allNotifications.length > 0) {
+              await insertNotifications(adminClient, allNotifications)
+            }
 
             // Send email notification if user has email notifications enabled
             if (userProfile?.email && userProfile?.email_notifications !== false) {

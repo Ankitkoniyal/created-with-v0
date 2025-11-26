@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client"
 import { getOptimizedImageUrl } from "@/lib/images"
 import Image from "next/image"
 import { formatLocation, formatLocationString } from "@/lib/location-utils"
+import { useAuth } from "@/hooks/use-auth"
 
 interface Product {
   id: string
@@ -26,8 +27,10 @@ interface Product {
 }
 
 export function LatestAds() {
+  const { user } = useAuth()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
+  const [favorites, setFavorites] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const fetchLatestAds = async () => {
@@ -54,6 +57,79 @@ export function LatestAds() {
 
     fetchLatestAds()
   }, [])
+
+  // Load user favorites
+  useEffect(() => {
+    async function loadFavorites() {
+      if (!user) {
+        setFavorites(new Set())
+        return
+      }
+      try {
+        const supabase = createClient()
+        const { data, error } = await supabase
+          .from("favorites")
+          .select("product_id")
+          .eq("user_id", user.id)
+        
+        if (!error && data) {
+          setFavorites(new Set(data.map(f => f.product_id)))
+        }
+      } catch (err) {
+        console.error("Failed to load favorites:", err)
+      }
+    }
+    loadFavorites()
+  }, [user])
+
+  const toggleFavorite = async (productId: string, e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    if (!user) {
+      return
+    }
+    
+    const isCurrentlyFavorite = favorites.has(productId)
+    
+    // Optimistically update UI
+    setFavorites((prev) => {
+      const next = new Set(prev)
+      if (isCurrentlyFavorite) {
+        next.delete(productId)
+      } else {
+        next.add(productId)
+      }
+      return next
+    })
+    
+    try {
+      const supabase = createClient()
+      if (isCurrentlyFavorite) {
+        await supabase
+          .from("favorites")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("product_id", productId)
+      } else {
+        await supabase
+          .from("favorites")
+          .insert({ user_id: user.id, product_id: productId })
+      }
+    } catch (err) {
+      // Revert on error
+      setFavorites((prev) => {
+        const next = new Set(prev)
+        if (isCurrentlyFavorite) {
+          next.add(productId)
+        } else {
+          next.delete(productId)
+        }
+        return next
+      })
+      console.error("Failed to toggle favorite:", err)
+    }
+  }
 
   if (loading) {
     return (
@@ -122,14 +198,14 @@ export function LatestAds() {
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="absolute top-1 right-1 bg-white/80 hover:bg-white shadow-xs p-1 h-6 w-6 z-10 rounded-sm"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        // Add to wishlist functionality here
-                      }}
+                      className={`absolute top-1 right-1 shadow-xs p-1 h-6 w-6 z-10 rounded-sm ${
+                        favorites.has(product.id)
+                          ? "bg-white/90 text-red-500"
+                          : "bg-white/80 hover:bg-white text-gray-600"
+                      }`}
+                      onClick={(e) => toggleFavorite(product.id, e)}
                     >
-                      <Heart className="h-3 w-3 text-gray-600" />
+                      <Heart className={`h-3 w-3 ${favorites.has(product.id) ? "fill-current" : ""}`} />
                     </Button>
                     
                     {/* Price Badge */}
@@ -139,14 +215,14 @@ export function LatestAds() {
                   </div>
 
                   {/* Product Info */}
-                  <div className="p-1.5 flex flex-col flex-1 bg-white">
-                    <h4 className="text-xs text-gray-800 leading-tight line-clamp-2 mb-1 font-medium group-hover:text-primary transition-colors">
+                  <div className="p-1.5 flex flex-col flex-1 bg-white min-h-0">
+                    <h4 className="text-xs text-gray-800 leading-tight line-clamp-1 mb-1 font-medium group-hover:text-primary transition-colors truncate min-h-[1rem]">
                       {product.title}
                     </h4>
 
                     <div className="mt-auto space-y-1">
                       {/* Location */}
-                      <div className="flex items-center gap-1 text-xs text-gray-600">
+                      <div className="flex items-center gap-1 text-xs text-gray-600 min-h-[1rem]">
                         <MapPin className="h-3 w-3 flex-shrink-0" />
                         <span className="truncate">
                           {product.city && product.province
@@ -158,10 +234,21 @@ export function LatestAds() {
                       </div>
                       
                       {/* Posted Time */}
-                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                      <div className="flex items-center gap-1 text-xs text-gray-500 min-h-[1rem]">
                         <Clock className="h-3 w-3 flex-shrink-0" />
-                        <span className="truncate">
-                          {new Date(product.created_at).toLocaleDateString()}
+                        <span className="truncate whitespace-nowrap">
+                          {(() => {
+                            const now = new Date()
+                            const posted = new Date(product.created_at)
+                            const diffInHours = Math.floor((now.getTime() - posted.getTime()) / (1000 * 60 * 60))
+                            const diffInDays = Math.floor(diffInHours / 24)
+                            
+                            if (diffInHours < 1) return "Now"
+                            if (diffInHours < 24) return `${diffInHours}h ago`
+                            if (diffInDays === 1) return "1 day ago"
+                            if (diffInDays < 7) return `${diffInDays} days ago`
+                            return posted.toLocaleDateString("en-US", { month: 'short', day: 'numeric' })
+                          })()}
                         </span>
                       </div>
                     </div>

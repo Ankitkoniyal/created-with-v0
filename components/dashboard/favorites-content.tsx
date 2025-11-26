@@ -61,6 +61,14 @@ export function FavoritesContent() {
         } else {
           console.log("[v0] Fetched favorites:", data)
           setFavorites(data || [])
+          
+          // Mark favorites as viewed by saving current timestamp
+          // This will clear the notification count in header
+          if (typeof window !== "undefined") {
+            localStorage.setItem(`favorites_last_view_${user.id}`, new Date().toISOString())
+            // Dispatch event to update header count
+            window.dispatchEvent(new CustomEvent('favoritesViewed'))
+          }
         }
       } catch (error) {
         console.error("Error:", error)

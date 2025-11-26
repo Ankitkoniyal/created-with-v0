@@ -20,6 +20,7 @@ import {
   CATEGORY_SLUG_TO_NAME,
 } from "@/lib/categories"
 import imageCompression from "browser-image-compression"
+import { validateImageFiles, createSafeFilename } from "@/lib/image-validation"
 
 interface ProductFormData {
   title: string
@@ -162,7 +163,7 @@ export function PostProductForm() {
         const status = profileStatus || (user?.user_metadata?.account_status as string) || "active"
         setAccountStatus(status)
       } catch (error) {
-        console.error("Error checking account status:", error)
+        // Error checking account status
       } finally {
         setIsCheckingStatus(false)
       }
@@ -179,12 +180,10 @@ export function PostProductForm() {
     }
 
     try {
-      console.log(`Original image size: ${file.size / 1024 / 1024} MB`);
       const compressedFile = await imageCompression(file, options);
-      console.log(`Compressed image size: ${compressedFile.size / 1024 / 1024} MB`);
       return compressedFile;
     } catch (error) {
-      console.error("Image compression error:", error);
+      // Image compression failed - will use original
       toast.error("There was an error compressing an image.");
       return null;
     }
@@ -253,13 +252,13 @@ export function PostProductForm() {
   useEffect(() => {
     const initializeCategories = () => {
       try {
-        console.log("🔄 Initializing categories from local configuration...")
+        // Initializing categories
         const localCategories = createLocalCategorySeed()
         setCategories(localCategories)
         setSubcategories(buildSubcategoryRecords(localCategories))
         fetchDatabaseCategories()
       } catch (error) {
-        console.error("❌ Error initializing categories:", error)
+        // Error initializing categories - will use fallback
       }
     }
 
@@ -326,7 +325,6 @@ export function PostProductForm() {
   useEffect(() => {
     if (formData.category && subcategories.length > 0) {
       const filtered = subcategories.filter((subcat) => subcat.category_slug === formData.category)
-      console.log(`🔄 Filtered subcategories for ${formData.category}:`, filtered.length)
       setFilteredSubcategories(filtered)
 
       setFormData((prev) => {
@@ -361,7 +359,7 @@ export function PostProductForm() {
           .single()
 
         if (error) {
-          console.error("Error fetching product for edit:", error)
+          // Error fetching product for edit
           toast.error("Failed to load product data for editing")
           router.push("/dashboard/listings")
           return
@@ -399,7 +397,7 @@ export function PostProductForm() {
           })
         }
       } catch (error) {
-        console.error("Error fetching product:", error)
+        // Error fetching product
         toast.error("Failed to load product data")
         router.push("/dashboard/listings")
       } finally {
@@ -423,8 +421,18 @@ export function PostProductForm() {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
 
-    if (formData.images.length + (isEditMode ? formData.imagePreviews.filter(url => !url.startsWith('blob:')).length : 0) + files.length > 5) {
-      toast.error("You can upload a maximum of 5 images.")
+    if (files.length === 0) return
+
+    // Validate image files
+    const validation = validateImageFiles(files)
+    if (!validation.valid) {
+      toast.error(validation.error || "Invalid image files")
+      return
+    }
+
+    const currentImageCount = formData.images.length + (isEditMode ? formData.imagePreviews.filter(url => !url.startsWith('blob:')).length : 0)
+    if (currentImageCount + files.length > 8) {
+      toast.error("You can upload a maximum of 8 images.")
       return
     }
 
@@ -438,8 +446,9 @@ export function PostProductForm() {
       for (let i = 0; i < files.length; i++) {
         const file = files[i]
 
+        // Additional validation (should already be validated, but double-check)
         if (!file.type.startsWith('image/')) {
-          console.warn(`Skipping non-image file: ${file.name}`)
+          toast.error(`Skipping invalid file: ${file.name}`)
           continue
         }
 
@@ -460,7 +469,7 @@ export function PostProductForm() {
       }))
 
     } catch (error) {
-      console.error('Error processing images:', error)
+      // Error processing images
       toast.error('Failed to process some images. Please try again.')
     } finally {
       setIsUploadingImages(false)
@@ -474,7 +483,7 @@ export function PostProductForm() {
       const imageUrl = formData.imagePreviews[index]
       if (imageUrl && imageUrl.startsWith('blob:')) {
         URL.revokeObjectURL(imageUrl)
-        console.log(`Cleaned up blob URL for image at index ${index}`)
+        // Cleaned up blob URL
       }
       
       const isNewImage = imageUrl.startsWith('blob:')
@@ -487,7 +496,7 @@ export function PostProductForm() {
         imagePreviews: prev.imagePreviews.filter((_, i) => i !== index),
       }))
       
-      console.log(`Image removed at index ${index}`)
+      // Image removed
     } catch (error) {
       console.error('Error removing image:', error)
       toast.error('Failed to remove image')
@@ -719,7 +728,7 @@ export function PostProductForm() {
           const fileName = `${user.id}/${Date.now()}-${i}-${sanitizedFileName}`
 
           try {
-            console.log(`📤 Uploading image ${i + 1}: ${fileName}`)
+            // Image upload in progress
 
             // Update progress for each image upload
             setPublishProgress(prev => ({
@@ -787,7 +796,7 @@ export function PostProductForm() {
       if (formData.category) {
         const foundCategory = categories.find(cat => cat.slug === formData.category)
         if (foundCategory) {
-          categoryId = foundCategory.id
+          categoryId = typeof foundCategory.id === 'number' ? foundCategory.id : parseInt(String(foundCategory.id), 10) || 1
           categoryName = foundCategory.name
           categorySlug = foundCategory.slug
         }

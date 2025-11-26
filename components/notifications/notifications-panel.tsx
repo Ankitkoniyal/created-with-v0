@@ -56,6 +56,7 @@ export function NotificationsPanel() {
   const [loadState, setLoadState] = useState<LoadState>("idle")
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [marking, setMarking] = useState(false)
+  const [showRead, setShowRead] = useState(false)
 
   const supabase = useMemo(() => createClient(), [])
 
@@ -119,19 +120,33 @@ export function NotificationsPanel() {
   }, [notifications.length, supabase, user?.id])
 
   const handleMarkSingle = useCallback(
-    async (id: string) => {
+    async (id: string, navigateToLink?: boolean) => {
       if (!user?.id) return
       setMarking(true)
       try {
         await markNotificationsRead(supabase, user.id, [id])
         setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, read: true } : item)))
+        
+        // Refresh notification count in header by dispatching custom event
+        window.dispatchEvent(new CustomEvent('notificationsUpdated'))
+        
+        // Navigate to link if provided and notification has a link
+        if (navigateToLink) {
+          const notification = notifications.find(n => n.id === id)
+          if (notification?.link) {
+            // Small delay to ensure state is updated
+            setTimeout(() => {
+              window.location.href = notification.link!
+            }, 100)
+          }
+        }
       } catch (error) {
         console.error("Failed to mark notification read", error)
       } finally {
         setMarking(false)
       }
     },
-    [supabase, user?.id],
+    [supabase, user?.id, notifications],
   )
 
   if (authLoading) {
@@ -161,6 +176,9 @@ export function NotificationsPanel() {
   }
 
   const unreadCount = notifications.filter((item) => !item.read).length
+  const displayedNotifications = showRead 
+    ? notifications 
+    : notifications.filter((item) => !item.read)
 
   return (
     <main className="mx-auto max-w-5xl p-4 space-y-6">
@@ -172,6 +190,13 @@ export function NotificationsPanel() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setShowRead(!showRead)}
+          >
+            {showRead ? "Hide read" : "Show read"}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => loadNotifications()} disabled={loadState === "loading"}>
             {loadState === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Refresh"}
           </Button>
@@ -193,26 +218,42 @@ export function NotificationsPanel() {
         </Card>
       )}
 
-      {notifications.length === 0 ? (
+      {displayedNotifications.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center gap-3 py-10 text-center text-muted-foreground">
             <Bell className="h-8 w-8" />
-            <p>No notifications yet.</p>
+            <p>{showRead ? "No notifications yet." : "No unread notifications."}</p>
             <p className="text-sm">
-              When important updates happen—like ad approvals, rejections, or messages—you&apos;ll see them here.
+              {showRead 
+                ? "When important updates happen—like ad approvals, rejections, or messages—you'll see them here."
+                : "All caught up! Toggle 'Show read' to see past notifications."}
             </p>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-3">
-          {notifications.map((notification) => {
+          {displayedNotifications.map((notification) => {
             const badgeClass = getBadgeClass(notification.priority)
             const typeLabel = notification.type ? TYPE_LABELS[notification.type] ?? "Update" : "Update"
             return (
-              <Card key={notification.id} className={cn("border border-border", !notification.read && "border-primary/50")}>
+              <Card 
+                key={notification.id} 
+                className={cn(
+                  "border border-border transition-all cursor-pointer hover:shadow-md",
+                  !notification.read && "border-primary/50 bg-primary/5",
+                  notification.read && "opacity-60"
+                )}
+                onClick={() => {
+                  if (!notification.read) {
+                    handleMarkSingle(notification.id, true)
+                  } else if (notification.link) {
+                    window.location.href = notification.link
+                  }
+                }}
+              >
                 <CardContent className="flex flex-col gap-3 py-4 md:flex-row md:items-start md:justify-between">
                   <div className="flex flex-1 gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary flex-shrink-0">
                       {notification.type === "ad_removed" ? (
                         <AlertTriangle className="h-5 w-5" />
                       ) : notification.type === "ad_status_change" ? (
@@ -221,7 +262,7 @@ export function NotificationsPanel() {
                         <Bell className="h-5 w-5" />
                       )}
                     </div>
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h2 className="text-base font-semibold">{notification.title}</h2>
                         <Badge className={badgeClass}>{typeLabel}</Badge>
@@ -230,20 +271,23 @@ export function NotificationsPanel() {
                       <p className="mt-1 text-sm text-muted-foreground">{notification.message}</p>
                       <p className="mt-2 text-xs text-muted-foreground">Received {formatDate(notification.created_at)}</p>
                       {notification.link && (
-                        <a
-                          href={notification.link}
-                          className="mt-2 inline-flex text-sm font-medium text-primary hover:underline"
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          View details
-                        </a>
+                        <span className="mt-2 inline-flex text-sm font-medium text-primary">
+                          {notification.read ? "View details →" : "Click to view →"}
+                        </span>
                       )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     {!notification.read && (
-                      <Button variant="ghost" size="sm" onClick={() => handleMarkSingle(notification.id)} disabled={marking}>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleMarkSingle(notification.id, false)
+                        }} 
+                        disabled={marking}
+                      >
                         Mark as read
                       </Button>
                     )}

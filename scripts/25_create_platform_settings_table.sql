@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS platform_settings (
     -- New recommended settings
     require_phone_verification BOOLEAN DEFAULT false,
     allow_anonymous_browsing BOOLEAN DEFAULT true,
-    enable_ratings BOOLEAN DEFAULT true,
+    enable_ratings BOOLEAN DEFAULT false, -- Feature on hold, disabled by default
     enable_comments BOOLEAN DEFAULT true,
     max_ads_per_user INTEGER DEFAULT 50,
     featured_ads_enabled BOOLEAN DEFAULT false,

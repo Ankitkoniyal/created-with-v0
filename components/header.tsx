@@ -388,8 +388,20 @@ export function Header() {
           return
         }
 
+        // Get favorites count - only show count for NEW favorites (added after last view)
+        // If user hasn't viewed favorites page yet, don't show count (set to 0)
+        const lastFavoritesView = typeof window !== "undefined" 
+          ? localStorage.getItem(`favorites_last_view_${user.id}`) 
+          : null
+        
         const [favoritesResult, messagesResult, notificationsResult] = await Promise.all([
-          supabase.from("favorites").select("*", { count: "exact", head: true }).eq("user_id", user.id),
+          lastFavoritesView 
+            ? supabase
+                .from("favorites")
+                .select("*", { count: "exact", head: true })
+                .eq("user_id", user.id)
+                .gt("created_at", lastFavoritesView)
+            : Promise.resolve({ count: 0, error: null }), // No count if never viewed favorites page
           supabase
             .from("messages")
             .select("*", { count: "exact", head: true })
@@ -447,7 +459,24 @@ export function Header() {
     fetchNotificationCounts()
 
     const interval = setInterval(fetchNotificationCounts, 300000)
-    return () => clearInterval(interval)
+    
+    // Listen for notification updates
+    const handleNotificationUpdate = () => {
+      fetchNotificationCounts()
+    }
+    window.addEventListener('notificationsUpdated', handleNotificationUpdate)
+    
+    // Listen for favorites viewed event
+    const handleFavoritesViewed = () => {
+      fetchNotificationCounts()
+    }
+    window.addEventListener('favoritesViewed', handleFavoritesViewed)
+    
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('notificationsUpdated', handleNotificationUpdate)
+      window.removeEventListener('favoritesViewed', handleFavoritesViewed)
+    }
   }, [user?.id, hasHydrated])
 
   const showUserNav = hasHydrated && !!user

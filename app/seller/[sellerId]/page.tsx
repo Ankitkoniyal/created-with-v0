@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/use-auth"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { UserRatings } from "@/components/user-ratings"
+import { getPlatformSettings } from "@/lib/platform-settings"
 
 interface SellerProfile {
   id: string
@@ -47,9 +48,24 @@ export default function SellerProfilePage({ params }: SellerPageProps) {
   const [activeTab, setActiveTab] = useState("ads")
   const [showContactModal, setShowContactModal] = useState(false)
   const [sellerId, setSellerId] = useState<string>("")
+  const [ratingsEnabled, setRatingsEnabled] = useState(false)
   const { user } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  // Check if ratings are enabled
+  useEffect(() => {
+    const checkRatings = async () => {
+      try {
+        const settings = await getPlatformSettings()
+        setRatingsEnabled(settings.enable_ratings ?? false)
+      } catch (error) {
+        console.error("Failed to check ratings setting:", error)
+        setRatingsEnabled(false)
+      }
+    }
+    checkRatings()
+  }, [])
 
   useEffect(() => {
     const getParams = async () => {
@@ -236,20 +252,22 @@ export default function SellerProfilePage({ params }: SellerPageProps) {
                 <Package className="h-4 w-4 inline mr-2" />
                 Ads ({products.length})
               </button>
-              <button
-                onClick={() => {
-                  setActiveTab("ratings")
-                  router.push(`/seller/${sellerId}?tab=ratings`)
-                }}
-                className={`px-4 py-2 font-medium transition-colors ${
-                  activeTab === "ratings"
-                    ? "border-b-2 border-primary text-primary"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Star className="h-4 w-4 inline mr-2" />
-                Ratings & Reviews
-              </button>
+              {ratingsEnabled && (
+                <button
+                  onClick={() => {
+                    setActiveTab("ratings")
+                    router.push(`/seller/${sellerId}?tab=ratings`)
+                  }}
+                  className={`px-4 py-2 font-medium transition-colors ${
+                    activeTab === "ratings"
+                      ? "border-b-2 border-primary text-primary"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Star className="h-4 w-4 inline mr-2" />
+                  Ratings & Reviews
+                </button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -277,7 +295,7 @@ export default function SellerProfilePage({ params }: SellerPageProps) {
           </Card>
         )}
 
-        {activeTab === "ratings" && sellerId && (
+        {activeTab === "ratings" && sellerId && ratingsEnabled && (
           <UserRatings userId={sellerId} showAddRating={!!user && user.id !== sellerId} />
         )}
       </div>

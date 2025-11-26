@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json().catch(() => ({}))
-    const { status, userId, reason }: { status?: AccountStatus; userId?: string; reason?: string | null } = body
+    const { status, userId, reason, restore }: { status?: AccountStatus; userId?: string; reason?: string | null; restore?: boolean } = body
 
     if (!status) {
       return NextResponse.json({ ok: false, error: "missing_status" }, { status: 400 })
@@ -111,8 +111,14 @@ export async function POST(request: Request) {
         updated_at: new Date().toISOString(),
       }
 
-      // Add deletion fields if status is deleted
-      if (status === "deleted") {
+      // Handle restore - clear deletion fields
+      if (restore && status === "active") {
+        profileUpdate.deleted_at = null
+        profileUpdate.deletion_reason = null
+        // Also clear deactivated_at if restoring
+        profileUpdate.deactivated_at = null
+      } else if (status === "deleted") {
+        // Add deletion fields if status is deleted
         profileUpdate.deleted_at = new Date().toISOString()
         if (reason) {
           profileUpdate.deletion_reason = reason

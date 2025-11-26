@@ -27,9 +27,18 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // Use logger for production-safe error logging
-    if (process.env.NODE_ENV === "development") {
-      console.error("Error caught by boundary:", error, errorInfo)
+    // Log error using error tracking
+    try {
+      const { errorTracker } = require("@/lib/error-tracking")
+      errorTracker.captureException(error, {
+        componentStack: errorInfo.componentStack,
+        errorBoundary: true,
+      })
+    } catch {
+      // Fallback to console if error tracking not available
+      if (process.env.NODE_ENV === "development") {
+        console.error("Error caught by boundary:", error, errorInfo)
+      }
     }
     this.setState({ error, errorInfo })
   }

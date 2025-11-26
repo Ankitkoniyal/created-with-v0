@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
+import { getPlatformSettings } from "@/lib/platform-settings"
 
 interface ContactSellerModalProps {
   product: {
@@ -38,6 +39,19 @@ export function ContactSellerModal({ product, seller, children }: ContactSellerM
   const [message, setMessage] = useState(`Hi! I'm interested in your ${product.title}. Is it still available?`)
   const [isOpen, setIsOpen] = useState(false)
   const [isSending, setIsSending] = useState(false)
+  const [ratingsEnabled, setRatingsEnabled] = useState(false)
+
+  useEffect(() => {
+    const checkRatings = async () => {
+      try {
+        const settings = await getPlatformSettings()
+        setRatingsEnabled(settings.enable_ratings ?? false)
+      } catch (error) {
+        setRatingsEnabled(false)
+      }
+    }
+    checkRatings()
+  }, [])
 
   const handleSendMessage = async () => {
     if (!user) {
@@ -215,11 +229,13 @@ export function ContactSellerModal({ product, seller, children }: ContactSellerM
                   </Badge>
                 )}
               </div>
-              <div className="flex items-center space-x-1 text-sm text-muted-foreground">
-                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                <span>{seller.rating}</span>
-                <span>({seller.totalReviews} reviews)</span>
-              </div>
+              {ratingsEnabled && (
+                <div className="flex items-center space-x-1 text-sm text-muted-foreground">
+                  <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                  <span>{seller.rating}</span>
+                  <span>({seller.totalReviews} reviews)</span>
+                </div>
+              )}
             </div>
           </div>
 

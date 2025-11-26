@@ -624,9 +624,10 @@ export function Settings() {
           <ToggleRow
             label="Enable ratings"
             helper="Allow users to rate products and sellers"
-            checked={settings.enable_ratings ?? true}
+            checked={settings.enable_ratings ?? false}
             onCheckedChange={(checked) => handleInputChange("enable_ratings", checked)}
             isActive={false}
+            helper="Feature is currently on hold - ratings are disabled by default"
           />
           <ToggleRow
             label="Enable comments"

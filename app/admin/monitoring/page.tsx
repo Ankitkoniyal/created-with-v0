@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { RefreshCw, Activity, Database, Users, ShoppingBag } from "lucide-react"
 import { SuperAdminGuard } from "@/components/auth/super-admin-guard"
+import { logger } from "@/lib/logger"
 
 interface HealthStatus {
   status: "healthy" | "unhealthy"
@@ -38,21 +39,55 @@ export default function MonitoringPage() {
 
   const fetchHealth = async () => {
     try {
-      const response = await fetch("/api/health")
+      const response = await fetch("/api/health", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Health check failed: ${response.status} ${response.statusText}`)
+      }
+      
       const data = await response.json()
       setHealth(data)
     } catch (error) {
-      console.error("Failed to fetch health:", error)
+      logger.error("Failed to fetch health:", error)
+      // Set a fallback health status
+      setHealth({
+        status: "unhealthy",
+        timestamp: new Date().toISOString(),
+        checks: {
+          database: { 
+            status: "fail", 
+            responseTime: 0, 
+            error: error instanceof Error ? error.message : "Network error" 
+          },
+          memory: { used: 0, total: 0 },
+        },
+      })
     }
   }
 
   const fetchMetrics = async () => {
     try {
-      const response = await fetch("/api/metrics")
+      const response = await fetch("/api/metrics", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Metrics fetch failed: ${response.status} ${response.statusText}`)
+      }
+      
       const data = await response.json()
       setMetrics(data)
     } catch (error) {
-      console.error("Failed to fetch metrics:", error)
+      logger.error("Failed to fetch metrics:", error)
+      // Don't set metrics on error, let it remain null
     }
   }
 

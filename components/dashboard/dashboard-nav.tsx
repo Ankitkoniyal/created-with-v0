@@ -42,9 +42,22 @@ export function DashboardNav() {
       
       setUserProfile(profile)
 
+      // Get favorites count - only show count for NEW favorites (added after last view)
+      const lastFavoritesView = typeof window !== "undefined" 
+        ? localStorage.getItem(`favorites_last_view_${user.id}`) 
+        : null
+      
+      const favoritesQuery = lastFavoritesView 
+        ? supabase
+            .from("favorites")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", user.id)
+            .gt("created_at", lastFavoritesView)
+        : Promise.resolve({ count: 0, error: null }) // No count if never viewed favorites page
+
       const [adsResult, favoritesResult, messagesResult] = await Promise.all([
         supabase.from("products").select("*", { count: "exact", head: true }).eq("user_id", user.id),
-        supabase.from("favorites").select("*", { count: "exact", head: true }).eq("user_id", user.id),
+        favoritesQuery,
         supabase.from("messages").select("*", { count: "exact", head: true }).eq("receiver_id", user.id).eq("is_read", false),
       ])
 
@@ -91,9 +104,16 @@ export function DashboardNav() {
 
     window.addEventListener('profileUpdated', handleProfileUpdate)
     
+    // Listen for favorites viewed event to refresh counts
+    const handleFavoritesViewed = () => {
+      fetchDashboardData()
+    }
+    window.addEventListener('favoritesViewed', handleFavoritesViewed)
+    
     return () => {
       profileSubscription.unsubscribe()
       window.removeEventListener('profileUpdated', handleProfileUpdate)
+      window.removeEventListener('favoritesViewed', handleFavoritesViewed)
     }
   }, [user?.id])
 

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { createServerClient } from "@supabase/ssr"
 import { formatLocation, formatLocationString } from "@/lib/location-utils"
+import { validateRequestBody, productSchema } from "@/lib/validation"
+import { logger } from "@/lib/logger"
 
 type Product = {
   id: string
@@ -57,10 +59,12 @@ export async function GET(req: Request) {
   const { data, error } = await query.limit(limit)
   const ms = Date.now() - start
   if (error) {
-    console.log("[v0] /api/products error", { ms, error: error.message })
+    logger.error("Products fetch error", { ms, error: error.message })
     return NextResponse.json({ products: [], error: error.message }, { status: 200 })
   }
-  console.log("[v0] /api/products ok", { ms, count: data?.length ?? 0, slow: ms > 400 })
+  if (ms > 400) {
+    logger.warn("Slow products query", { ms, count: data?.length ?? 0 })
+  }
 
   const rows = (data || []) as Product[]
   const products = rows.map((r) => ({
@@ -97,33 +101,35 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
 
-    // Validate required fields
-    if (!body.title || !body.category || !body.condition) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    // Validate request body
+    const validation = validateRequestBody(productSchema, body)
+    if (!validation.success) {
+      logger.warn("Product creation validation failed", { error: validation.error, userId: user.id })
+      return NextResponse.json({ error: validation.error }, { status: 400 })
     }
 
-    // Prepare product data
+    // Prepare product data with validated inputs
     const productData = {
       user_id: user.id,
-      title: body.title.trim(),
-      description: body.description?.trim() || "",
-      price: body.price || 0,
-      condition: body.condition,
-      location: body.location || "",
-      city: body.city || "",
-      province: body.province || "",
-      images: body.images || [],
-      primary_image: body.images?.[0] || null,
+      title: validation.data.title,
+      description: validation.data.description || "",
+      price: validation.data.price || 0,
+      condition: validation.data.condition,
+      location: validation.data.location || "",
+      city: validation.data.city || "",
+      province: validation.data.province || "",
+      images: Array.isArray(body.images) ? body.images.slice(0, 8) : [], // Limit to 8 images
+      primary_image: Array.isArray(body.images) && body.images.length > 0 ? body.images[0] : null,
       category_id: body.category_id || 1,
-      category: body.category || "",
+      category: validation.data.category,
       subcategory: body.subcategory || null,
       brand: body.brand || null,
       model: body.model || null,
-      tags: body.tags || null,
-      features: body.features || null,
-      youtube_url: body.youtube_url || null,
-      website_url: body.website_url || null,
-      show_mobile_number: body.show_mobile_number ?? true,
+      tags: Array.isArray(body.tags) ? body.tags.slice(0, 10) : null, // Limit tags
+      features: Array.isArray(body.features) ? body.features.slice(0, 20) : null, // Limit features
+      youtube_url: validation.data.youtube_url || null,
+      website_url: validation.data.website_url || null,
+      show_mobile_number: validation.data.show_mobile_number ?? true,
       status: "pending", // New ads require admin approval before going live
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -134,17 +140,18 @@ export async function POST(req: Request) {
     const ms = Date.now() - start
 
     if (error) {
-      console.log("[v0] POST /api/products error", { ms, error: error.message })
+      logger.error("Product creation failed", { ms, error: error.message, userId: user.id })
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    console.log("[v0] POST /api/products ok", { ms, id: data.id })
+    logger.info("Product created", { ms, productId: data.id, userId: user.id })
     return NextResponse.json({ product: data }, { status: 201 })
   } catch (error) {
     const ms = Date.now() - start
-    console.log("[v0] POST /api/products error", {
+    logger.error("Product creation exception", {
       ms,
       error: error instanceof Error ? error.message : "Unknown error",
+      userId: user.id,
     })
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }

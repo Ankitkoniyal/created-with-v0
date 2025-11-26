@@ -14,9 +14,18 @@ export default function Error({
   reset: () => void
 }) {
   useEffect(() => {
-    // Log error only in development
-    if (process.env.NODE_ENV === "development") {
-      console.error("Application error:", error)
+    // Log error using error tracking
+    try {
+      const { errorTracker } = require("@/lib/error-tracking")
+      errorTracker.captureException(error, {
+        page: "error-page",
+        digest: error.digest,
+      })
+    } catch {
+      // Fallback to console if error tracking not available
+      if (process.env.NODE_ENV === "development") {
+        console.error("Application error:", error)
+      }
     }
   }, [error])
 

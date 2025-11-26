@@ -99,7 +99,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: deleteError.message }, { status: 400 })
     }
 
-    const notifications =
+    // Notify ad owners
+    const ownerNotifications =
       products
         ?.filter((product) => product?.user_id)
         .map((product) => ({
@@ -119,8 +120,56 @@ export async function POST(request: Request) {
           },
         })) ?? []
 
-    if (notifications.length > 0) {
-      await insertNotifications(adminClient, notifications)
+    // Notify users who favorited these ads
+    const favoriteNotifications: Array<{
+      userId: string
+      actorId: string
+      title: string
+      message: string
+      type: string
+      data: Record<string, unknown>
+    }> = []
+
+    for (const product of products || []) {
+      try {
+        // Get all users who favorited this product
+        const { data: favorites, error: favoritesError } = await adminClient
+          .from("favorites")
+          .select("user_id")
+          .eq("product_id", product.id)
+
+        if (!favoritesError && favorites && favorites.length > 0) {
+          // Filter out the ad owner (they already get a notification)
+          const favoriteUserIds = favorites
+            .map((f) => f.user_id)
+            .filter((userId) => userId !== product.user_id)
+
+          for (const userId of favoriteUserIds) {
+            favoriteNotifications.push({
+              userId,
+              actorId: actor.id,
+              title: "Ad removed from your favorites",
+              message: `The ad "${product.title ?? "listing"}" you saved to your favorites has been removed.`,
+              type: "ad_removed",
+              link: null,
+              priority: "info",
+              data: {
+                productId: product.id,
+                reason: reason ?? null,
+              },
+            })
+          }
+        }
+      } catch (error) {
+        console.warn(`Failed to fetch favorites for product ${product.id}`, error)
+        // Continue with other products even if one fails
+      }
+    }
+
+    // Send all notifications
+    const allNotifications = [...ownerNotifications, ...favoriteNotifications]
+    if (allNotifications.length > 0) {
+      await insertNotifications(adminClient, allNotifications)
     }
 
     return NextResponse.json({ ok: true, deletedIds: adIds })

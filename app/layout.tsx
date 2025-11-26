@@ -2,7 +2,13 @@ import type { Metadata } from "next"
 import { DM_Sans } from "next/font/google"
 import "./globals.css"
 import { ClientLayout } from "./client-layout"
-import { Toaster } from "@/components/ui/toaster" // Import the Toaster
+import { Toaster } from "@/components/ui/toaster"
+import { validateAndLogEnvironment } from "@/lib/env-validation"
+
+// Validate environment on server startup
+if (typeof window === "undefined") {
+  validateAndLogEnvironment()
+}
 
 const dmSans = DM_Sans({
   subsets: ["latin"],

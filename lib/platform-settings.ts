@@ -69,7 +69,7 @@ const DEFAULT_SETTINGS: Partial<PlatformSettings> = {
   // New defaults
   require_phone_verification: false,
   allow_anonymous_browsing: true,
-  enable_ratings: true,
+  enable_ratings: false, // Disabled by default - feature on hold
   enable_comments: true,
   max_ads_per_user: 50,
   featured_ads_enabled: false,

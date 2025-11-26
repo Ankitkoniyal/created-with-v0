@@ -15,6 +15,7 @@ import { useSearchParams, usePathname } from "next/navigation"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { ProductCard } from "@/components/product-card-optimized"
 import { useLanguage } from "@/hooks/use-language"
+import { useAuth } from "@/hooks/use-auth"
 import React from "react"
 
 interface Product {
@@ -60,6 +61,7 @@ const PRODUCTS_PER_PAGE = 20
 
 export function ProductGrid({ products: overrideProducts, searchQuery, filters, showPagination = true }: ProductGridProps) {
   const { t, language } = useLanguage()
+  const { user } = useAuth()
   const searchParams = useSearchParams()
   const pathname = usePathname()
   const [products, setProducts] = useState<Product[]>([])
@@ -439,17 +441,103 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters, 
     }
   }, [hasOverride, overrideProducts, shouldFetch, locationFilter, searchQuery, filters?.category, filters?.subcategory, filters?.condition, filters?.minPrice, filters?.maxPrice, filters?.sortBy])
 
-  const toggleFavorite = useCallback((productId: string, e?: React.MouseEvent) => {
+  // Load user favorites on mount
+  useEffect(() => {
+    async function loadFavorites() {
+      if (!user) {
+        setFavorites(new Set())
+        return
+      }
+      try {
+        const supabase = createClient()
+        const { data, error } = await supabase
+          .from("favorites")
+          .select("product_id")
+          .eq("user_id", user.id)
+        
+        if (!error && data) {
+          setFavorites(new Set(data.map(f => f.product_id)))
+        }
+      } catch (err) {
+        console.error("Failed to load favorites:", err)
+      }
+    }
+    loadFavorites()
+  }, [user])
+
+  const toggleFavorite = useCallback(async (productId: string, e?: React.MouseEvent) => {
     if (e) {
       e.preventDefault()
       e.stopPropagation()
     }
+    
+    if (!user) {
+      // User not logged in - could redirect to login, but for now just return
+      return
+    }
+    
+    const isCurrentlyFavorite = favorites.has(productId)
+    
+    // Optimistically update UI
     setFavorites((prev) => {
       const next = new Set(prev)
-      next.has(productId) ? next.delete(productId) : next.add(productId)
+      if (isCurrentlyFavorite) {
+        next.delete(productId)
+      } else {
+        next.add(productId)
+      }
       return next
     })
-  }, [])
+    
+    try {
+      const supabase = createClient()
+      if (isCurrentlyFavorite) {
+        // Remove from favorites
+        const { error } = await supabase
+          .from("favorites")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("product_id", productId)
+        
+        if (error) {
+          // Revert on error
+          setFavorites((prev) => {
+            const next = new Set(prev)
+            next.add(productId)
+            return next
+          })
+          console.error("Failed to remove favorite:", error)
+        }
+      } else {
+        // Add to favorites
+        const { error } = await supabase
+          .from("favorites")
+          .insert({ user_id: user.id, product_id: productId })
+        
+        if (error) {
+          // Revert on error
+          setFavorites((prev) => {
+            const next = new Set(prev)
+            next.delete(productId)
+            return next
+          })
+          console.error("Failed to add favorite:", error)
+        }
+      }
+    } catch (err) {
+      // Revert on error
+      setFavorites((prev) => {
+        const next = new Set(prev)
+        if (isCurrentlyFavorite) {
+          next.add(productId)
+        } else {
+          next.delete(productId)
+        }
+        return next
+      })
+      console.error("Failed to toggle favorite:", err)
+    }
+  }, [user, favorites])
 
   const formatPrice = useCallback((price?: number, priceType?: string) => {
     if (priceType === "free") return "Free"
@@ -469,11 +557,12 @@ export function ProductGrid({ products: overrideProducts, searchQuery, filters, 
     const now = new Date()
     const posted = new Date(createdAt)
     const diffInHours = Math.floor((now.getTime() - posted.getTime()) / (1000 * 60 * 60))
+    const diffInDays = Math.floor(diffInHours / 24)
 
     if (diffInHours < 1) return language === "fr" ? "Maintenant" : "Now"
-    if (diffInHours < 24) return `${diffInHours}h`
-    if (diffInHours < 48) return "1j"
-    if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}j`
+    if (diffInHours < 24) return `${diffInHours}h ago`
+    if (diffInDays === 1) return language === "fr" ? "1 jour" : "1 day ago"
+    if (diffInDays < 7) return language === "fr" ? `${diffInDays} jours` : `${diffInDays} days ago`
     return posted.toLocaleDateString(language === "fr" ? "fr-FR" : "en-US", { month: 'short', day: 'numeric' })
   }, [language])
 

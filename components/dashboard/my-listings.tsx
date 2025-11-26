@@ -14,6 +14,7 @@ import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
 import Image from "next/image"
 import { getOptimizedImageUrl } from "@/lib/images"
+import { logger } from "@/lib/logger"
 
 interface Product {
   id: string
@@ -181,59 +182,116 @@ export function MyListings() {
     if (!confirm("Are you sure you want to delete this ad?")) return
 
     try {
-      const supabase = createClient()
-      const { error } = await supabase.from("products").delete().eq("id", id).eq("user_id", user?.id)
+      const response = await fetch("/api/products/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId: id }),
+      })
 
-      if (error) {
-        console.error("Error deleting ad:", error)
-        alert("Failed to delete ad")
+      if (!response.ok) {
+        const errorText = await response.text()
+        let errorData
+        try {
+          errorData = JSON.parse(errorText)
+        } catch {
+          errorData = { error: errorText || `HTTP ${response.status}` }
+        }
+        logger.error("Error deleting ad:", errorData)
+        alert(errorData.error || "Failed to delete ad")
+        return
+      }
+
+      const result = await response.json()
+
+      if (!result.ok) {
+        logger.error("Error deleting ad:", result.error)
+        alert(result.error || "Failed to delete ad")
       } else {
         setListings((prev) => prev.filter((listing) => listing.id !== id))
         alert("Ad deleted successfully")
       }
     } catch (error) {
-      console.error("Error:", error)
-      alert("Failed to delete ad")
+      logger.error("Network error deleting ad:", error)
+      alert(error instanceof Error && error.message.includes("fetch") 
+        ? "Network error. Please check your connection and try again." 
+        : "Failed to delete ad")
     }
   }
 
   const handleMarkSold = async (id: string) => {
     try {
-      const supabase = createClient()
-      const { error } = await supabase.from("products").update({ status: "sold" }).eq("id", id).eq("user_id", user?.id)
+      const response = await fetch("/api/products/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId: id, status: "sold" }),
+      })
 
-      if (error) {
-        console.error("Error updating ad:", error)
-        alert("Failed to update ad")
+      if (!response.ok) {
+        const errorText = await response.text()
+        let errorData
+        try {
+          errorData = JSON.parse(errorText)
+        } catch {
+          errorData = { error: errorText || `HTTP ${response.status}` }
+        }
+        logger.error("Error updating ad:", errorData)
+        alert(errorData.error || "Failed to update ad")
+        return
+      }
+
+      const result = await response.json()
+
+      if (!result.ok) {
+        logger.error("Error updating ad:", result.error)
+        alert(result.error || "Failed to update ad")
       } else {
         setListings((prev) => prev.map((listing) => (listing.id === id ? { ...listing, status: "sold" } : listing)))
         alert("Ad marked as sold")
       }
     } catch (error) {
-      console.error("Error:", error)
-      alert("Failed to update ad")
+      logger.error("Network error updating ad:", error)
+      alert(error instanceof Error && error.message.includes("fetch") 
+        ? "Network error. Please check your connection and try again." 
+        : "Failed to update ad")
     }
   }
 
   const handleMarkActive = async (id: string) => {
     try {
-      const supabase = createClient()
-      const { error } = await supabase
-        .from("products")
-        .update({ status: "active" })
-        .eq("id", id)
-        .eq("user_id", user?.id)
+      const response = await fetch("/api/products/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId: id, status: "active" }),
+      })
 
-      if (error) {
-        console.error("Error updating ad:", error)
-        alert("Failed to update ad")
-      } else {
-        setListings((prev) => prev.map((listing) => (listing.id === id ? { ...listing, status: "active" } : listing)))
-        alert("Ad marked as active")
+      if (!response.ok) {
+        const errorText = await response.text()
+        let errorData
+        try {
+          errorData = JSON.parse(errorText)
+        } catch {
+          errorData = { error: errorText || `HTTP ${response.status}` }
+        }
+        logger.error("Error updating ad:", errorData)
+        alert(errorData.error || "Failed to update ad")
+        return
       }
+
+      const result = await response.json()
+
+      if (!result.ok) {
+        logger.error("Error updating ad:", result.error)
+        alert(result.error || "Failed to update ad")
+        return
+      }
+
+      setListings((prev) => prev.map((listing) => (listing.id === id ? { ...listing, status: "active" } : listing)))
+      alert("Ad marked as active")
     } catch (error) {
-      console.error("Error:", error)
-      alert("Failed to update ad")
+      logger.error("Network error updating ad:", error)
+      alert(error instanceof Error && error.message.includes("fetch") 
+        ? "Network error. Please check your connection and try again." 
+        : "Failed to update ad")
     }
   }
 

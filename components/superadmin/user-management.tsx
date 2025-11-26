@@ -213,6 +213,7 @@ export default function UserManagement() {
     type: "soft" | "hard"
   } | null>(null)
   const [deleteReason, setDeleteReason] = useState("")
+  const [hardDeleteConfirm, setHardDeleteConfirm] = useState("")
 
   const [detailOpen, setDetailOpen] = useState(false)
   const [detailUser, setDetailUser] = useState<UserProfile | null>(null)
@@ -537,7 +538,7 @@ export default function UserManagement() {
 
   const handleUserAction = async (
     user: UserProfile,
-    action: "activate" | "suspend" | "ban" | "soft_delete",
+    action: "activate" | "suspend" | "ban" | "soft_delete" | "restore",
     reason?: string,
   ) => {
     if (!user || !currentUser) return;
@@ -550,6 +551,7 @@ export default function UserManagement() {
       suspend: "suspended",
       ban: "banned",
       soft_delete: "deleted",
+      restore: "active",
     };
   
     const status = statusMap[action];
@@ -560,8 +562,8 @@ export default function UserManagement() {
         ? { 
             ...u, 
             status,
-            deleted_at: status === "deleted" ? new Date().toISOString() : null,
-            deletion_reason: reason ?? note ?? null,
+            deleted_at: status === "deleted" ? new Date().toISOString() : (action === "restore" ? null : u.deleted_at),
+            deletion_reason: action === "restore" ? null : (reason ?? note ?? u.deletion_reason),
           } 
         : u
     ));
@@ -569,8 +571,8 @@ export default function UserManagement() {
       setDetailUser({ 
         ...detailUser, 
         status,
-        deleted_at: status === "deleted" ? new Date().toISOString() : null,
-        deletion_reason: reason ?? note ?? null,
+        deleted_at: status === "deleted" ? new Date().toISOString() : (action === "restore" ? null : detailUser.deleted_at),
+        deletion_reason: action === "restore" ? null : (reason ?? note ?? detailUser.deletion_reason),
       });
     }
     
@@ -584,7 +586,8 @@ export default function UserManagement() {
         body: JSON.stringify({ 
           userId: user.id, 
           status,
-          reason: reason ?? note ?? null,
+          reason: action === "restore" ? null : (reason ?? note ?? null),
+          restore: action === "restore",
         }),
       });
 
@@ -615,19 +618,21 @@ export default function UserManagement() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             userId: user.id,
-            title: `Account ${action.replace("_", " ")}`,
-            message: `Your account has been ${action.replace("_", " ")}${reason || note ? `. Reason: ${reason || note}` : ""}.`,
+            title: action === "restore" ? "Account Restored" : `Account ${action.replace("_", " ")}`,
+            message: action === "restore" 
+              ? "Your account has been restored and is now active again."
+              : `Your account has been ${action.replace("_", " ")}${reason || note ? `. Reason: ${reason || note}` : ""}.`,
             type: "account_status_change",
-            priority: status === "banned" || status === "deleted" ? "critical" : "warning",
-            data: { status, reason: reason ?? note },
+            priority: status === "banned" || status === "deleted" ? "critical" : action === "restore" ? "info" : "warning",
+            data: { status, reason: action === "restore" ? null : (reason ?? note) },
           }),
         }).catch(() => {}); // Silently fail if notification endpoint doesn't exist
       } catch (notifError) {
         console.warn("Failed to send notification", notifError);
       }
       
-      toast.success(`User ${action.replace("_", " ")} successful`);
-      await logAdminAction(`user_${action}`, user.id, { status, reason: reason ?? note });
+      toast.success(action === "restore" ? "User account restored successfully" : `User ${action.replace("_", " ")} successful`);
+      await logAdminAction(`user_${action}`, user.id, { status, reason: action === "restore" ? null : (reason ?? note) });
       
     } catch (err: any) {
       console.error('❌ Action failed:', err);
@@ -1317,6 +1322,21 @@ export default function UserManagement() {
                                 <Trash2 className="w-4 h-4 mr-2" /> Soft delete
                               </DropdownMenuItem>
                             )}
+                            {user.status === "deleted" && (
+                              <DropdownMenuItem 
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  handleUserAction(user, "restore").catch(err => {
+                                    console.error("Restore failed:", err)
+                                    toast.error(err.message || "Failed to restore user")
+                                  })
+                                }}
+                                className="focus:bg-green-900/30 text-green-300"
+                              >
+                                <UserCheck className="w-4 h-4 mr-2" /> Restore account
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               className="text-red-400 focus:text-red-300 focus:bg-red-900/30"
@@ -1368,7 +1388,7 @@ export default function UserManagement() {
             <DialogDescription className="text-gray-400">
               {deleteDialog?.type === "soft"
                 ? "The user will be deactivated but data retained. They can be restored by an admin."
-                : "This removes the user and associated access. Data may be purged per compliance."}
+                : "⚠️ WARNING: This action is PERMANENT and CANNOT be undone. All user data, ads, messages, and files will be permanently deleted. This action cannot be recovered."}
             </DialogDescription>
           </DialogHeader>
           {deleteDialog?.type === "soft" && (
@@ -1382,12 +1402,41 @@ export default function UserManagement() {
               />
             </div>
           )}
+          {deleteDialog?.type === "hard" && (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-red-500/50 bg-red-900/20 p-4">
+                <p className="text-sm text-red-300 font-semibold mb-2">⚠️ Permanent Deletion Warning</p>
+                <ul className="text-xs text-red-200 space-y-1 list-disc list-inside">
+                  <li>User account will be permanently removed</li>
+                  <li>All ads, messages, and favorites will be deleted</li>
+                  <li>All uploaded images will be removed from storage</li>
+                  <li>This action CANNOT be undone</li>
+                  <li>No recovery or restore possible</li>
+                </ul>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs uppercase text-gray-400">
+                  Type <span className="text-red-400 font-bold">DELETE</span> to confirm permanent deletion
+                </Label>
+                <Input
+                  value={hardDeleteConfirm}
+                  onChange={(e) => setHardDeleteConfirm(e.target.value)}
+                  placeholder="Type DELETE to confirm"
+                  className="bg-gray-700 border-gray-600 text-white font-mono"
+                />
+                <p className="text-xs text-gray-500">
+                  This is a safety measure to prevent accidental permanent deletion.
+                </p>
+              </div>
+            </div>
+          )}
           <DialogFooter className="flex flex-col gap-2 sm:flex-row">
             <Button
               variant="outline"
               onClick={() => {
                 setDeleteDialog(null)
                 setDeleteReason("")
+                setHardDeleteConfirm("")
               }}
               className="border-gray-600 bg-gray-800 text-gray-100 hover:bg-gray-700 hover:text-white"
             >
@@ -1399,6 +1448,13 @@ export default function UserManagement() {
               onClick={(e) => {
                 e.preventDefault()
                 if (!deleteDialog) return
+                
+                // Require confirmation text for hard delete
+                if (deleteDialog.type === "hard" && hardDeleteConfirm !== "DELETE") {
+                  toast.error("Please type 'DELETE' to confirm permanent deletion")
+                  return
+                }
+                
                 if (deleteDialog.type === "soft") {
                   handleUserAction(deleteDialog.user, "soft_delete", deleteReason).catch(err => {
                     console.error("Soft delete failed:", err)
@@ -1409,7 +1465,7 @@ export default function UserManagement() {
                   })
                 }
               }}
-              disabled={actionLoading === deleteDialog?.user.id}
+              disabled={actionLoading === deleteDialog?.user.id || (deleteDialog?.type === "hard" && hardDeleteConfirm !== "DELETE")}
             >
               {actionLoading === deleteDialog?.user.id ? (
                 <>
@@ -1765,21 +1821,47 @@ export default function UserManagement() {
                     )}
                     Ban account
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-yellow-500 bg-yellow-900/20 text-yellow-300 hover:bg-yellow-900/40"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      if (detailUser) {
-                        setDeleteDialog({ user: detailUser, type: "soft" })
-                      }
-                    }}
-                    disabled={!detailUser}
-                  >
-                    <Trash2 className="w-4 h-4 mr-1" />
-                    Soft delete
-                  </Button>
+                  {detailUser?.status !== "deleted" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-yellow-500 bg-yellow-900/20 text-yellow-300 hover:bg-yellow-900/40"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        if (detailUser) {
+                          setDeleteDialog({ user: detailUser, type: "soft" })
+                        }
+                      }}
+                      disabled={!detailUser}
+                    >
+                      <Trash2 className="w-4 h-4 mr-1" />
+                      Soft delete
+                    </Button>
+                  )}
+                  {detailUser?.status === "deleted" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-green-500 bg-green-900/20 text-green-300 hover:bg-green-900/40"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        if (detailUser) {
+                          handleUserAction(detailUser, "restore").catch(err => {
+                            console.error("Restore failed:", err)
+                            toast.error(err.message || "Failed to restore user")
+                          })
+                        }
+                      }}
+                      disabled={!detailUser || actionLoading === detailUser.id}
+                    >
+                      {actionLoading === detailUser?.id ? (
+                        <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                      ) : (
+                        <UserCheck className="w-4 h-4 mr-1" />
+                      )}
+                      Restore account
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="outline"

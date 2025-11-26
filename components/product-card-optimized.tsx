@@ -315,8 +315,8 @@ const ProductCard = React.memo<ProductCardProps>(({
             </button>
           </div>
 
-          <div className="px-2 py-1 flex flex-col flex-1">
-            <div className="mb-0">
+          <div className="px-2 py-1 flex flex-col flex-1 min-h-0">
+            <div className="mb-1">
               <span className="text-base font-bold text-green-700">
                 {formatPrice(product.price, product.price_type)}
                 {isNegotiable(product.price_type) && (
@@ -325,18 +325,18 @@ const ProductCard = React.memo<ProductCardProps>(({
               </span>
             </div>
               
-            <h4 className="text-sm font-medium text-gray-900 line-clamp-2 mb-0 leading-snug">
+            <h4 className="text-sm font-medium text-gray-900 line-clamp-1 mb-1 leading-tight truncate min-h-[1.25rem]">
               {product.title}
             </h4>
 
-            <div className="mt-1 flex items-end justify-between text-xs text-gray-500">
-              <div className="flex items-center gap-1 min-w-0 pr-1">
+            <div className="mt-auto flex items-center justify-between text-xs text-gray-500 gap-2 min-h-[1rem]">
+              <div className="flex items-center gap-1 min-w-0 flex-1">
                 <span className="truncate"> 
                   {formatLocation(product.city, product.province)}
                 </span>
               </div>
               
-              <div className="flex items-center gap-1 flex-shrink-0"> 
+              <div className="flex items-center gap-1 flex-shrink-0 whitespace-nowrap"> 
                 <span>{formatTimePosted(product.created_at)}</span>
               </div>
             </div>

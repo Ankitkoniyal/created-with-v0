@@ -40,6 +40,7 @@ import { toast } from "@/components/ui/use-toast"
 import { RelatedProducts } from "@/components/related-products"
 import Link from "next/link"
 import { StarRating } from "@/components/ui/star-rating"
+import { getPlatformSettings } from "@/lib/platform-settings"
 
 interface Product {
   id: string
@@ -95,6 +96,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
   const [reportReason, setReportReason] = useState("")
   const [customReportReason, setCustomReportReason] = useState("")
   const [viewsCount, setViewsCount] = useState(product.views || 0)
+  const [ratingsEnabled, setRatingsEnabled] = useState(false)
 
   const shareMenuRef = useRef<HTMLDivElement>(null)
   const reportReasons = [
@@ -183,6 +185,18 @@ export function ProductDetail({ product }: ProductDetailProps) {
   }, [user, product.id, isValidUUID])
 
   useEffect(() => {
+    const checkRatings = async () => {
+      try {
+        const settings = await getPlatformSettings()
+        setRatingsEnabled(settings.enable_ratings ?? false)
+      } catch (error) {
+        setRatingsEnabled(false)
+      }
+    }
+    checkRatings()
+  }, [])
+
+  useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (shareMenuRef.current && !shareMenuRef.current.contains(e.target as Node)) {
         setShowShareMenu(false)
@@ -206,11 +220,9 @@ export function ProductDetail({ product }: ProductDetailProps) {
       if (isFavorited) {
         await supabase.from("favorites").delete().eq("user_id", user.id).eq("product_id", product.id)
         setIsFavorited(false)
-        toast({ title: "Removed from wishlist" })
       } else {
         await supabase.from("favorites").insert({ user_id: user.id, product_id: product.id })
         setIsFavorited(true)
-        toast({ title: "Added to wishlist" })
       }
     } catch (error) {
       toast({ title: "Failed to update wishlist", variant: "destructive" })
@@ -955,7 +967,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                       {product.seller.name}
                     </span>
                     {/* Rating inline with seller name - clickable to view all ratings */}
-                    {product.seller.totalReviews > 0 ? (
+                    {ratingsEnabled && product.seller.totalReviews > 0 ? (
                       <button
                         onClick={(e) => {
                           e.preventDefault()
@@ -971,9 +983,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                           showCount={true}
                         />
                       </button>
-                    ) : (
-                      <span className="text-xs text-muted-foreground ml-2">(No ratings yet)</span>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </Link>

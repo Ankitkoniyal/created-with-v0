@@ -41,8 +41,16 @@ export function SignupForm() {
       return "Please agree to the Terms and Privacy Policy to continue."
     }
 
-    if (password.length < 6) {
-      return "Password must be at least 6 characters long."
+    if (password.length < 8) {
+      return "Password must be at least 8 characters long."
+    }
+    
+    // Check for at least one letter and one number
+    const hasLetter = /[a-zA-Z]/.test(password)
+    const hasNumber = /[0-9]/.test(password)
+    
+    if (!hasLetter || !hasNumber) {
+      return "Password must contain at least one letter and one number."
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -56,8 +64,6 @@ export function SignupForm() {
   const checkEmailExists = async (email: string): Promise<{ exists: boolean; blocked?: boolean; status?: string; message?: string }> => {
     setCheckingEmail(true)
     try {
-      console.log("🔍 Checking email existence:", email)
-      
       const response = await fetch('/api/check-email', {
         method: 'POST',
         headers: {
@@ -69,11 +75,9 @@ export function SignupForm() {
       const data = await response.json()
       
       if (!response.ok) {
-        console.error('Email check API error:', data.error)
         return { exists: false } // Fallback - let signup proceed and catch error there
       }
 
-      console.log('✅ Email check result:', data)
       return {
         exists: data.exists || false,
         blocked: data.blocked || false,
@@ -81,8 +85,8 @@ export function SignupForm() {
         message: data.message
       }
     } catch (error) {
-      console.error('❌ Email check failed:', error)
-      return { exists: false } // Fallback - let signup proceed and catch error there
+      // Fallback - let signup proceed and catch error there
+      return { exists: false }
     } finally {
       setCheckingEmail(false)
     }
@@ -112,10 +116,7 @@ export function SignupForm() {
         return
       }
 
-      console.log("🚀 Attempting signup for:", formValues.email)
-      
-      // RELIABLE email check - this will actually work now
-      console.log("📧 Checking if email exists via API...")
+      // Check if email exists
       const emailCheckResult = await checkEmailExists(formValues.email)
       
       if (emailCheckResult.exists) {
@@ -132,7 +133,7 @@ export function SignupForm() {
         return
       }
 
-      console.log("✅ Email is available, proceeding with signup...")
+      // Email is available, proceeding with signup
 
       const redirectUrl = typeof window !== "undefined"
         ? `${window.location.origin}/auth/callback`
@@ -151,9 +152,7 @@ export function SignupForm() {
       })
 
       if (signUpError) {
-        console.error("❌ Signup error:", signUpError)
-        
-        // DOUBLE CHECK - if somehow email exists but our API missed it
+        // Check if email already exists
         if (signUpError.message?.includes('already exists') || 
             signUpError.message?.includes('user_already_exists') ||
             signUpError.status === 400 || 
@@ -167,8 +166,7 @@ export function SignupForm() {
         return
       }
 
-      // SUCCESS - user created
-      console.log("✅ Signup successful:", data.user?.email)
+      // Signup successful
       
       if (data.user) {
         // For email signup, redirect to login with welcome parameter
@@ -180,7 +178,6 @@ export function SignupForm() {
       }
 
     } catch (error: any) {
-      console.error("❌ Unexpected error:", error)
       setError("An unexpected error occurred. Please try again.")
       setIsSubmitting(false)
     }
@@ -297,9 +294,9 @@ export function SignupForm() {
                   id="password"
                   name="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="Create a password (min. 6 characters)"
+                  placeholder="Create a password (min. 8 characters, letter + number)"
                   className="pl-10 pr-10 h-10 border-gray-300 focus:border-green-800 focus:ring-2 focus:ring-green-800/20 transition-all"
-                  minLength={6}
+                  minLength={8}
                   required
                   disabled={isSubmitting || checkingEmail}
                 />

@@ -630,11 +630,12 @@ export function SearchResults({ searchQuery, filters }: SearchResultsProps) {
     const now = new Date()
     const posted = new Date(createdAt)
     const diffInHours = Math.floor((now.getTime() - posted.getTime()) / (1000 * 60 * 60))
+    const diffInDays = Math.floor(diffInHours / 24)
 
     if (diffInHours < 1) return language === "fr" ? "Maintenant" : "Now"
-    if (diffInHours < 24) return `${diffInHours}h`
-    if (diffInHours < 48) return "1j"
-    if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}j`
+    if (diffInHours < 24) return `${diffInHours}h ago`
+    if (diffInDays === 1) return language === "fr" ? "1 jour" : "1 day ago"
+    if (diffInDays < 7) return language === "fr" ? `${diffInDays} jours` : `${diffInDays} days ago`
     return posted.toLocaleDateString(language === "fr" ? "fr-FR" : "en-US", { month: 'short', day: 'numeric' })
   }
 
